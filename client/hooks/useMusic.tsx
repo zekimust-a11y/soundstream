@@ -213,13 +213,24 @@ const browseUPNPContainer = async (baseUrl: string, containerId: string, serverI
         body: soapEnvelope,
       });
 
+      console.log('UPNP response status:', response.status, 'for URL:', controlUrl);
+      
       if (response.ok) {
         const xml = await response.text();
         console.log('UPNP response received, length:', xml.length);
-        return parseUPNPResponse(xml, serverId);
+        if (xml.length > 0) {
+          console.log('UPNP response preview:', xml.substring(0, 500));
+        }
+        const result = parseUPNPResponse(xml, serverId);
+        if (result.artists.length > 0 || result.albums.length > 0 || result.tracks.length > 0) {
+          return result;
+        }
+      } else {
+        const errorText = await response.text();
+        console.log('UPNP error response:', response.status, errorText.substring(0, 300));
       }
     } catch (error) {
-      console.log('Control URL failed:', controlUrl, error);
+      console.log('Control URL failed:', controlUrl, 'Error:', error instanceof Error ? error.message : String(error));
       continue;
     }
   }
