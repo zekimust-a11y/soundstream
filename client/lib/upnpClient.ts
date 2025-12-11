@@ -11,51 +11,26 @@ export const setBridgeProxyUrl = (url: string | null) => {
 
 export const getBridgeProxyUrl = () => bridgeProxyUrl;
 
-// Proxy-aware SOAP request that routes through bridge when available
+// Try direct request first, fall back to bridge proxy if direct fails
+// This gives best performance in development builds while still working in Expo Go
 const proxySoapRequest = async (
   targetUrl: string,
   soapAction: string,
   body: string,
-  timeoutMs: number = 15000
+  timeoutMs: number = 8000
 ): Promise<{ ok: boolean; status: number; text: string }> => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  
   // Extract action name from SOAP action string for logging
   const actionMatch = soapAction.match(/#(\w+)"?$/);
   const actionName = actionMatch ? actionMatch[1] : 'Unknown';
+  const isLocalTarget = targetUrl.includes('192.168.') || targetUrl.includes('10.') || targetUrl.includes('172.');
   
+  // Try direct request first (works in development builds with proper ATS settings)
   try {
-    // If bridge proxy is available and target is a local IP, route through proxy
-    const isLocalTarget = targetUrl.includes('192.168.') || targetUrl.includes('10.') || targetUrl.includes('172.');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
-    debugLog.request(`${actionName}`, `${isLocalTarget && bridgeProxyUrl ? 'via bridge' : 'direct'} -> ${targetUrl.substring(0, 50)}...`);
+    debugLog.request(`${actionName}`, `direct -> ${targetUrl.substring(0, 60)}...`);
     
-    if (bridgeProxyUrl && isLocalTarget) {
-      const response = await fetch(`${bridgeProxyUrl}/proxy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/xml; charset="utf-8"',
-          'X-Target-URL': targetUrl,
-          'X-SOAP-Action': soapAction,
-        },
-        body: body,
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-      const text = await response.text();
-      
-      if (response.ok) {
-        debugLog.response(`${actionName} OK`, `Status: ${response.status}`);
-      } else {
-        debugLog.error(`${actionName} failed`, `Status: ${response.status} - ${text.substring(0, 100)}`);
-      }
-      
-      return { ok: response.ok, status: response.status, text };
-    }
-    
-    // Direct request
     const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
@@ -70,21 +45,53 @@ const proxySoapRequest = async (
     const text = await response.text();
     
     if (response.ok) {
-      debugLog.response(`${actionName} OK`, `Status: ${response.status}`);
+      debugLog.response(`${actionName} OK (direct)`, `${response.status} in ${timeoutMs}ms`);
     } else {
-      debugLog.error(`${actionName} failed`, `Status: ${response.status} - ${text.substring(0, 100)}`);
+      debugLog.error(`${actionName} failed (direct)`, `${response.status}`);
     }
     
     return { ok: response.ok, status: response.status, text };
-  } catch (error) {
-    clearTimeout(timeoutId);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    debugLog.error(`${actionName} error`, errorMessage);
-    
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Network request timed out');
+  } catch (directError) {
+    // Direct request failed - try bridge proxy if available
+    if (bridgeProxyUrl && isLocalTarget) {
+      debugLog.info(`${actionName} direct failed, trying bridge...`);
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        
+        const response = await fetch(`${bridgeProxyUrl}/proxy`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/xml; charset="utf-8"',
+            'X-Target-URL': targetUrl,
+            'X-SOAP-Action': soapAction,
+          },
+          body: body,
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        const text = await response.text();
+        
+        if (response.ok) {
+          debugLog.response(`${actionName} OK (bridge)`, `${response.status}`);
+        } else {
+          debugLog.error(`${actionName} failed (bridge)`, `${response.status}`);
+        }
+        
+        return { ok: response.ok, status: response.status, text };
+      } catch (bridgeError) {
+        const errorMessage = bridgeError instanceof Error ? bridgeError.message : String(bridgeError);
+        debugLog.error(`${actionName} bridge error`, errorMessage);
+        throw bridgeError;
+      }
     }
-    throw error;
+    
+    // No bridge available, propagate original error
+    const errorMessage = directError instanceof Error ? directError.message : String(directError);
+    debugLog.error(`${actionName} error`, errorMessage);
+    throw directError;
   }
 };
 
