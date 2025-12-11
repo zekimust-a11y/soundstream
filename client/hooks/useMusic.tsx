@@ -657,11 +657,11 @@ const DEFAULT_SERVER: Server = {
 
 const DEFAULT_RENDERER: Renderer = {
   id: 'varese-default',
-  name: 'OLADRAplayer-UPnP/AV',
-  host: '192.168.0.35',
+  name: 'dCS Varese',
+  host: '192.168.0.17',
   port: 49152,
-  avTransportUrl: 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-AVTransport-1',
-  renderingControlUrl: 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-RenderingControl-1',
+  avTransportUrl: 'http://192.168.0.17:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-AVTransport-1',
+  renderingControlUrl: 'http://192.168.0.17:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-RenderingControl-1',
   isActive: true,
 };
 

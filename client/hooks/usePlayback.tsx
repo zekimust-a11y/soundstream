@@ -4,7 +4,7 @@ import * as upnpClient from "@/lib/upnpClient";
 import { OpenHomeServices } from "@/lib/upnpClient";
 
 // Fallback hardcoded URLs (used when bridge is not available)
-const VARESE_BASE = 'http://192.168.0.35:49152';
+const VARESE_BASE = 'http://192.168.0.17:49152';
 const VARESE_UUID_BASE = `${VARESE_BASE}/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799`;
 const VARESE_AVTRANSPORT_URL = `${VARESE_UUID_BASE}/ctl-urn-schemas-upnp-org-service-AVTransport-1`;
 const VARESE_RENDERINGCONTROL_URL = `${VARESE_UUID_BASE}/ctl-urn-schemas-upnp-org-service-RenderingControl-1`;

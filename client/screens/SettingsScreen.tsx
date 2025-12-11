@@ -671,7 +671,7 @@ export default function SettingsScreen() {
                 setIsDiscoveringDevice(true);
                 setDiscoveryResult(null);
                 try {
-                  const result = await upnpClient.discoverDeviceServices('http://192.168.0.35:49152');
+                  const result = await upnpClient.discoverDeviceServices('http://192.168.0.17:49152');
                   setDiscoveryResult(result);
                   
                   if (result.success) {
