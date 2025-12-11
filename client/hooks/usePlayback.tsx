@@ -9,18 +9,21 @@ const VARESE_IPS = ['192.168.0.42', '192.168.0.17'];
 const VARESE_PORT = 16500;
 const VARESE_AVTRANSPORT_PATH = '/Control/LibRygelRenderer/RygelAVTransport';
 const VARESE_RENDERINGCONTROL_PATH = '/Control/LibRygelRenderer/RygelRenderingControl';
+const VARESE_OPENHOME_VOLUME_PATH = '/Control/LibRygelRenderer/RygelVolume';
 
 // Build URLs for a specific IP
 const buildVareseUrls = (ip: string) => ({
   base: `http://${ip}:${VARESE_PORT}`,
   avTransport: `http://${ip}:${VARESE_PORT}${VARESE_AVTRANSPORT_PATH}`,
   renderingControl: `http://${ip}:${VARESE_PORT}${VARESE_RENDERINGCONTROL_PATH}`,
+  openHomeVolume: `http://${ip}:${VARESE_PORT}${VARESE_OPENHOME_VOLUME_PATH}`,
 });
 
 // Default to first IP, will be updated dynamically
 let activeVareseIp = VARESE_IPS[0];
 let VARESE_AVTRANSPORT_URL = buildVareseUrls(activeVareseIp).avTransport;
 let VARESE_RENDERINGCONTROL_URL = buildVareseUrls(activeVareseIp).renderingControl;
+let VARESE_OPENHOME_VOLUME_URL = buildVareseUrls(activeVareseIp).openHomeVolume;
 
 // Try to reach the Varese at any known IP
 const findWorkingVareseIp = async (): Promise<string | null> => {
@@ -53,6 +56,7 @@ const updateActiveVareseIp = (ip: string) => {
   const urls = buildVareseUrls(ip);
   VARESE_AVTRANSPORT_URL = urls.avTransport;
   VARESE_RENDERINGCONTROL_URL = urls.renderingControl;
+  VARESE_OPENHOME_VOLUME_URL = urls.openHomeVolume;
   console.log(`Switched to Varese at ${ip}`);
 };
 
@@ -564,7 +568,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     
     try {
       // Use OpenHome Volume service (dCS devices use this, not standard RenderingControl)
-      await upnpClient.setOpenHomeVolume(VARESE_RENDERINGCONTROL_URL, volumePercent);
+      await upnpClient.setOpenHomeVolume(VARESE_OPENHOME_VOLUME_URL, volumePercent);
       console.log('Volume set successfully to:', volumePercent);
     } catch (error) {
       console.error('Failed to set volume on Varese:', error);
