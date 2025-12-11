@@ -471,7 +471,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
   }, [isPlaying]);
 
-  const next = useCallback(async () => {
+  const next = useCallback(() => {
     console.log('=== NEXT TRACK ===');
     console.log('Queue length:', queue.length);
     console.log('Current track:', currentTrack?.title);
@@ -492,12 +492,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       if (repeat === "all") {
         nextIndex = 0;
       } else {
-        try {
-          await upnpClient.stop(VARESE_AVTRANSPORT_URL, 0);
-        } catch (e) {
-          console.error('Failed to stop playback:', e);
-        }
         setIsPlaying(false);
+        upnpClient.stop(VARESE_AVTRANSPORT_URL, 0).catch(e => {
+          console.error('Failed to stop playback:', e);
+        });
         return;
       }
     } else {
@@ -508,26 +506,23 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setCurrentTrack(nextTrack);
     setCurrentTime(0);
     
-    // Send UPNP commands for the next track
+    // Send UPNP commands for the next track (fire-and-forget)
     if (nextTrack?.uri) {
-      try {
-        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, nextTrack.uri, nextTrack.metadata || '');
-        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-      } catch (error) {
-        console.error('Failed to play next track on Varese:', error);
-      }
+      upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, nextTrack.uri, nextTrack.metadata || '')
+        .then(() => upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1'))
+        .catch(error => {
+          console.error('Failed to play next track on Varese:', error);
+        });
     }
   }, [queue, currentTrack, shuffle, repeat]);
 
-  const previous = useCallback(async () => {
+  const previous = useCallback(() => {
     if (currentTime > 3) {
       setCurrentTime(0);
-      // Seek to beginning on the renderer
-      try {
-        await upnpClient.seek(VARESE_AVTRANSPORT_URL, 0, 'REL_TIME', '00:00:00');
-      } catch (e) {
+      // Seek to beginning on the renderer (fire-and-forget)
+      upnpClient.seek(VARESE_AVTRANSPORT_URL, 0, 'REL_TIME', '00:00:00').catch(e => {
         console.error('Failed to seek:', e);
-      }
+      });
       return;
     }
     if (queue.length === 0) return;
@@ -537,29 +532,27 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setCurrentTrack(prevTrack);
     setCurrentTime(0);
     
-    // Send UPNP commands for the previous track
+    // Send UPNP commands for the previous track (fire-and-forget)
     if (prevTrack?.uri) {
-      try {
-        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, prevTrack.uri, prevTrack.metadata || '');
-        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-      } catch (error) {
-        console.error('Failed to play previous track on Varese:', error);
-      }
+      upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, prevTrack.uri, prevTrack.metadata || '')
+        .then(() => upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1'))
+        .catch(error => {
+          console.error('Failed to play previous track on Varese:', error);
+        });
     }
   }, [queue, currentTrack, currentTime]);
 
-  const seek = useCallback(async (time: number) => {
+  const seek = useCallback((time: number) => {
     setCurrentTime(time);
     // Convert seconds to HH:MM:SS format for UPNP
     const hours = Math.floor(time / 3600);
     const minutes = Math.floor((time % 3600) / 60);
     const seconds = Math.floor(time % 60);
     const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    try {
-      await upnpClient.seek(VARESE_AVTRANSPORT_URL, 0, 'REL_TIME', timeString);
-    } catch (error) {
+    // Fire-and-forget seek command
+    upnpClient.seek(VARESE_AVTRANSPORT_URL, 0, 'REL_TIME', timeString).catch(error => {
       console.error('Failed to seek on Varese:', error);
-    }
+    });
   }, []);
 
   const setVolume = useCallback((vol: number) => {
