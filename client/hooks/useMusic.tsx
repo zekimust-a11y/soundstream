@@ -320,8 +320,10 @@ const browseUPNPContainer = async (baseUrl: string, containerId: string, serverI
 };
 
 const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => {
-  const baseUrl = `http://${server.host}:${server.port}`;
-  console.log('Connecting to UPNP server at:', baseUrl);
+  const upnpPort = server.port === 9790 ? 9791 : server.port;
+  const baseUrl = `http://${server.host}:${upnpPort}`;
+  const contentUrl = `http://${server.host}:${server.port}`;
+  console.log('Connecting to UPNP server at:', baseUrl, '(content at:', contentUrl + ')');
   
   cachedControlUrl = null;
   
