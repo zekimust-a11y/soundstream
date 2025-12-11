@@ -22,7 +22,7 @@
           "audio"
         ],
         "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": false,
+          "NSAllowsArbitraryLoads": true,
           "NSAllowsLocalNetworking": true
         }
       }
