@@ -50,7 +50,7 @@ function ScanningIndicator() {
 
   return (
     <Animated.View style={{ transform: [{ rotate: spin }] }}>
-      <Feather name="loader" size={20} color={Colors.dark.accent} />
+      <Feather name="loader" size={20} color={Colors.light.accent} />
     </Animated.View>
   );
 }
@@ -153,7 +153,7 @@ export default function ServerManagementScreen() {
           {isScanning ? (
             <ScanningIndicator />
           ) : (
-            <Feather name="wifi" size={20} color={Colors.dark.accent} />
+            <Feather name="wifi" size={20} color={Colors.light.accent} />
           )}
           <ThemedText style={styles.scanButtonText}>
             {isScanning ? "Scanning network..." : "Scan for Servers"}
@@ -179,7 +179,7 @@ export default function ServerManagementScreen() {
                   <Feather
                     name={server.type === "upnp" ? "cast" : "server"}
                     size={18}
-                    color={Colors.dark.success}
+                    color={Colors.light.success}
                   />
                 </View>
                 <View style={styles.discoveredServerInfo}>
@@ -207,14 +207,14 @@ export default function ServerManagementScreen() {
                   ]}
                   onPress={() => handleAddDiscoveredServer(server)}
                 >
-                  <Feather name="plus" size={18} color={Colors.dark.buttonText} />
+                  <Feather name="plus" size={18} color={Colors.light.buttonText} />
                 </Pressable>
               </View>
             ))}
           </View>
         ) : scanComplete && !isScanning ? (
           <View style={styles.noServersFound}>
-            <Feather name="info" size={18} color={Colors.dark.textTertiary} />
+            <Feather name="info" size={18} color={Colors.light.textTertiary} />
             <ThemedText style={styles.noServersText}>
               No new servers found on your network
             </ThemedText>
@@ -270,7 +270,7 @@ export default function ServerManagementScreen() {
                         <Feather
                           name={server.type === "upnp" ? "cast" : "server"}
                           size={20}
-                          color={Colors.dark.accent}
+                          color={Colors.light.accent}
                         />
                       </View>
                       <View style={styles.serverInfo}>
@@ -293,7 +293,7 @@ export default function ServerManagementScreen() {
                         <View
                           style={[
                             styles.statusDot,
-                            { backgroundColor: server.connected ? Colors.dark.success : Colors.dark.error },
+                            { backgroundColor: server.connected ? Colors.light.success : Colors.light.error },
                           ]}
                         />
                       </View>
@@ -305,7 +305,7 @@ export default function ServerManagementScreen() {
                       ]}
                       onPress={() => handleRemoveServer(server)}
                     >
-                      <Feather name="trash-2" size={18} color={Colors.dark.error} />
+                      <Feather name="trash-2" size={18} color={Colors.light.error} />
                     </Pressable>
                   </View>
                 ))}
@@ -356,7 +356,7 @@ export default function ServerManagementScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder="My Music Server"
-                    placeholderTextColor={Colors.dark.textTertiary}
+                    placeholderTextColor={Colors.light.textTertiary}
                     value={serverName}
                     onChangeText={setServerName}
                   />
@@ -367,7 +367,7 @@ export default function ServerManagementScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder="192.168.1.100"
-                    placeholderTextColor={Colors.dark.textTertiary}
+                    placeholderTextColor={Colors.light.textTertiary}
                     value={serverHost}
                     onChangeText={setServerHost}
                     autoCapitalize="none"
@@ -380,7 +380,7 @@ export default function ServerManagementScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder="9000"
-                    placeholderTextColor={Colors.dark.textTertiary}
+                    placeholderTextColor={Colors.light.textTertiary}
                     value={serverPort}
                     onChangeText={setServerPort}
                     keyboardType="number-pad"
@@ -408,7 +408,7 @@ export default function ServerManagementScreen() {
                 ]}
                 onPress={() => setShowAddForm(true)}
               >
-                <Feather name="plus" size={20} color={Colors.dark.accent} />
+                <Feather name="plus" size={20} color={Colors.light.accent} />
                 <ThemedText style={styles.addServerButtonText}>
                   Add Server Manually
                 </ThemedText>
@@ -424,7 +424,7 @@ export default function ServerManagementScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: Colors.light.backgroundRoot,
   },
   scrollView: {
     flex: 1,
@@ -443,15 +443,15 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   webNotice: {
     ...Typography.label,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     fontStyle: "italic",
   },
   discoveryCard: {
-    backgroundColor: Colors.dark.backgroundDefault,
+    backgroundColor: Colors.light.backgroundDefault,
     borderRadius: BorderRadius.sm,
     overflow: "hidden",
   },
@@ -462,14 +462,14 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.dark.border,
+    borderBottomColor: Colors.light.border,
   },
   scanButtonScanning: {
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   scanButtonText: {
     ...Typography.body,
-    color: Colors.dark.accent,
+    color: Colors.light.accent,
     fontWeight: "600",
   },
   scanningInfo: {
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
   },
   scanningText: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textAlign: "center",
   },
   discoveredList: {
@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
   },
   discoveredTitle: {
     ...Typography.caption,
-    color: Colors.dark.success,
+    color: Colors.light.success,
     marginBottom: Spacing.md,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
   discoveredServerCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: BorderRadius.xs,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.dark.success + "20",
+    backgroundColor: Colors.light.success + "20",
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.md,
@@ -513,17 +513,17 @@ const styles = StyleSheet.create({
   },
   discoveredServerName: {
     ...Typography.body,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontWeight: "500",
   },
   discoveredServerAddress: {
     ...Typography.caption,
-    color: Colors.dark.accent,
+    color: Colors.light.accent,
     marginTop: 2,
   },
   discoveredServerManufacturer: {
     ...Typography.label,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     marginTop: 2,
   },
   discoveredServerType: {
@@ -531,8 +531,8 @@ const styles = StyleSheet.create({
   },
   serverTypeBadge: {
     ...Typography.label,
-    color: Colors.dark.textSecondary,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    color: Colors.light.textSecondary,
+    backgroundColor: Colors.light.backgroundTertiary,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.xs,
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
   },
   noServersText: {
     ...Typography.caption,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
   },
   configuredSection: {
     marginBottom: Spacing.lg,
@@ -573,13 +573,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     textAlign: "center",
     marginBottom: Spacing.sm,
   },
   emptySubtitle: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.xl,
   },
@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
   },
   serverCard: {
     flexDirection: "row",
-    backgroundColor: Colors.dark.backgroundDefault,
+    backgroundColor: Colors.light.backgroundDefault,
     borderRadius: BorderRadius.sm,
     marginTop: Spacing.md,
     overflow: "hidden",
@@ -603,7 +603,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.dark.accent + "20",
+    backgroundColor: Colors.light.accent + "20",
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.md,
@@ -618,26 +618,26 @@ const styles = StyleSheet.create({
   },
   serverName: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   activeBadge: {
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.xs,
   },
   activeBadgeText: {
     ...Typography.label,
-    color: Colors.dark.buttonText,
+    color: Colors.light.buttonText,
   },
   serverHost: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   serverTypeLabel: {
     ...Typography.label,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     marginTop: 2,
   },
   serverStatus: {
@@ -651,37 +651,37 @@ const styles = StyleSheet.create({
   removeButton: {
     justifyContent: "center",
     paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   addServerButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.dark.backgroundDefault,
+    backgroundColor: Colors.light.backgroundDefault,
     padding: Spacing.lg,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
     borderStyle: "dashed",
     gap: Spacing.sm,
   },
   addServerButtonText: {
     ...Typography.body,
-    color: Colors.dark.accent,
+    color: Colors.light.accent,
   },
   addForm: {
-    backgroundColor: Colors.dark.backgroundDefault,
+    backgroundColor: Colors.light.backgroundDefault,
     borderRadius: BorderRadius.sm,
     padding: Spacing.lg,
   },
   formTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     marginBottom: Spacing.lg,
   },
   typeSelector: {
     flexDirection: "row",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: BorderRadius.xs,
     marginBottom: Spacing.lg,
     padding: 4,
@@ -693,30 +693,30 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xs,
   },
   typeOptionActive: {
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
   },
   typeText: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     fontWeight: "600",
   },
   typeTextActive: {
-    color: Colors.dark.buttonText,
+    color: Colors.light.buttonText,
   },
   inputGroup: {
     marginBottom: Spacing.lg,
   },
   inputLabel: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginBottom: Spacing.sm,
   },
   input: {
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: BorderRadius.xs,
     paddingHorizontal: Spacing.md,
     height: Spacing.inputHeight,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     ...Typography.body,
   },
   formActions: {
@@ -731,6 +731,6 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
 });

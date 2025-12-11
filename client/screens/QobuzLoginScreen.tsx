@@ -79,19 +79,19 @@ export default function QobuzLoginScreen() {
 
             <View style={styles.featureList}>
               <View style={styles.featureItem}>
-                <Feather name="check-circle" size={18} color={Colors.dark.success} />
+                <Feather name="check-circle" size={18} color={Colors.light.success} />
                 <ThemedText style={styles.featureText}>
                   Stream up to 24-bit/192kHz audio
                 </ThemedText>
               </View>
               <View style={styles.featureItem}>
-                <Feather name="check-circle" size={18} color={Colors.dark.success} />
+                <Feather name="check-circle" size={18} color={Colors.light.success} />
                 <ThemedText style={styles.featureText}>
                   Access your Qobuz favorites
                 </ThemedText>
               </View>
               <View style={styles.featureItem}>
-                <Feather name="check-circle" size={18} color={Colors.dark.success} />
+                <Feather name="check-circle" size={18} color={Colors.light.success} />
                 <ThemedText style={styles.featureText}>
                   Search millions of tracks
                 </ThemedText>
@@ -140,7 +140,7 @@ export default function QobuzLoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="your@email.com"
-              placeholderTextColor={Colors.dark.textTertiary}
+              placeholderTextColor={Colors.light.textTertiary}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -155,7 +155,7 @@ export default function QobuzLoginScreen() {
               <TextInput
                 style={styles.passwordInput}
                 placeholder="Enter your password"
-                placeholderTextColor={Colors.dark.textTertiary}
+                placeholderTextColor={Colors.light.textTertiary}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
@@ -171,7 +171,7 @@ export default function QobuzLoginScreen() {
                 <Feather
                   name={showPassword ? "eye-off" : "eye"}
                   size={20}
-                  color={Colors.dark.textSecondary}
+                  color={Colors.light.textSecondary}
                 />
               </Pressable>
             </View>
@@ -208,7 +208,7 @@ export default function QobuzLoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: Colors.light.backgroundRoot,
   },
   scrollView: {
     flex: 1,
@@ -232,13 +232,13 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.display,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     textAlign: "center",
     marginBottom: Spacing.sm,
   },
   subtitle: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textAlign: "center",
   },
   form: {
@@ -249,28 +249,28 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginBottom: Spacing.sm,
   },
   input: {
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: BorderRadius.xs,
     paddingHorizontal: Spacing.md,
     height: Spacing.inputHeight,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     ...Typography.body,
   },
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: BorderRadius.xs,
   },
   passwordInput: {
     flex: 1,
     paddingHorizontal: Spacing.md,
     height: Spacing.inputHeight,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     ...Typography.body,
   },
   eyeButton: {
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   },
   disclaimer: {
     ...Typography.caption,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     textAlign: "center",
     marginTop: Spacing.lg,
   },
@@ -292,12 +292,12 @@ const styles = StyleSheet.create({
   },
   helpTitle: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginBottom: Spacing.xs,
   },
   helpLink: {
     ...Typography.body,
-    color: Colors.dark.accent,
+    color: Colors.light.accent,
   },
   connectedState: {
     flex: 1,
@@ -306,18 +306,18 @@ const styles = StyleSheet.create({
   },
   connectedTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     marginBottom: Spacing.sm,
   },
   connectedSubtitle: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textAlign: "center",
     marginBottom: Spacing["2xl"],
   },
   featureList: {
     alignSelf: "stretch",
-    backgroundColor: Colors.dark.backgroundDefault,
+    backgroundColor: Colors.light.backgroundDefault,
     borderRadius: BorderRadius.sm,
     padding: Spacing.lg,
     marginBottom: Spacing["2xl"],
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
   },
   featureText: {
     ...Typography.body,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   disconnectButton: {
     paddingVertical: Spacing.md,
@@ -338,6 +338,6 @@ const styles = StyleSheet.create({
   },
   disconnectButtonText: {
     ...Typography.body,
-    color: Colors.dark.error,
+    color: Colors.light.error,
   },
 });

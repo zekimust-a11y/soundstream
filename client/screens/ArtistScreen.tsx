@@ -47,7 +47,7 @@ export default function ArtistScreen() {
       >
         <View style={styles.artistHeader}>
           <View style={styles.artistImagePlaceholder}>
-            <Feather name="user" size={64} color={Colors.dark.textTertiary} />
+            <Feather name="user" size={64} color={Colors.light.textTertiary} />
           </View>
           <ThemedText style={styles.artistName}>{route.params.name}</ThemedText>
           <ThemedText style={styles.artistMeta}>
@@ -96,7 +96,7 @@ export default function ArtistScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: Colors.light.backgroundRoot,
   },
   scrollView: {
     flex: 1,
@@ -112,19 +112,19 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: Spacing.lg,
   },
   artistName: {
     ...Typography.display,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     textAlign: "center",
   },
   artistMeta: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
   },
   section: {
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     marginBottom: Spacing.lg,
   },
   albumGrid: {
@@ -151,11 +151,11 @@ const styles = StyleSheet.create({
   },
   albumTitle: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   albumYear: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
   },
 });

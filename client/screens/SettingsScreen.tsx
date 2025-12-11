@@ -41,7 +41,7 @@ function SettingRow({
   onPress,
   showChevron = true,
   rightElement,
-  iconColor = Colors.dark.text,
+  iconColor = Colors.light.text,
 }: SettingRowProps) {
   return (
     <Pressable
@@ -66,7 +66,7 @@ function SettingRow({
         <ThemedText style={styles.settingValue}>{value}</ThemedText>
       ) : null}
       {showChevron && onPress ? (
-        <Feather name="chevron-right" size={20} color={Colors.dark.textTertiary} />
+        <Feather name="chevron-right" size={20} color={Colors.light.textTertiary} />
       ) : null}
     </Pressable>
   );
@@ -97,7 +97,7 @@ export default function SettingsScreen() {
           <View style={styles.sectionContent}>
             <SettingRow
               icon="server"
-              iconColor={Colors.dark.accent}
+              iconColor={Colors.light.accent}
               title="Music Servers"
               subtitle={
                 servers.length > 0
@@ -178,7 +178,7 @@ export default function SettingsScreen() {
           <View style={styles.sectionContent}>
             <SettingRow
               icon="disc"
-              iconColor={Colors.dark.accentSecondary}
+              iconColor={Colors.light.accentSecondary}
               title="Gapless Playback"
               subtitle="Seamless transitions between tracks"
               showChevron={false}
@@ -187,16 +187,16 @@ export default function SettingsScreen() {
                   value={gapless}
                   onValueChange={setGapless}
                   trackColor={{
-                    false: Colors.dark.backgroundTertiary,
-                    true: Colors.dark.accent,
+                    false: Colors.light.backgroundTertiary,
+                    true: Colors.light.accent,
                   }}
-                  thumbColor={Colors.dark.text}
+                  thumbColor={Colors.light.text}
                 />
               }
             />
             <SettingRow
               icon="git-merge"
-              iconColor={Colors.dark.accentSecondary}
+              iconColor={Colors.light.accentSecondary}
               title="Crossfade"
               subtitle="Blend tracks together"
               showChevron={false}
@@ -205,16 +205,16 @@ export default function SettingsScreen() {
                   value={crossfade}
                   onValueChange={setCrossfade}
                   trackColor={{
-                    false: Colors.dark.backgroundTertiary,
-                    true: Colors.dark.accent,
+                    false: Colors.light.backgroundTertiary,
+                    true: Colors.light.accent,
                   }}
-                  thumbColor={Colors.dark.text}
+                  thumbColor={Colors.light.text}
                 />
               }
             />
             <SettingRow
               icon="bar-chart-2"
-              iconColor={Colors.dark.accentSecondary}
+              iconColor={Colors.light.accentSecondary}
               title="Volume Normalization"
               subtitle="Balance volume across tracks"
               showChevron={false}
@@ -223,10 +223,10 @@ export default function SettingsScreen() {
                   value={normalization}
                   onValueChange={setNormalization}
                   trackColor={{
-                    false: Colors.dark.backgroundTertiary,
-                    true: Colors.dark.accent,
+                    false: Colors.light.backgroundTertiary,
+                    true: Colors.light.accent,
                   }}
-                  thumbColor={Colors.dark.text}
+                  thumbColor={Colors.light.text}
                 />
               }
             />
@@ -251,7 +251,7 @@ export default function SettingsScreen() {
                 </ThemedText>
               </View>
               {streamingQuality === "cd" ? (
-                <Feather name="check-circle" size={20} color={Colors.dark.accent} />
+                <Feather name="check-circle" size={20} color={Colors.light.accent} />
               ) : (
                 <View style={styles.radioEmpty} />
               )}
@@ -276,7 +276,7 @@ export default function SettingsScreen() {
                 </ThemedText>
               </View>
               {streamingQuality === "hires" ? (
-                <Feather name="check-circle" size={20} color={Colors.dark.accent} />
+                <Feather name="check-circle" size={20} color={Colors.light.accent} />
               ) : (
                 <View style={styles.radioEmpty} />
               )}
@@ -289,20 +289,20 @@ export default function SettingsScreen() {
           <View style={styles.sectionContent}>
             <SettingRow
               icon="info"
-              iconColor={Colors.dark.textSecondary}
+              iconColor={Colors.light.textSecondary}
               title="Version"
               value="1.0.0"
               showChevron={false}
             />
             <SettingRow
               icon="file-text"
-              iconColor={Colors.dark.textSecondary}
+              iconColor={Colors.light.textSecondary}
               title="Privacy Policy"
               onPress={() => {}}
             />
             <SettingRow
               icon="file"
-              iconColor={Colors.dark.textSecondary}
+              iconColor={Colors.light.textSecondary}
               title="Terms of Service"
               onPress={() => {}}
             />
@@ -316,7 +316,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: Colors.light.backgroundRoot,
   },
   scrollView: {
     flex: 1,
@@ -329,14 +329,14 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 1,
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
   },
   sectionContent: {
-    backgroundColor: Colors.dark.backgroundDefault,
+    backgroundColor: Colors.light.backgroundDefault,
     marginHorizontal: Spacing.lg,
     borderRadius: BorderRadius.sm,
     overflow: "hidden",
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.dark.border,
+    borderBottomColor: Colors.light.border,
   },
   iconContainer: {
     width: 32,
@@ -361,23 +361,23 @@ const styles = StyleSheet.create({
   },
   settingTitle: {
     ...Typography.body,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   settingSubtitle: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   settingValue: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginRight: Spacing.sm,
   },
   connectedBadge: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: Colors.dark.success + "30",
+    backgroundColor: Colors.light.success + "30",
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.sm,
@@ -387,10 +387,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.dark.border,
+    borderBottomColor: Colors.light.border,
   },
   qualityOptionActive: {
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   qualityInfo: {
     flex: 1,
@@ -402,11 +402,11 @@ const styles = StyleSheet.create({
   },
   qualityTitle: {
     ...Typography.body,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   qualitySubtitle: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   radioEmpty: {
@@ -414,17 +414,17 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: Colors.dark.textTertiary,
+    borderColor: Colors.light.textTertiary,
   },
   hiResBadge: {
-    backgroundColor: Colors.dark.warning + "30",
+    backgroundColor: Colors.light.warning + "30",
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.xs,
   },
   hiResBadgeText: {
     ...Typography.label,
-    color: Colors.dark.warning,
+    color: Colors.light.warning,
   },
   libraryStats: {
     flexDirection: "row",

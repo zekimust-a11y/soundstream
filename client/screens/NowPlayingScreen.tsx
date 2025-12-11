@@ -47,7 +47,7 @@ function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
         onPress={onSelect}
       >
         <View style={[styles.zoneIcon, zone.isActive && styles.zoneIconActive]}>
-          <Feather name={iconName} size={20} color={zone.isActive ? Colors.dark.accent : Colors.dark.textSecondary} />
+          <Feather name={iconName} size={20} color={zone.isActive ? Colors.light.accent : Colors.light.textSecondary} />
         </View>
         <View style={styles.zoneInfo}>
           <ThemedText style={[styles.zoneName, zone.isActive && styles.zoneNameActive]}>
@@ -63,23 +63,23 @@ function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
         >
           <View style={[styles.checkbox, zone.isActive && styles.checkboxActive]}>
             {zone.isActive ? (
-              <Feather name="check" size={14} color={Colors.dark.buttonText} />
+              <Feather name="check" size={14} color={Colors.light.buttonText} />
             ) : null}
           </View>
         </Pressable>
       </Pressable>
       {zone.isActive ? (
         <View style={styles.zoneVolume}>
-          <Feather name="volume" size={14} color={Colors.dark.textTertiary} />
+          <Feather name="volume" size={14} color={Colors.light.textTertiary} />
           <Slider
             style={styles.zoneVolumeSlider}
             minimumValue={0}
             maximumValue={1}
             value={zone.volume}
             onValueChange={onVolumeChange}
-            minimumTrackTintColor={Colors.dark.accent}
-            maximumTrackTintColor={Colors.dark.backgroundTertiary}
-            thumbTintColor={Colors.dark.accent}
+            minimumTrackTintColor={Colors.light.accent}
+            maximumTrackTintColor={Colors.light.backgroundTertiary}
+            thumbTintColor={Colors.light.accent}
           />
           <ThemedText style={styles.zoneVolumeText}>{Math.round(zone.volume * 100)}%</ThemedText>
         </View>
@@ -124,7 +124,7 @@ export default function NowPlayingScreen() {
             style={({ pressed }) => [styles.closeButton, { opacity: pressed ? 0.6 : 1 }]}
             onPress={() => navigation.goBack()}
           >
-            <Feather name="chevron-down" size={28} color={Colors.dark.text} />
+            <Feather name="chevron-down" size={28} color={Colors.light.text} />
           </Pressable>
         </View>
         <View style={styles.emptyState}>
@@ -149,13 +149,13 @@ export default function NowPlayingScreen() {
           style={({ pressed }) => [styles.closeButton, { opacity: pressed ? 0.6 : 1 }]}
           onPress={() => navigation.goBack()}
         >
-          <Feather name="chevron-down" size={28} color={Colors.dark.text} />
+          <Feather name="chevron-down" size={28} color={Colors.light.text} />
         </Pressable>
         <ThemedText style={styles.headerTitle}>Now Playing</ThemedText>
         <Pressable
           style={({ pressed }) => [styles.menuButton, { opacity: pressed ? 0.6 : 1 }]}
         >
-          <Feather name="more-horizontal" size={24} color={Colors.dark.text} />
+          <Feather name="more-horizontal" size={24} color={Colors.light.text} />
         </Pressable>
       </View>
 
@@ -184,9 +184,9 @@ export default function NowPlayingScreen() {
             maximumValue={currentTrack.duration}
             value={currentTime}
             onSlidingComplete={seek}
-            minimumTrackTintColor={Colors.dark.accent}
-            maximumTrackTintColor={Colors.dark.backgroundTertiary}
-            thumbTintColor={Colors.dark.accent}
+            minimumTrackTintColor={Colors.light.accent}
+            maximumTrackTintColor={Colors.light.backgroundTertiary}
+            thumbTintColor={Colors.light.accent}
           />
           <View style={styles.timeLabels}>
             <ThemedText style={styles.timeLabel}>
@@ -206,7 +206,7 @@ export default function NowPlayingScreen() {
             <Feather
               name="shuffle"
               size={20}
-              color={shuffle ? Colors.dark.accent : Colors.dark.textSecondary}
+              color={shuffle ? Colors.light.accent : Colors.light.textSecondary}
             />
           </Pressable>
 
@@ -214,7 +214,7 @@ export default function NowPlayingScreen() {
             style={({ pressed }) => [styles.controlButton, { opacity: pressed ? 0.6 : 1 }]}
             onPress={previous}
           >
-            <Feather name="skip-back" size={32} color={Colors.dark.text} />
+            <Feather name="skip-back" size={32} color={Colors.light.text} />
           </Pressable>
 
           <Pressable
@@ -227,7 +227,7 @@ export default function NowPlayingScreen() {
             <Feather
               name={isPlaying ? "pause" : "play"}
               size={32}
-              color={Colors.dark.buttonText}
+              color={Colors.light.buttonText}
               style={!isPlaying ? { marginLeft: 4 } : undefined}
             />
           </Pressable>
@@ -236,7 +236,7 @@ export default function NowPlayingScreen() {
             style={({ pressed }) => [styles.controlButton, { opacity: pressed ? 0.6 : 1 }]}
             onPress={next}
           >
-            <Feather name="skip-forward" size={32} color={Colors.dark.text} />
+            <Feather name="skip-forward" size={32} color={Colors.light.text} />
           </Pressable>
 
           <Pressable
@@ -246,7 +246,7 @@ export default function NowPlayingScreen() {
             <Feather
               name={repeat === "one" ? "repeat" : "repeat"}
               size={20}
-              color={repeat !== "off" ? Colors.dark.accent : Colors.dark.textSecondary}
+              color={repeat !== "off" ? Colors.light.accent : Colors.light.textSecondary}
             />
             {repeat === "one" ? (
               <View style={styles.repeatOneBadge}>
@@ -257,18 +257,18 @@ export default function NowPlayingScreen() {
         </View>
 
         <View style={styles.volumeContainer}>
-          <Feather name="volume" size={16} color={Colors.dark.textSecondary} />
+          <Feather name="volume" size={16} color={Colors.light.textSecondary} />
           <Slider
             style={styles.volumeSlider}
             minimumValue={0}
             maximumValue={1}
             value={volume}
             onValueChange={setVolume}
-            minimumTrackTintColor={Colors.dark.textSecondary}
-            maximumTrackTintColor={Colors.dark.backgroundTertiary}
-            thumbTintColor={Colors.dark.textSecondary}
+            minimumTrackTintColor={Colors.light.textSecondary}
+            maximumTrackTintColor={Colors.light.backgroundTertiary}
+            thumbTintColor={Colors.light.textSecondary}
           />
-          <Feather name="volume-2" size={16} color={Colors.dark.textSecondary} />
+          <Feather name="volume-2" size={16} color={Colors.light.textSecondary} />
         </View>
 
         <View style={[styles.deviceSelector, { marginBottom: insets.bottom + Spacing.xl }]}>
@@ -276,13 +276,13 @@ export default function NowPlayingScreen() {
             style={({ pressed }) => [styles.deviceButton, { opacity: pressed ? 0.6 : 1 }]}
             onPress={() => setShowZoneModal(true)}
           >
-            <Feather name="speaker" size={16} color={Colors.dark.accent} />
+            <Feather name="speaker" size={16} color={Colors.light.accent} />
             <ThemedText style={styles.deviceText}>
               {activeZones.length > 1 
                 ? `${activeZones.length} zones` 
                 : activeZone?.name || "Select zone"}
             </ThemedText>
-            <Feather name="chevron-up" size={16} color={Colors.dark.textSecondary} />
+            <Feather name="chevron-up" size={16} color={Colors.light.textSecondary} />
           </Pressable>
         </View>
       </View>
@@ -339,7 +339,7 @@ export default function NowPlayingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: Colors.light.backgroundRoot,
   },
   header: {
     flexDirection: "row",
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
@@ -386,12 +386,12 @@ const styles = StyleSheet.create({
   },
   trackTitle: {
     ...Typography.display,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     textAlign: "center",
   },
   trackArtist: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
   },
   progressContainer: {
@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
   },
   timeLabel: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   controls: {
     flexDirection: "row",
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
     justifyContent: "center",
     alignItems: "center",
     marginHorizontal: Spacing.lg,
@@ -439,14 +439,14 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
     justifyContent: "center",
     alignItems: "center",
   },
   repeatOneText: {
     fontSize: 9,
     fontWeight: "700",
-    color: Colors.dark.buttonText,
+    color: Colors.light.buttonText,
   },
   volumeContainer: {
     flexDirection: "row",
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
   deviceButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     borderRadius: BorderRadius.full,
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
   },
   deviceText: {
     ...Typography.caption,
-    color: Colors.dark.accent,
+    color: Colors.light.accent,
   },
   emptyState: {
     flex: 1,
@@ -489,13 +489,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     textAlign: "center",
     marginBottom: Spacing.sm,
   },
   emptySubtitle: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textAlign: "center",
   },
   modalOverlay: {
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: Colors.dark.backgroundDefault,
+    backgroundColor: Colors.light.backgroundDefault,
     borderTopLeftRadius: BorderRadius.md,
     borderTopRightRadius: BorderRadius.md,
     paddingTop: Spacing.md,
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
   modalHandle: {
     width: 40,
     height: 4,
-    backgroundColor: Colors.dark.textTertiary,
+    backgroundColor: Colors.light.textTertiary,
     borderRadius: 2,
     alignSelf: "center",
     marginBottom: Spacing.lg,
@@ -524,11 +524,11 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   modalSubtitle: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
   },
   zoneList: {
@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
   },
   zoneItem: {
     marginBottom: Spacing.md,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: BorderRadius.sm,
     overflow: "hidden",
   },
@@ -546,33 +546,33 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   zoneHeaderActive: {
-    backgroundColor: Colors.dark.accent + "10",
+    backgroundColor: Colors.light.accent + "10",
   },
   zoneIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: Colors.light.backgroundTertiary,
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.md,
   },
   zoneIconActive: {
-    backgroundColor: Colors.dark.accent + "20",
+    backgroundColor: Colors.light.accent + "20",
   },
   zoneInfo: {
     flex: 1,
   },
   zoneName: {
     ...Typography.body,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   zoneNameActive: {
-    color: Colors.dark.accent,
+    color: Colors.light.accent,
   },
   zoneType: {
     ...Typography.caption,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     marginTop: 2,
   },
   zoneToggle: {
@@ -583,13 +583,13 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: Colors.dark.textTertiary,
+    borderColor: Colors.light.textTertiary,
     justifyContent: "center",
     alignItems: "center",
   },
   checkboxActive: {
-    backgroundColor: Colors.dark.accent,
-    borderColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
+    borderColor: Colors.light.accent,
   },
   zoneVolume: {
     flexDirection: "row",
@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
     paddingTop: Spacing.xs,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.dark.border,
+    borderTopColor: Colors.light.border,
   },
   zoneVolumeSlider: {
     flex: 1,
@@ -607,20 +607,20 @@ const styles = StyleSheet.create({
   },
   zoneVolumeText: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     width: 40,
     textAlign: "right",
   },
   doneButton: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.sm,
     alignItems: "center",
   },
   doneButtonText: {
     ...Typography.bodyBold,
-    color: Colors.dark.buttonText,
+    color: Colors.light.buttonText,
   },
 });

@@ -51,7 +51,7 @@ function FloatingNowPlayingButton() {
             <Feather
               name={isPlaying ? "pause" : "play"}
               size={16}
-              color={Colors.dark.text}
+              color={Colors.light.text}
               style={styles.floatingIcon}
             />
           </View>
@@ -69,13 +69,13 @@ export default function MainTabNavigator() {
       <Tab.Navigator
         initialRouteName="BrowseTab"
         screenOptions={{
-          tabBarActiveTintColor: Colors.dark.accent,
-          tabBarInactiveTintColor: Colors.dark.tabIconDefault,
+          tabBarActiveTintColor: Colors.light.accent,
+          tabBarInactiveTintColor: Colors.light.tabIconDefault,
           tabBarStyle: {
             position: "absolute",
             backgroundColor: Platform.select({
               ios: "transparent",
-              android: Colors.dark.backgroundRoot,
+              android: Colors.light.backgroundRoot,
             }),
             borderTopWidth: 0,
             elevation: 0,
@@ -84,7 +84,7 @@ export default function MainTabNavigator() {
             Platform.OS === "ios" ? (
               <BlurView
                 intensity={100}
-                tint="dark"
+                tint="light"
                 style={StyleSheet.absoluteFill}
               />
             ) : null,
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   floatingButton: {
     position: "absolute",
     alignSelf: "center",
-    backgroundColor: Colors.dark.accentSecondary,
+    backgroundColor: Colors.light.accentSecondary,
     borderRadius: BorderRadius.full,
     padding: Spacing.sm,
     ...Platform.select({

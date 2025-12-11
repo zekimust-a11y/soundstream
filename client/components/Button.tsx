@@ -62,7 +62,7 @@ export function Button({
       style={[
         styles.button,
         {
-          backgroundColor: Colors.dark.accent,
+          backgroundColor: Colors.light.accent,
           opacity: disabled ? 0.5 : 1,
         },
         style,
@@ -73,7 +73,7 @@ export function Button({
       {title ? (
         <ThemedText
           type="body"
-          style={[styles.buttonText, { color: Colors.dark.buttonText }]}
+          style={[styles.buttonText, { color: Colors.light.buttonText }]}
         >
           {title}
         </ThemedText>

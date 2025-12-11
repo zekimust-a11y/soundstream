@@ -114,13 +114,13 @@ export default function SearchScreen() {
           onPress={() => handleResultPress(item)}
         >
           <View style={styles.artistPlaceholder}>
-            <Feather name="user" size={20} color={Colors.dark.textTertiary} />
+            <Feather name="user" size={20} color={Colors.light.textTertiary} />
           </View>
           <View style={styles.resultInfo}>
             <ThemedText style={styles.resultTitle}>{artist.name}</ThemedText>
             <ThemedText style={styles.resultSubtitle}>Artist</ThemedText>
           </View>
-          <Feather name="chevron-right" size={20} color={Colors.dark.textTertiary} />
+          <Feather name="chevron-right" size={20} color={Colors.light.textTertiary} />
         </Pressable>
       );
     } else if (item.type === "album") {
@@ -143,7 +143,7 @@ export default function SearchScreen() {
               Album • {album.artist}
             </ThemedText>
           </View>
-          <Feather name="chevron-right" size={20} color={Colors.dark.textTertiary} />
+          <Feather name="chevron-right" size={20} color={Colors.light.textTertiary} />
         </Pressable>
       );
     } else {
@@ -181,11 +181,11 @@ export default function SearchScreen() {
             <Feather 
               name={isFavorite ? "heart" : "heart"} 
               size={18} 
-              color={isFavorite ? Colors.dark.error : Colors.dark.textTertiary} 
+              color={isFavorite ? Colors.light.error : Colors.light.textTertiary} 
               style={isFavorite ? { opacity: 1 } : { opacity: 0.5 }}
             />
           </Pressable>
-          <Feather name="play-circle" size={24} color={Colors.dark.accent} />
+          <Feather name="play-circle" size={24} color={Colors.light.accent} />
         </Pressable>
       );
     }
@@ -204,11 +204,11 @@ export default function SearchScreen() {
     <ThemedView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <View style={styles.searchContainer}>
-          <Feather name="search" size={18} color={Colors.dark.textSecondary} style={styles.searchIcon} />
+          <Feather name="search" size={18} color={Colors.light.textSecondary} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search music..."
-            placeholderTextColor={Colors.dark.textTertiary}
+            placeholderTextColor={Colors.light.textTertiary}
             value={query}
             onChangeText={handleSearch}
             autoCapitalize="none"
@@ -222,7 +222,7 @@ export default function SearchScreen() {
                 setResults({ artists: [], albums: [], tracks: [] });
               }}
             >
-              <Feather name="x" size={18} color={Colors.dark.textSecondary} />
+              <Feather name="x" size={18} color={Colors.light.textSecondary} />
             </Pressable>
           ) : null}
         </View>
@@ -260,7 +260,7 @@ export default function SearchScreen() {
                 ]}
                 onPress={() => setSourceFilter("all")}
               >
-                <Feather name="globe" size={12} color={sourceFilter === "all" ? Colors.dark.text : Colors.dark.textSecondary} />
+                <Feather name="globe" size={12} color={sourceFilter === "all" ? Colors.light.text : Colors.light.textSecondary} />
                 <ThemedText style={[styles.sourceChipText, sourceFilter === "all" && styles.sourceChipTextActive]}>
                   All Sources
                 </ThemedText>
@@ -273,7 +273,7 @@ export default function SearchScreen() {
                 ]}
                 onPress={() => setSourceFilter("local")}
               >
-                <Feather name="server" size={12} color={sourceFilter === "local" ? Colors.dark.text : Colors.dark.textSecondary} />
+                <Feather name="server" size={12} color={sourceFilter === "local" ? Colors.light.text : Colors.light.textSecondary} />
                 <ThemedText style={[styles.sourceChipText, sourceFilter === "local" && styles.sourceChipTextActive]}>
                   Local
                 </ThemedText>
@@ -308,7 +308,7 @@ export default function SearchScreen() {
         ListEmptyComponent={
           query.length > 0 && !isSearching ? (
             <View style={styles.emptyState}>
-              <Feather name="search" size={48} color={Colors.dark.textTertiary} />
+              <Feather name="search" size={48} color={Colors.light.textTertiary} />
               <ThemedText style={styles.emptyTitle}>No results found</ThemedText>
               <ThemedText style={styles.emptySubtitle}>
                 Try a different search term
@@ -316,7 +316,7 @@ export default function SearchScreen() {
             </View>
           ) : query.length === 0 ? (
             <View style={styles.emptyState}>
-              <Feather name="search" size={48} color={Colors.dark.textTertiary} />
+              <Feather name="search" size={48} color={Colors.light.textTertiary} />
               <ThemedText style={styles.emptyTitle}>Search your library</ThemedText>
               <ThemedText style={styles.emptySubtitle}>
                 Find artists, albums, and tracks
@@ -332,7 +332,7 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: Colors.light.backgroundRoot,
   },
   header: {
     paddingHorizontal: Spacing.lg,
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.md,
   },
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     height: Spacing.inputHeight,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     ...Typography.body,
   },
   clearButton: {
@@ -366,17 +366,17 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   tabActive: {
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
   },
   tabText: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   tabTextActive: {
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontWeight: "600",
   },
   listContent: {
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.dark.border,
+    borderBottomColor: Colors.light.border,
   },
   resultImage: {
     width: 48,
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -413,11 +413,11 @@ const styles = StyleSheet.create({
   },
   resultTitle: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   resultSubtitle: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   emptyState: {
     alignItems: "center",
@@ -426,14 +426,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     textAlign: "center",
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   emptySubtitle: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textAlign: "center",
   },
   sourceFilters: {
@@ -448,27 +448,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
     gap: 4,
   },
   sourceChipActive: {
-    backgroundColor: Colors.dark.accentSecondary,
-    borderColor: Colors.dark.accentSecondary,
+    backgroundColor: Colors.light.accentSecondary,
+    borderColor: Colors.light.accentSecondary,
   },
   sourceChipText: {
     ...Typography.label,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   sourceChipTextActive: {
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   qobuzIcon: {
     fontSize: 10,
     fontWeight: "700",
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   qobuzIconActive: {
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   trackTitleRow: {
     flexDirection: "row",

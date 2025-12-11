@@ -43,7 +43,7 @@ export default function QueueScreen() {
         onPress={() => playTrack(item, queue)}
       >
         <View style={styles.dragHandle}>
-          <Feather name="menu" size={18} color={Colors.dark.textTertiary} />
+          <Feather name="menu" size={18} color={Colors.light.textTertiary} />
         </View>
         <Image
           source={item.albumArt || require("../assets/images/placeholder-album.png")}
@@ -68,7 +68,7 @@ export default function QueueScreen() {
           style={({ pressed }) => [styles.removeButton, { opacity: pressed ? 0.6 : 1 }]}
           onPress={() => removeFromQueue(actualIndex)}
         >
-          <Feather name="x" size={18} color={Colors.dark.textSecondary} />
+          <Feather name="x" size={18} color={Colors.light.textSecondary} />
         </Pressable>
       </Pressable>
     );
@@ -120,9 +120,9 @@ export default function QueueScreen() {
               </ThemedText>
             </View>
             {isPlaying ? (
-              <Feather name="volume-2" size={20} color={Colors.dark.accent} />
+              <Feather name="volume-2" size={20} color={Colors.light.accent} />
             ) : (
-              <Feather name="pause" size={20} color={Colors.dark.textSecondary} />
+              <Feather name="pause" size={20} color={Colors.light.textSecondary} />
             )}
           </View>
         </View>
@@ -150,7 +150,7 @@ export default function QueueScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: Colors.light.backgroundRoot,
   },
   header: {
     flexDirection: "row",
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...Typography.display,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   clearButton: {
     paddingVertical: Spacing.sm,
@@ -169,11 +169,11 @@ const styles = StyleSheet.create({
   },
   clearButtonText: {
     ...Typography.body,
-    color: Colors.dark.accent,
+    color: Colors.light.accent,
   },
   sectionLabel: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 1,
     paddingHorizontal: Spacing.lg,
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   nowPlayingCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     marginHorizontal: Spacing.lg,
     padding: Spacing.md,
     borderRadius: BorderRadius.sm,
@@ -202,11 +202,11 @@ const styles = StyleSheet.create({
   },
   nowPlayingTitle: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   nowPlayingArtist: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
@@ -220,10 +220,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.dark.border,
+    borderBottomColor: Colors.light.border,
   },
   trackRowActive: {
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     marginHorizontal: -Spacing.lg,
     paddingHorizontal: Spacing.lg,
     borderRadius: BorderRadius.xs,
@@ -242,18 +242,18 @@ const styles = StyleSheet.create({
   },
   trackTitle: {
     ...Typography.body,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   trackTitleActive: {
-    color: Colors.dark.accent,
+    color: Colors.light.accent,
   },
   trackArtist: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   trackDuration: {
     ...Typography.caption,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     marginRight: Spacing.md,
   },
   removeButton: {
@@ -272,13 +272,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     textAlign: "center",
     marginBottom: Spacing.sm,
   },
   emptySubtitle: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textAlign: "center",
   },
 });

@@ -48,12 +48,12 @@ function PlaylistCard({
           <Image source={coverArt} style={styles.coverImage} contentFit="cover" />
         ) : (
           <View style={styles.coverPlaceholder}>
-            <Feather name="music" size={32} color={Colors.dark.textTertiary} />
+            <Feather name="music" size={32} color={Colors.light.textTertiary} />
           </View>
         )}
         {playlist.tracks.length > 0 ? (
           <View style={styles.playlistOverlay}>
-            <Feather name="play" size={24} color={Colors.dark.text} />
+            <Feather name="play" size={24} color={Colors.light.text} />
           </View>
         ) : null}
       </View>
@@ -70,7 +70,7 @@ function PlaylistCard({
         style={({ pressed }) => [styles.deleteButton, { opacity: pressed ? 0.6 : 1 }]}
         onPress={onDelete}
       >
-        <Feather name="trash-2" size={18} color={Colors.dark.error} />
+        <Feather name="trash-2" size={18} color={Colors.light.error} />
       </Pressable>
     </Pressable>
   );
@@ -145,14 +145,14 @@ export default function PlaylistsScreen() {
           onPress={() => handleMoveTrackUp(index)}
           disabled={index === 0}
         >
-          <Feather name="chevron-up" size={16} color={index === 0 ? Colors.dark.textTertiary + "40" : Colors.dark.textSecondary} />
+          <Feather name="chevron-up" size={16} color={index === 0 ? Colors.light.textTertiary + "40" : Colors.light.textSecondary} />
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.reorderButton, { opacity: pressed ? 0.6 : 1 }]}
           onPress={() => handleMoveTrackDown(index)}
           disabled={!selectedPlaylist || index === selectedPlaylist.tracks.length - 1}
         >
-          <Feather name="chevron-down" size={16} color={!selectedPlaylist || index === selectedPlaylist.tracks.length - 1 ? Colors.dark.textTertiary + "40" : Colors.dark.textSecondary} />
+          <Feather name="chevron-down" size={16} color={!selectedPlaylist || index === selectedPlaylist.tracks.length - 1 ? Colors.light.textTertiary + "40" : Colors.light.textSecondary} />
         </Pressable>
       </View>
       <Image
@@ -169,7 +169,7 @@ export default function PlaylistsScreen() {
         style={({ pressed }) => [styles.removeButton, { opacity: pressed ? 0.6 : 1 }]}
         onPress={() => selectedPlaylist && removeFromPlaylist(selectedPlaylist.id, item.id)}
       >
-        <Feather name="x" size={16} color={Colors.dark.textTertiary} />
+        <Feather name="x" size={16} color={Colors.light.textTertiary} />
       </Pressable>
     </Pressable>
   );
@@ -189,7 +189,7 @@ export default function PlaylistsScreen() {
             style={({ pressed }) => [styles.createButton, { opacity: pressed ? 0.8 : 1 }]}
             onPress={() => setShowCreateModal(true)}
           >
-            <Feather name="plus" size={20} color={Colors.dark.buttonText} />
+            <Feather name="plus" size={20} color={Colors.light.buttonText} />
             <ThemedText style={styles.createButtonText}>New</ThemedText>
           </Pressable>
         </View>
@@ -197,7 +197,7 @@ export default function PlaylistsScreen() {
         {playlists.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Feather name="list" size={48} color={Colors.dark.textTertiary} />
+              <Feather name="list" size={48} color={Colors.light.textTertiary} />
             </View>
             <ThemedText style={styles.emptyTitle}>No playlists yet</ThemedText>
             <ThemedText style={styles.emptySubtitle}>
@@ -207,7 +207,7 @@ export default function PlaylistsScreen() {
               style={({ pressed }) => [styles.emptyButton, { opacity: pressed ? 0.8 : 1 }]}
               onPress={() => setShowCreateModal(true)}
             >
-              <Feather name="plus" size={18} color={Colors.dark.buttonText} />
+              <Feather name="plus" size={18} color={Colors.light.buttonText} />
               <ThemedText style={styles.emptyButtonText}>Create Playlist</ThemedText>
             </Pressable>
           </View>
@@ -240,7 +240,7 @@ export default function PlaylistsScreen() {
             <TextInput
               style={styles.modalInput}
               placeholder="Playlist name"
-              placeholderTextColor={Colors.dark.textTertiary}
+              placeholderTextColor={Colors.light.textTertiary}
               value={newPlaylistName}
               onChangeText={setNewPlaylistName}
               autoFocus
@@ -299,7 +299,7 @@ export default function PlaylistsScreen() {
                       />
                     ) : (
                       <View style={styles.detailCoverPlaceholder}>
-                        <Feather name="music" size={40} color={Colors.dark.textTertiary} />
+                        <Feather name="music" size={40} color={Colors.light.textTertiary} />
                       </View>
                     )}
                   </View>
@@ -313,7 +313,7 @@ export default function PlaylistsScreen() {
                         style={({ pressed }) => [styles.playAllButton, { opacity: pressed ? 0.8 : 1 }]}
                         onPress={() => handlePlayPlaylist(selectedPlaylist)}
                       >
-                        <Feather name="play" size={16} color={Colors.dark.buttonText} />
+                        <Feather name="play" size={16} color={Colors.light.buttonText} />
                         <ThemedText style={styles.playAllButtonText}>Play All</ThemedText>
                       </Pressable>
                     ) : null}
@@ -321,7 +321,7 @@ export default function PlaylistsScreen() {
                 </View>
                 {selectedPlaylist.tracks.length === 0 ? (
                   <View style={styles.emptyPlaylist}>
-                    <Feather name="music" size={32} color={Colors.dark.textTertiary} />
+                    <Feather name="music" size={32} color={Colors.light.textTertiary} />
                     <ThemedText style={styles.emptyPlaylistText}>
                       No tracks in this playlist yet
                     </ThemedText>
@@ -349,7 +349,7 @@ export default function PlaylistsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: Colors.light.backgroundRoot,
   },
   scrollView: {
     flex: 1,
@@ -365,12 +365,12 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.display,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   createButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.full,
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     ...Typography.caption,
-    color: Colors.dark.buttonText,
+    color: Colors.light.buttonText,
     fontWeight: "600",
   },
   emptyState: {
@@ -391,26 +391,26 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: Spacing.xl,
   },
   emptyTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     marginBottom: Spacing.sm,
   },
   emptySubtitle: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.xl,
   },
   emptyButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.sm,
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   },
   emptyButtonText: {
     ...Typography.bodyBold,
-    color: Colors.dark.buttonText,
+    color: Colors.light.buttonText,
   },
   playlistGrid: {
     gap: Spacing.md,
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
   playlistCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.backgroundDefault,
+    backgroundColor: Colors.light.backgroundDefault,
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
   },
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
   coverPlaceholder: {
     width: "100%",
     height: "100%",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -464,11 +464,11 @@ const styles = StyleSheet.create({
   },
   playlistName: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   playlistMeta: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   deleteButton: {
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   createModalContent: {
-    backgroundColor: Colors.dark.backgroundDefault,
+    backgroundColor: Colors.light.backgroundDefault,
     borderRadius: BorderRadius.md,
     padding: Spacing.xl,
     width: "85%",
@@ -489,15 +489,15 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     marginBottom: Spacing.lg,
     textAlign: "center",
   },
   modalInput: {
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     ...Typography.body,
     marginBottom: Spacing.lg,
   },
@@ -512,24 +512,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelButton: {
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   cancelButtonText: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   confirmButton: {
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
   },
   confirmButtonText: {
     ...Typography.bodyBold,
-    color: Colors.dark.buttonText,
+    color: Colors.light.buttonText,
   },
   buttonDisabled: {
     opacity: 0.5,
   },
   detailModalContent: {
-    backgroundColor: Colors.dark.backgroundDefault,
+    backgroundColor: Colors.light.backgroundDefault,
     borderTopLeftRadius: BorderRadius.md,
     borderTopRightRadius: BorderRadius.md,
     paddingTop: Spacing.md,
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
   modalHandle: {
     width: 40,
     height: 4,
-    backgroundColor: Colors.dark.textTertiary,
+    backgroundColor: Colors.light.textTertiary,
     borderRadius: 2,
     alignSelf: "center",
     marginBottom: Spacing.lg,
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
   detailCoverPlaceholder: {
     width: "100%",
     height: "100%",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -575,17 +575,17 @@ const styles = StyleSheet.create({
   },
   detailName: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   detailMeta: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
   },
   playAllButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: Colors.light.accent,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.full,
@@ -595,7 +595,7 @@ const styles = StyleSheet.create({
   },
   playAllButtonText: {
     ...Typography.caption,
-    color: Colors.dark.buttonText,
+    color: Colors.light.buttonText,
     fontWeight: "600",
   },
   emptyPlaylist: {
@@ -604,12 +604,12 @@ const styles = StyleSheet.create({
   },
   emptyPlaylistText: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: Spacing.md,
   },
   emptyPlaylistSubtext: {
     ...Typography.caption,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     marginTop: Spacing.xs,
   },
   trackList: {
@@ -620,11 +620,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.dark.border,
+    borderBottomColor: Colors.light.border,
   },
   trackNumber: {
     ...Typography.caption,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     width: 24,
   },
   trackImage: {
@@ -638,15 +638,15 @@ const styles = StyleSheet.create({
   },
   trackTitle: {
     ...Typography.body,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   trackArtist: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   trackDuration: {
     ...Typography.caption,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     marginRight: Spacing.sm,
   },
   removeButton: {

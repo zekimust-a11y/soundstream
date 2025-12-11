@@ -56,7 +56,7 @@ export default function BrowseScreen() {
           <Pressable
             style={({ pressed }) => [styles.filterButton, { opacity: pressed ? 0.6 : 1 }]}
           >
-            <Feather name="sliders" size={20} color={Colors.dark.text} />
+            <Feather name="sliders" size={20} color={Colors.light.text} />
           </Pressable>
         </View>
       </View>
@@ -72,7 +72,7 @@ export default function BrowseScreen() {
           <RefreshControl
             refreshing={isLoading}
             onRefresh={refreshLibrary}
-            tintColor={Colors.dark.accent}
+            tintColor={Colors.light.accent}
           />
         }
       >
@@ -81,14 +81,14 @@ export default function BrowseScreen() {
             style={({ pressed }) => [styles.quickAccessCard, { opacity: pressed ? 0.7 : 1 }]}
             onPress={() => navigation.navigate("Playlists")}
           >
-            <View style={[styles.quickAccessIcon, { backgroundColor: Colors.dark.accent + "20" }]}>
-              <Feather name="list" size={20} color={Colors.dark.accent} />
+            <View style={[styles.quickAccessIcon, { backgroundColor: Colors.light.accent + "20" }]}>
+              <Feather name="list" size={20} color={Colors.light.accent} />
             </View>
             <View style={styles.quickAccessInfo}>
               <ThemedText style={styles.quickAccessTitle}>Playlists</ThemedText>
               <ThemedText style={styles.quickAccessMeta}>{playlists.length} playlists</ThemedText>
             </View>
-            <Feather name="chevron-right" size={20} color={Colors.dark.textTertiary} />
+            <Feather name="chevron-right" size={20} color={Colors.light.textTertiary} />
           </Pressable>
         </View>
 
@@ -151,7 +151,7 @@ export default function BrowseScreen() {
               >
                 <View style={styles.artistImageContainer}>
                   <View style={styles.artistPlaceholder}>
-                    <Feather name="user" size={32} color={Colors.dark.textTertiary} />
+                    <Feather name="user" size={32} color={Colors.light.textTertiary} />
                   </View>
                 </View>
                 <ThemedText style={styles.artistName} numberOfLines={1}>
@@ -208,7 +208,7 @@ export default function BrowseScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: Colors.light.backgroundRoot,
   },
   header: {
     flexDirection: "row",
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   serverIndicator: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
@@ -234,12 +234,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.dark.success,
+    backgroundColor: Colors.light.success,
     marginRight: Spacing.xs,
   },
   serverName: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   filterButton: {
     padding: Spacing.sm,
@@ -261,11 +261,11 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   viewAll: {
     ...Typography.body,
-    color: Colors.dark.accent,
+    color: Colors.light.accent,
   },
   horizontalList: {
     gap: Spacing.md,
@@ -281,12 +281,12 @@ const styles = StyleSheet.create({
   },
   recentTitle: {
     ...Typography.caption,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontWeight: "500",
   },
   recentArtist: {
     ...Typography.label,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   artistCard: {
     width: 100,
@@ -299,19 +299,19 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
   artistName: {
     ...Typography.caption,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     fontWeight: "500",
     textAlign: "center",
   },
   artistAlbums: {
     ...Typography.label,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     textAlign: "center",
   },
   albumGrid: {
@@ -330,15 +330,15 @@ const styles = StyleSheet.create({
   },
   albumTitle: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   albumArtist: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   albumYear: {
     ...Typography.label,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     marginTop: Spacing.xs,
   },
   quickAccess: {
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
   quickAccessCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.backgroundDefault,
+    backgroundColor: Colors.light.backgroundDefault,
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
   },
@@ -364,10 +364,10 @@ const styles = StyleSheet.create({
   },
   quickAccessTitle: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   quickAccessMeta: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
 });

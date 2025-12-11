@@ -80,7 +80,7 @@ export default function AlbumScreen() {
 
         <View style={styles.actions}>
           <Button title="Play All" onPress={handlePlayAll} style={styles.playButton}>
-            <Feather name="play" size={18} color={Colors.dark.buttonText} style={styles.playIcon} />
+            <Feather name="play" size={18} color={Colors.light.buttonText} style={styles.playIcon} />
           </Button>
           <Pressable
             style={({ pressed }) => [styles.shuffleButton, { opacity: pressed ? 0.6 : 1 }]}
@@ -91,7 +91,7 @@ export default function AlbumScreen() {
               }
             }}
           >
-            <Feather name="shuffle" size={20} color={Colors.dark.accent} />
+            <Feather name="shuffle" size={20} color={Colors.light.accent} />
           </Pressable>
         </View>
 
@@ -110,7 +110,7 @@ export default function AlbumScreen() {
               >
                 <View style={styles.trackNumber}>
                   {isCurrentTrack && isPlaying ? (
-                    <Feather name="volume-2" size={14} color={Colors.dark.accent} />
+                    <Feather name="volume-2" size={14} color={Colors.light.accent} />
                   ) : (
                     <ThemedText style={styles.trackNumberText}>{index + 1}</ThemedText>
                   )}
@@ -133,7 +133,7 @@ export default function AlbumScreen() {
                   style={({ pressed }) => [styles.moreButton, { opacity: pressed ? 0.6 : 1 }]}
                   onPress={() => addToQueue(track)}
                 >
-                  <Feather name="plus" size={18} color={Colors.dark.textSecondary} />
+                  <Feather name="plus" size={18} color={Colors.light.textSecondary} />
                 </Pressable>
               </Pressable>
             );
@@ -147,7 +147,7 @@ export default function AlbumScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: Colors.light.backgroundRoot,
   },
   scrollView: {
     flex: 1,
@@ -167,17 +167,17 @@ const styles = StyleSheet.create({
   },
   albumTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: Colors.light.text,
     textAlign: "center",
   },
   albumArtist: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
   },
   albumMeta: {
     ...Typography.caption,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     marginTop: Spacing.xs,
   },
   actions: {
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.light.border,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -212,10 +212,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.dark.border,
+    borderBottomColor: Colors.light.border,
   },
   trackRowActive: {
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundSecondary,
     marginHorizontal: -Spacing.lg,
     paddingHorizontal: Spacing.lg,
     borderRadius: BorderRadius.xs,
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   },
   trackNumberText: {
     ...Typography.caption,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
   },
   trackInfo: {
     flex: 1,
@@ -234,18 +234,18 @@ const styles = StyleSheet.create({
   },
   trackTitle: {
     ...Typography.body,
-    color: Colors.dark.text,
+    color: Colors.light.text,
   },
   trackTitleActive: {
-    color: Colors.dark.accent,
+    color: Colors.light.accent,
   },
   trackArtist: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: Colors.light.textSecondary,
   },
   trackDuration: {
     ...Typography.caption,
-    color: Colors.dark.textTertiary,
+    color: Colors.light.textTertiary,
     marginRight: Spacing.md,
   },
   moreButton: {
