@@ -10,35 +10,29 @@ SoundStream is a Roon-inspired mobile music player app built with Expo/React Nat
 - **Theme**: Light theme (default)
 - **Build Type**: Works in Expo Go for browsing; development build needed for SSDP discovery
 
-## Known Limitations
+## Working Configuration (December 2024)
 
-### UPnP Control Status
-**Updated December 2024**: dCS confirmed that JRiver can control the Varese via standard UPnP AVTransport. We need to discover the correct service URLs.
+### Network Devices
+- **MinimServer**: 192.168.0.19:9791
+  - ContentDirectory: `http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control`
+  
+- **dCS Varese Core**: 192.168.0.42:16500 (friendly name: "Living room")
+  - AVTransport: `http://192.168.0.42:16500/Control/LibRygelRenderer/RygelAVTransport`
+  - RenderingControl: `http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl`
+  - Uses Rygel-based UPnP services
 
-**Current issue:**
-- We're using hardcoded/guessed URLs that may not match what the Varese actually exposes
-- JRiver uses SSDP to discover the device and get the correct service URLs from the device description
-- The app running from Replit cannot reach your local network devices
-
-**What works:**
+### What Works
 - Library browsing from MinimServer via ContentDirectory
+- Playback control to dCS Varese via standard UPnP AVTransport
 - Queue management in the app
+- Bit-perfect audio streaming directly from MinimServer to Varese
 
-**Solution: SSDP Bridge**
-The SSDP Bridge runs on your Mac and performs proper UPnP discovery, then shares the discovered device info with the app:
-
-1. On your Mac, open Terminal and run: `npx tsx server/ssdp-bridge.ts`
-2. Open the app on your iPhone via Expo Go (scan QR code)
-3. Go to Settings > SSDP Bridge > "Refresh Bridge Devices"
-4. The bridge discovers your Varese and provides the correct AVTransport URL
-
-See `SSDP_BRIDGE_GUIDE.md` for detailed instructions.
-
-**Technical notes:**
-- JRiver uses standard UPnP AVTransport (not OpenHome) for renderer control
-- SSDP discovery is needed to get the device description URL
-- The device description XML contains the correct service control URLs
-- OpenHome services may not be available on Varese (focused on standard UPnP/DLNA)
+### SSDP Bridge (Optional)
+For discovering new devices, run the SSDP Bridge on your Mac:
+```bash
+node ~/ssdp-bridge.js
+```
+See `SSDP_BRIDGE_GUIDE.md` for setup instructions.
 
 ## Architecture
 
