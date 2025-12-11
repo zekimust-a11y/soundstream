@@ -134,6 +134,14 @@ export default function QobuzLoginScreen() {
           </ThemedText>
         </View>
 
+        <View style={styles.comingSoonBanner}>
+          <Feather name="clock" size={20} color="#F99C38" />
+          <ThemedText style={styles.comingSoonText}>
+            Qobuz integration is coming soon. We're working on official API access.
+            For now, use MinimServer to stream your local music library.
+          </ThemedText>
+        </View>
+
         <View style={styles.form}>
           <View style={styles.inputGroup}>
             <ThemedText style={styles.inputLabel}>Email</ThemedText>
@@ -298,6 +306,20 @@ const styles = StyleSheet.create({
   helpLink: {
     ...Typography.body,
     color: Colors.light.accent,
+  },
+  comingSoonBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#F99C38" + "15",
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    marginBottom: Spacing.xl,
+    gap: Spacing.md,
+  },
+  comingSoonText: {
+    ...Typography.caption,
+    color: "#F99C38",
+    flex: 1,
   },
   connectedState: {
     flex: 1,
