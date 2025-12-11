@@ -390,6 +390,16 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         console.log('Track title:', track.title);
         console.log('Track URI:', track.uri);
         
+        // First, stop any current playback to ensure clean state
+        console.log('Stopping current playback...');
+        try {
+          await upnpClient.stop(VARESE_AVTRANSPORT_URL, 0);
+          // Wait for stop to take effect
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (stopError) {
+          console.log('Stop command failed (may be okay):', stopError);
+        }
+        
         // Set the track URI using AVTransport with DIDL-Lite metadata
         console.log('Setting AVTransport URI...');
         console.log('Track metadata length:', track.metadata?.length || 0);
