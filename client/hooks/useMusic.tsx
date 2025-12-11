@@ -195,6 +195,8 @@ const discoverControlUrl = async (baseUrl: string): Promise<string | null> => {
         headers: { 'Accept': 'text/xml, application/xml, */*' },
       });
       
+      console.log('Device description response:', response.status, 'for', path);
+      
       if (response.ok) {
         const xml = await response.text();
         console.log('Device description found, length:', xml.length);
@@ -314,7 +316,10 @@ const browseUPNPContainer = async (baseUrl: string, containerId: string, serverI
         }
       } else {
         const errorText = await response.text();
-        console.log('UPNP error response:', response.status, errorText.substring(0, 300));
+        console.log('UPNP error response:', response.status, 'body:', errorText.substring(0, 500));
+        if (response.status === 412) {
+          console.log('412 Precondition Failed - full error:', errorText);
+        }
       }
     } catch (error) {
       console.log('Control URL failed:', controlUrl, 'Error:', error instanceof Error ? error.message : String(error));
