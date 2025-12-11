@@ -553,7 +553,7 @@ export const play = async (controlURL: string, instanceId: number = 0, speed: st
   
   console.log('Play SOAP request to:', controlURL);
   
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 2000);
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 4000);
   
   console.log('Play response status:', result.status);
   
@@ -571,7 +571,7 @@ export const pause = async (controlURL: string, instanceId: number = 0): Promise
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 2000);
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 4000);
   
   if (!result.ok) {
     throw new Error(`Pause failed: ${result.status}`);
@@ -589,7 +589,7 @@ export const stop = async (controlURL: string, instanceId: number = 0): Promise<
   
   console.log('Stop SOAP request to:', controlURL);
   
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 2000);
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 4000);
   
   if (!result.ok) {
     throw new Error(`Stop failed: ${result.status}`);
