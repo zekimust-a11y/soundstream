@@ -319,8 +319,8 @@ const browseUPNPContainer = async (baseUrl: string, containerId: string, serverI
   const controlUrls = cachedControlUrl 
     ? [cachedControlUrl]
     : [
-        `${baseUrl}/dev/srv0/ctl/ContentDirectory`,
         `${baseUrl}/ctl/ContentDirectory`,
+        `${baseUrl}/dev/srv0/ctl/ContentDirectory`,
         `${baseUrl}/ContentDirectory/control`,
         `${baseUrl}/upnp/control/content_dir`,
         `${baseUrl}/MediaServer/ContentDirectory/Control`,
@@ -479,7 +479,7 @@ const DEFAULT_SERVER: Server = {
   host: '192.168.0.19',
   port: 9790,
   connected: true,
-  contentDirectoryUrl: 'http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory',
+  contentDirectoryUrl: 'http://192.168.0.19:9791/ctl/ContentDirectory',
 };
 
 const DEFAULT_RENDERER: Renderer = {
