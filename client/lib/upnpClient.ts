@@ -870,11 +870,41 @@ export const playlistDeleteAll = async (playlistControlURL: string): Promise<voi
   });
   
   if (!response.ok) {
-    // Don't throw - DeleteAll might fail if playlist is already empty
     console.log('Playlist DeleteAll returned:', response.status);
   } else {
     console.log('Playlist cleared');
   }
+};
+
+// OpenHome Transport service - used by dCS for actual playback control
+export const transportPlay = async (transportControlURL: string): Promise<void> => {
+  const serviceType = 'urn:av-openhome-org:service:Transport:1';
+  const action = 'Play';
+  
+  const body = '';
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log('Sending OpenHome Transport Play command to:', transportControlURL);
+  
+  const response = await fetch(transportControlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  const responseText = await response.text();
+  console.log('Transport Play response status:', response.status);
+  console.log('Transport Play response:', responseText);
+  
+  if (!response.ok) {
+    throw new Error(`Transport Play failed: ${response.status} - ${responseText}`);
+  }
+  
+  console.log('Transport Play successful');
 };
 
 // RenderingControl service functions for volume control
