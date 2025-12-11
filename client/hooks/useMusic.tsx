@@ -342,6 +342,49 @@ const browseUPNPContainer = async (baseUrl: string, containerId: string, serverI
   return { artists: [], albums: [], tracks: [] };
 };
 
+const browseMinimServerWeb = async (baseUrl: string, serverId: string): Promise<{ artists: Artist[], albums: Album[], tracks: Track[] }> => {
+  const artists: Artist[] = [];
+  const albums: Album[] = [];
+  const tracks: Track[] = [];
+  
+  const webPaths = [
+    '/',
+    '/browse',
+    '/music',
+    '/albums',
+    '/artists',
+    '/library',
+    '/content',
+  ];
+  
+  for (const path of webPaths) {
+    try {
+      console.log('Trying web browse path:', baseUrl + path);
+      const response = await fetch(baseUrl + path, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
+      
+      console.log('Web browse response:', response.status, 'for path:', path);
+      
+      if (response.ok) {
+        const html = await response.text();
+        console.log('Web content preview:', html.substring(0, 500));
+        
+        if (html.includes('album') || html.includes('artist') || html.includes('track') || html.includes('music')) {
+          console.log('Found music-related content at:', path);
+        }
+      }
+    } catch (error) {
+      console.log('Web browse failed for:', path, error instanceof Error ? error.message : String(error));
+    }
+  }
+  
+  return { artists, albums, tracks };
+};
+
 const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => {
   const upnpPort = server.port === 9790 ? 9791 : server.port;
   const baseUrl = `http://${server.host}:${upnpPort}`;
@@ -354,6 +397,12 @@ const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => 
     const allArtists: Artist[] = [];
     const allAlbums: Album[] = [];
     const allTracks: Track[] = [];
+    
+    console.log('Trying web interface browse on port 9790...');
+    const webContent = await browseMinimServerWeb(contentUrl, server.id);
+    allArtists.push(...webContent.artists);
+    allAlbums.push(...webContent.albums);
+    allTracks.push(...webContent.tracks);
     
     const rootContent = await browseUPNPContainer(baseUrl, '0', server.id);
     console.log('Root browse result:', rootContent.artists.length, 'artists,', rootContent.albums.length, 'albums,', rootContent.tracks.length, 'tracks');
