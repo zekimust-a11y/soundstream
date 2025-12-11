@@ -82,11 +82,14 @@ export default function MainTabNavigator() {
           },
           tabBarBackground: () =>
             Platform.OS === "ios" ? (
-              <BlurView
-                intensity={100}
-                tint="light"
-                style={StyleSheet.absoluteFill}
-              />
+              <View style={StyleSheet.absoluteFill}>
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255, 255, 255, 0.85)' }]} />
+                <BlurView
+                  intensity={80}
+                  tint="light"
+                  style={StyleSheet.absoluteFill}
+                />
+              </View>
             ) : null,
           headerShown: false,
         }}
