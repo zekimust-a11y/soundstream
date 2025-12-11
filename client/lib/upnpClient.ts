@@ -1164,27 +1164,36 @@ export const setVolume = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  console.log('SetVolume SOAP request to:', controlURL);
   
-  const responseText = await response.text();
-  console.log('SetVolume response status:', response.status);
-  console.log('SetVolume response:', responseText.substring(0, 500));
-  
-  if (!response.ok) {
-    throw new Error(`SetVolume failed: ${response.status} - ${responseText}`);
-  }
-  
-  // Check for SOAP Fault
-  if (responseText.includes('Fault') || responseText.includes('UPnPError')) {
-    console.error('SetVolume SOAP Fault in response:', responseText);
-    throw new Error(`SetVolume SOAP Fault: ${responseText.substring(0, 200)}`);
+  try {
+    const response = await fetch(controlURL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset="utf-8"',
+        'SOAPACTION': soapAction,
+      },
+      body: soapEnvelope,
+    });
+    
+    const responseText = await response.text();
+    console.log('SetVolume response status:', response.status);
+    console.log('SetVolume response:', responseText.substring(0, 500));
+    
+    if (!response.ok) {
+      throw new Error(`SetVolume failed: ${response.status} - ${responseText}`);
+    }
+    
+    // Check for SOAP Fault
+    if (responseText.includes('Fault') || responseText.includes('UPnPError')) {
+      console.error('SetVolume SOAP Fault in response:', responseText);
+      throw new Error(`SetVolume SOAP Fault: ${responseText.substring(0, 200)}`);
+    }
+    
+    console.log('SetVolume succeeded');
+  } catch (error) {
+    console.error('SetVolume error:', error);
+    throw error;
   }
 };
 
