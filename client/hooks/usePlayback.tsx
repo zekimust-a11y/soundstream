@@ -342,11 +342,11 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   const pause = useCallback(async () => {
     try {
-      console.log('Sending Pause command to Varese');
-      await upnpClient.pause(VARESE_AVTRANSPORT_URL, 0);
+      console.log('Sending Stop command to Varese (Pause not supported)');
+      await upnpClient.stop(VARESE_AVTRANSPORT_URL, 0);
       setIsPlaying(false);
     } catch (error) {
-      console.error('Failed to pause on Varese:', error);
+      console.error('Failed to stop on Varese:', error);
       setIsPlaying(false);
     }
   }, []);
@@ -354,8 +354,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const togglePlayPause = useCallback(async () => {
     try {
       if (isPlaying) {
-        console.log('Sending Pause command to Varese');
-        await upnpClient.pause(VARESE_AVTRANSPORT_URL, 0);
+        console.log('Sending Stop command to Varese');
+        await upnpClient.stop(VARESE_AVTRANSPORT_URL, 0);
         setIsPlaying(false);
       } else {
         console.log('Sending Play command to Varese');

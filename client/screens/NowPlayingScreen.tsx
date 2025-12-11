@@ -257,18 +257,20 @@ export default function NowPlayingScreen() {
         </View>
 
         <View style={styles.volumeContainer}>
-          <Feather name="volume" size={16} color={Colors.light.textSecondary} />
-          <Slider
-            style={styles.volumeSlider}
-            minimumValue={0}
-            maximumValue={1}
-            value={volume}
-            onValueChange={setVolume}
-            minimumTrackTintColor={Colors.light.textSecondary}
-            maximumTrackTintColor={Colors.light.backgroundTertiary}
-            thumbTintColor={Colors.light.textSecondary}
-          />
-          <Feather name="volume-2" size={16} color={Colors.light.textSecondary} />
+          <Feather name="volume" size={20} color={Colors.light.textSecondary} />
+          <View style={styles.volumeSliderWrapper}>
+            <Slider
+              style={styles.volumeSlider}
+              minimumValue={0}
+              maximumValue={1}
+              value={volume}
+              onSlidingComplete={setVolume}
+              minimumTrackTintColor={Colors.light.accent}
+              maximumTrackTintColor={Colors.light.backgroundTertiary}
+              thumbTintColor={Colors.light.accent}
+            />
+          </View>
+          <Feather name="volume-2" size={20} color={Colors.light.textSecondary} />
         </View>
 
         <View style={[styles.deviceSelector, { marginBottom: insets.bottom + Spacing.xl }]}>
@@ -453,11 +455,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.xl,
+    gap: Spacing.md,
+  },
+  volumeSliderWrapper: {
+    flex: 1,
+    height: 44,
+    justifyContent: "center",
   },
   volumeSlider: {
-    flex: 1,
-    height: 40,
-    marginHorizontal: Spacing.sm,
+    width: "100%",
+    height: 44,
   },
   deviceSelector: {
     alignItems: "center",
