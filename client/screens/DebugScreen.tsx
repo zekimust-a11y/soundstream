@@ -79,12 +79,34 @@ export default function DebugScreen() {
 
   const testVarese = async () => {
     debugLog.info('Testing Varese connection...');
+    
+    // Step 1: Raw HTTP test (no SOAP, no queue)
     try {
+      debugLog.info('Step 1: Raw HTTP GET to Varese...');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const rawResponse = await fetch('http://192.168.0.42:16500/', {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      
+      debugLog.response('Raw HTTP OK', `Status: ${rawResponse.status}`);
+    } catch (rawError) {
+      debugLog.error('Raw HTTP failed', String(rawError));
+      debugLog.info('Varese not reachable at HTTP level - check WiFi/network');
+      return; // Don't try SOAP if raw HTTP fails
+    }
+    
+    // Step 2: SOAP test via queue
+    try {
+      debugLog.info('Step 2: SOAP GetTransportInfo...');
       const url = 'http://192.168.0.42:16500/Control/LibRygelRenderer/RygelAVTransport';
       const result = await getTransportInfo(url, 0);
       debugLog.response('Varese responded', `State: ${result.currentTransportState}`);
     } catch (error) {
-      debugLog.error('Varese test failed', String(error));
+      debugLog.error('Varese SOAP test failed', String(error));
     }
   };
 

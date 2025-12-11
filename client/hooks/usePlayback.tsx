@@ -4,8 +4,8 @@ import * as upnpClient from "@/lib/upnpClient";
 import { OpenHomeServices, setBridgeProxyUrl } from "@/lib/upnpClient";
 
 // Fallback hardcoded URLs (used when bridge is not available)
-// dCS Varese Core - has multiple network interfaces, try both IPs
-const VARESE_IPS = ['192.168.0.42', '192.168.0.17'];
+// dCS Varese Core - .42 is the working audio interface
+const VARESE_IPS = ['192.168.0.42'];
 const VARESE_PORT = 16500;
 const VARESE_AVTRANSPORT_PATH = '/Control/LibRygelRenderer/RygelAVTransport';
 const VARESE_RENDERINGCONTROL_PATH = '/Control/LibRygelRenderer/RygelRenderingControl';
