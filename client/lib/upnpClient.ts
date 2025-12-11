@@ -505,8 +505,8 @@ export const setAVTransportURI = async (
     try {
       console.log(`SetAVTransportURI attempt ${attempt}/${maxRetries}`);
       
-      // Use proxy-aware request
-      const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 3000);
+      // Use proxy-aware request - SetAVTransportURI needs longer timeout as Varese loads the track
+      const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 6000);
       
       console.log('SetAVTransportURI response status:', result.status);
       console.log('SetAVTransportURI response:', result.text.substring(0, 500));
@@ -531,8 +531,8 @@ export const setAVTransportURI = async (
       console.error(`SetAVTransportURI attempt ${attempt} failed:`, error);
       
       if (attempt < maxRetries) {
-        console.log('Retrying in 500ms...');
-        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('Retrying in 200ms...');
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
     }
   }
