@@ -28,6 +28,29 @@ interface BrowseResult {
   }>;
 }
 
+interface SOAPResponse {
+  ok: boolean;
+  status: number;
+  text: () => Promise<string>;
+}
+
+async function makeSOAPRequest(controlUrl: string, soapEnvelope: string): Promise<SOAPResponse> {
+  console.log(`[UPNP] Making SOAP request to: ${controlUrl}`);
+  
+  const response = await globalThis.fetch(controlUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset=utf-8',
+      'SOAPACTION': '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"',
+      'User-Agent': 'SoundStream/1.0 UPnP/1.0',
+    },
+    body: soapEnvelope,
+  });
+  
+  console.log(`[UPNP] Response status: ${response.status} from ${controlUrl}`);
+  return response;
+}
+
 async function browseUPNPServer(host: string, port: number): Promise<BrowseResult> {
   const baseUrl = `http://${host}:${port}`;
   
@@ -47,41 +70,34 @@ async function browseUPNPServer(host: string, port: number): Promise<BrowseResul
 
   const result: BrowseResult = { artists: [], albums: [], tracks: [] };
   
-  try {
-    const controlUrl = `${baseUrl}/dev/srv0/ctl/ContentDirectory`;
-    
-    const response = await fetch(controlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"',
-      },
-      body: soapEnvelope,
-    });
+  const controlUrls = [
+    `${baseUrl}/dev/srv0/ctl/ContentDirectory`,
+    `${baseUrl}/ctl/ContentDirectory`,
+    `${baseUrl}/ContentDirectory/control`,
+    `${baseUrl}/upnp/control/content_dir`,
+    `${baseUrl}/MediaServer/ContentDirectory/Control`,
+  ];
+  
+  for (const controlUrl of controlUrls) {
+    try {
+      const response = await makeSOAPRequest(controlUrl, soapEnvelope);
 
-    if (!response.ok) {
-      const altControlUrl = `${baseUrl}/ctl/ContentDirectory`;
-      const altResponse = await fetch(altControlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
-          'SOAPAction': '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"',
-        },
-        body: soapEnvelope,
-      });
-      
-      if (!altResponse.ok) {
-        throw new Error(`Server returned ${response.status}`);
+      if (response.ok) {
+        const text = await response.text();
+        console.log(`[UPNP] Got successful response, length: ${text.length}`);
+        return await parseUPNPResponse(text, baseUrl);
+      } else {
+        const errorText = await response.text();
+        console.log(`[UPNP] Error response body: ${errorText.substring(0, 200)}`);
       }
-      
-      return await parseUPNPResponse(await altResponse.text(), baseUrl);
+    } catch (error) {
+      console.log(`[UPNP] Error with ${controlUrl}:`, error);
+      continue;
     }
-
-    return await parseUPNPResponse(await response.text(), baseUrl);
-  } catch (error) {
-    console.error('UPNP browse error:', error);
-    return await browseViaWebInterface(baseUrl);
   }
+  
+  console.log('[UPNP] All control URLs failed, trying web interface fallback');
+  return await browseViaWebInterface(baseUrl);
 }
 
 async function browseViaWebInterface(baseUrl: string): Promise<BrowseResult> {
@@ -200,21 +216,17 @@ async function browseContainer(host: string, port: number, containerId: string):
     `${baseUrl}/dev/srv0/ctl/ContentDirectory`,
     `${baseUrl}/ctl/ContentDirectory`,
     `${baseUrl}/ContentDirectory/control`,
+    `${baseUrl}/upnp/control/content_dir`,
+    `${baseUrl}/MediaServer/ContentDirectory/Control`,
   ];
 
   for (const controlUrl of controlUrls) {
     try {
-      const response = await fetch(controlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
-          'SOAPAction': '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"',
-        },
-        body: soapEnvelope,
-      });
+      const response = await makeSOAPRequest(controlUrl, soapEnvelope);
 
       if (response.ok) {
-        return await parseUPNPResponse(await response.text(), baseUrl);
+        const text = await response.text();
+        return await parseUPNPResponse(text, baseUrl);
       }
     } catch (error) {
       continue;

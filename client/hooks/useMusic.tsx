@@ -255,6 +255,32 @@ const discoverControlUrl = async (baseUrl: string): Promise<string | null> => {
 
 let cachedControlUrl: string | null = null;
 
+const makeSOAPRequestXHR = (controlUrl: string, soapEnvelope: string): Promise<{ status: number; responseText: string }> => {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', controlUrl, true);
+    
+    xhr.setRequestHeader('Content-Type', 'text/xml; charset=utf-8');
+    xhr.setRequestHeader('SOAPACTION', '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"');
+    
+    xhr.timeout = 10000;
+    
+    xhr.onload = () => {
+      resolve({ status: xhr.status, responseText: xhr.responseText });
+    };
+    
+    xhr.onerror = () => {
+      reject(new Error('XMLHttpRequest network error'));
+    };
+    
+    xhr.ontimeout = () => {
+      reject(new Error('XMLHttpRequest timeout'));
+    };
+    
+    xhr.send(soapEnvelope);
+  });
+};
+
 const browseUPNPContainer = async (baseUrl: string, containerId: string, serverId: string): Promise<{ artists: Artist[], albums: Album[], tracks: Track[] }> => {
   const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
@@ -286,41 +312,25 @@ const browseUPNPContainer = async (baseUrl: string, containerId: string, serverI
 
   for (const controlUrl of controlUrls) {
     try {
-      console.log('Trying UPNP control URL:', controlUrl, 'for container:', containerId);
-      const urlObj = new URL(controlUrl);
-      const hostHeader = `${urlObj.hostname}:${urlObj.port || '80'}`;
-      const bodyBytes = new TextEncoder().encode(soapEnvelope);
+      console.log('Trying UPNP control URL (XHR):', controlUrl, 'for container:', containerId);
       
-      const response = await fetch(controlUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
-          'Content-Length': String(bodyBytes.length),
-          'SOAPAction': '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"',
-          'Host': hostHeader,
-          'User-Agent': 'SoundStream/1.0 UPnP/1.0',
-          'Connection': 'close',
-        },
-        body: soapEnvelope,
-      });
+      const { status, responseText } = await makeSOAPRequestXHR(controlUrl, soapEnvelope);
 
-      console.log('UPNP response status:', response.status, 'for URL:', controlUrl);
+      console.log('UPNP XHR response status:', status, 'for URL:', controlUrl);
       
-      if (response.ok) {
-        const xml = await response.text();
-        console.log('UPNP response received, length:', xml.length);
-        if (xml.length > 0) {
-          console.log('UPNP response preview:', xml.substring(0, 500));
+      if (status === 200) {
+        console.log('UPNP response received, length:', responseText.length);
+        if (responseText.length > 0) {
+          console.log('UPNP response preview:', responseText.substring(0, 500));
         }
-        const result = parseUPNPResponse(xml, serverId);
+        const result = parseUPNPResponse(responseText, serverId);
         if (result.artists.length > 0 || result.albums.length > 0 || result.tracks.length > 0) {
           return result;
         }
       } else {
-        const errorText = await response.text();
-        console.log('UPNP error response:', response.status, 'body:', errorText.substring(0, 500));
-        if (response.status === 412) {
-          console.log('412 Precondition Failed - full error:', errorText);
+        console.log('UPNP XHR error response:', status, 'body:', responseText.substring(0, 500));
+        if (status === 412) {
+          console.log('412 Precondition Failed - full error:', responseText);
         }
       }
     } catch (error) {
