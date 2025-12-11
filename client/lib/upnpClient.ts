@@ -625,6 +625,168 @@ export const switchToNetworkSource = async (productControlURL: string): Promise<
   }
 };
 
+// OpenHome Playlist service for track playback
+// dCS Varese uses this instead of standard AVTransport for playing tracks
+
+export const playlistInsert = async (
+  playlistControlURL: string, 
+  afterId: number, 
+  uri: string, 
+  metadata: string = ''
+): Promise<number> => {
+  const serviceType = 'urn:av-openhome-org:service:Playlist:1';
+  const action = 'Insert';
+  
+  // Escape XML special characters in URI and metadata
+  const escapedUri = uri.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const escapedMetadata = metadata.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  
+  const body = `      <AfterId>${afterId}</AfterId>
+      <Uri>${escapedUri}</Uri>
+      <Metadata>${escapedMetadata}</Metadata>`;
+  
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log('Inserting track into OpenHome Playlist:', uri);
+  
+  const response = await fetch(playlistControlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Playlist Insert failed:', errorText);
+    throw new Error(`Playlist Insert failed: ${response.status}`);
+  }
+  
+  const xml = await response.text();
+  console.log('Insert response:', xml.substring(0, 300));
+  
+  // Extract NewId from response
+  const newIdMatch = xml.match(/<NewId>(\d+)<\/NewId>/i);
+  const newId = newIdMatch ? parseInt(newIdMatch[1], 10) : 0;
+  console.log('New track ID:', newId);
+  
+  return newId;
+};
+
+export const playlistSeekId = async (playlistControlURL: string, id: number): Promise<void> => {
+  const serviceType = 'urn:av-openhome-org:service:Playlist:1';
+  const action = 'SeekId';
+  
+  const body = `      <Value>${id}</Value>`;
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log('Seeking to track ID:', id);
+  
+  const response = await fetch(playlistControlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Playlist SeekId failed:', errorText);
+    throw new Error(`Playlist SeekId failed: ${response.status}`);
+  }
+  
+  console.log('SeekId successful');
+};
+
+export const playlistPlay = async (playlistControlURL: string): Promise<void> => {
+  const serviceType = 'urn:av-openhome-org:service:Playlist:1';
+  const action = 'Play';
+  
+  const body = '';
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log('Sending OpenHome Playlist Play command');
+  
+  const response = await fetch(playlistControlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Playlist Play failed:', errorText);
+    throw new Error(`Playlist Play failed: ${response.status}`);
+  }
+  
+  console.log('Playlist Play successful');
+};
+
+export const playlistPause = async (playlistControlURL: string): Promise<void> => {
+  const serviceType = 'urn:av-openhome-org:service:Playlist:1';
+  const action = 'Pause';
+  
+  const body = '';
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log('Sending OpenHome Playlist Pause command');
+  
+  const response = await fetch(playlistControlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Playlist Pause failed:', errorText);
+    throw new Error(`Playlist Pause failed: ${response.status}`);
+  }
+  
+  console.log('Playlist Pause successful');
+};
+
+export const playlistDeleteAll = async (playlistControlURL: string): Promise<void> => {
+  const serviceType = 'urn:av-openhome-org:service:Playlist:1';
+  const action = 'DeleteAll';
+  
+  const body = '';
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log('Clearing OpenHome Playlist');
+  
+  const response = await fetch(playlistControlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  if (!response.ok) {
+    // Don't throw - DeleteAll might fail if playlist is already empty
+    console.log('Playlist DeleteAll returned:', response.status);
+  } else {
+    console.log('Playlist cleared');
+  }
+};
+
 // RenderingControl service functions for volume control
 
 export const setVolume = async (
