@@ -275,7 +275,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   const fetchVareseVolume = async () => {
     try {
-      const volumePercent = await upnpClient.getVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master');
+      // Use OpenHome Volume service for dCS devices
+      const volumePercent = await upnpClient.getOpenHomeVolume(VARESE_OPENHOME_VOLUME_URL);
       console.log('Varese current volume:', volumePercent);
       setVolumeState(volumePercent / 100); // Convert 0-100 to 0-1
     } catch (error) {
@@ -593,7 +594,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       clearTimeout(volumeTimeoutRef.current);
     }
     
-    // Send after 50ms of no movement (prevents flooding while feeling instant)
+    // Send after 200ms of no movement (gives time for slider to settle)
     volumeTimeoutRef.current = setTimeout(() => {
       const finalVol = pendingVolumeRef.current;
       if (finalVol === null) return;
@@ -601,9 +602,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       const volumePercent = Math.round(finalVol * 100);
       pendingVolumeRef.current = null;
       
-      upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent)
+      // Use OpenHome Volume service for dCS devices
+      upnpClient.setOpenHomeVolume(VARESE_OPENHOME_VOLUME_URL, volumePercent)
         .catch(() => {}); // Silently ignore - UI already updated
-    }, 50);
+    }, 200);
   }, []);
 
   const addToQueue = useCallback((track: Track) => {
