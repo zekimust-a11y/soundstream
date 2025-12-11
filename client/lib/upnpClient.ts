@@ -309,6 +309,7 @@ export const setAVTransportURI = async (
   const soapAction = `"${serviceType}#${action}"`;
   
   console.log('SetAVTransportURI SOAP request to:', controlURL);
+  console.log('SetAVTransportURI SOAP body preview:', soapEnvelope.substring(0, 800));
   
   try {
     const response = await fetch(controlURL, {

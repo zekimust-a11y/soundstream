@@ -418,6 +418,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         // Set the track URI using AVTransport with DIDL-Lite metadata
         console.log('Setting AVTransport URI...');
         console.log('Track metadata length:', track.metadata?.length || 0);
+        console.log('Track metadata preview:', track.metadata?.substring(0, 300));
         
         const setResult = await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, track.metadata || '');
         
