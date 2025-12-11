@@ -7,11 +7,26 @@ import { OpenHomeServices } from "@/lib/upnpClient";
 const VARESE_DEVICE_DESCRIPTION_URL = 'http://192.168.0.35:49152/device.xml';
 
 // Hardcoded URLs based on discovered URL pattern from AVTransport
-const VARESE_BASE = 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799';
-const VARESE_AVTRANSPORT_URL = `${VARESE_BASE}/ctl-urn-schemas-upnp-org-service-AVTransport-1`;
-const VARESE_RENDERINGCONTROL_URL = `${VARESE_BASE}/ctl-urn-schemas-upnp-org-service-RenderingControl-1`;
-const VARESE_PRODUCT_URL = `${VARESE_BASE}/ctl-urn-av-openhome-org-service-Product-1`;
-const VARESE_PLAYLIST_URL = `${VARESE_BASE}/ctl-urn-av-openhome-org-service-Playlist-1`;
+const VARESE_BASE = 'http://192.168.0.35:49152';
+const VARESE_UUID_BASE = `${VARESE_BASE}/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799`;
+const VARESE_AVTRANSPORT_URL = `${VARESE_UUID_BASE}/ctl-urn-schemas-upnp-org-service-AVTransport-1`;
+const VARESE_RENDERINGCONTROL_URL = `${VARESE_UUID_BASE}/ctl-urn-schemas-upnp-org-service-RenderingControl-1`;
+
+// Try multiple OpenHome URL patterns - dCS uses OhNet which has different conventions
+const OPENHOME_URL_PATTERNS = [
+  // Pattern 1: Standard OhNet paths
+  `${VARESE_BASE}/openhome/control/product`,
+  `${VARESE_BASE}/openhome/control/playlist`,
+  // Pattern 2: Simple paths  
+  `${VARESE_BASE}/product`,
+  `${VARESE_BASE}/playlist`,
+  // Pattern 3: Ds paths (used by Linn and some dCS)
+  `${VARESE_BASE}/Ds/Product/control`,
+  `${VARESE_BASE}/Ds/Playlist/control`,
+  // Pattern 4: UUID-based (what we tried before)
+  `${VARESE_UUID_BASE}/ctl-urn-av-openhome-org-service-Product-1`,
+  `${VARESE_UUID_BASE}/ctl-urn-av-openhome-org-service-Playlist-1`,
+];
 
 export interface Zone {
   id: string;
