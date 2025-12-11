@@ -563,7 +563,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     console.log('RenderingControl URL:', VARESE_RENDERINGCONTROL_URL);
     
     try {
-      await upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent);
+      // Use OpenHome Volume service (dCS devices use this, not standard RenderingControl)
+      await upnpClient.setOpenHomeVolume(VARESE_RENDERINGCONTROL_URL, volumePercent);
       console.log('Volume set successfully to:', volumePercent);
     } catch (error) {
       console.error('Failed to set volume on Varese:', error);
