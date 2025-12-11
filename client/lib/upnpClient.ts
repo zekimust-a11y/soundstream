@@ -1,5 +1,26 @@
 import { DiscoveredDevice, ServiceInfo } from '../hooks/useSsdpDiscovery';
 
+// Fetch with timeout helper - React Native fetch doesn't have native timeout
+const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs: number = 15000): Promise<Response> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Network request timed out');
+    }
+    throw error;
+  }
+};
+
 // Interface for parsed OpenHome services from device description
 export interface OpenHomeServices {
   playlistControlURL?: string;
@@ -385,14 +406,14 @@ export const setAVTransportURI = async (
   console.log('SetAVTransportURI SOAP body preview:', soapEnvelope.substring(0, 800));
   
   try {
-    const response = await fetch(controlURL, {
+    const response = await fetchWithTimeout(controlURL, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset="utf-8"',
         'SOAPACTION': soapAction,
       },
       body: soapEnvelope,
-    });
+    }, 15000);
     
     const responseText = await response.text();
     console.log('SetAVTransportURI response status:', response.status);
@@ -430,20 +451,18 @@ export const play = async (controlURL: string, instanceId: number = 0, speed: st
   const soapAction = `"${serviceType}#${action}"`;
   
   console.log('Play SOAP request to:', controlURL);
-  console.log('Play SOAP envelope:', soapEnvelope);
   
-  const response = await fetch(controlURL, {
+  const response = await fetchWithTimeout(controlURL, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset="utf-8"',
       'SOAPACTION': soapAction,
     },
     body: soapEnvelope,
-  });
+  }, 15000);
   
   const responseText = await response.text();
   console.log('Play response status:', response.status);
-  console.log('Play response:', responseText);
   
   if (!response.ok) {
     throw new Error(`Play failed: ${response.status} - ${responseText}`);
@@ -459,14 +478,14 @@ export const pause = async (controlURL: string, instanceId: number = 0): Promise
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
+  const response = await fetchWithTimeout(controlURL, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset="utf-8"',
       'SOAPACTION': soapAction,
     },
     body: soapEnvelope,
-  });
+  }, 15000);
   
   if (!response.ok) {
     throw new Error(`Pause failed: ${response.status}`);
@@ -482,14 +501,16 @@ export const stop = async (controlURL: string, instanceId: number = 0): Promise<
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
+  console.log('Stop SOAP request to:', controlURL);
+  
+  const response = await fetchWithTimeout(controlURL, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset="utf-8"',
       'SOAPACTION': soapAction,
     },
     body: soapEnvelope,
-  });
+  }, 15000);
   
   if (!response.ok) {
     throw new Error(`Stop failed: ${response.status}`);

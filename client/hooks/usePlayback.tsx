@@ -462,12 +462,22 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, [isPlaying]);
 
   const next = useCallback(async () => {
-    if (queue.length === 0) return;
+    console.log('=== NEXT TRACK ===');
+    console.log('Queue length:', queue.length);
+    console.log('Current track:', currentTrack?.title);
+    
+    if (queue.length === 0) {
+      console.log('Queue is empty, cannot skip');
+      return;
+    }
     const currentIndex = queue.findIndex((t) => t.id === currentTrack?.id);
+    console.log('Current index in queue:', currentIndex);
+    
     let nextIndex: number;
     
     if (shuffle) {
       nextIndex = Math.floor(Math.random() * queue.length);
+      console.log('Shuffle mode, random index:', nextIndex);
     } else if (currentIndex === queue.length - 1) {
       if (repeat === "all") {
         nextIndex = 0;

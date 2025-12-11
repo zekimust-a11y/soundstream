@@ -20,8 +20,9 @@ import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { usePlayback, Zone } from "@/hooks/usePlayback";
 
-const { width } = Dimensions.get("window");
-const ALBUM_ART_SIZE = width * 0.8;
+const { width, height } = Dimensions.get("window");
+// Make album art smaller on shorter screens to ensure volume slider is visible
+const ALBUM_ART_SIZE = Math.min(width * 0.7, height * 0.35);
 
 function formatTime(seconds: number): string {
   if (!seconds || !isFinite(seconds) || seconds < 0) return "0:00";
@@ -205,7 +206,12 @@ export default function NowPlayingScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+      >
         <View style={styles.albumArtContainer}>
           <Image
             source={currentTrack.albumArt || require("../assets/images/placeholder-album.png")}
@@ -374,7 +380,7 @@ export default function NowPlayingScreen() {
             <Feather name="chevron-up" size={16} color={Colors.light.textSecondary} />
           </Pressable>
         </View>
-      </View>
+      </ScrollView>
 
       <Modal
         visible={showZoneModal}
@@ -457,11 +463,14 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     paddingHorizontal: Spacing.lg,
+    flexGrow: 1,
   },
   albumArtContainer: {
     alignItems: "center",
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   albumArt: {
     width: ALBUM_ART_SIZE,
@@ -471,7 +480,7 @@ const styles = StyleSheet.create({
   },
   trackInfo: {
     alignItems: "center",
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
   trackTitle: {
     ...Typography.title,
