@@ -309,17 +309,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Poll Varese transport state every 5 seconds when we have a current track
-  useEffect(() => {
-    if (!currentTrack) return;
-    
-    // Initial sync
-    syncTransportState();
-    
-    // Poll every 5 seconds
-    const interval = setInterval(syncTransportState, 5000);
-    return () => clearInterval(interval);
-  }, [currentTrack?.id]); // Re-setup when track changes
+  // No automatic polling - only sync on user action to avoid interfering with playback
+  // Call syncTransportState() manually when needed (e.g., when Now Playing screen opens)
 
   useEffect(() => {
     saveState();
