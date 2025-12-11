@@ -560,12 +560,27 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   const setVolume = useCallback((vol: number) => {
     const clampedVol = Math.max(0, Math.min(1, vol));
-    setVolumeState(clampedVol);
-    const volumePercent = Math.round(clampedVol * 100);
+    setVolumeState(clampedVol); // UI updates immediately
     
-    // Fire-and-forget: send immediately without debounce
-    upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent)
-      .catch(() => {}); // Silently ignore errors - volume still changes locally
+    // Store latest value
+    pendingVolumeRef.current = clampedVol;
+    
+    // Cancel pending request to avoid flooding
+    if (volumeTimeoutRef.current) {
+      clearTimeout(volumeTimeoutRef.current);
+    }
+    
+    // Send after 50ms of no movement (prevents flooding while feeling instant)
+    volumeTimeoutRef.current = setTimeout(() => {
+      const finalVol = pendingVolumeRef.current;
+      if (finalVol === null) return;
+      
+      const volumePercent = Math.round(finalVol * 100);
+      pendingVolumeRef.current = null;
+      
+      upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent)
+        .catch(() => {}); // Silently ignore - UI already updated
+    }, 50);
   }, []);
 
   const addToQueue = useCallback((track: Track) => {
