@@ -26,6 +26,7 @@ export interface Item {
   duration?: string;
   trackNumber?: number;
   res?: ResourceInfo[];
+  didlFragment?: string; // Raw DIDL-Lite XML for this item (needed for AVTransport)
 }
 
 export interface ResourceInfo {
@@ -129,6 +130,9 @@ const parseDIDLLite = (didlXml: string): { containers: Container[]; items: Item[
       });
     }
     
+    // Wrap the item in DIDL-Lite for AVTransport metadata
+    const didlFragment = `<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">${itemXml}</DIDL-Lite>`;
+    
     if (idMatch && titleMatch) {
       items.push({
         id: idMatch[1],
@@ -139,6 +143,7 @@ const parseDIDLLite = (didlXml: string): { containers: Container[]; items: Item[
         albumArtURI: albumArtMatch?.[1],
         trackNumber: trackNumberMatch ? parseInt(trackNumberMatch[1]) : undefined,
         res: resources,
+        didlFragment,
       });
     }
   }

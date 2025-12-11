@@ -24,6 +24,7 @@ export interface Track {
   duration: number;
   source: "local" | "qobuz";
   uri?: string;
+  metadata?: string; // DIDL-Lite XML for AVTransport
 }
 
 interface PlaybackState {
@@ -275,7 +276,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     // Send UPNP commands for the next track
     if (nextTrack?.uri) {
       try {
-        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, nextTrack.uri, '');
+        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, nextTrack.uri, nextTrack.metadata || '');
         await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
       } catch (error) {
         console.error('Failed to play next track on Varese:', error);
@@ -304,7 +305,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     // Send UPNP commands for the previous track
     if (prevTrack?.uri) {
       try {
-        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, prevTrack.uri, '');
+        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, prevTrack.uri, prevTrack.metadata || '');
         await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
       } catch (error) {
         console.error('Failed to play previous track on Varese:', error);
@@ -387,9 +388,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           console.log('Source switch failed (continuing anyway):', sourceError);
         }
         
-        // Set the track URI using AVTransport
+        // Set the track URI using AVTransport with DIDL-Lite metadata
         console.log('Setting AVTransport URI...');
-        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, '');
+        console.log('Track metadata length:', track.metadata?.length || 0);
+        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, track.metadata || '');
         
         // Small delay to let the URI be processed
         await new Promise(resolve => setTimeout(resolve, 200));

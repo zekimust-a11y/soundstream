@@ -160,6 +160,7 @@ const parseUPNPResponse = (xml: string, serverId: string): { artists: Artist[], 
   
   const itemMatches = Array.from(didl.matchAll(/<item[^>]*id="([^"]*)"[^>]*>([\s\S]*?)<\/item>/gi));
   for (const match of itemMatches) {
+    const fullItemXml = match[0]; // The complete <item>...</item> element
     const id = match[1];
     const content = match[2];
     const titleMatch = content.match(/<dc:title[^>]*>([^<]*)<\/dc:title>/i);
@@ -180,6 +181,9 @@ const parseUPNPResponse = (xml: string, serverId: string): { artists: Artist[], 
         }
       }
       
+      // Wrap item in DIDL-Lite for AVTransport metadata
+      const metadata = `<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">${fullItemXml}</DIDL-Lite>`;
+      
       tracks.push({
         id: `${serverId}-${id}`,
         title: titleMatch[1],
@@ -189,6 +193,7 @@ const parseUPNPResponse = (xml: string, serverId: string): { artists: Artist[], 
         uri: resMatch ? resMatch[1] : undefined,
         albumArt: artMatch ? artMatch[1] : undefined,
         source: 'local' as const,
+        metadata,
       });
     }
   }
@@ -481,6 +486,7 @@ const parseUPNPResponseWithContext = (xml: string, serverId: string, context: Br
   // Use \sid= to ensure we match standalone 'id=' not 'parentID='
   const itemMatches = Array.from(didl.matchAll(/<item[^>]*\sid="([^"]*)"[^>]*>([\s\S]*?)<\/item>/gi));
   for (const match of itemMatches) {
+    const fullItemXml = match[0]; // The complete <item>...</item> element
     const id = match[1];
     const content = match[2];
     const titleMatch = content.match(/<dc:title[^>]*>([^<]*)<\/dc:title>/i);
@@ -503,6 +509,9 @@ const parseUPNPResponseWithContext = (xml: string, serverId: string, context: Br
         }
       }
       
+      // Wrap item in DIDL-Lite for AVTransport metadata
+      const metadata = `<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">${fullItemXml}</DIDL-Lite>`;
+      
       tracks.push({
         id: `${serverId}-${id}`,
         title: titleMatch[1],
@@ -512,6 +521,7 @@ const parseUPNPResponseWithContext = (xml: string, serverId: string, context: Br
         uri: resMatch[1],
         albumArt: artMatch ? artMatch[1] : undefined,
         source: 'local' as const,
+        metadata,
       });
     }
   }
