@@ -658,10 +658,10 @@ const DEFAULT_SERVER: Server = {
 const DEFAULT_RENDERER: Renderer = {
   id: 'varese-default',
   name: 'dCS Varese (Living room)',
-  host: '192.168.0.42',
+  host: '192.168.0.17',
   port: 16500,
-  avTransportUrl: 'http://192.168.0.42:16500/Control/LibRygelRenderer/RygelAVTransport',
-  renderingControlUrl: 'http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl',
+  avTransportUrl: 'http://192.168.0.17:16500/Control/LibRygelRenderer/RygelAVTransport',
+  renderingControlUrl: 'http://192.168.0.17:16500/Control/LibRygelRenderer/RygelRenderingControl',
   isActive: true,
 };
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -6,6 +6,8 @@ import {
   Dimensions,
   Modal,
   ScrollView,
+  GestureResponderEvent,
+  LayoutChangeEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -101,6 +103,11 @@ export default function NowPlayingScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [showZoneModal, setShowZoneModal] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekPosition, setSeekPosition] = useState(0);
+  const sliderWidthRef = useRef(0);
+  const sliderXRef = useRef(0);
+  
   const {
     currentTrack,
     isPlaying,
@@ -124,6 +131,36 @@ export default function NowPlayingScreen() {
   } = usePlayback();
 
   const activeZones = zones.filter(z => z.isActive);
+  
+  const handleSliderLayout = useCallback((event: LayoutChangeEvent) => {
+    sliderWidthRef.current = event.nativeEvent.layout.width;
+    sliderXRef.current = event.nativeEvent.layout.x;
+  }, []);
+  
+  const handleProgressTap = useCallback((event: GestureResponderEvent) => {
+    if (!currentTrack) return;
+    const duration = normalizeDuration(currentTrack.duration);
+    if (duration <= 0) return;
+    
+    const { locationX } = event.nativeEvent;
+    const sliderWidth = sliderWidthRef.current || width - Spacing.lg * 2;
+    const ratio = Math.max(0, Math.min(1, locationX / sliderWidth));
+    const newTime = ratio * duration;
+    
+    seek(newTime);
+  }, [currentTrack, seek]);
+  
+  const handleSliderValueChange = useCallback((value: number) => {
+    setIsSeeking(true);
+    setSeekPosition(value);
+  }, []);
+  
+  const handleSliderComplete = useCallback((value: number) => {
+    setIsSeeking(false);
+    seek(value);
+  }, [seek]);
+  
+  const displayTime = isSeeking ? seekPosition : currentTime;
 
   if (!currentTrack) {
     return (
@@ -187,22 +224,39 @@ export default function NowPlayingScreen() {
         </View>
 
         <View style={styles.progressContainer}>
+          <Pressable 
+            style={styles.progressTapArea}
+            onPress={handleProgressTap}
+            onLayout={handleSliderLayout}
+          >
+            <View style={styles.progressTrackBackground}>
+              <View 
+                style={[
+                  styles.progressTrackFill,
+                  { 
+                    width: `${(displayTime / Math.max(1, normalizeDuration(currentTrack.duration))) * 100}%` 
+                  }
+                ]} 
+              />
+            </View>
+          </Pressable>
           <Slider
             style={styles.progressSlider}
             minimumValue={0}
             maximumValue={normalizeDuration(currentTrack.duration)}
-            value={currentTime}
-            onSlidingComplete={seek}
-            minimumTrackTintColor={Colors.light.accent}
-            maximumTrackTintColor={Colors.light.backgroundTertiary}
+            value={displayTime}
+            onValueChange={handleSliderValueChange}
+            onSlidingComplete={handleSliderComplete}
+            minimumTrackTintColor="transparent"
+            maximumTrackTintColor="transparent"
             thumbTintColor={Colors.light.accent}
           />
           <View style={styles.timeLabels}>
             <ThemedText style={styles.timeLabel}>
-              {formatTime(currentTime)}
+              {formatTime(displayTime)}
             </ThemedText>
             <ThemedText style={styles.timeLabel}>
-              -{formatTime(normalizeDuration(currentTrack.duration) - currentTime)}
+              -{formatTime(normalizeDuration(currentTrack.duration) - displayTime)}
             </ThemedText>
           </View>
         </View>
@@ -408,9 +462,28 @@ const styles = StyleSheet.create({
   progressContainer: {
     marginBottom: Spacing.xl,
   },
+  progressTapArea: {
+    width: "100%",
+    height: 24,
+    justifyContent: "center",
+    marginBottom: -20,
+    zIndex: 1,
+  },
+  progressTrackBackground: {
+    height: 4,
+    backgroundColor: Colors.light.backgroundTertiary,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  progressTrackFill: {
+    height: "100%",
+    backgroundColor: Colors.light.accent,
+    borderRadius: 2,
+  },
   progressSlider: {
     width: "100%",
     height: 40,
+    zIndex: 2,
   },
   timeLabels: {
     flexDirection: "row",

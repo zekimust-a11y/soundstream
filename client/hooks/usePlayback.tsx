@@ -4,8 +4,8 @@ import * as upnpClient from "@/lib/upnpClient";
 import { OpenHomeServices } from "@/lib/upnpClient";
 
 // Fallback hardcoded URLs (used when bridge is not available)
-// dCS Varese Core at 192.168.0.42:16500
-const VARESE_BASE = 'http://192.168.0.42:16500';
+// dCS Varese Core at 192.168.0.17:16500
+const VARESE_BASE = 'http://192.168.0.17:16500';
 const VARESE_AVTRANSPORT_URL = `${VARESE_BASE}/Control/LibRygelRenderer/RygelAVTransport`;
 const VARESE_RENDERINGCONTROL_URL = `${VARESE_BASE}/Control/LibRygelRenderer/RygelRenderingControl`;
 
