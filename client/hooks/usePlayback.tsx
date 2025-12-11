@@ -405,24 +405,30 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         
         console.log('SetAVTransportURI succeeded');
         
-        // Wait for the Varese to process the URI (500ms is safer for dCS devices)
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Verify the track was actually loaded by checking position info
-        try {
-          const posInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
-          console.log('Track loaded - URI:', posInfo.trackURI?.substring(0, 80));
-          console.log('Track loaded - Duration:', posInfo.trackDuration);
+        // Wait for the Varese to actually load the track (poll until duration is non-zero)
+        console.log('Waiting for track to buffer...');
+        let trackLoaded = false;
+        for (let attempt = 0; attempt < 20; attempt++) { // Max 4 seconds (20 x 200ms)
+          await new Promise(resolve => setTimeout(resolve, 200));
           
-          // Verify it's our track (check if URI contains part of our track path)
-          const trackPathPart = track.uri.split('/').pop() || '';
-          if (!posInfo.trackURI?.includes(trackPathPart.substring(0, 20))) {
-            console.warn('Track URI mismatch - renderer may have rejected our track');
-            console.warn('Expected:', track.uri.substring(0, 80));
-            console.warn('Got:', posInfo.trackURI?.substring(0, 80));
+          try {
+            const posInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
+            console.log(`Attempt ${attempt + 1}: Duration=${posInfo.trackDuration}, URI=${posInfo.trackURI?.substring(0, 50)}`);
+            
+            // Check if duration is non-zero (track is buffered)
+            if (posInfo.trackDuration && posInfo.trackDuration !== '00:00:00' && posInfo.trackDuration !== '0:00:00') {
+              console.log('Track buffered successfully!');
+              trackLoaded = true;
+              break;
+            }
+          } catch (posError) {
+            console.log('Could not get position info, continuing...');
           }
-        } catch (posError) {
-          console.log('Could not verify track loaded');
+        }
+        
+        if (!trackLoaded) {
+          console.warn('Track may not have loaded properly (duration still 0)');
+          // Continue anyway - user can tap Play in Actus as fallback
         }
         
         // Check transport state before playing
