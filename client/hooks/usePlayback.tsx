@@ -481,6 +481,12 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const togglePlayPause = useCallback(() => {
+    // Guard: ignore if a track is currently being loaded (prevents double-tap sending Stop)
+    if (isPlayingRef.current) {
+      console.log('togglePlayPause ignored - track loading in progress');
+      return;
+    }
+    
     const newState = !isPlaying;
     setIsPlaying(newState); // Optimistic update - don't revert on network error
     
