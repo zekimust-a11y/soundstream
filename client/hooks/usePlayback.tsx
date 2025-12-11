@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as upnpClient from "@/lib/upnpClient";
 
 const VARESE_AVTRANSPORT_URL = 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-AVTransport-1';
+const VARESE_RENDERINGCONTROL_URL = 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-RenderingControl-1';
 
 export interface Zone {
   id: string;
@@ -82,7 +83,18 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     loadState();
     loadZones();
+    fetchVareseVolume();
   }, []);
+
+  const fetchVareseVolume = async () => {
+    try {
+      const volumePercent = await upnpClient.getVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master');
+      console.log('Varese current volume:', volumePercent);
+      setVolumeState(volumePercent / 100); // Convert 0-100 to 0-1
+    } catch (error) {
+      console.log('Could not fetch Varese volume (may not be available):', error);
+    }
+  };
 
   useEffect(() => {
     saveState();
@@ -312,8 +324,18 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setVolume = useCallback((vol: number) => {
-    setVolumeState(Math.max(0, Math.min(1, vol)));
+  const setVolume = useCallback(async (vol: number) => {
+    const clampedVol = Math.max(0, Math.min(1, vol));
+    setVolumeState(clampedVol);
+    
+    // Send volume to Varese (convert 0-1 range to 0-100)
+    const volumePercent = Math.round(clampedVol * 100);
+    try {
+      console.log('Setting Varese volume to:', volumePercent);
+      await upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent);
+    } catch (error) {
+      console.error('Failed to set volume on Varese:', error);
+    }
   }, []);
 
   const addToQueue = useCallback((track: Track) => {

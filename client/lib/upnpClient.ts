@@ -484,3 +484,133 @@ export const seek = async (
     throw new Error(`Seek failed: ${response.status}`);
   }
 };
+
+// RenderingControl service functions for volume control
+
+export const setVolume = async (
+  controlURL: string,
+  instanceId: number = 0,
+  channel: 'Master' | 'LF' | 'RF' = 'Master',
+  desiredVolume: number
+): Promise<void> => {
+  const serviceType = 'urn:schemas-upnp-org:service:RenderingControl:1';
+  const action = 'SetVolume';
+  
+  // Clamp volume between 0 and 100
+  const volume = Math.max(0, Math.min(100, Math.round(desiredVolume)));
+  
+  const body = `      <InstanceID>${instanceId}</InstanceID>
+      <Channel>${channel}</Channel>
+      <DesiredVolume>${volume}</DesiredVolume>`;
+  
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  const response = await fetch(controlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`SetVolume failed: ${response.status} - ${errorText}`);
+  }
+};
+
+export const getVolume = async (
+  controlURL: string,
+  instanceId: number = 0,
+  channel: 'Master' | 'LF' | 'RF' = 'Master'
+): Promise<number> => {
+  const serviceType = 'urn:schemas-upnp-org:service:RenderingControl:1';
+  const action = 'GetVolume';
+  
+  const body = `      <InstanceID>${instanceId}</InstanceID>
+      <Channel>${channel}</Channel>`;
+  
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  const response = await fetch(controlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  if (!response.ok) {
+    throw new Error(`GetVolume failed: ${response.status}`);
+  }
+  
+  const xml = await response.text();
+  const volumeMatch = xml.match(/<CurrentVolume>(\d+)<\/CurrentVolume>/);
+  return volumeMatch ? parseInt(volumeMatch[1]) : 0;
+};
+
+export const setMute = async (
+  controlURL: string,
+  instanceId: number = 0,
+  channel: 'Master' | 'LF' | 'RF' = 'Master',
+  desiredMute: boolean
+): Promise<void> => {
+  const serviceType = 'urn:schemas-upnp-org:service:RenderingControl:1';
+  const action = 'SetMute';
+  
+  const body = `      <InstanceID>${instanceId}</InstanceID>
+      <Channel>${channel}</Channel>
+      <DesiredMute>${desiredMute ? '1' : '0'}</DesiredMute>`;
+  
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  const response = await fetch(controlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  if (!response.ok) {
+    throw new Error(`SetMute failed: ${response.status}`);
+  }
+};
+
+export const getMute = async (
+  controlURL: string,
+  instanceId: number = 0,
+  channel: 'Master' | 'LF' | 'RF' = 'Master'
+): Promise<boolean> => {
+  const serviceType = 'urn:schemas-upnp-org:service:RenderingControl:1';
+  const action = 'GetMute';
+  
+  const body = `      <InstanceID>${instanceId}</InstanceID>
+      <Channel>${channel}</Channel>`;
+  
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  const response = await fetch(controlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  if (!response.ok) {
+    throw new Error(`GetMute failed: ${response.status}`);
+  }
+  
+  const xml = await response.text();
+  const muteMatch = xml.match(/<CurrentMute>(\d+)<\/CurrentMute>/);
+  return muteMatch ? muteMatch[1] === '1' : false;
+};
