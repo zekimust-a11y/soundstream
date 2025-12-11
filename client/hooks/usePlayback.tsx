@@ -271,6 +271,56 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Sync playback state with Varese's actual transport state
+  const syncTransportState = async () => {
+    try {
+      const transportInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
+      console.log('Varese transport state:', transportInfo.CurrentTransportState);
+      
+      const isActuallyPlaying = transportInfo.CurrentTransportState === 'PLAYING';
+      const isActuallyStopped = transportInfo.CurrentTransportState === 'STOPPED' || 
+                                transportInfo.CurrentTransportState === 'NO_MEDIA_PRESENT';
+      
+      // Only update if state differs to avoid unnecessary re-renders
+      if (isActuallyPlaying && !isPlaying) {
+        console.log('Syncing: Varese is playing, updating app state');
+        setIsPlaying(true);
+      } else if (isActuallyStopped && isPlaying && currentTrack) {
+        // Only mark as stopped if we think we're playing but Varese says stopped
+        // This could be end of track or user stopped via another app
+        console.log('Syncing: Varese stopped, updating app state');
+        setIsPlaying(false);
+      }
+      
+      // Also sync position if playing
+      if (isActuallyPlaying) {
+        const positionInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
+        if (positionInfo.relTimeSeconds !== undefined) {
+          const serverTime = positionInfo.relTimeSeconds;
+          // Only update if difference is significant (> 3 seconds)
+          if (Math.abs(serverTime - currentTime) > 3) {
+            console.log(`Syncing position: ${serverTime}s (was ${currentTime}s)`);
+            setCurrentTime(serverTime);
+          }
+        }
+      }
+    } catch (error) {
+      // Silently ignore - Varese may not be reachable
+    }
+  };
+
+  // Poll Varese transport state every 5 seconds when we have a current track
+  useEffect(() => {
+    if (!currentTrack) return;
+    
+    // Initial sync
+    syncTransportState();
+    
+    // Poll every 5 seconds
+    const interval = setInterval(syncTransportState, 5000);
+    return () => clearInterval(interval);
+  }, [currentTrack?.id]); // Re-setup when track changes
+
   useEffect(() => {
     saveState();
   }, [currentTrack, queue, volume, shuffle, repeat]);
