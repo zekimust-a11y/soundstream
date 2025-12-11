@@ -4,6 +4,7 @@ import * as upnpClient from "@/lib/upnpClient";
 
 const VARESE_AVTRANSPORT_URL = 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-AVTransport-1';
 const VARESE_RENDERINGCONTROL_URL = 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-RenderingControl-1';
+const VARESE_PRODUCT_URL = 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-av-openhome-org-service-Product-1';
 
 export interface Zone {
   id: string;
@@ -372,6 +373,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     // Send UPNP commands to the dCS Varese
     if (track.uri) {
       try {
+        // First, switch to the network/UPnP source using OpenHome Product service
+        console.log('Switching Varese to network source...');
+        await upnpClient.switchToNetworkSource(VARESE_PRODUCT_URL);
+        
         // Set the track URI from MinimServer
         console.log('Sending SetAVTransportURI to Varese:', track.uri);
         await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, '');

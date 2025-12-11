@@ -485,59 +485,144 @@ export const seek = async (
   }
 };
 
-// dCS-specific function to switch to Network input
-// The Varese requires input switching via a special URI before it will accept network streams
-export const switchToNetworkInput = async (controlURL: string, instanceId: number = 0): Promise<void> => {
-  const serviceType = 'urn:schemas-upnp-org:service:AVTransport:1';
+// OpenHome Product service for input source switching
+// dCS Varese uses OpenHome protocol for source management
+
+export interface OpenHomeSource {
+  name: string;
+  type: string;
+  visible: boolean;
+  systemName: string;
+}
+
+export const getOpenHomeSources = async (productControlURL: string): Promise<OpenHomeSource[]> => {
+  const serviceType = 'urn:av-openhome-org:service:Product:1';
+  const action = 'SourceXml';
   
-  // First, set the transport to the dCS network input URI
-  const inputBody = `      <InstanceID>${instanceId}</InstanceID>
-      <CurrentURI>x-dcs-input:network</CurrentURI>
-      <CurrentURIMetaData></CurrentURIMetaData>`;
+  const body = '';
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
   
-  const inputEnvelope = createSoapEnvelope('SetAVTransportURI', serviceType, inputBody);
+  console.log('Getting OpenHome sources from:', productControlURL);
   
-  console.log('Switching Varese to Network input...');
-  
-  const setResponse = await fetch(controlURL, {
+  const response = await fetch(productControlURL, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': `"${serviceType}#SetAVTransportURI"`,
+      'SOAPACTION': soapAction,
     },
-    body: inputEnvelope,
+    body: soapEnvelope,
   });
   
-  if (!setResponse.ok) {
-    const errorText = await setResponse.text();
-    console.error('Failed to set network input:', errorText);
-    throw new Error(`Switch to network input failed: ${setResponse.status}`);
+  if (!response.ok) {
+    console.log('SourceXml failed, trying SourceArray...');
+    // Try SourceArray as alternative
+    const arrayEnvelope = createSoapEnvelope('SourceArray', serviceType, '');
+    const arrayResponse = await fetch(productControlURL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset="utf-8"',
+        'SOAPACTION': `"${serviceType}#SourceArray"`,
+      },
+      body: arrayEnvelope,
+    });
+    
+    if (!arrayResponse.ok) {
+      throw new Error(`Failed to get sources: ${arrayResponse.status}`);
+    }
+    
+    const xml = await arrayResponse.text();
+    console.log('SourceArray response:', xml.substring(0, 500));
+    
+    // Parse JSON array from response
+    const arrayMatch = xml.match(/<Value>([^<]*)<\/Value>/);
+    if (arrayMatch) {
+      try {
+        return JSON.parse(decodeXmlEntities(arrayMatch[1]));
+      } catch (e) {
+        console.error('Failed to parse source array:', e);
+        return [];
+      }
+    }
+    return [];
   }
   
-  console.log('Network input set, activating...');
+  const xml = await response.text();
+  console.log('SourceXml response:', xml.substring(0, 500));
   
-  // Play briefly to activate the input change
-  const playBody = `      <InstanceID>${instanceId}</InstanceID>
-      <Speed>1</Speed>`;
-  const playEnvelope = createSoapEnvelope('Play', serviceType, playBody);
+  // Parse XML sources
+  const sources: OpenHomeSource[] = [];
+  const sourceMatches = xml.matchAll(/<Source[^>]*>([\s\S]*?)<\/Source>/gi);
+  for (const match of sourceMatches) {
+    const sourceXml = match[1];
+    const name = sourceXml.match(/<Name>([^<]*)<\/Name>/)?.[1] || '';
+    const type = sourceXml.match(/<Type>([^<]*)<\/Type>/)?.[1] || '';
+    const visible = sourceXml.match(/<Visible>([^<]*)<\/Visible>/)?.[1] === 'true';
+    const systemName = sourceXml.match(/<SystemName>([^<]*)<\/SystemName>/)?.[1] || name;
+    
+    sources.push({ name, type, visible, systemName });
+  }
   
-  const playResponse = await fetch(controlURL, {
+  return sources;
+};
+
+export const setOpenHomeSourceIndex = async (productControlURL: string, sourceIndex: number): Promise<void> => {
+  const serviceType = 'urn:av-openhome-org:service:Product:1';
+  const action = 'SetSourceIndex';
+  
+  const body = `      <Value>${sourceIndex}</Value>`;
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log('Setting OpenHome source index to:', sourceIndex);
+  
+  const response = await fetch(productControlURL, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': `"${serviceType}#Play"`,
+      'SOAPACTION': soapAction,
     },
-    body: playEnvelope,
+    body: soapEnvelope,
   });
   
-  if (!playResponse.ok) {
-    console.log('Play after input switch returned:', playResponse.status);
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('SetSourceIndex failed:', errorText);
+    throw new Error(`SetSourceIndex failed: ${response.status}`);
   }
   
-  // Small delay to let the input switch take effect
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  console.log('Varese switched to Network input');
+  console.log('Source index set successfully');
+};
+
+export const switchToNetworkSource = async (productControlURL: string): Promise<void> => {
+  try {
+    const sources = await getOpenHomeSources(productControlURL);
+    console.log('Available sources:', sources.map(s => `${s.name} (${s.type})`).join(', '));
+    
+    // Find the network/UPnP/Playlist source - these are typical names for network streaming
+    const networkSourceIndex = sources.findIndex(s => 
+      s.type.toLowerCase() === 'upnpav' ||
+      s.type.toLowerCase() === 'playlist' ||
+      s.type.toLowerCase() === 'netaux' ||
+      s.name.toLowerCase().includes('network') ||
+      s.name.toLowerCase().includes('upnp') ||
+      s.name.toLowerCase().includes('stream')
+    );
+    
+    if (networkSourceIndex === -1) {
+      console.log('No network source found, available types:', sources.map(s => s.type));
+      return; // Don't fail, just log
+    }
+    
+    console.log(`Switching to source: ${sources[networkSourceIndex].name} (index ${networkSourceIndex})`);
+    await setOpenHomeSourceIndex(productControlURL, networkSourceIndex);
+    
+    // Brief delay for input to switch
+    await new Promise(resolve => setTimeout(resolve, 300));
+  } catch (error) {
+    console.log('OpenHome source switching not available:', error);
+    // Don't throw - source switching may not be supported
+  }
 };
 
 // RenderingControl service functions for volume control
