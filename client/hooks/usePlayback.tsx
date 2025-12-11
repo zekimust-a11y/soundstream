@@ -422,15 +422,14 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       setCurrentTime(0);
       
       // Send UPnP commands to the dCS Varese via AVTransport
-      // OpenHome services require SSDP-based discovery which we can't access
-      // AVTransport SetAVTransportURI + Play is the standard UPnP approach
+      // Simple sequence: SetAVTransportURI → wait → Play
       if (track.uri) {
         console.log('=== PLAYING TRACK ===');
         console.log('Track title:', track.title);
         console.log('Track URI:', track.uri);
         
         try {
-          // Use AVTransport - the standard UPnP approach
+          // Step 1: Set the transport URI with metadata
           const setResult = await upnpClient.setAVTransportURI(
             VARESE_AVTRANSPORT_URL, 
             0, 
@@ -444,32 +443,14 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
             return;
           }
           
-          console.log('SetAVTransportURI succeeded, waiting before Play...');
-          await new Promise(resolve => setTimeout(resolve, 500));
+          console.log('SetAVTransportURI succeeded');
           
-          // Check transport state before playing
-          try {
-            const transportInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
-            console.log('Transport state before Play:', transportInfo);
-          } catch (e) {
-            console.log('Could not get transport info:', e);
-          }
+          // Step 2: Wait for the Varese to process the URI
+          await new Promise(resolve => setTimeout(resolve, 300));
           
-          // Send Play command
+          // Step 3: Send Play command
           await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
           console.log('Play command sent');
-          
-          // Check transport state after playing
-          await new Promise(resolve => setTimeout(resolve, 500));
-          try {
-            const transportInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
-            console.log('Transport state after Play:', transportInfo);
-            
-            const positionInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
-            console.log('Position info:', positionInfo);
-          } catch (e) {
-            console.log('Could not get transport/position info:', e);
-          }
           
           setIsPlaying(true);
           console.log('=== PLAY COMMAND SENT ===');
