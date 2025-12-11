@@ -658,7 +658,8 @@ export const play = async (controlURL: string, instanceId: number = 0, speed: st
   
   console.log('Play SOAP request to:', controlURL);
   
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 4000);
+  // Varese takes 4-5s to respond after loading a new track
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 8000);
   
   console.log('Play response status:', result.status);
   
@@ -694,7 +695,8 @@ export const stop = async (controlURL: string, instanceId: number = 0): Promise<
   
   console.log('Stop SOAP request to:', controlURL);
   
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 4000);
+  // Match Play timeout for consistency
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 8000);
   
   if (!result.ok) {
     throw new Error(`Stop failed: ${result.status}`);
