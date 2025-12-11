@@ -357,6 +357,7 @@ export default function NowPlayingScreen() {
               minimumValue={0}
               maximumValue={1}
               value={volume}
+              onValueChange={setVolume}
               onSlidingComplete={setVolume}
               minimumTrackTintColor={Colors.light.accent}
               maximumTrackTintColor={Colors.light.backgroundTertiary}
@@ -466,11 +467,12 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
     flexGrow: 1,
   },
   albumArtContainer: {
     alignItems: "center",
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.xs,
   },
   albumArt: {
     width: ALBUM_ART_SIZE,
