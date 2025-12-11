@@ -568,8 +568,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       clearTimeout(volumeTimeoutRef.current);
     }
     
-    // Debounce: only send volume after slider stops moving for 300ms
-    volumeTimeoutRef.current = setTimeout(async () => {
+    // Debounce: only send volume after slider stops moving for 500ms
+    volumeTimeoutRef.current = setTimeout(() => {
       // Skip if another request is in progress
       if (volumeRequestInProgressRef.current) {
         console.log('Volume request in progress, skipping');
@@ -580,21 +580,23 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       if (finalVol === null) return;
       
       const volumePercent = Math.round(finalVol * 100);
-      console.log('=== SENDING VOLUME ===');
+      console.log('=== SENDING VOLUME (fire-and-forget) ===');
       console.log('Volume percent:', volumePercent);
       
       volumeRequestInProgressRef.current = true;
+      pendingVolumeRef.current = null;
       
-      try {
-        await upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent);
-        console.log('Volume set successfully to:', volumePercent);
-      } catch (error) {
-        console.error('Volume control failed:', error);
-      } finally {
-        volumeRequestInProgressRef.current = false;
-        pendingVolumeRef.current = null;
-      }
-    }, 300);
+      // Fire and forget - don't await, just send and release lock after delay
+      upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent)
+        .then(() => console.log('Volume confirmed:', volumePercent))
+        .catch(() => {}) // Silently ignore errors - volume may still have been set
+        .finally(() => {
+          // Release lock after a short delay to prevent rapid requests
+          setTimeout(() => {
+            volumeRequestInProgressRef.current = false;
+          }, 500);
+        });
+    }, 500);
   }, []);
 
   const addToQueue = useCallback((track: Track) => {
