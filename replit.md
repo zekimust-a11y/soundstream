@@ -16,9 +16,10 @@ SoundStream is a Roon-inspired mobile music player app built with Expo/React Nat
 - **MinimServer**: 192.168.0.19:9791
   - ContentDirectory: `http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control`
   
-- **dCS Varese Core**: 192.168.0.17:16500 (friendly name: "Living room")
-  - AVTransport: `http://192.168.0.17:16500/Control/LibRygelRenderer/RygelAVTransport`
-  - RenderingControl: `http://192.168.0.17:16500/Control/LibRygelRenderer/RygelRenderingControl`
+- **dCS Varese Core**: 192.168.0.42:16500 (friendly name: "Living room")
+  - AVTransport: `http://192.168.0.42:16500/Control/LibRygelRenderer/RygelAVTransport`
+  - RenderingControl: `http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl`
+  - Note: Varese may also respond on 192.168.0.17 (dual network interfaces)
   - Uses Rygel-based UPnP services
 
 ### What Works

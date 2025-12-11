@@ -15,9 +15,19 @@ import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { usePlayback, type Track } from "@/hooks/usePlayback";
 
-function formatDuration(seconds: number): string {
+function normalizeDuration(duration: number): number {
+  if (!duration || !isFinite(duration) || duration <= 0) return 0;
+  if (duration > 36000) {
+    return Math.round(duration / 1000);
+  }
+  return duration;
+}
+
+function formatDuration(duration: number): string {
+  const seconds = normalizeDuration(duration);
+  if (!seconds || seconds <= 0) return "0:00";
   const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
+  const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 

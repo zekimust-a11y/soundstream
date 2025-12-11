@@ -215,12 +215,36 @@ export default function NowPlayingScreen() {
         </View>
 
         <View style={styles.trackInfo}>
-          <ThemedText style={styles.trackTitle} numberOfLines={1}>
+          <ThemedText style={styles.trackTitle} numberOfLines={2}>
             {currentTrack.title}
           </ThemedText>
           <ThemedText style={styles.trackArtist} numberOfLines={1}>
             {currentTrack.artist}
           </ThemedText>
+          {currentTrack.album ? (
+            <ThemedText style={styles.trackAlbum} numberOfLines={1}>
+              {currentTrack.album}
+            </ThemedText>
+          ) : null}
+          {currentTrack.format || currentTrack.bitrate ? (
+            <View style={styles.audioInfo}>
+              {currentTrack.format ? (
+                <ThemedText style={styles.audioInfoText}>
+                  {currentTrack.format.toUpperCase()}
+                </ThemedText>
+              ) : null}
+              {currentTrack.bitrate ? (
+                <ThemedText style={styles.audioInfoText}>
+                  {currentTrack.bitrate}
+                </ThemedText>
+              ) : null}
+              {currentTrack.sampleRate ? (
+                <ThemedText style={styles.audioInfoText}>
+                  {currentTrack.sampleRate}
+                </ThemedText>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.progressContainer}>
@@ -411,7 +435,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
+    paddingBottom: Spacing.sm,
   },
   closeButton: {
     width: 40,
@@ -437,7 +461,7 @@ const styles = StyleSheet.create({
   },
   albumArtContainer: {
     alignItems: "center",
-    marginBottom: Spacing["2xl"],
+    marginBottom: Spacing.lg,
   },
   albumArt: {
     width: ALBUM_ART_SIZE,
@@ -447,10 +471,11 @@ const styles = StyleSheet.create({
   },
   trackInfo: {
     alignItems: "center",
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   trackTitle: {
-    ...Typography.display,
+    ...Typography.title,
+    fontSize: 20,
     color: Colors.light.text,
     textAlign: "center",
   },
@@ -458,6 +483,27 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
+  },
+  trackAlbum: {
+    ...Typography.caption,
+    color: Colors.light.textTertiary,
+    marginTop: Spacing.xs,
+  },
+  audioInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  audioInfoText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Colors.light.accent,
+    backgroundColor: Colors.light.accent + "15",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+    overflow: "hidden",
   },
   progressContainer: {
     marginBottom: Spacing.xl,

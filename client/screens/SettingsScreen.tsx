@@ -623,7 +623,7 @@ export default function SettingsScreen() {
                   style={styles.bridgeUrlInput}
                   value={tempBridgeUrl}
                   onChangeText={setTempBridgeUrl}
-                  placeholder="http://192.168.0.17:3847"
+                  placeholder="http://192.168.0.42:3847"
                   placeholderTextColor={Colors.light.textTertiary}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -671,7 +671,7 @@ export default function SettingsScreen() {
                 setIsDiscoveringDevice(true);
                 setDiscoveryResult(null);
                 try {
-                  const result = await upnpClient.discoverDeviceServices('http://192.168.0.17:16500');
+                  const result = await upnpClient.discoverDeviceServices('http://192.168.0.42:16500');
                   setDiscoveryResult(result);
                   
                   if (result.success) {

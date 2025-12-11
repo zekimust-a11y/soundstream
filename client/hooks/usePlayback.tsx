@@ -4,10 +4,57 @@ import * as upnpClient from "@/lib/upnpClient";
 import { OpenHomeServices } from "@/lib/upnpClient";
 
 // Fallback hardcoded URLs (used when bridge is not available)
-// dCS Varese Core at 192.168.0.17:16500
-const VARESE_BASE = 'http://192.168.0.17:16500';
-const VARESE_AVTRANSPORT_URL = `${VARESE_BASE}/Control/LibRygelRenderer/RygelAVTransport`;
-const VARESE_RENDERINGCONTROL_URL = `${VARESE_BASE}/Control/LibRygelRenderer/RygelRenderingControl`;
+// dCS Varese Core - has multiple network interfaces, try both IPs
+const VARESE_IPS = ['192.168.0.42', '192.168.0.17'];
+const VARESE_PORT = 16500;
+const VARESE_AVTRANSPORT_PATH = '/Control/LibRygelRenderer/RygelAVTransport';
+const VARESE_RENDERINGCONTROL_PATH = '/Control/LibRygelRenderer/RygelRenderingControl';
+
+// Build URLs for a specific IP
+const buildVareseUrls = (ip: string) => ({
+  base: `http://${ip}:${VARESE_PORT}`,
+  avTransport: `http://${ip}:${VARESE_PORT}${VARESE_AVTRANSPORT_PATH}`,
+  renderingControl: `http://${ip}:${VARESE_PORT}${VARESE_RENDERINGCONTROL_PATH}`,
+});
+
+// Default to first IP, will be updated dynamically
+let activeVareseIp = VARESE_IPS[0];
+let VARESE_AVTRANSPORT_URL = buildVareseUrls(activeVareseIp).avTransport;
+let VARESE_RENDERINGCONTROL_URL = buildVareseUrls(activeVareseIp).renderingControl;
+
+// Try to reach the Varese at any known IP
+const findWorkingVareseIp = async (): Promise<string | null> => {
+  for (const ip of VARESE_IPS) {
+    try {
+      const url = `http://${ip}:${VARESE_PORT}/`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      
+      const response = await fetch(url, { 
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      
+      if (response.ok || response.status === 404) {
+        console.log(`Varese responding at ${ip}`);
+        return ip;
+      }
+    } catch (e) {
+      console.log(`Varese not responding at ${ip}`);
+    }
+  }
+  return null;
+};
+
+// Update active Varese IP
+const updateActiveVareseIp = (ip: string) => {
+  activeVareseIp = ip;
+  const urls = buildVareseUrls(ip);
+  VARESE_AVTRANSPORT_URL = urls.avTransport;
+  VARESE_RENDERINGCONTROL_URL = urls.renderingControl;
+  console.log(`Switched to Varese at ${ip}`);
+};
 
 // SSDP Bridge configuration - runs on user's computer for proper device discovery
 const BRIDGE_STORAGE_KEY = "@soundstream_bridge_url";
@@ -44,6 +91,10 @@ export interface Track {
   source: "local" | "qobuz";
   uri?: string;
   metadata?: string; // DIDL-Lite XML for AVTransport
+  format?: string; // e.g., "FLAC", "WAV", "MP3"
+  bitrate?: string; // e.g., "1411 kbps"
+  sampleRate?: string; // e.g., "44.1 kHz"
+  bitDepth?: string; // e.g., "16-bit"
 }
 
 interface PlaybackState {

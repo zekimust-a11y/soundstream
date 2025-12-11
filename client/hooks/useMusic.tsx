@@ -181,6 +181,61 @@ const parseUPNPResponse = (xml: string, serverId: string): { artists: Artist[], 
         }
       }
       
+      // Extract audio format info from res element
+      const resFullMatch = content.match(/<res([^>]*)>([^<]*)<\/res>/i);
+      let format: string | undefined;
+      let bitrate: string | undefined;
+      let sampleRate: string | undefined;
+      let bitDepth: string | undefined;
+      
+      if (resFullMatch) {
+        const resAttrs = resFullMatch[1];
+        // Extract format from protocolInfo or URI
+        const protocolMatch = resAttrs.match(/protocolInfo="[^"]*:([^:;"\s]+)/i);
+        if (protocolMatch) {
+          const mimeType = protocolMatch[1].toLowerCase();
+          if (mimeType.includes('flac')) format = 'FLAC';
+          else if (mimeType.includes('wav') || mimeType.includes('wave')) format = 'WAV';
+          else if (mimeType.includes('mp3') || mimeType.includes('mpeg')) format = 'MP3';
+          else if (mimeType.includes('aac')) format = 'AAC';
+          else if (mimeType.includes('aiff')) format = 'AIFF';
+          else if (mimeType.includes('dsd') || mimeType.includes('dsf')) format = 'DSD';
+          else if (mimeType.includes('alac')) format = 'ALAC';
+          else if (mimeType.includes('ogg')) format = 'OGG';
+        }
+        
+        // Fallback: extract format from URI extension
+        if (!format && resMatch) {
+          const uri = resMatch[1].toLowerCase();
+          if (uri.endsWith('.flac')) format = 'FLAC';
+          else if (uri.endsWith('.wav')) format = 'WAV';
+          else if (uri.endsWith('.mp3')) format = 'MP3';
+          else if (uri.endsWith('.aac') || uri.endsWith('.m4a')) format = 'AAC';
+          else if (uri.endsWith('.aiff') || uri.endsWith('.aif')) format = 'AIFF';
+          else if (uri.endsWith('.dsf') || uri.endsWith('.dff')) format = 'DSD';
+        }
+        
+        // Extract bitrate
+        const bitrateMatch = resAttrs.match(/bitrate="(\d+)"/i);
+        if (bitrateMatch) {
+          const bps = parseInt(bitrateMatch[1]);
+          bitrate = bps >= 1000000 ? `${(bps / 1000000).toFixed(1)} Mbps` : `${Math.round(bps / 1000)} kbps`;
+        }
+        
+        // Extract sample rate
+        const sampleFreqMatch = resAttrs.match(/sampleFrequency="(\d+)"/i);
+        if (sampleFreqMatch) {
+          const freq = parseInt(sampleFreqMatch[1]);
+          sampleRate = freq >= 1000 ? `${(freq / 1000).toFixed(1)} kHz` : `${freq} Hz`;
+        }
+        
+        // Extract bit depth
+        const bitsMatch = resAttrs.match(/bitsPerSample="(\d+)"/i);
+        if (bitsMatch) {
+          bitDepth = `${bitsMatch[1]}-bit`;
+        }
+      }
+      
       // Wrap item in DIDL-Lite for AVTransport metadata
       const metadata = `<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">${fullItemXml}</DIDL-Lite>`;
       
@@ -194,6 +249,10 @@ const parseUPNPResponse = (xml: string, serverId: string): { artists: Artist[], 
         albumArt: artMatch ? artMatch[1] : undefined,
         source: 'local' as const,
         metadata,
+        format,
+        bitrate,
+        sampleRate,
+        bitDepth,
       });
     }
   }
@@ -509,6 +568,61 @@ const parseUPNPResponseWithContext = (xml: string, serverId: string, context: Br
         }
       }
       
+      // Extract audio format info from res element
+      const resFullMatch = content.match(/<res([^>]*)>([^<]*)<\/res>/i);
+      let format: string | undefined;
+      let bitrate: string | undefined;
+      let sampleRate: string | undefined;
+      let bitDepth: string | undefined;
+      
+      if (resFullMatch) {
+        const resAttrs = resFullMatch[1];
+        // Extract format from protocolInfo or URI
+        const protocolMatch = resAttrs.match(/protocolInfo="[^"]*:([^:;"\s]+)/i);
+        if (protocolMatch) {
+          const mimeType = protocolMatch[1].toLowerCase();
+          if (mimeType.includes('flac')) format = 'FLAC';
+          else if (mimeType.includes('wav') || mimeType.includes('wave')) format = 'WAV';
+          else if (mimeType.includes('mp3') || mimeType.includes('mpeg')) format = 'MP3';
+          else if (mimeType.includes('aac')) format = 'AAC';
+          else if (mimeType.includes('aiff')) format = 'AIFF';
+          else if (mimeType.includes('dsd') || mimeType.includes('dsf')) format = 'DSD';
+          else if (mimeType.includes('alac')) format = 'ALAC';
+          else if (mimeType.includes('ogg')) format = 'OGG';
+        }
+        
+        // Fallback: extract format from URI extension
+        if (!format) {
+          const uri = resMatch[1].toLowerCase();
+          if (uri.endsWith('.flac')) format = 'FLAC';
+          else if (uri.endsWith('.wav')) format = 'WAV';
+          else if (uri.endsWith('.mp3')) format = 'MP3';
+          else if (uri.endsWith('.aac') || uri.endsWith('.m4a')) format = 'AAC';
+          else if (uri.endsWith('.aiff') || uri.endsWith('.aif')) format = 'AIFF';
+          else if (uri.endsWith('.dsf') || uri.endsWith('.dff')) format = 'DSD';
+        }
+        
+        // Extract bitrate
+        const bitrateMatch = resAttrs.match(/bitrate="(\d+)"/i);
+        if (bitrateMatch) {
+          const bps = parseInt(bitrateMatch[1]);
+          bitrate = bps >= 1000000 ? `${(bps / 1000000).toFixed(1)} Mbps` : `${Math.round(bps / 1000)} kbps`;
+        }
+        
+        // Extract sample rate
+        const sampleFreqMatch = resAttrs.match(/sampleFrequency="(\d+)"/i);
+        if (sampleFreqMatch) {
+          const freq = parseInt(sampleFreqMatch[1]);
+          sampleRate = freq >= 1000 ? `${(freq / 1000).toFixed(1)} kHz` : `${freq} Hz`;
+        }
+        
+        // Extract bit depth
+        const bitsMatch = resAttrs.match(/bitsPerSample="(\d+)"/i);
+        if (bitsMatch) {
+          bitDepth = `${bitsMatch[1]}-bit`;
+        }
+      }
+      
       // Wrap item in DIDL-Lite for AVTransport metadata
       const metadata = `<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">${fullItemXml}</DIDL-Lite>`;
       
@@ -522,6 +636,10 @@ const parseUPNPResponseWithContext = (xml: string, serverId: string, context: Br
         albumArt: artMatch ? artMatch[1] : undefined,
         source: 'local' as const,
         metadata,
+        format,
+        bitrate,
+        sampleRate,
+        bitDepth,
       });
     }
   }
@@ -658,10 +776,10 @@ const DEFAULT_SERVER: Server = {
 const DEFAULT_RENDERER: Renderer = {
   id: 'varese-default',
   name: 'dCS Varese (Living room)',
-  host: '192.168.0.17',
+  host: '192.168.0.42',
   port: 16500,
-  avTransportUrl: 'http://192.168.0.17:16500/Control/LibRygelRenderer/RygelAVTransport',
-  renderingControlUrl: 'http://192.168.0.17:16500/Control/LibRygelRenderer/RygelRenderingControl',
+  avTransportUrl: 'http://192.168.0.42:16500/Control/LibRygelRenderer/RygelAVTransport',
+  renderingControlUrl: 'http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl',
   isActive: true,
 };
 
