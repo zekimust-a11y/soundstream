@@ -561,28 +561,11 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const setVolume = useCallback((vol: number) => {
     const clampedVol = Math.max(0, Math.min(1, vol));
     setVolumeState(clampedVol);
+    const volumePercent = Math.round(clampedVol * 100);
     
-    // Store the pending volume
-    pendingVolumeRef.current = clampedVol;
-    
-    // Clear any existing timeout
-    if (volumeTimeoutRef.current) {
-      clearTimeout(volumeTimeoutRef.current);
-    }
-    
-    // Quick debounce (100ms) for responsive feel
-    volumeTimeoutRef.current = setTimeout(() => {
-      const finalVol = pendingVolumeRef.current;
-      if (finalVol === null) return;
-      
-      const volumePercent = Math.round(finalVol * 100);
-      console.log('Volume:', volumePercent);
-      pendingVolumeRef.current = null;
-      
-      // Fire and forget - no lock, no waiting
-      upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent)
-        .catch(() => {}); // Silently ignore errors
-    }, 100);
+    // Fire-and-forget: send immediately without debounce
+    upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent)
+      .catch(() => {}); // Silently ignore errors - volume still changes locally
   }, []);
 
   const addToQueue = useCallback((track: Track) => {
