@@ -356,6 +356,9 @@ export const play = async (controlURL: string, instanceId: number = 0, speed: st
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
+  console.log('Play SOAP request to:', controlURL);
+  console.log('Play SOAP envelope:', soapEnvelope);
+  
   const response = await fetch(controlURL, {
     method: 'POST',
     headers: {
@@ -365,8 +368,12 @@ export const play = async (controlURL: string, instanceId: number = 0, speed: st
     body: soapEnvelope,
   });
   
+  const responseText = await response.text();
+  console.log('Play response status:', response.status);
+  console.log('Play response:', responseText);
+  
   if (!response.ok) {
-    throw new Error(`Play failed: ${response.status}`);
+    throw new Error(`Play failed: ${response.status} - ${responseText}`);
   }
 };
 
