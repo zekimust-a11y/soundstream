@@ -173,8 +173,10 @@ export const browseContentDirectory = async (
     const response = await fetch(controlURL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'text/xml; charset="utf-8"',
-        'SOAPACTION': soapAction,
+        'Content-Type': 'text/xml;charset="utf-8"',
+        'SOAPAction': soapAction,
+        'User-Agent': 'iOS/18.0 UPnP/1.0 SoundStream/1.0',
+        'Connection': 'Keep-Alive',
       },
       body: soapEnvelope,
     });
