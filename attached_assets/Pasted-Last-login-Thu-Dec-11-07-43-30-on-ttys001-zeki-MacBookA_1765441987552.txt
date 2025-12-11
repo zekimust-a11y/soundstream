@@ -1,0 +1,86 @@
+Last login: Thu Dec 11 07:43:30 on ttys001
+zeki@MacBookAir ~ % curl http://192.168.0.19:9790/
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MinimServer Status</title>
+<link rel="icon" href="/favicon2.659dcab4.ico" type="image/x-icon" />
+<script>
+var tsSite = "site2.63a0d322.css";
+var tsSiteWin = "site2-win.639dadfa.css";
+var tsSiteMac = "site2-mac.63a0dc62.css";
+var tsIconStarting = "favicon-starting.65a5ad2e.ico";
+var tsIconRunning = "favicon-running.65a5ad42.ico";
+var tsIconStopped = "favicon-stopped.65a5ad1e.ico";
+var tsIconError = "favicon-error.65a5ad5c.ico";
+var tsMinim = "minim.5dbf5922.png";
+</script>
+<script>var eventOptions = 'lastRescan,prop-contentDir';</script>
+<script type="text/javascript" src="page-script.67894b04.js"></script>
+<script type="text/javascript" src="status-script.67df24e6.js"></script>
+<script type="text/javascript" src="relaunch-script.661a6a3c.js"></script>
+<script>
+function licenseDetails(key) {
+  document.getElementById("details_key").value = key;
+  document.getElementById("details_form").submit();
+  return false;
+}
+function bodyOnLoad() {
+  debugLog('bodyOnLoad1');
+  debugLogDiv = document.getElementById('debug_log');
+  debugLog('bodyOnLoad2');
+}
+</script>
+</head>
+<body onload="bodyOnLoad()">
+<div class="outer">
+<script>writeStatusHeader('MinimServer[OLADRAserver]');</script>
+<p class="prenote">MinimServer 2.2 update 263, Copyright (c) 2012-2025 Simon Nash. All rights reserved.</p>
+<p class="note">Your license type is Trial.
+For more information, select the License tab.</p>
+<p class="note" style="color:red"><span id="status_message"></span></p>
+<p class="prenote">Media server status for MinimServer[OLADRAserver]: <span id="server_status">Running</span>
+<div id="error_div" style="display: none"><p id="error_info" class="note" style="color:red"></p></div>
+<p>Your last rescan was at <span id="rescan_time">05:40:58 on 11 Dec 2025</span>
+<button type="button" onclick="doRescan()" style="margin-left: 15px">Rescan</button></p>
+<div id="set_contentdir" style="display: none">
+<p class="prenote">You have no content directory (music folder) selected.</p>
+<p class="note">Enter the full path to your content directory in the field below and click Save.</p>
+<form name="contentdirform" action="" method="post">
+<p class="note">&nbsp;&nbsp;&nbsp;Content directory:&nbsp;&nbsp;<input id="contentdir_value" type="text" size="30" name="dir">&nbsp;&nbsp;&nbsp;<button type="submit" name="sub" value="save">&nbsp;&nbsp;Save&nbsp;&nbsp;</button></p>
+</form>
+</div>
+<div id="show_contentdirs" style="display: block">
+<p class="prenote">You have selected the following content <span id="directories">directory</span>:</p>
+<div id="contentdir_list">
+<p class="note">&nbsp;&nbsp;&nbsp;/storage/music</p>
+</div>
+<p class="note">To change this, select the Properties tab and update the contentDir property.</p>
+</div>
+<p>For more information about using MinimServer, see the <a href="https://minimserver.com/quickstart.html" target="_blank">Quick start</a> page.</p>
+<form id="details_form" action="https://minimworld.com/license-details.php" method="post" target="_blank" style="display: none">
+<input id="details_key" type="hidden" name="key">
+<input type="hidden" name="sub" value="show_details">
+</form>
+<div id="modal_background" class="modal">
+  <div class="modal-content">
+    <span class="close">&times;</span>
+    <p class="modal-text">
+    To install <span id=package_span>???</span> and relaunch MinimServer, click the OK button below.
+    To cancel and return to the configuration page, click Cancel.
+    </p><p>
+    <form name="install_form" action="" method="post">
+      <input id="package_name" type="hidden" name="packagename" value="???">
+      <input id="package_title" type="hidden" name="packagetitle" value="???">
+      <button class="medium" type="submit" name="sub" value="install" style="margin-left: 10px">OK</button>
+      <button class="medium" type="submit" name="sub" value="cancel" style="margin-left: 40px">Cancel</button>
+    </form>
+</p>
+  </div>
+</div>
+</div>
+</body>
+</html>
+zeki@MacBookAir ~ % 
