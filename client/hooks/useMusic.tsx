@@ -89,40 +89,11 @@ const RECENT_KEY = "@soundstream_recent";
 const FAVORITES_KEY = "@soundstream_favorites";
 const PLAYLISTS_KEY = "@soundstream_playlists";
 
-const DEMO_ARTISTS: Artist[] = [
-  { id: "1", name: "Hans Zimmer", imageUrl: undefined, albumCount: 5 },
-  { id: "2", name: "Max Richter", imageUrl: undefined, albumCount: 3 },
-  { id: "3", name: "Nils Frahm", imageUrl: undefined, albumCount: 4 },
-  { id: "4", name: "Olafur Arnalds", imageUrl: undefined, albumCount: 3 },
-  { id: "5", name: "Ludovico Einaudi", imageUrl: undefined, albumCount: 6 },
-  { id: "6", name: "Radiohead", imageUrl: undefined, albumCount: 9 },
-];
+const DEMO_ARTISTS: Artist[] = [];
 
-const DEMO_ALBUMS: Album[] = [
-  { id: "a1", name: "Interstellar", artist: "Hans Zimmer", artistId: "1", year: 2014, trackCount: 16 },
-  { id: "a2", name: "Dune", artist: "Hans Zimmer", artistId: "1", year: 2021, trackCount: 22 },
-  { id: "a3", name: "The Blue Notebooks", artist: "Max Richter", artistId: "2", year: 2004, trackCount: 11 },
-  { id: "a4", name: "Sleep", artist: "Max Richter", artistId: "2", year: 2015, trackCount: 31 },
-  { id: "a5", name: "Spaces", artist: "Nils Frahm", artistId: "3", year: 2013, trackCount: 12 },
-  { id: "a6", name: "All Melody", artist: "Nils Frahm", artistId: "3", year: 2018, trackCount: 12 },
-  { id: "a7", name: "re:member", artist: "Olafur Arnalds", artistId: "4", year: 2018, trackCount: 12 },
-  { id: "a8", name: "In a Time Lapse", artist: "Ludovico Einaudi", artistId: "5", year: 2013, trackCount: 14 },
-  { id: "a9", name: "OK Computer", artist: "Radiohead", artistId: "6", year: 1997, trackCount: 12 },
-  { id: "a10", name: "Kid A", artist: "Radiohead", artistId: "6", year: 2000, trackCount: 10 },
-];
+const DEMO_ALBUMS: Album[] = [];
 
-const DEMO_TRACKS: Track[] = [
-  { id: "t1", title: "Cornfield Chase", artist: "Hans Zimmer", album: "Interstellar", duration: 127, source: "local" },
-  { id: "t2", title: "No Time for Caution", artist: "Hans Zimmer", album: "Interstellar", duration: 239, source: "local" },
-  { id: "t3", title: "Day One", artist: "Hans Zimmer", album: "Interstellar", duration: 196, source: "local" },
-  { id: "t4", title: "On The Nature of Daylight", artist: "Max Richter", album: "The Blue Notebooks", duration: 372, source: "local" },
-  { id: "t5", title: "Says", artist: "Nils Frahm", album: "Spaces", duration: 607, source: "local" },
-  { id: "t6", title: "re:member", artist: "Olafur Arnalds", album: "re:member", duration: 283, source: "local" },
-  { id: "t7", title: "Experience", artist: "Ludovico Einaudi", album: "In a Time Lapse", duration: 315, source: "local" },
-  { id: "t8", title: "Paranoid Android", artist: "Radiohead", album: "OK Computer", duration: 386, source: "local" },
-  { id: "t9", title: "Karma Police", artist: "Radiohead", album: "OK Computer", duration: 264, source: "local" },
-  { id: "t10", title: "Everything In Its Right Place", artist: "Radiohead", album: "Kid A", duration: 251, source: "local" },
-];
+const DEMO_TRACKS: Track[] = [];
 
 const DEFAULT_FAVORITES: Favorites = { artists: [], albums: [], tracks: [] };
 
