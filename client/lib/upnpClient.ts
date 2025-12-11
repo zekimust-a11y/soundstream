@@ -1279,6 +1279,48 @@ export const productSourceXml = async (productControlURL: string): Promise<strin
 };
 
 // OpenHome Transport service - used by dCS for actual playback control
+export const transportSetUri = async (
+  transportControlURL: string,
+  uri: string,
+  metadata: string = ''
+): Promise<{ success: boolean; error?: string }> => {
+  const serviceType = 'urn:av-openhome-org:service:Transport:1';
+  const action = 'SetUri';
+
+  const escapeForXml = (str: string): string => {
+    return str
+      .replace(/&(?!amp;|lt;|gt;|quot;|apos;)/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  };
+
+  const body = `      <Uri>${escapeForXml(uri)}</Uri>
+      <Metadata>${escapeForXml(metadata)}</Metadata>`;
+
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+
+  console.log('OpenHome Transport SetUri to:', transportControlURL);
+  console.log('URI:', uri);
+
+  try {
+    const result = await proxySoapRequest(transportControlURL, soapAction, soapEnvelope, 6000);
+
+    console.log('Transport SetUri response status:', result.status);
+
+    if (!result.ok || result.text.includes('Fault') || result.text.includes('UPnPError')) {
+      console.error('Transport SetUri failed:', result.text);
+      return { success: false, error: `Transport SetUri failed: ${result.status}` };
+    }
+
+    console.log('Transport SetUri successful');
+    return { success: true };
+  } catch (error) {
+    console.error('Transport SetUri error:', error);
+    return { success: false, error: String(error) };
+  }
+};
+
 export const transportPlay = async (transportControlURL: string): Promise<void> => {
   const serviceType = 'urn:av-openhome-org:service:Transport:1';
   const action = 'Play';
@@ -1289,24 +1331,36 @@ export const transportPlay = async (transportControlURL: string): Promise<void> 
   
   console.log('Sending OpenHome Transport Play command to:', transportControlURL);
   
-  const response = await fetch(transportControlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  const result = await proxySoapRequest(transportControlURL, soapAction, soapEnvelope, 8000);
   
-  const responseText = await response.text();
-  console.log('Transport Play response status:', response.status);
-  console.log('Transport Play response:', responseText);
+  console.log('Transport Play response status:', result.status);
   
-  if (!response.ok) {
-    throw new Error(`Transport Play failed: ${response.status} - ${responseText}`);
+  if (!result.ok || result.text.includes('Fault') || result.text.includes('UPnPError')) {
+    throw new Error(`Transport Play failed: ${result.status} - ${result.text}`);
   }
   
   console.log('Transport Play successful');
+};
+
+export const transportStop = async (transportControlURL: string): Promise<void> => {
+  const serviceType = 'urn:av-openhome-org:service:Transport:1';
+  const action = 'Stop';
+  
+  const body = '';
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log('Sending OpenHome Transport Stop command to:', transportControlURL);
+  
+  const result = await proxySoapRequest(transportControlURL, soapAction, soapEnvelope, 8000);
+  
+  console.log('Transport Stop response status:', result.status);
+  
+  if (!result.ok) {
+    throw new Error(`Transport Stop failed: ${result.status}`);
+  }
+  
+  console.log('Transport Stop successful');
 };
 
 // RenderingControl service functions for volume control

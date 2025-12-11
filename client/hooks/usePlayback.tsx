@@ -10,6 +10,7 @@ const VARESE_PORT = 16500;
 const VARESE_AVTRANSPORT_PATH = '/Control/LibRygelRenderer/RygelAVTransport';
 const VARESE_RENDERINGCONTROL_PATH = '/Control/LibRygelRenderer/RygelRenderingControl';
 const VARESE_OPENHOME_VOLUME_PATH = '/Control/LibRygelRenderer/RygelVolume';
+const VARESE_OPENHOME_TRANSPORT_PATH = '/Control/LibRygelRenderer/RygelTransport';
 
 // Build URLs for a specific IP
 const buildVareseUrls = (ip: string) => ({
@@ -17,6 +18,7 @@ const buildVareseUrls = (ip: string) => ({
   avTransport: `http://${ip}:${VARESE_PORT}${VARESE_AVTRANSPORT_PATH}`,
   renderingControl: `http://${ip}:${VARESE_PORT}${VARESE_RENDERINGCONTROL_PATH}`,
   openHomeVolume: `http://${ip}:${VARESE_PORT}${VARESE_OPENHOME_VOLUME_PATH}`,
+  openHomeTransport: `http://${ip}:${VARESE_PORT}${VARESE_OPENHOME_TRANSPORT_PATH}`,
 });
 
 // Default to first IP, will be updated dynamically
@@ -24,6 +26,7 @@ let activeVareseIp = VARESE_IPS[0];
 let VARESE_AVTRANSPORT_URL = buildVareseUrls(activeVareseIp).avTransport;
 let VARESE_RENDERINGCONTROL_URL = buildVareseUrls(activeVareseIp).renderingControl;
 let VARESE_OPENHOME_VOLUME_URL = buildVareseUrls(activeVareseIp).openHomeVolume;
+let VARESE_OPENHOME_TRANSPORT_URL = buildVareseUrls(activeVareseIp).openHomeTransport;
 
 // Try to reach the Varese at any known IP
 const findWorkingVareseIp = async (): Promise<string | null> => {
@@ -57,6 +60,7 @@ const updateActiveVareseIp = (ip: string) => {
   VARESE_AVTRANSPORT_URL = urls.avTransport;
   VARESE_RENDERINGCONTROL_URL = urls.renderingControl;
   VARESE_OPENHOME_VOLUME_URL = urls.openHomeVolume;
+  VARESE_OPENHOME_TRANSPORT_URL = urls.openHomeTransport;
   console.log(`Switched to Varese at ${ip}`);
 };
 
@@ -461,8 +465,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       setCurrentTime(0);
     }
     try {
-      console.log('Sending Play command to Varese');
-      await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+      console.log('Sending OpenHome Transport Play command');
+      await upnpClient.transportPlay(VARESE_OPENHOME_TRANSPORT_URL);
       setIsPlaying(true);
     } catch (error) {
       console.error('Failed to resume playback on Varese:', error);
@@ -471,8 +475,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   const pause = useCallback(async () => {
     try {
-      console.log('Sending Stop command to Varese (Pause not supported)');
-      await upnpClient.stop(VARESE_AVTRANSPORT_URL, 0);
+      console.log('Sending OpenHome Transport Stop command');
+      await upnpClient.transportStop(VARESE_OPENHOME_TRANSPORT_URL);
       setIsPlaying(false);
     } catch (error) {
       console.error('Failed to stop on Varese:', error);
@@ -491,14 +495,14 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setIsPlaying(newState); // Optimistic update - don't revert on network error
     
     if (newState) {
-      console.log('Sending Play command to Varese');
-      upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1').catch((error) => {
+      console.log('Sending OpenHome Transport Play command');
+      upnpClient.transportPlay(VARESE_OPENHOME_TRANSPORT_URL).catch((error) => {
         console.error('Play command error (may still be playing):', error);
         // Don't revert state - Varese may have received the command
       });
     } else {
-      console.log('Sending Stop command to Varese');
-      upnpClient.stop(VARESE_AVTRANSPORT_URL, 0).catch((error) => {
+      console.log('Sending OpenHome Transport Stop command');
+      upnpClient.transportStop(VARESE_OPENHOME_TRANSPORT_URL).catch((error) => {
         console.error('Stop command error:', error);
       });
     }
@@ -526,7 +530,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         nextIndex = 0;
       } else {
         setIsPlaying(false);
-        upnpClient.stop(VARESE_AVTRANSPORT_URL, 0).catch(e => {
+        upnpClient.transportStop(VARESE_OPENHOME_TRANSPORT_URL).catch(e => {
           console.error('Failed to stop playback:', e);
         });
         return;
@@ -539,10 +543,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setCurrentTrack(nextTrack);
     setCurrentTime(0);
     
-    // Send UPNP commands for the next track (fire-and-forget)
+    // Send OpenHome Transport commands for the next track
     if (nextTrack?.uri) {
-      upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, nextTrack.uri, nextTrack.metadata || '')
-        .then(() => upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1'))
+      upnpClient.transportSetUri(VARESE_OPENHOME_TRANSPORT_URL, nextTrack.uri, nextTrack.metadata || '')
+        .then(() => upnpClient.transportPlay(VARESE_OPENHOME_TRANSPORT_URL))
         .catch(error => {
           console.error('Failed to play next track on Varese:', error);
         });
@@ -552,10 +556,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const previous = useCallback(() => {
     if (currentTime > 3) {
       setCurrentTime(0);
-      // Seek to beginning on the renderer (fire-and-forget)
-      upnpClient.seek(VARESE_AVTRANSPORT_URL, 0, 'REL_TIME', '00:00:00').catch(e => {
-        console.error('Failed to seek:', e);
-      });
+      // Note: OpenHome Transport may not support seek - just restart current track
       return;
     }
     if (queue.length === 0) return;
@@ -565,10 +566,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setCurrentTrack(prevTrack);
     setCurrentTime(0);
     
-    // Send UPNP commands for the previous track (fire-and-forget)
+    // Send OpenHome Transport commands for the previous track
     if (prevTrack?.uri) {
-      upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, prevTrack.uri, prevTrack.metadata || '')
-        .then(() => upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1'))
+      upnpClient.transportSetUri(VARESE_OPENHOME_TRANSPORT_URL, prevTrack.uri, prevTrack.metadata || '')
+        .then(() => upnpClient.transportPlay(VARESE_OPENHOME_TRANSPORT_URL))
         .catch(error => {
           console.error('Failed to play previous track on Varese:', error);
         });
@@ -681,38 +682,34 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setIsPlaying(true);
     
     if (track.uri) {
-      console.log('=== PLAYING TRACK ===');
+      console.log('=== PLAYING TRACK VIA OPENHOME TRANSPORT ===');
       console.log('Track title:', track.title);
       console.log('Track URI:', track.uri);
+      console.log('Transport URL:', VARESE_OPENHOME_TRANSPORT_URL);
       
-      // Send with minimal metadata to reduce request size and improve reliability
-      // The Varese may be choking on large DIDL-Lite metadata
+      // Send with minimal metadata
       const minimalMetadata = track.title ? 
         `<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/"><item><dc:title>${track.title}</dc:title></item></DIDL-Lite>` : '';
       
-      upnpClient.setAVTransportURI(
-        VARESE_AVTRANSPORT_URL, 
-        0, 
+      upnpClient.transportSetUri(
+        VARESE_OPENHOME_TRANSPORT_URL, 
         track.uri, 
         minimalMetadata
       ).then(async (setResult) => {
         if (!setResult.success) {
-          console.error('SetAVTransportURI failed:', setResult.error);
-          throw new Error(setResult.error || 'SetAVTransportURI failed');
+          console.error('Transport SetUri failed:', setResult.error);
+          throw new Error(setResult.error || 'Transport SetUri failed');
         }
-        console.log('SetAVTransportURI succeeded, waiting for Varese to prepare...');
-        // Give Varese time to buffer/prepare the track before sending Play
-        await new Promise(resolve => setTimeout(resolve, 200));
-        console.log('Sending Play command...');
-        return upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+        console.log('Transport SetUri succeeded, sending Play...');
+        return upnpClient.transportPlay(VARESE_OPENHOME_TRANSPORT_URL);
       }).then(() => {
-        console.log('=== PLAY COMMAND SENT SUCCESSFULLY ===');
+        console.log('=== OPENHOME TRANSPORT PLAY SUCCESSFUL ===');
         // Sync with Varese after a delay to get correct duration
         setTimeout(() => {
           syncTransportState();
         }, 2000);
       }).catch((error) => {
-        console.error('Playback error (may still be playing):', error);
+        console.error('OpenHome Transport playback error:', error);
         // Don't revert isPlaying - Varese may have received the command
       }).finally(() => {
         isPlayingRef.current = false;
