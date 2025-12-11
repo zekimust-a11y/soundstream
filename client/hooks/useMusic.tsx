@@ -430,7 +430,91 @@ const browseMinimServerWeb = async (baseUrl: string, serverId: string): Promise<
   return { artists, albums, tracks };
 };
 
-const browseWithDirectUrl = async (controlUrl: string, containerId: string, serverId: string): Promise<{ artists: Artist[], albums: Album[], tracks: Track[] }> => {
+// Parse UPNP response with context hint for what type of container we're browsing
+type BrowseContext = 'root' | 'albums' | 'artists' | 'album' | 'unknown';
+
+const parseUPNPResponseWithContext = (xml: string, serverId: string, context: BrowseContext): { artists: Artist[], albums: Album[], tracks: Track[] } => {
+  const artists: Artist[] = [];
+  const albums: Album[] = [];
+  const tracks: Track[] = [];
+  
+  const resultMatch = xml.match(/<Result[^>]*>([\s\S]*?)<\/Result>/i);
+  if (!resultMatch) return { artists, albums, tracks };
+  
+  let didl = resultMatch[1];
+  didl = didl.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+  
+  // Parse containers
+  const containerMatches = Array.from(didl.matchAll(/<container[^>]*id="([^"]*)"[^>]*>([\s\S]*?)<\/container>/gi));
+  for (const match of containerMatches) {
+    const id = match[1];
+    const content = match[2];
+    const titleMatch = content.match(/<dc:title[^>]*>([^<]*)<\/dc:title>/i);
+    const artistMatch = content.match(/<upnp:artist[^>]*>([^<]*)<\/upnp:artist>/i) ||
+                       content.match(/<dc:creator[^>]*>([^<]*)<\/dc:creator>/i);
+    const artMatch = content.match(/<upnp:albumArtURI[^>]*>([^<]*)<\/upnp:albumArtURI>/i);
+    
+    if (titleMatch) {
+      const title = titleMatch[1];
+      
+      // Context-aware parsing: when browsing 'albums' container, treat all results as albums
+      if (context === 'albums') {
+        albums.push({
+          id: `${serverId}-${id}`,
+          name: title,
+          artist: artistMatch ? artistMatch[1] : 'Unknown Artist',
+          artistId: '',
+          imageUrl: artMatch ? artMatch[1] : undefined,
+        });
+      } else if (context === 'artists') {
+        artists.push({ id: `${serverId}-${id}`, name: title });
+      }
+      // For 'root' context, we skip containers as they're just navigation
+    }
+  }
+  
+  // Parse items (tracks)
+  const itemMatches = Array.from(didl.matchAll(/<item[^>]*id="([^"]*)"[^>]*>([\s\S]*?)<\/item>/gi));
+  for (const match of itemMatches) {
+    const id = match[1];
+    const content = match[2];
+    const titleMatch = content.match(/<dc:title[^>]*>([^<]*)<\/dc:title>/i);
+    const artistMatch = content.match(/<upnp:artist[^>]*>([^<]*)<\/upnp:artist>/i) ||
+                       content.match(/<dc:creator[^>]*>([^<]*)<\/dc:creator>/i);
+    const albumMatch = content.match(/<upnp:album[^>]*>([^<]*)<\/upnp:album>/i);
+    const durationMatch = content.match(/<res[^>]*duration="([^"]*)"[^>]*>/i);
+    const resMatch = content.match(/<res[^>]*>([^<]*)<\/res>/i);
+    const artMatch = content.match(/<upnp:albumArtURI[^>]*>([^<]*)<\/upnp:albumArtURI>/i);
+    
+    if (titleMatch && resMatch) {
+      let durationMs = 0;
+      if (durationMatch) {
+        const parts = durationMatch[1].split(':');
+        if (parts.length >= 3) {
+          const hours = parseInt(parts[0]) || 0;
+          const minutes = parseInt(parts[1]) || 0;
+          const seconds = parseFloat(parts[2]) || 0;
+          durationMs = (hours * 3600 + minutes * 60 + seconds) * 1000;
+        }
+      }
+      
+      tracks.push({
+        id: `${serverId}-${id}`,
+        title: titleMatch[1],
+        artist: artistMatch ? artistMatch[1] : 'Unknown Artist',
+        album: albumMatch ? albumMatch[1] : 'Unknown Album',
+        duration: durationMs,
+        uri: resMatch[1],
+        albumArt: artMatch ? artMatch[1] : undefined,
+        source: 'local' as const,
+      });
+    }
+  }
+  
+  return { artists, albums, tracks };
+};
+
+const browseWithDirectUrl = async (controlUrl: string, containerId: string, serverId: string, context: BrowseContext = 'unknown'): Promise<{ artists: Artist[], albums: Album[], tracks: Track[] }> => {
   const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
   <s:Body>
@@ -446,7 +530,7 @@ const browseWithDirectUrl = async (controlUrl: string, containerId: string, serv
 </s:Envelope>`;
 
   try {
-    console.log('UPNP Browse request to:', controlUrl, 'ObjectID:', containerId);
+    console.log('UPNP Browse request to:', controlUrl, 'ObjectID:', containerId, 'context:', context);
     
     const response = await fetch(controlUrl, {
       method: 'POST',
@@ -462,10 +546,7 @@ const browseWithDirectUrl = async (controlUrl: string, containerId: string, serv
     if (response.ok) {
       const responseText = await response.text();
       console.log('UPNP Browse response length:', responseText.length);
-      if (responseText.length > 0) {
-        console.log('UPNP response preview:', responseText.substring(0, 300));
-      }
-      return parseUPNPResponse(responseText, serverId);
+      return parseUPNPResponseWithContext(responseText, serverId, context);
     } else {
       console.error('UPNP Browse failed:', response.status, await response.text());
       return { artists: [], albums: [], tracks: [] };
@@ -500,36 +581,32 @@ const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => 
     const allAlbums: Album[] = [];
     const allTracks: Track[] = [];
     
-    // Browse root container
-    const rootContent = await browseWithDirectUrl(controlUrl, '0', server.id);
-    console.log('Root browse result:', rootContent.artists.length, 'artists,', rootContent.albums.length, 'albums,', rootContent.tracks.length, 'tracks');
-    
-    allArtists.push(...rootContent.artists);
-    allAlbums.push(...rootContent.albums);
-    allTracks.push(...rootContent.tracks);
-    
-    // MinimServer uses container IDs like "0$albums", "0$items" etc.
-    // Browse albums container to get album list
-    const albumsContent = await browseWithDirectUrl(controlUrl, '0$albums', server.id);
+    // Browse albums container to get album list (context: 'albums' tells parser to treat containers as albums)
+    const albumsContent = await browseWithDirectUrl(controlUrl, '0$albums', server.id, 'albums');
     console.log('Albums container result:', albumsContent.albums.length, 'albums');
     allAlbums.push(...albumsContent.albums);
     
-    // Browse each album to get tracks
-    for (const album of albumsContent.albums.slice(0, 50)) { // Limit to first 50 albums for initial load
+    // Browse each album to get tracks (limit to first 20 for faster initial load)
+    for (const album of albumsContent.albums.slice(0, 20)) {
       const albumId = album.id.replace(`${server.id}-`, '');
-      const albumContent = await browseWithDirectUrl(controlUrl, albumId, server.id);
-      allTracks.push(...albumContent.tracks.map(t => ({
-        ...t,
-        album: album.name,
-        artist: album.artist,
-        albumArt: album.imageUrl || t.albumArt,
-      })));
+      const albumContent = await browseWithDirectUrl(controlUrl, albumId, server.id, 'album');
+      console.log(`Album "${album.name}" has ${albumContent.tracks.length} tracks`);
+      for (const t of albumContent.tracks) {
+        allTracks.push({
+          ...t,
+          album: t.album || album.name,
+          artist: t.artist || album.artist || 'Unknown Artist',
+          albumArt: t.albumArt || album.imageUrl,
+        });
+      }
     }
     
     // Browse artists container
-    const artistsContent = await browseWithDirectUrl(controlUrl, '0$=Artist', server.id);
+    const artistsContent = await browseWithDirectUrl(controlUrl, '0$=Artist', server.id, 'artists');
     console.log('Artists container result:', artistsContent.artists.length, 'artists');
     allArtists.push(...artistsContent.artists);
+    
+    console.log('Total fetched:', allArtists.length, 'artists,', allAlbums.length, 'albums,', allTracks.length, 'tracks');
     
     return {
       serverId: server.id,
