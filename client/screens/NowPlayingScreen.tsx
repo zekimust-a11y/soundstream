@@ -463,17 +463,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing["2xl"],
+    paddingVertical: Spacing.lg,
     gap: Spacing.md,
   },
   volumeSliderWrapper: {
     flex: 1,
-    height: 44,
+    height: 56,
     justifyContent: "center",
   },
   volumeSlider: {
     width: "100%",
-    height: 44,
+    height: 56,
   },
   deviceSelector: {
     alignItems: "center",
