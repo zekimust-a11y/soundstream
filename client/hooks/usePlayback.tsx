@@ -663,11 +663,16 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       console.log('Track title:', track.title);
       console.log('Track URI:', track.uri);
       
+      // Send with minimal metadata to reduce request size and improve reliability
+      // The Varese may be choking on large DIDL-Lite metadata
+      const minimalMetadata = track.title ? 
+        `<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/"><item><dc:title>${track.title}</dc:title></item></DIDL-Lite>` : '';
+      
       upnpClient.setAVTransportURI(
         VARESE_AVTRANSPORT_URL, 
         0, 
         track.uri, 
-        track.metadata || ''
+        minimalMetadata
       ).then((setResult) => {
         if (!setResult.success) {
           console.error('SetAVTransportURI failed:', setResult.error);
