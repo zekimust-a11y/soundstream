@@ -444,8 +444,11 @@ const parseUPNPResponseWithContext = (xml: string, serverId: string, context: Br
   let didl = resultMatch[1];
   didl = didl.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
   
-  // Parse containers
-  const containerMatches = Array.from(didl.matchAll(/<container[^>]*id="([^"]*)"[^>]*>([\s\S]*?)<\/container>/gi));
+  // Parse containers - try different regex patterns for different XML formats
+  // MinimServer sometimes uses parentID attribute before id
+  const containerMatches = Array.from(didl.matchAll(/<container[^>]*?id="([^"]*)"[^>]*?>([\s\S]*?)<\/container>/gi));
+  console.log(`Parsing ${containerMatches.length} containers for context: ${context}`);
+  
   for (const match of containerMatches) {
     const id = match[1];
     const content = match[2];
@@ -456,6 +459,7 @@ const parseUPNPResponseWithContext = (xml: string, serverId: string, context: Br
     
     if (titleMatch) {
       const title = titleMatch[1];
+      console.log(`Container: id="${id}", title="${title}", context=${context}`);
       
       // Context-aware parsing: when browsing 'albums' container, treat all results as albums
       if (context === 'albums') {
@@ -586,11 +590,13 @@ const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => 
     console.log('Albums container result:', albumsContent.albums.length, 'albums');
     allAlbums.push(...albumsContent.albums);
     
-    // Browse each album to get tracks (limit to first 20 for faster initial load)
-    for (const album of albumsContent.albums.slice(0, 20)) {
+    // Browse each album to get tracks for ALL albums
+    console.log('Loading tracks for', albumsContent.albums.length, 'albums...');
+    for (let i = 0; i < albumsContent.albums.length; i++) {
+      const album = albumsContent.albums[i];
       const albumId = album.id.replace(`${server.id}-`, '');
       const albumContent = await browseWithDirectUrl(controlUrl, albumId, server.id, 'album');
-      console.log(`Album "${album.name}" has ${albumContent.tracks.length} tracks`);
+      console.log(`[${i + 1}/${albumsContent.albums.length}] Album "${album.name}" has ${albumContent.tracks.length} tracks`);
       for (const t of albumContent.tracks) {
         allTracks.push({
           ...t,
@@ -975,9 +981,26 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     for (const server of servers) {
       const library = await fetchServerMusic(server);
       
-      setArtists((prev) => [...prev, ...library.artists]);
-      setAlbums((prev) => [...prev, ...library.albums]);
-      setTracks((prev) => [...prev, ...library.tracks]);
+      // Deduplicate artists by ID
+      setArtists((prev) => {
+        const existingIds = new Set(prev.map(a => a.id));
+        const uniqueNew = library.artists.filter(a => !existingIds.has(a.id));
+        return [...prev, ...uniqueNew];
+      });
+      
+      // Deduplicate albums by ID
+      setAlbums((prev) => {
+        const existingIds = new Set(prev.map(a => a.id));
+        const uniqueNew = library.albums.filter(a => !existingIds.has(a.id));
+        return [...prev, ...uniqueNew];
+      });
+      
+      // Deduplicate tracks by ID
+      setTracks((prev) => {
+        const existingIds = new Set(prev.map(t => t.id));
+        const uniqueNew = library.tracks.filter(t => !existingIds.has(t.id));
+        return [...prev, ...uniqueNew];
+      });
     }
     
     setIsLoading(false);

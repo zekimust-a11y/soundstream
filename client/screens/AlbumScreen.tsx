@@ -26,9 +26,10 @@ const ALBUM_ART_SIZE = width * 0.6;
 
 type RouteProps = RouteProp<BrowseStackParamList, "Album">;
 
-function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000);
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
@@ -96,48 +97,55 @@ export default function AlbumScreen() {
         </View>
 
         <View style={styles.trackList}>
-          {tracks.map((track, index) => {
-            const isCurrentTrack = currentTrack?.id === track.id;
-            return (
-              <Pressable
-                key={track.id}
-                style={({ pressed }) => [
-                  styles.trackRow,
-                  { opacity: pressed ? 0.6 : 1 },
-                  isCurrentTrack && styles.trackRowActive,
-                ]}
-                onPress={() => handleTrackPress(track)}
-              >
-                <View style={styles.trackNumber}>
-                  {isCurrentTrack && isPlaying ? (
-                    <Feather name="volume-2" size={14} color={Colors.light.accent} />
-                  ) : (
-                    <ThemedText style={styles.trackNumberText}>{index + 1}</ThemedText>
-                  )}
-                </View>
-                <View style={styles.trackInfo}>
-                  <ThemedText
-                    style={[styles.trackTitle, isCurrentTrack && styles.trackTitleActive]}
-                    numberOfLines={1}
-                  >
-                    {track.title}
-                  </ThemedText>
-                  <ThemedText style={styles.trackArtist} numberOfLines={1}>
-                    {track.artist}
-                  </ThemedText>
-                </View>
-                <ThemedText style={styles.trackDuration}>
-                  {formatDuration(track.duration)}
-                </ThemedText>
+          {tracks.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Feather name="music" size={48} color={Colors.light.textTertiary} />
+              <ThemedText style={styles.emptyText}>No tracks found</ThemedText>
+            </View>
+          ) : (
+            tracks.map((track, index) => {
+              const isCurrentTrack = currentTrack?.id === track.id;
+              return (
                 <Pressable
-                  style={({ pressed }) => [styles.moreButton, { opacity: pressed ? 0.6 : 1 }]}
-                  onPress={() => addToQueue(track)}
+                  key={track.id}
+                  style={({ pressed }) => [
+                    styles.trackRow,
+                    { opacity: pressed ? 0.6 : 1 },
+                    isCurrentTrack ? styles.trackRowActive : null,
+                  ]}
+                  onPress={() => handleTrackPress(track)}
                 >
-                  <Feather name="plus" size={18} color={Colors.light.textSecondary} />
+                  <View style={styles.trackNumber}>
+                    {isCurrentTrack && isPlaying ? (
+                      <Feather name="volume-2" size={14} color={Colors.light.accent} />
+                    ) : (
+                      <ThemedText style={styles.trackNumberText}>{index + 1}</ThemedText>
+                    )}
+                  </View>
+                  <View style={styles.trackInfo}>
+                    <ThemedText
+                      style={[styles.trackTitle, isCurrentTrack ? styles.trackTitleActive : null]}
+                      numberOfLines={1}
+                    >
+                      {track.title}
+                    </ThemedText>
+                    <ThemedText style={styles.trackArtist} numberOfLines={1}>
+                      {track.artist}
+                    </ThemedText>
+                  </View>
+                  <ThemedText style={styles.trackDuration}>
+                    {formatDuration(track.duration)}
+                  </ThemedText>
+                  <Pressable
+                    style={({ pressed }) => [styles.moreButton, { opacity: pressed ? 0.6 : 1 }]}
+                    onPress={() => addToQueue(track)}
+                  >
+                    <Feather name="plus" size={18} color={Colors.light.textSecondary} />
+                  </Pressable>
                 </Pressable>
-              </Pressable>
-            );
-          })}
+              );
+            })
+          )}
         </View>
       </ScrollView>
     </ThemedView>
@@ -250,5 +258,15 @@ const styles = StyleSheet.create({
   },
   moreButton: {
     padding: Spacing.sm,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing["3xl"],
+  },
+  emptyText: {
+    ...Typography.body,
+    color: Colors.light.textTertiary,
+    marginTop: Spacing.md,
   },
 });
