@@ -471,9 +471,31 @@ const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => 
   }
 };
 
+// Pre-configured devices
+const DEFAULT_SERVER: Server = {
+  id: 'minimserver-default',
+  name: 'MinimServer',
+  type: 'upnp',
+  host: '192.168.0.19',
+  port: 9790,
+  connected: true,
+  contentDirectoryUrl: 'http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory',
+};
+
+const DEFAULT_RENDERER: Renderer = {
+  id: 'varese-default',
+  name: 'dCS Varese',
+  host: '192.168.0.20', // User should update this IP
+  port: 80,
+  avTransportUrl: 'http://192.168.0.20/upnp/AVTransport/ctrl',
+  isActive: true,
+};
+
 export function MusicProvider({ children }: { children: ReactNode }) {
   const [servers, setServers] = useState<Server[]>([]);
   const [activeServer, setActiveServerState] = useState<Server | null>(null);
+  const [renderers, setRenderers] = useState<Renderer[]>([]);
+  const [activeRenderer, setActiveRendererState] = useState<Renderer | null>(null);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -489,8 +511,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const loadData = async () => {
     try {
-      const [serversData, qobuzData, recentData, favoritesData, playlistsData, libraryData] = await Promise.all([
+      const [serversData, renderersData, qobuzData, recentData, favoritesData, playlistsData, libraryData] = await Promise.all([
         AsyncStorage.getItem(SERVERS_KEY),
+        AsyncStorage.getItem(RENDERERS_KEY),
         AsyncStorage.getItem(QOBUZ_KEY),
         AsyncStorage.getItem(RECENT_KEY),
         AsyncStorage.getItem(FAVORITES_KEY),
@@ -498,13 +521,42 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         AsyncStorage.getItem(LIBRARY_KEY),
       ]);
 
+      // Load servers with default MinimServer always present
       if (serversData) {
         const parsed = JSON.parse(serversData);
-        setServers(parsed.servers || []);
+        const existingServers = parsed.servers || [];
+        const hasDefault = existingServers.some((s: Server) => s.id === 'minimserver-default');
+        const allServers = hasDefault ? existingServers : [DEFAULT_SERVER, ...existingServers];
+        setServers(allServers);
         if (parsed.activeServerId) {
-          const active = parsed.servers?.find((s: Server) => s.id === parsed.activeServerId);
-          setActiveServerState(active || null);
+          const active = allServers.find((s: Server) => s.id === parsed.activeServerId);
+          setActiveServerState(active || DEFAULT_SERVER);
+        } else {
+          setActiveServerState(DEFAULT_SERVER);
         }
+      } else {
+        setServers([DEFAULT_SERVER]);
+        setActiveServerState(DEFAULT_SERVER);
+        saveServers([DEFAULT_SERVER], DEFAULT_SERVER.id);
+      }
+
+      // Load renderers with default dCS Varese always present
+      if (renderersData) {
+        const parsed = JSON.parse(renderersData);
+        const existingRenderers = parsed.renderers || [];
+        const hasDefault = existingRenderers.some((r: Renderer) => r.id === 'varese-default');
+        const allRenderers = hasDefault ? existingRenderers : [DEFAULT_RENDERER, ...existingRenderers];
+        setRenderers(allRenderers);
+        if (parsed.activeRendererId) {
+          const active = allRenderers.find((r: Renderer) => r.id === parsed.activeRendererId);
+          setActiveRendererState(active || DEFAULT_RENDERER);
+        } else {
+          setActiveRendererState(DEFAULT_RENDERER);
+        }
+      } else {
+        setRenderers([DEFAULT_RENDERER]);
+        setActiveRendererState(DEFAULT_RENDERER);
+        saveRenderers([DEFAULT_RENDERER], DEFAULT_RENDERER.id);
       }
 
       if (qobuzData) {
@@ -542,6 +594,17 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       );
     } catch (e) {
       console.error("Failed to save servers:", e);
+    }
+  };
+
+  const saveRenderers = async (newRenderers: Renderer[], activeId?: string) => {
+    try {
+      await AsyncStorage.setItem(
+        RENDERERS_KEY,
+        JSON.stringify({ renderers: newRenderers, activeRendererId: activeId })
+      );
+    } catch (e) {
+      console.error("Failed to save renderers:", e);
     }
   };
 
@@ -638,6 +701,44 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     setActiveServerState(server);
     saveServers(servers, server?.id);
   }, [servers]);
+
+  const addRenderer = useCallback((renderer: Omit<Renderer, "id" | "isActive">) => {
+    const newRenderer: Renderer = {
+      ...renderer,
+      id: Date.now().toString(),
+      isActive: true,
+    };
+    setRenderers((prev) => {
+      // Deactivate other renderers
+      const updated = prev.map(r => ({ ...r, isActive: false }));
+      updated.push(newRenderer);
+      saveRenderers(updated, newRenderer.id);
+      return updated;
+    });
+    setActiveRendererState(newRenderer);
+  }, []);
+
+  const removeRenderer = useCallback((id: string) => {
+    // Don't allow removing the default renderer
+    if (id === 'varese-default') return;
+    setRenderers((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      saveRenderers(updated, activeRenderer?.id === id ? undefined : activeRenderer?.id);
+      return updated;
+    });
+    if (activeRenderer?.id === id) {
+      setActiveRendererState(DEFAULT_RENDERER);
+    }
+  }, [activeRenderer]);
+
+  const setActiveRenderer = useCallback((renderer: Renderer | null) => {
+    setRenderers((prev) => {
+      const updated = prev.map(r => ({ ...r, isActive: r.id === renderer?.id }));
+      saveRenderers(updated, renderer?.id);
+      return updated;
+    });
+    setActiveRendererState(renderer);
+  }, []);
 
   const connectQobuz = useCallback(async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
@@ -900,6 +1001,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       value={{
         servers,
         activeServer,
+        renderers,
+        activeRenderer,
         artists,
         albums,
         recentlyPlayed,
@@ -910,6 +1013,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         addServer,
         removeServer,
         setActiveServer,
+        addRenderer,
+        removeRenderer,
+        setActiveRenderer,
         connectQobuz,
         disconnectQobuz,
         searchMusic,
