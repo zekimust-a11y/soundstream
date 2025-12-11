@@ -271,19 +271,39 @@ const discoverControlUrl = async (baseUrl: string): Promise<string | null> => {
 
 let cachedControlUrl: string | null = null;
 
-const makeSOAPRequestXHR = (controlUrl: string, soapEnvelope: string): Promise<{ status: number; responseText: string }> => {
+const makeSOAPRequestXHR = (controlUrl: string, soapEnvelope: string, headerVariant: number = 0): Promise<{ status: number; responseText: string }> => {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', controlUrl, true);
     
-    xhr.setRequestHeader('Content-Type', 'text/xml; charset="utf-8"');
-    xhr.setRequestHeader('SOAPACTION', 'urn:schemas-upnp-org:service:ContentDirectory:1#Browse');
-    xhr.setRequestHeader('User-Agent', 'SoundStream/1.0 UPnP/1.0 DLNADOC/1.50');
+    // Try different header combinations - OhNet/MinimServer is very picky
+    switch (headerVariant) {
+      case 0:
+        // Most common format with quotes
+        xhr.setRequestHeader('Content-Type', 'text/xml; charset=utf-8');
+        xhr.setRequestHeader('SOAPAction', '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"');
+        break;
+      case 1:
+        // Without quotes on action
+        xhr.setRequestHeader('Content-Type', 'text/xml; charset=utf-8');
+        xhr.setRequestHeader('SOAPAction', 'urn:schemas-upnp-org:service:ContentDirectory:1#Browse');
+        break;
+      case 2:
+        // Uppercase header name
+        xhr.setRequestHeader('Content-Type', 'text/xml; charset=utf-8');
+        xhr.setRequestHeader('SOAPACTION', '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"');
+        break;
+      case 3:
+        // Lowercase header name
+        xhr.setRequestHeader('Content-Type', 'text/xml; charset=utf-8');
+        xhr.setRequestHeader('soapaction', '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"');
+        break;
+    }
     
     xhr.timeout = 15000;
     
     xhr.onload = () => {
-      console.log('SOAP response headers:', xhr.getAllResponseHeaders());
+      console.log(`SOAP variant ${headerVariant} response:`, xhr.status);
       resolve({ status: xhr.status, responseText: xhr.responseText });
     };
     
@@ -328,32 +348,38 @@ const browseUPNPContainer = async (baseUrl: string, containerId: string, serverI
         `${baseUrl}/MediaServer/ContentDirectory/Control`,
       ];
 
+  // Try each control URL with each header variant
   for (const controlUrl of controlUrls) {
-    try {
-      console.log('Trying UPNP control URL (XHR):', controlUrl, 'for container:', containerId);
-      
-      const { status, responseText } = await makeSOAPRequestXHR(controlUrl, soapEnvelope);
+    for (let variant = 0; variant < 4; variant++) {
+      try {
+        console.log('Trying UPNP control URL (XHR):', controlUrl, 'variant:', variant, 'for container:', containerId);
+        
+        const { status, responseText } = await makeSOAPRequestXHR(controlUrl, soapEnvelope, variant);
 
-      console.log('UPNP XHR response status:', status, 'for URL:', controlUrl);
-      
-      if (status === 200) {
-        console.log('UPNP response received, length:', responseText.length);
-        if (responseText.length > 0) {
-          console.log('UPNP response preview:', responseText.substring(0, 500));
-        }
-        const result = parseUPNPResponse(responseText, serverId);
-        if (result.artists.length > 0 || result.albums.length > 0 || result.tracks.length > 0) {
+        console.log('UPNP XHR response status:', status, 'variant:', variant, 'for URL:', controlUrl);
+        
+        if (status === 200) {
+          console.log('SUCCESS! UPNP response received with variant', variant, ', length:', responseText.length);
+          if (responseText.length > 0) {
+            console.log('UPNP response preview:', responseText.substring(0, 500));
+          }
+          const result = parseUPNPResponse(responseText, serverId);
+          if (result.artists.length > 0 || result.albums.length > 0 || result.tracks.length > 0) {
+            return result;
+          }
+          // Even if no content parsed, variant 0 with 200 status means headers are correct
           return result;
+        } else if (status === 412) {
+          // 412 means header format wrong, try next variant
+          console.log('412 with variant', variant, '- trying next header format');
+          continue;
+        } else {
+          console.log('UPNP XHR error response:', status, 'body:', responseText.substring(0, 200));
         }
-      } else {
-        console.log('UPNP XHR error response:', status, 'body:', responseText.substring(0, 500));
-        if (status === 412) {
-          console.log('412 Precondition Failed - full error:', responseText);
-        }
+      } catch (error) {
+        console.log('Control URL failed:', controlUrl, 'variant:', variant, 'Error:', error instanceof Error ? error.message : String(error));
+        continue;
       }
-    } catch (error) {
-      console.log('Control URL failed:', controlUrl, 'Error:', error instanceof Error ? error.message : String(error));
-      continue;
     }
   }
   
