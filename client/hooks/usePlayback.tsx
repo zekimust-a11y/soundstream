@@ -388,39 +388,21 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           console.log('Source switch failed (continuing anyway):', sourceError);
         }
         
-        // Stop any current playback first to ensure clean state
-        try {
-          console.log('Stopping any current playback...');
-          await upnpClient.stop(VARESE_AVTRANSPORT_URL, 0);
-          await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (stopError) {
-          console.log('Stop command failed (may be OK):', stopError);
-        }
-        
         // Set the track URI using AVTransport with DIDL-Lite metadata
         console.log('Setting AVTransport URI...');
         console.log('Track metadata length:', track.metadata?.length || 0);
         await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, track.metadata || '');
         
-        // Wait for the Varese to load the track (poll until STOPPED or ready)
-        console.log('Waiting for track to load...');
-        let retries = 0;
-        while (retries < 10) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-          try {
-            const info = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
-            console.log('Transport state:', info.currentTransportState);
-            if (info.currentTransportState === 'STOPPED' || info.currentTransportState === 'PAUSED_PLAYBACK') {
-              break;
-            }
-          } catch (e) {
-            // Ignore errors during polling
-          }
-          retries++;
-        }
+        // Small delay to let the URI be processed
+        await new Promise(resolve => setTimeout(resolve, 300));
         
-        // Start playback
-        console.log('Sending Play command...');
+        // Send Play command twice - dCS Varese often ignores the first Play after SetAVTransportURI
+        console.log('Sending first Play command...');
+        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+        
+        await new Promise(resolve => setTimeout(resolve, 250));
+        
+        console.log('Sending second Play command...');
         await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
         
         // Check transport state
