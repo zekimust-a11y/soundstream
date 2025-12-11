@@ -7,6 +7,7 @@ import BrowseStackNavigator from "@/navigation/BrowseStackNavigator";
 import QueueScreen from "@/screens/QueueScreen";
 import SearchStackNavigator from "@/navigation/SearchStackNavigator";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
+import MiniPlayer from "@/components/MiniPlayer";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors } from "@/constants/theme";
 
@@ -93,6 +94,7 @@ export default function MainTabNavigator() {
           }}
         />
       </Tab.Navigator>
+      <MiniPlayer />
     </View>
   );
 }
