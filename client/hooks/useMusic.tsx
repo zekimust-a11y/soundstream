@@ -445,22 +445,13 @@ const parseUPNPResponseWithContext = (xml: string, serverId: string, context: Br
   didl = didl.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
   
   // Parse containers - extract id attribute specifically (not parentID)
-  // Use word boundary to ensure we match 'id=' not 'parentID='
-  const containerMatches = Array.from(didl.matchAll(/<container\s([^>]*?)>([\s\S]*?)<\/container>/gi));
+  // Use \sid= to ensure we match standalone 'id=' not 'parentID='
+  const containerMatches = Array.from(didl.matchAll(/<container[^>]*\sid="([^"]*)"[^>]*>([\s\S]*?)<\/container>/gi));
   console.log(`Parsing ${containerMatches.length} containers for context: ${context}`);
   
   for (const match of containerMatches) {
-    const attributes = match[1];
+    const id = match[1];
     const content = match[2];
-    
-    // Extract the id attribute specifically (avoiding parentID)
-    const idMatch = attributes.match(/(?:^|\s)id="([^"]*)"/i);
-    if (!idMatch) {
-      console.log('No id found in container attributes:', attributes.substring(0, 100));
-      continue;
-    }
-    
-    const id = idMatch[1];
     const titleMatch = content.match(/<dc:title[^>]*>([^<]*)<\/dc:title>/i);
     const artistMatch = content.match(/<upnp:artist[^>]*>([^<]*)<\/upnp:artist>/i) ||
                        content.match(/<dc:creator[^>]*>([^<]*)<\/dc:creator>/i);
@@ -487,16 +478,11 @@ const parseUPNPResponseWithContext = (xml: string, serverId: string, context: Br
   }
   
   // Parse items (tracks) - extract id attribute specifically (not parentID)
-  const itemMatches = Array.from(didl.matchAll(/<item\s([^>]*?)>([\s\S]*?)<\/item>/gi));
+  // Use \sid= to ensure we match standalone 'id=' not 'parentID='
+  const itemMatches = Array.from(didl.matchAll(/<item[^>]*\sid="([^"]*)"[^>]*>([\s\S]*?)<\/item>/gi));
   for (const match of itemMatches) {
-    const attributes = match[1];
+    const id = match[1];
     const content = match[2];
-    
-    // Extract the id attribute specifically (avoiding parentID)
-    const idMatch = attributes.match(/(?:^|\s)id="([^"]*)"/i);
-    if (!idMatch) continue;
-    
-    const id = idMatch[1];
     const titleMatch = content.match(/<dc:title[^>]*>([^<]*)<\/dc:title>/i);
     const artistMatch = content.match(/<upnp:artist[^>]*>([^<]*)<\/upnp:artist>/i) ||
                        content.match(/<dc:creator[^>]*>([^<]*)<\/dc:creator>/i);
