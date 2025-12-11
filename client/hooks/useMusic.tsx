@@ -432,11 +432,12 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     };
     setServers((prev) => {
       const updated = [...prev, newServer];
-      saveServers(updated, activeServer?.id);
+      saveServers(updated, newServer.id);
       return updated;
     });
+    setActiveServerState(newServer);
     loadMusicFromServer(newServer);
-  }, [activeServer, loadMusicFromServer]);
+  }, [loadMusicFromServer]);
 
   const removeServer = useCallback((id: string) => {
     setServers((prev) => {
