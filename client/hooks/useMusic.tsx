@@ -686,18 +686,17 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       ]);
 
       // Load servers with default MinimServer always present
+      // Always use the latest DEFAULT_SERVER config to ensure contentDirectoryUrl is set
       if (serversData) {
         const parsed = JSON.parse(serversData);
-        const existingServers = parsed.servers || [];
-        const hasDefault = existingServers.some((s: Server) => s.id === 'minimserver-default');
-        const allServers = hasDefault ? existingServers : [DEFAULT_SERVER, ...existingServers];
-        setServers(allServers);
-        if (parsed.activeServerId) {
-          const active = allServers.find((s: Server) => s.id === parsed.activeServerId);
-          setActiveServerState(active || DEFAULT_SERVER);
-        } else {
-          setActiveServerState(DEFAULT_SERVER);
-        }
+        const existingServers = (parsed.servers || []) as Server[];
+        // Replace any outdated default server with the current DEFAULT_SERVER
+        const updatedServers = existingServers
+          .filter((s: Server) => s.id !== 'minimserver-default')
+          .concat([DEFAULT_SERVER]);
+        setServers(updatedServers);
+        saveServers(updatedServers, DEFAULT_SERVER.id);
+        setActiveServerState(DEFAULT_SERVER);
       } else {
         setServers([DEFAULT_SERVER]);
         setActiveServerState(DEFAULT_SERVER);
@@ -741,9 +740,19 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
       if (libraryData) {
         const library = JSON.parse(libraryData);
-        setArtists(library.artists || []);
-        setAlbums(library.albums || []);
-        setTracks(library.tracks || []);
+        // Deduplicate loaded library data to prevent duplicate key errors
+        const uniqueArtists = (library.artists || []).filter((a: Artist, i: number, arr: Artist[]) => 
+          arr.findIndex((x: Artist) => x.id === a.id) === i
+        );
+        const uniqueAlbums = (library.albums || []).filter((a: Album, i: number, arr: Album[]) => 
+          arr.findIndex((x: Album) => x.id === a.id) === i
+        );
+        const uniqueTracks = (library.tracks || []).filter((t: Track, i: number, arr: Track[]) => 
+          arr.findIndex((x: Track) => x.id === t.id) === i
+        );
+        setArtists(uniqueArtists);
+        setAlbums(uniqueAlbums);
+        setTracks(uniqueTracks);
       }
     } catch (e) {
       console.error("Failed to load music data:", e);
