@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as upnpClient from "@/lib/upnpClient";
+
+const VARESE_AVTRANSPORT_URL = 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-AVTransport-1';
 
 export interface Zone {
   id: string;
@@ -187,23 +190,48 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const play = useCallback((track?: Track) => {
+  const play = useCallback(async (track?: Track) => {
     if (track) {
       setCurrentTrack(track);
       setCurrentTime(0);
     }
-    setIsPlaying(true);
+    try {
+      console.log('Sending Play command to Varese');
+      await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+      setIsPlaying(true);
+    } catch (error) {
+      console.error('Failed to resume playback on Varese:', error);
+    }
   }, []);
 
-  const pause = useCallback(() => {
-    setIsPlaying(false);
+  const pause = useCallback(async () => {
+    try {
+      console.log('Sending Pause command to Varese');
+      await upnpClient.pause(VARESE_AVTRANSPORT_URL, 0);
+      setIsPlaying(false);
+    } catch (error) {
+      console.error('Failed to pause on Varese:', error);
+      setIsPlaying(false);
+    }
   }, []);
 
-  const togglePlayPause = useCallback(() => {
-    setIsPlaying((prev) => !prev);
-  }, []);
+  const togglePlayPause = useCallback(async () => {
+    try {
+      if (isPlaying) {
+        console.log('Sending Pause command to Varese');
+        await upnpClient.pause(VARESE_AVTRANSPORT_URL, 0);
+        setIsPlaying(false);
+      } else {
+        console.log('Sending Play command to Varese');
+        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+        setIsPlaying(true);
+      }
+    } catch (error) {
+      console.error('Failed to toggle playback on Varese:', error);
+    }
+  }, [isPlaying]);
 
-  const next = useCallback(() => {
+  const next = useCallback(async () => {
     if (queue.length === 0) return;
     const currentIndex = queue.findIndex((t) => t.id === currentTrack?.id);
     let nextIndex: number;
@@ -214,6 +242,11 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       if (repeat === "all") {
         nextIndex = 0;
       } else {
+        try {
+          await upnpClient.stop(VARESE_AVTRANSPORT_URL, 0);
+        } catch (e) {
+          console.error('Failed to stop playback:', e);
+        }
         setIsPlaying(false);
         return;
       }
@@ -221,24 +254,62 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       nextIndex = currentIndex + 1;
     }
     
-    setCurrentTrack(queue[nextIndex]);
+    const nextTrack = queue[nextIndex];
+    setCurrentTrack(nextTrack);
     setCurrentTime(0);
+    
+    // Send UPNP commands for the next track
+    if (nextTrack?.uri) {
+      try {
+        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, nextTrack.uri, '');
+        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+      } catch (error) {
+        console.error('Failed to play next track on Varese:', error);
+      }
+    }
   }, [queue, currentTrack, shuffle, repeat]);
 
-  const previous = useCallback(() => {
+  const previous = useCallback(async () => {
     if (currentTime > 3) {
       setCurrentTime(0);
+      // Seek to beginning on the renderer
+      try {
+        await upnpClient.seek(VARESE_AVTRANSPORT_URL, 0, 'REL_TIME', '00:00:00');
+      } catch (e) {
+        console.error('Failed to seek:', e);
+      }
       return;
     }
     if (queue.length === 0) return;
     const currentIndex = queue.findIndex((t) => t.id === currentTrack?.id);
     const prevIndex = currentIndex <= 0 ? queue.length - 1 : currentIndex - 1;
-    setCurrentTrack(queue[prevIndex]);
+    const prevTrack = queue[prevIndex];
+    setCurrentTrack(prevTrack);
     setCurrentTime(0);
+    
+    // Send UPNP commands for the previous track
+    if (prevTrack?.uri) {
+      try {
+        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, prevTrack.uri, '');
+        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+      } catch (error) {
+        console.error('Failed to play previous track on Varese:', error);
+      }
+    }
   }, [queue, currentTrack, currentTime]);
 
-  const seek = useCallback((time: number) => {
+  const seek = useCallback(async (time: number) => {
     setCurrentTime(time);
+    // Convert seconds to HH:MM:SS format for UPNP
+    const hours = Math.floor(time / 3600);
+    const minutes = Math.floor((time % 3600) / 60);
+    const seconds = Math.floor(time % 60);
+    const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    try {
+      await upnpClient.seek(VARESE_AVTRANSPORT_URL, 0, 'REL_TIME', timeString);
+    } catch (error) {
+      console.error('Failed to seek on Varese:', error);
+    }
   }, []);
 
   const setVolume = useCallback((vol: number) => {
@@ -269,13 +340,30 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const playTrack = useCallback((track: Track, tracks?: Track[]) => {
+  const playTrack = useCallback(async (track: Track, tracks?: Track[]) => {
     if (tracks) {
       setQueue(tracks);
     }
     setCurrentTrack(track);
     setCurrentTime(0);
-    setIsPlaying(true);
+    
+    // Send UPNP commands to the dCS Varese
+    if (track.uri) {
+      try {
+        console.log('Sending SetAVTransportURI to Varese:', track.uri);
+        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, '');
+        console.log('Sending Play command to Varese');
+        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+        console.log('Playback started on Varese');
+        setIsPlaying(true);
+      } catch (error) {
+        console.error('Failed to control Varese:', error);
+        setIsPlaying(false);
+      }
+    } else {
+      console.warn('Track has no URI, cannot play on renderer');
+      setIsPlaying(false);
+    }
   }, []);
 
   const toggleShuffle = useCallback(() => {
