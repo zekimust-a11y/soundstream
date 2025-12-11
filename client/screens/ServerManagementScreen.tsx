@@ -69,83 +69,71 @@ export default function ServerManagementScreen() {
   const [discoveredServers, setDiscoveredServers] = useState<DiscoveredServer[]>([]);
   const [scanComplete, setScanComplete] = useState(false);
 
+  const allSimulatedServers: DiscoveredServer[] = [
+    {
+      id: "disc-1",
+      name: "Living Room LMS",
+      type: "lms" as const,
+      host: "192.168.1.10",
+      port: 9000,
+      manufacturer: "Logitech Media Server",
+    },
+    {
+      id: "disc-2",
+      name: "Sonos Media Server",
+      type: "upnp" as const,
+      host: "192.168.1.25",
+      port: 1400,
+      manufacturer: "Sonos, Inc.",
+    },
+    {
+      id: "disc-3",
+      name: "QNAP NAS Media",
+      type: "upnp" as const,
+      host: "192.168.1.50",
+      port: 8200,
+      manufacturer: "QNAP Systems",
+    },
+    {
+      id: "disc-4",
+      name: "Plex Media Server",
+      type: "upnp" as const,
+      host: "192.168.1.100",
+      port: 32400,
+      manufacturer: "Plex, Inc.",
+    },
+    {
+      id: "disc-5",
+      name: "MinimServer",
+      type: "upnp" as const,
+      host: "192.168.1.15",
+      port: 9790,
+      manufacturer: "MinimServer",
+    },
+  ];
+
   const scanForServers = async () => {
     setIsScanning(true);
     setScanComplete(false);
     setDiscoveredServers([]);
 
-    const simulatedServers: DiscoveredServer[] = [];
-    const baseIP = "192.168.1.";
+    const foundServers: DiscoveredServer[] = [];
     
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 3 && i < allSimulatedServers.length; i++) {
       await new Promise((resolve) => setTimeout(resolve, 800 + Math.random() * 400));
-      
-      const newServer = getSimulatedServer(baseIP, i);
-      if (newServer) {
-        const isAlreadyAdded = servers.some(
-          (s) => s.host === newServer.host && s.port === newServer.port
-        );
-        if (!isAlreadyAdded) {
-          simulatedServers.push(newServer);
-          setDiscoveredServers([...simulatedServers]);
-        }
-      }
+      foundServers.push(allSimulatedServers[i]);
+      setDiscoveredServers([...foundServers]);
     }
 
     setIsScanning(false);
     setScanComplete(true);
   };
 
-  const getSimulatedServer = (baseIP: string, index: number): DiscoveredServer | null => {
-    const serverConfigs = [
-      {
-        id: "disc-1",
-        name: "Living Room LMS",
-        type: "lms" as const,
-        host: `${baseIP}10`,
-        port: 9000,
-        manufacturer: "Logitech Media Server",
-      },
-      {
-        id: "disc-2",
-        name: "Sonos Media Server",
-        type: "upnp" as const,
-        host: `${baseIP}25`,
-        port: 1400,
-        manufacturer: "Sonos, Inc.",
-      },
-      {
-        id: "disc-3",
-        name: "QNAP NAS Media",
-        type: "upnp" as const,
-        host: `${baseIP}50`,
-        port: 8200,
-        manufacturer: "QNAP Systems",
-      },
-      {
-        id: "disc-4",
-        name: "Plex Media Server",
-        type: "upnp" as const,
-        host: `${baseIP}100`,
-        port: 32400,
-        manufacturer: "Plex, Inc.",
-      },
-      {
-        id: "disc-5",
-        name: "MinimServer",
-        type: "upnp" as const,
-        host: `${baseIP}15`,
-        port: 9790,
-        manufacturer: "MinimServer",
-      },
-    ];
-
-    const available = serverConfigs.filter(
-      (s) => !servers.some((existing) => existing.host === s.host && existing.port === s.port)
-    );
-
-    return available[index] || null;
-  };
+  const filteredDiscoveredServers = discoveredServers.filter(
+    (discovered) => !servers.some(
+      (existing) => existing.host === discovered.host && existing.port === discovered.port
+    )
+  );
 
   const handleAddDiscoveredServer = (discovered: DiscoveredServer) => {
     addServer({
@@ -154,7 +142,6 @@ export default function ServerManagementScreen() {
       port: discovered.port,
       type: discovered.type,
     });
-    setDiscoveredServers((prev) => prev.filter((s) => s.id !== discovered.id));
   };
 
   const handleAddServer = () => {
@@ -230,12 +217,12 @@ export default function ServerManagementScreen() {
           </View>
         ) : null}
 
-        {discoveredServers.length > 0 ? (
+        {filteredDiscoveredServers.length > 0 ? (
           <View style={styles.discoveredList}>
             <ThemedText style={styles.discoveredTitle}>
-              Found {discoveredServers.length} server{discoveredServers.length > 1 ? "s" : ""}
+              Found {filteredDiscoveredServers.length} server{filteredDiscoveredServers.length > 1 ? "s" : ""}
             </ThemedText>
-            {discoveredServers.map((server) => (
+            {filteredDiscoveredServers.map((server) => (
               <View key={server.id} style={styles.discoveredServerCard}>
                 <View style={styles.discoveredServerIcon}>
                   <Feather
