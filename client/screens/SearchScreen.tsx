@@ -1,0 +1,365 @@
+import React, { useState, useCallback } from "react";
+import {
+  View,
+  StyleSheet,
+  TextInput,
+  FlatList,
+  Pressable,
+  Dimensions,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Image } from "expo-image";
+import { Feather } from "@expo/vector-icons";
+
+import { ThemedText } from "@/components/ThemedText";
+import { ThemedView } from "@/components/ThemedView";
+import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { useMusic, type Artist, type Album } from "@/hooks/useMusic";
+import { usePlayback, type Track } from "@/hooks/usePlayback";
+import type { SearchStackParamList } from "@/navigation/SearchStackNavigator";
+
+type NavigationProp = NativeStackNavigationProp<SearchStackParamList>;
+type FilterTab = "all" | "artists" | "albums" | "tracks";
+
+interface SearchResult {
+  type: "artist" | "album" | "track";
+  data: Artist | Album | Track;
+}
+
+export default function SearchScreen() {
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
+  const navigation = useNavigation<NavigationProp>();
+  const { searchMusic, addToRecentlyPlayed } = useMusic();
+  const { playTrack } = usePlayback();
+
+  const [query, setQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [results, setResults] = useState<{
+    artists: Artist[];
+    albums: Album[];
+    tracks: Track[];
+  }>({ artists: [], albums: [], tracks: [] });
+  const [isSearching, setIsSearching] = useState(false);
+
+  const handleSearch = useCallback(async (text: string) => {
+    setQuery(text);
+    if (text.length < 2) {
+      setResults({ artists: [], albums: [], tracks: [] });
+      return;
+    }
+    setIsSearching(true);
+    const searchResults = await searchMusic(text);
+    setResults(searchResults);
+    setIsSearching(false);
+  }, [searchMusic]);
+
+  const getFilteredResults = (): SearchResult[] => {
+    const allResults: SearchResult[] = [];
+
+    if (activeTab === "all" || activeTab === "artists") {
+      results.artists.forEach((artist) => {
+        allResults.push({ type: "artist", data: artist });
+      });
+    }
+    if (activeTab === "all" || activeTab === "albums") {
+      results.albums.forEach((album) => {
+        allResults.push({ type: "album", data: album });
+      });
+    }
+    if (activeTab === "all" || activeTab === "tracks") {
+      results.tracks.forEach((track) => {
+        allResults.push({ type: "track", data: track });
+      });
+    }
+
+    return allResults;
+  };
+
+  const handleResultPress = (result: SearchResult) => {
+    if (result.type === "artist") {
+      const artist = result.data as Artist;
+      navigation.navigate("Artist", { id: artist.id, name: artist.name });
+    } else if (result.type === "album") {
+      const album = result.data as Album;
+      navigation.navigate("Album", { id: album.id, name: album.name, artistName: album.artist });
+    } else {
+      const track = result.data as Track;
+      playTrack(track);
+      addToRecentlyPlayed(track);
+    }
+  };
+
+  const renderResult = ({ item }: { item: SearchResult }) => {
+    if (item.type === "artist") {
+      const artist = item.data as Artist;
+      return (
+        <Pressable
+          style={({ pressed }) => [styles.resultRow, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => handleResultPress(item)}
+        >
+          <View style={styles.artistPlaceholder}>
+            <Feather name="user" size={20} color={Colors.dark.textTertiary} />
+          </View>
+          <View style={styles.resultInfo}>
+            <ThemedText style={styles.resultTitle}>{artist.name}</ThemedText>
+            <ThemedText style={styles.resultSubtitle}>Artist</ThemedText>
+          </View>
+          <Feather name="chevron-right" size={20} color={Colors.dark.textTertiary} />
+        </Pressable>
+      );
+    } else if (item.type === "album") {
+      const album = item.data as Album;
+      return (
+        <Pressable
+          style={({ pressed }) => [styles.resultRow, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => handleResultPress(item)}
+        >
+          <Image
+            source={album.imageUrl || require("../assets/images/placeholder-album.png")}
+            style={styles.resultImage}
+            contentFit="cover"
+          />
+          <View style={styles.resultInfo}>
+            <ThemedText style={styles.resultTitle} numberOfLines={1}>
+              {album.name}
+            </ThemedText>
+            <ThemedText style={styles.resultSubtitle} numberOfLines={1}>
+              Album • {album.artist}
+            </ThemedText>
+          </View>
+          <Feather name="chevron-right" size={20} color={Colors.dark.textTertiary} />
+        </Pressable>
+      );
+    } else {
+      const track = item.data as Track;
+      return (
+        <Pressable
+          style={({ pressed }) => [styles.resultRow, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => handleResultPress(item)}
+        >
+          <Image
+            source={track.albumArt || require("../assets/images/placeholder-album.png")}
+            style={styles.resultImage}
+            contentFit="cover"
+          />
+          <View style={styles.resultInfo}>
+            <ThemedText style={styles.resultTitle} numberOfLines={1}>
+              {track.title}
+            </ThemedText>
+            <ThemedText style={styles.resultSubtitle} numberOfLines={1}>
+              Track • {track.artist}
+            </ThemedText>
+          </View>
+          <Feather name="play-circle" size={24} color={Colors.dark.accent} />
+        </Pressable>
+      );
+    }
+  };
+
+  const tabs: { key: FilterTab; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "artists", label: "Artists" },
+    { key: "albums", label: "Albums" },
+    { key: "tracks", label: "Tracks" },
+  ];
+
+  const filteredResults = getFilteredResults();
+
+  return (
+    <ThemedView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+        <View style={styles.searchContainer}>
+          <Feather name="search" size={18} color={Colors.dark.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search music..."
+            placeholderTextColor={Colors.dark.textTertiary}
+            value={query}
+            onChangeText={handleSearch}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {query.length > 0 ? (
+            <Pressable
+              style={({ pressed }) => [styles.clearButton, { opacity: pressed ? 0.6 : 1 }]}
+              onPress={() => {
+                setQuery("");
+                setResults({ artists: [], albums: [], tracks: [] });
+              }}
+            >
+              <Feather name="x" size={18} color={Colors.dark.textSecondary} />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {query.length > 0 ? (
+          <View style={styles.tabsContainer}>
+            {tabs.map((tab) => (
+              <Pressable
+                key={tab.key}
+                style={({ pressed }) => [
+                  styles.tab,
+                  activeTab === tab.key && styles.tabActive,
+                  { opacity: pressed ? 0.6 : 1 },
+                ]}
+                onPress={() => setActiveTab(tab.key)}
+              >
+                <ThemedText
+                  style={[
+                    styles.tabText,
+                    activeTab === tab.key && styles.tabTextActive,
+                  ]}
+                >
+                  {tab.label}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+      </View>
+
+      <FlatList
+        data={filteredResults}
+        renderItem={renderResult}
+        keyExtractor={(item) => `${item.type}-${(item.data as any).id}`}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: tabBarHeight + Spacing["5xl"] },
+          filteredResults.length === 0 && styles.emptyListContent,
+        ]}
+        ListEmptyComponent={
+          query.length > 0 && !isSearching ? (
+            <View style={styles.emptyState}>
+              <Feather name="search" size={48} color={Colors.dark.textTertiary} />
+              <ThemedText style={styles.emptyTitle}>No results found</ThemedText>
+              <ThemedText style={styles.emptySubtitle}>
+                Try a different search term
+              </ThemedText>
+            </View>
+          ) : query.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Feather name="search" size={48} color={Colors.dark.textTertiary} />
+              <ThemedText style={styles.emptyTitle}>Search your library</ThemedText>
+              <ThemedText style={styles.emptySubtitle}>
+                Find artists, albums, and tracks
+              </ThemedText>
+            </View>
+          ) : null
+        }
+      />
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.dark.backgroundRoot,
+  },
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.backgroundSecondary,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  searchIcon: {
+    marginRight: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    height: Spacing.inputHeight,
+    color: Colors.dark.text,
+    ...Typography.body,
+  },
+  clearButton: {
+    padding: Spacing.sm,
+  },
+  tabsContainer: {
+    flexDirection: "row",
+    marginTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  tab: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.dark.backgroundSecondary,
+  },
+  tabActive: {
+    backgroundColor: Colors.dark.accent,
+  },
+  tabText: {
+    ...Typography.caption,
+    color: Colors.dark.textSecondary,
+  },
+  tabTextActive: {
+    color: Colors.dark.text,
+    fontWeight: "600",
+  },
+  listContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+  },
+  emptyListContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.dark.border,
+  },
+  resultImage: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.xs,
+  },
+  artistPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.dark.backgroundSecondary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  resultInfo: {
+    flex: 1,
+    marginLeft: Spacing.md,
+  },
+  resultTitle: {
+    ...Typography.headline,
+    color: Colors.dark.text,
+  },
+  resultSubtitle: {
+    ...Typography.caption,
+    color: Colors.dark.textSecondary,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing["2xl"],
+  },
+  emptyTitle: {
+    ...Typography.title,
+    color: Colors.dark.text,
+    textAlign: "center",
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  emptySubtitle: {
+    ...Typography.body,
+    color: Colors.dark.textSecondary,
+    textAlign: "center",
+  },
+});

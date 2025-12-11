@@ -8,12 +8,12 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
-import { useTheme } from "@/hooks/useTheme";
-import { BorderRadius, Spacing } from "@/constants/theme";
+import { Colors, BorderRadius, Spacing } from "@/constants/theme";
 
 interface ButtonProps {
   onPress?: () => void;
-  children: ReactNode;
+  title?: string;
+  children?: ReactNode;
   style?: StyleProp<ViewStyle>;
   disabled?: boolean;
 }
@@ -30,11 +30,11 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function Button({
   onPress,
+  title,
   children,
   style,
   disabled = false,
 }: ButtonProps) {
-  const { theme } = useTheme();
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -62,19 +62,22 @@ export function Button({
       style={[
         styles.button,
         {
-          backgroundColor: theme.link,
+          backgroundColor: Colors.dark.accent,
           opacity: disabled ? 0.5 : 1,
         },
         style,
         animatedStyle,
       ]}
     >
-      <ThemedText
-        type="body"
-        style={[styles.buttonText, { color: theme.buttonText }]}
-      >
-        {children}
-      </ThemedText>
+      {children}
+      {title ? (
+        <ThemedText
+          type="body"
+          style={[styles.buttonText, { color: Colors.dark.buttonText }]}
+        >
+          {title}
+        </ThemedText>
+      ) : null}
     </AnimatedPressable>
   );
 }
@@ -85,6 +88,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    paddingHorizontal: Spacing.xl,
   },
   buttonText: {
     fontWeight: "600",
