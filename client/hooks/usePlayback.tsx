@@ -564,17 +564,23 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     const volumePercent = Math.round(clampedVol * 100);
     console.log('=== SETTING VOLUME ===');
     console.log('Volume percent:', volumePercent);
-    console.log('RenderingControl URL:', VARESE_RENDERINGCONTROL_URL);
     
     try {
-      // Use OpenHome Volume service (dCS devices use this, not standard RenderingControl)
-      await upnpClient.setOpenHomeVolume(VARESE_OPENHOME_VOLUME_URL, volumePercent);
+      // Try standard UPnP RenderingControl SetVolume first
+      console.log('Trying standard UPnP SetVolume at:', VARESE_RENDERINGCONTROL_URL);
+      await upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent);
       console.log('Volume set successfully to:', volumePercent);
     } catch (error) {
-      console.error('Failed to set volume on Varese:', error);
-      // Log the full error for debugging
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
+      console.error('Standard UPnP volume failed, trying OpenHome:', error);
+      // Fall back to OpenHome Volume on RenderingControl URL
+      try {
+        await upnpClient.setOpenHomeVolume(VARESE_RENDERINGCONTROL_URL, volumePercent);
+        console.log('OpenHome volume set successfully to:', volumePercent);
+      } catch (ohError) {
+        console.error('OpenHome volume also failed:', ohError);
+        if (ohError instanceof Error) {
+          console.error('Error message:', ohError.message);
+        }
       }
     }
   }, []);
@@ -649,11 +655,11 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           return;
         }
         console.log('SetAVTransportURI succeeded');
-        return upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+        return upnpClient.transportPlay(VARESE_AVTRANSPORT_URL);
       }).then(() => {
         console.log('=== PLAY COMMAND SENT ===');
       }).catch((error) => {
-        console.error('AVTransport playback failed:', error);
+        console.error('OpenHome Transport playback failed:', error);
         setIsPlaying(false);
       }).finally(() => {
         isPlayingRef.current = false;
