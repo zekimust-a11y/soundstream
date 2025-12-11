@@ -273,7 +273,6 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     // Send UPNP commands for the next track
     if (nextTrack?.uri) {
       try {
-        await upnpClient.switchToNetworkInput(VARESE_AVTRANSPORT_URL, 0);
         await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, nextTrack.uri, '');
         await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
       } catch (error) {
@@ -303,7 +302,6 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     // Send UPNP commands for the previous track
     if (prevTrack?.uri) {
       try {
-        await upnpClient.switchToNetworkInput(VARESE_AVTRANSPORT_URL, 0);
         await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, prevTrack.uri, '');
         await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
       } catch (error) {
@@ -374,11 +372,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     // Send UPNP commands to the dCS Varese
     if (track.uri) {
       try {
-        // First, switch the Varese to Network input (required for dCS devices)
-        console.log('Switching Varese to Network input...');
-        await upnpClient.switchToNetworkInput(VARESE_AVTRANSPORT_URL, 0);
-        
-        // Now set the actual track URI
+        // Set the track URI from MinimServer
         console.log('Sending SetAVTransportURI to Varese:', track.uri);
         await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, '');
         
@@ -392,11 +386,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         
         if (transportInfo.currentTransportState === 'PLAYING') {
           console.log('Playback started successfully on Varese');
-          setIsPlaying(true);
         } else {
-          console.warn('Varese transport state:', transportInfo.currentTransportState);
-          setIsPlaying(true); // Still update UI optimistically
+          console.log('Varese transport state:', transportInfo.currentTransportState);
         }
+        setIsPlaying(true);
       } catch (error) {
         console.error('Failed to control Varese:', error);
         setIsPlaying(false);
