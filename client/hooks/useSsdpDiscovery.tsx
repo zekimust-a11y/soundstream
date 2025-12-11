@@ -297,13 +297,29 @@ export function useSsdpDiscovery() {
     if (!cdService) return null;
     
     let controlURL = cdService.controlURL;
-    if (controlURL.startsWith('/')) {
-      controlURL = `http://${device.host}:${device.port}${controlURL}`;
-    } else if (!controlURL.startsWith('http')) {
-      controlURL = `http://${device.host}:${device.port}/${controlURL}`;
+    
+    // If the control URL is already absolute, use it as-is
+    if (controlURL.startsWith('http://') || controlURL.startsWith('https://')) {
+      return controlURL;
     }
     
-    return controlURL;
+    // Try to construct using the device location URL base
+    try {
+      const locationUrl = new URL(device.location);
+      if (controlURL.startsWith('/')) {
+        return `${locationUrl.protocol}//${locationUrl.host}${controlURL}`;
+      } else {
+        // Relative path - resolve against location
+        const base = device.location.substring(0, device.location.lastIndexOf('/') + 1);
+        return `${base}${controlURL}`;
+      }
+    } catch (e) {
+      // Fallback to simple construction
+      if (controlURL.startsWith('/')) {
+        return `http://${device.host}:${device.port}${controlURL}`;
+      }
+      return `http://${device.host}:${device.port}/${controlURL}`;
+    }
   }, []);
   
   const getAVTransportUrl = useCallback((device: DiscoveredDevice): string | null => {
@@ -314,13 +330,29 @@ export function useSsdpDiscovery() {
     if (!avService) return null;
     
     let controlURL = avService.controlURL;
-    if (controlURL.startsWith('/')) {
-      controlURL = `http://${device.host}:${device.port}${controlURL}`;
-    } else if (!controlURL.startsWith('http')) {
-      controlURL = `http://${device.host}:${device.port}/${controlURL}`;
+    
+    // If the control URL is already absolute, use it as-is
+    if (controlURL.startsWith('http://') || controlURL.startsWith('https://')) {
+      return controlURL;
     }
     
-    return controlURL;
+    // Try to construct using the device location URL base
+    try {
+      const locationUrl = new URL(device.location);
+      if (controlURL.startsWith('/')) {
+        return `${locationUrl.protocol}//${locationUrl.host}${controlURL}`;
+      } else {
+        // Relative path - resolve against location
+        const base = device.location.substring(0, device.location.lastIndexOf('/') + 1);
+        return `${base}${controlURL}`;
+      }
+    } catch (e) {
+      // Fallback to simple construction
+      if (controlURL.startsWith('/')) {
+        return `http://${device.host}:${device.port}${controlURL}`;
+      }
+      return `http://${device.host}:${device.port}/${controlURL}`;
+    }
   }, []);
   
   return {

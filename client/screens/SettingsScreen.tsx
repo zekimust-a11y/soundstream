@@ -92,6 +92,7 @@ export default function SettingsScreen() {
 
   const handleAddDiscoveredServer = (device: typeof devices[0]) => {
     const contentDirectoryUrl = getContentDirectoryUrl(device);
+    console.log('Adding server with ContentDirectory URL:', contentDirectoryUrl);
     addServer({
       name: device.name,
       host: device.host,
@@ -99,7 +100,16 @@ export default function SettingsScreen() {
       type: 'upnp',
       contentDirectoryUrl: contentDirectoryUrl || undefined,
     });
-    Alert.alert('Server Added', `${device.name} has been added to your servers.`);
+    Alert.alert('Server Added', `${device.name} has been added.\n\nContentDirectory URL:\n${contentDirectoryUrl || 'Not found'}`);
+  };
+
+  const handleAddDiscoveredRenderer = (device: typeof devices[0]) => {
+    const avTransportUrl = getAVTransportUrl(device);
+    console.log('Adding renderer with AVTransport URL:', avTransportUrl);
+    Alert.alert(
+      'Renderer Found',
+      `${device.name}\n\nAVTransport URL:\n${avTransportUrl || 'Not found'}\n\nRenderer will be used for playback.`
+    );
   };
 
   return (
@@ -184,9 +194,13 @@ export default function SettingsScreen() {
                   Audio Renderers ({mediaRenderers.length})
                 </ThemedText>
                 {mediaRenderers.map((renderer) => (
-                  <View
+                  <Pressable
                     key={renderer.id}
-                    style={[styles.discoveredDevice, { borderColor: theme.border }]}
+                    style={({ pressed }) => [
+                      styles.discoveredDevice,
+                      { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
+                    ]}
+                    onPress={() => handleAddDiscoveredRenderer(renderer)}
                   >
                     <View style={[styles.deviceIcon, { backgroundColor: theme.success + '20' }]}>
                       <Feather name="speaker" size={16} color={theme.success} />
@@ -200,7 +214,7 @@ export default function SettingsScreen() {
                       </ThemedText>
                     </View>
                     <Feather name="check-circle" size={20} color={theme.success} />
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             ) : null}
