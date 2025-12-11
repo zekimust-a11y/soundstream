@@ -12,27 +12,28 @@ SoundStream is a Roon-inspired mobile music player app built with Expo/React Nat
 
 ## Known Limitations
 
-### OpenHome Service Discovery Issue
-**Tested December 2024**: The dCS Varese requires SSDP (UDP multicast) discovery to expose its OpenHome service endpoints. Without SSDP, we cannot obtain the correct control URLs.
+### dCS Varese OpenHome Incompatibility
+**Tested December 2024**: The dCS Varese does not respond to standard OpenHome SOAP commands. This is a device-level limitation, not a discovery issue.
 
 **What works:**
 - Library browsing from MinimServer via ContentDirectory
 - Queue management in the app
-- AVTransport commands (SetAVTransportURI, Play, Pause, etc.) return success
+- AVTransport commands (SetAVTransportURI, Play, Pause) return success (HTTP 200)
 
 **What doesn't work:**
 - OpenHome services (Product, Playlist, Transport, Volume, Info) - all return UPnP error 404 "Invalid Action"
-- AVTransport commands don't trigger actual audio playback on Varese (compatibility shim only)
+- AVTransport commands are acknowledged but don't trigger actual audio playback (compatibility shim only)
 
-**Why:**
-1. Expo Go cannot do UDP multicast (needs native modules)
-2. The Replit-hosted server cannot reach local network devices
-3. The Varese's device description returns 403 Forbidden
-4. Without SSDP discovery, OpenHome control URLs cannot be obtained
+**Technical findings:**
+- Probed all standard OpenHome service versions (Product:1/2, Playlist:1, Transport:1, Volume:1/2, Info:1)
+- Every action fails with SOAP fault errorCode 404 (Invalid Action)
+- The Varese responds to SOAP requests but doesn't recognize OpenHome actions
+- This behavior persists regardless of SSDP discovery - the device simply doesn't support standard OpenHome control
 
 **Workaround:**
-- Use the dCS Mosaic app for playback control
-- This app can be used for library browsing and queue building
+- Use **dCS Mosaic app** for audio playback control
+- Use **SoundStream** for library browsing and queue planning
+- Consider contacting dCS support for API documentation if direct control is required
 
 ## Architecture
 

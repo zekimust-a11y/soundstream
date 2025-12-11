@@ -1249,3 +1249,70 @@ export const getMute = async (
   const muteMatch = xml.match(/<CurrentMute>(\d+)<\/CurrentMute>/);
   return muteMatch ? muteMatch[1] === '1' : false;
 };
+
+// High-level function to play a track via OpenHome Playlist
+// This is the preferred method for dCS devices when OpenHome services are discovered via SSDP
+export const playViaOpenHomePlaylist = async (
+  track: { uri?: string; metadata?: string; title?: string },
+  productControlURL: string,
+  playlistControlURL: string,
+  transportControlURL?: string
+): Promise<void> => {
+  console.log('=== PLAYING VIA OPENHOME PLAYLIST ===');
+  console.log('Track:', track.title);
+  console.log('Product URL:', productControlURL);
+  console.log('Playlist URL:', playlistControlURL);
+  
+  if (!track.uri) {
+    throw new Error('Track has no URI');
+  }
+  
+  try {
+    // Step 1: Get sources and find the Playlist source
+    const sourceXml = await productSourceXml(productControlURL);
+    console.log('Retrieved source list');
+    
+    // Find Playlist source index
+    const sourceMatches = sourceXml.matchAll(/<Source>[\s\S]*?<Index>(\d+)<\/Index>[\s\S]*?<Type>([^<]+)<\/Type>[\s\S]*?<\/Source>/gi);
+    let playlistSourceIndex = 0;
+    
+    for (const match of sourceMatches) {
+      const index = parseInt(match[1]);
+      const type = match[2];
+      console.log(`Source ${index}: ${type}`);
+      if (type.toLowerCase().includes('playlist') || type.toLowerCase().includes('netaux')) {
+        playlistSourceIndex = index;
+        console.log('Using source index:', playlistSourceIndex);
+        break;
+      }
+    }
+    
+    // Step 2: Set source to Playlist
+    await productSetSource(productControlURL, playlistSourceIndex);
+    await new Promise(resolve => setTimeout(resolve, 200));
+    console.log('Set source to Playlist');
+    
+    // Step 3: Clear playlist
+    await playlistDeleteAll(playlistControlURL);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    console.log('Cleared playlist');
+    
+    // Step 4: Insert track
+    await playlistInsert(
+      playlistControlURL,
+      0, // afterId - insert at beginning
+      track.uri,
+      track.metadata || ''
+    );
+    await new Promise(resolve => setTimeout(resolve, 200));
+    console.log('Inserted track into playlist');
+    
+    // Step 5: Play
+    await playlistPlay(playlistControlURL);
+    console.log('=== OPENHOME PLAYLIST PLAY COMPLETE ===');
+    
+  } catch (error) {
+    console.error('OpenHome Playlist play failed:', error);
+    throw error;
+  }
+};

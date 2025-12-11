@@ -114,18 +114,19 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const discoverVareseServices = async () => {
-    console.log('=== DISCOVERING VARESE SERVICES (silent mode) ===');
+    console.log('=== CONFIGURING VARESE SERVICES ===');
     
-    // Since device description returns 403 and OpenHome probes fail,
-    // we just use the hardcoded AVTransport URL which we know works
-    // OpenHome services require further investigation via the diagnostic tool
+    // The dCS Varese only responds to AVTransport commands (compatibility shim)
+    // OpenHome services (Product, Playlist, Transport, Volume, Info) all return error 404
+    // This is a device limitation, not a discovery issue
+    // Use dCS Mosaic app for actual audio playback control
     
     const services: OpenHomeServices = {
       avTransportControlURL: VARESE_AVTRANSPORT_URL,
       renderingControlURL: VARESE_RENDERINGCONTROL_URL,
     };
     
-    console.log('Using hardcoded Varese services:', services);
+    console.log('Configured Varese AVTransport services');
     setVareseServices(services);
   };
   
@@ -445,16 +446,15 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       setCurrentTrack(track);
       setCurrentTime(0);
       
-      // Use AVTransport for playback control
-      // Note: OpenHome services require SSDP discovery which is not available in Expo Go
-      // (needs native UDP multicast support in a development build)
+      // AVTransport playback - the dCS Varese only responds to AVTransport commands
+      // Note: AVTransport commands return success but don't trigger audio playback
+      // This is a compatibility shim only - use dCS Mosaic app for actual playback
       if (track.uri) {
         console.log('=== PLAYING TRACK ===');
         console.log('Track title:', track.title);
         console.log('Track URI:', track.uri);
         
         try {
-          // Step 1: Set the transport URI with metadata
           const setResult = await upnpClient.setAVTransportURI(
             VARESE_AVTRANSPORT_URL, 
             0, 
@@ -469,17 +469,12 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           }
           
           console.log('SetAVTransportURI succeeded');
-          
-          // Step 2: Wait for the Varese to process the URI
           await new Promise(resolve => setTimeout(resolve, 300));
           
-          // Step 3: Send Play command
           await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-          console.log('AVTransport Play command sent');
-          
-          setIsPlaying(true);
           console.log('=== PLAY COMMAND SENT (AVTransport) ===');
           
+          setIsPlaying(true);
         } catch (error) {
           console.error('AVTransport playback failed:', error);
           setIsPlaying(false);
