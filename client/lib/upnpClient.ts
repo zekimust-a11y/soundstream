@@ -1,5 +1,77 @@
 import { DiscoveredDevice, ServiceInfo } from '../hooks/useSsdpDiscovery';
 
+// Interface for parsed OpenHome services from device description
+export interface OpenHomeServices {
+  playlistControlURL?: string;
+  transportControlURL?: string;
+  productControlURL?: string;
+  avTransportControlURL?: string;
+}
+
+// Fetch and parse device description to discover OpenHome service URLs
+export const fetchDeviceServices = async (deviceDescriptionURL: string): Promise<OpenHomeServices> => {
+  console.log('Fetching device description from:', deviceDescriptionURL);
+  
+  try {
+    const response = await fetch(deviceDescriptionURL);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch device description: ${response.status}`);
+    }
+    
+    const xml = await response.text();
+    console.log('Device description XML length:', xml.length);
+    console.log('Device description preview:', xml.substring(0, 1000));
+    
+    const services: OpenHomeServices = {};
+    
+    // Extract base URL from device description URL
+    const urlParts = new URL(deviceDescriptionURL);
+    const baseURL = `${urlParts.protocol}//${urlParts.host}`;
+    
+    // Find all service entries - look for serviceType and controlURL pairs
+    const serviceRegex = /<service>([\s\S]*?)<\/service>/gi;
+    let match;
+    
+    while ((match = serviceRegex.exec(xml)) !== null) {
+      const serviceXml = match[1];
+      
+      const serviceTypeMatch = serviceXml.match(/<serviceType>([^<]+)<\/serviceType>/);
+      const controlURLMatch = serviceXml.match(/<controlURL>([^<]+)<\/controlURL>/);
+      
+      if (serviceTypeMatch && controlURLMatch) {
+        const serviceType = serviceTypeMatch[1];
+        let controlURL = controlURLMatch[1];
+        
+        // Make controlURL absolute if relative
+        if (controlURL.startsWith('/')) {
+          controlURL = baseURL + controlURL;
+        } else if (!controlURL.startsWith('http')) {
+          controlURL = baseURL + '/' + controlURL;
+        }
+        
+        console.log(`Found service: ${serviceType} -> ${controlURL}`);
+        
+        if (serviceType.includes('Playlist')) {
+          services.playlistControlURL = controlURL;
+        } else if (serviceType.includes('Transport') && serviceType.includes('openhome')) {
+          services.transportControlURL = controlURL;
+        } else if (serviceType.includes('Product')) {
+          services.productControlURL = controlURL;
+        } else if (serviceType.includes('AVTransport')) {
+          services.avTransportControlURL = controlURL;
+        }
+      }
+    }
+    
+    console.log('Discovered OpenHome services:', services);
+    return services;
+    
+  } catch (error) {
+    console.error('Error fetching device services:', error);
+    return {};
+  }
+};
+
 export interface BrowseResult {
   containers: Container[];
   items: Item[];
@@ -874,6 +946,75 @@ export const playlistDeleteAll = async (playlistControlURL: string): Promise<voi
   } else {
     console.log('Playlist cleared');
   }
+};
+
+// OpenHome Product service - required to select source before Playlist commands work
+export const productSetSource = async (productControlURL: string, sourceIndex: number): Promise<void> => {
+  const serviceType = 'urn:av-openhome-org:service:Product:1';
+  const action = 'SetSourceIndex';
+  
+  const body = `      <Value>${sourceIndex}</Value>`;
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log('Setting Product source index to:', sourceIndex);
+  console.log('Product control URL:', productControlURL);
+  
+  const response = await fetch(productControlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  const responseText = await response.text();
+  console.log('SetSourceIndex response status:', response.status);
+  console.log('SetSourceIndex response:', responseText);
+  
+  if (!response.ok) {
+    throw new Error(`SetSourceIndex failed: ${response.status} - ${responseText}`);
+  }
+  
+  console.log('Product source set successfully');
+};
+
+export const productSourceXml = async (productControlURL: string): Promise<string> => {
+  const serviceType = 'urn:av-openhome-org:service:Product:1';
+  const action = 'SourceXml';
+  
+  const body = '';
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log('Getting Product SourceXml from:', productControlURL);
+  
+  const response = await fetch(productControlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  const responseText = await response.text();
+  console.log('SourceXml response status:', response.status);
+  
+  if (!response.ok) {
+    throw new Error(`SourceXml failed: ${response.status} - ${responseText}`);
+  }
+  
+  // Extract the Value element containing the source XML
+  const valueMatch = responseText.match(/<Value>([^<]*)<\/Value>/);
+  if (valueMatch) {
+    const decoded = decodeXmlEntities(valueMatch[1]);
+    console.log('SourceXml decoded:', decoded.substring(0, 500));
+    return decoded;
+  }
+  
+  return responseText;
 };
 
 // OpenHome Transport service - used by dCS for actual playback control
