@@ -35,6 +35,7 @@ export interface Renderer {
   host: string;
   port: number;
   avTransportUrl: string;
+  renderingControlUrl?: string;
   isActive: boolean;
 }
 
@@ -562,10 +563,11 @@ const DEFAULT_SERVER: Server = {
 
 const DEFAULT_RENDERER: Renderer = {
   id: 'varese-default',
-  name: 'dCS Varese',
+  name: 'OLADRAplayer-UPnP/AV',
   host: '192.168.0.35',
   port: 49152,
-  avTransportUrl: 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/AVTransport/control',
+  avTransportUrl: 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-AVTransport-1',
+  renderingControlUrl: 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-RenderingControl-1',
   isActive: true,
 };
 
