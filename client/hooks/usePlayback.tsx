@@ -556,33 +556,36 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setVolume = useCallback(async (vol: number) => {
+  const setVolume = useCallback((vol: number) => {
     const clampedVol = Math.max(0, Math.min(1, vol));
     setVolumeState(clampedVol);
     
-    // Send volume to Varese (convert 0-1 range to 0-100)
-    const volumePercent = Math.round(clampedVol * 100);
-    console.log('=== SETTING VOLUME ===');
-    console.log('Volume percent:', volumePercent);
+    // Store the pending volume
+    pendingVolumeRef.current = clampedVol;
     
-    try {
-      // Try standard UPnP RenderingControl SetVolume first
-      console.log('Trying standard UPnP SetVolume at:', VARESE_RENDERINGCONTROL_URL);
-      await upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent);
-      console.log('Volume set successfully to:', volumePercent);
-    } catch (error) {
-      console.error('Standard UPnP volume failed, trying OpenHome:', error);
-      // Fall back to OpenHome Volume on RenderingControl URL
-      try {
-        await upnpClient.setOpenHomeVolume(VARESE_RENDERINGCONTROL_URL, volumePercent);
-        console.log('OpenHome volume set successfully to:', volumePercent);
-      } catch (ohError) {
-        console.error('OpenHome volume also failed:', ohError);
-        if (ohError instanceof Error) {
-          console.error('Error message:', ohError.message);
-        }
-      }
+    // Clear any existing timeout
+    if (volumeTimeoutRef.current) {
+      clearTimeout(volumeTimeoutRef.current);
     }
+    
+    // Debounce: only send volume after slider stops moving for 150ms
+    volumeTimeoutRef.current = setTimeout(async () => {
+      const finalVol = pendingVolumeRef.current;
+      if (finalVol === null) return;
+      
+      const volumePercent = Math.round(finalVol * 100);
+      console.log('=== SENDING VOLUME ===');
+      console.log('Volume percent:', volumePercent);
+      
+      try {
+        await upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent);
+        console.log('Volume set successfully to:', volumePercent);
+      } catch (error) {
+        console.error('Volume control failed:', error);
+      }
+      
+      pendingVolumeRef.current = null;
+    }, 150);
   }, []);
 
   const addToQueue = useCallback((track: Track) => {
@@ -612,6 +615,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   // Track if we're currently sending a play command to prevent race conditions
   const isPlayingRef = useRef(false);
   const lastPlayedTrackIdRef = useRef<string | null>(null);
+  
+  // Debounce volume changes to prevent race conditions
+  const volumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingVolumeRef = useRef<number | null>(null);
   
   const playTrack = useCallback(async (track: Track, tracks?: Track[]) => {
     if (isPlayingRef.current) {
