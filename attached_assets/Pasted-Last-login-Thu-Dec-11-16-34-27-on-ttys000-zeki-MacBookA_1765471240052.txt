@@ -1,0 +1,36 @@
+Last login: Thu Dec 11 16:34:27 on ttys000
+zeki@MacBookAir ~ % # Check if the IP is reachable
+ping -c 3 192.168.0.17
+
+# Try to fetch the device description
+curl -v http://192.168.0.17:49152/
+
+# Try common device description paths
+curl -s http://192.168.0.17:49152/description.xml
+curl -s http://192.168.0.17:49152/DeviceDescription.xml
+zsh: command not found: #
+PING 192.168.0.17 (192.168.0.17): 56 data bytes
+64 bytes from 192.168.0.17: icmp_seq=0 ttl=64 time=7.681 ms
+64 bytes from 192.168.0.17: icmp_seq=1 ttl=64 time=5.462 ms
+64 bytes from 192.168.0.17: icmp_seq=2 ttl=64 time=4.885 ms
+
+--- 192.168.0.17 ping statistics ---
+3 packets transmitted, 3 packets received, 0.0% packet loss
+round-trip min/avg/max/stddev = 4.885/6.009/7.681/1.205 ms
+zsh: command not found: #
+*   Trying 192.168.0.17:49152...
+* connect to 192.168.0.17 port 49152 from 192.168.0.144 port 60256 failed: Connection refused
+* Failed to connect to 192.168.0.17 port 49152 after 1013 ms: Couldn't connect to server
+* Closing connection
+curl: (7) Failed to connect to 192.168.0.17 port 49152 after 1013 ms: Couldn't connect to server
+zsh: command not found: #
+zeki@MacBookAir ~ % for port in 80 8080 8008 1400 49152 49153 49154 5000 9000 9001; do
+  nc -zv -w1 192.168.0.17 $port 2>&1 | grep -v refused
+done
+Connection to 192.168.0.17 port 80 [tcp/http] succeeded!
+zeki@MacBookAir ~ % for port in 80 8080 8008 1400 49152 49153 49154 5000 9000 9001; do
+  nc -zv -w1 192.168.0.17 $port 2>&1 | grep -v refused
+done
+Connection to 192.168.0.17 port 80 [tcp/http] succeeded!
+zeki@MacBookAir ~ % curl -s http://192.168.0.42:16500/e8eab684-2b3b-4521-92cf-7f1a2c4421dd.xml
+<?xml version="1.0" encoding="UTF-8"?><root xmlns="urn:schemas-upnp-org:device-1-0" xmlns:dlna="urn:schemas-dlna-org:device-1-0" xmlns:qq="http://www.tencent.com"><specVersion><major>1</major><minor>0</minor></specVersion><device><qq:X_QPlay_SoftwareCapability>QPlay:2.1</qq:X_QPlay_SoftwareCapability><deviceType>urn:schemas-upnp-org:device:MediaRenderer:2</deviceType><friendlyName>Living room</friendlyName><manufacturer>dCS Audio</manufacturer><manufacturerURL>http://www.dcsaudio.com/</manufacturerURL><modelDescription/><modelName>Varèse Core</modelName><modelNumber/><modelURL>http://www.dcsaudio.com/</modelURL><serialNumber>a765ce93-2992-4ef2-a27f-a2a005665f35</serialNumber><UDN>uuid:e8eab684-2b3b-4521-92cf-7f1a2c4421dd</UDN><iconList><icon><mimetype>image/png</mimetype><width>120</width><height>120</height><depth>24</depth><url>/LibRygelRenderer-120x120x24.png</url></icon><icon><mimetype>image/png</mimetype><width>48</width><height>48</height><depth>24</depth><url>/LibRygelRenderer-48x48x24.png</url></icon><icon><mimetype>image/jpeg</mimetype><width>120</width><height>120</height><depth>24</depth><url>/LibRygelRenderer-120x120x24.jpg</url></icon><icon><mimetype>image/jpeg</mimetype><width>48</width><height>48</height><depth>24</depth><url>/LibRygelRenderer-48x48x24.jpg</url></icon></iconList><serviceList><service><serviceType>urn:schemas-upnp-org:service:ConnectionManager:2</serviceType><serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId><SCPDURL>/xml/ConnectionManager.xml</SCPDURL><controlURL>/Control/LibRygelRenderer/RygelSinkConnectionManager</controlURL><eventSubURL>/Event/LibRygelRenderer/RygelSinkConnectionManager</eventSubURL></service><service><serviceType>urn:schemas-upnp-org:service:AVTransport:2</serviceType><serviceId>urn:upnp-org:serviceId:AVTransport</serviceId><SCPDURL>/xml/AVTransport2.xml</SCPDURL><controlURL>/Control/LibRygelRenderer/RygelAVTransport</controlURL><eventSubURL>/Event/LibRygelRenderer/RygelAVTransport</eventSubURL></service><service><serviceType>urn:schemas-upnp-org:service:RenderingControl:2</serviceType><serviceId>urn:upnp-org:serviceId:RenderingControl</serviceId><SCPDURL>/xml/RenderingControl2.xml</SCPDURL><controlURL>/Control/LibRygelRenderer/RygelRenderingControl</controlURL><eventSubURL>/Event/LibRygelRenderer/RygelRenderingControl</eventSubURL></service><service><serviceType>urn:schemas-tencent-com:service:QPlay:1</serviceType><serviceId>urn:tencent-com:serviceId:QPlay</serviceId><SCPDURL>/xml/QPlayDescription.xml</SCPDURL><controlURL>/Control/LibRygelRenderer/QPlay</controlURL><eventSubURL>/Event/LibRygelRenderer/QPlay</eventSubURL></service></serviceList><presentationURL>http://192.168.0.42:17879/</presentationURL><dlna:X_DLNADOC>DMR-1.51</dlna:X_DLNADOC></device></root>%                         zeki@MacBookAir ~ % 
