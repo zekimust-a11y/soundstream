@@ -425,7 +425,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
     try {
       console.log('Sending Play command to Varese');
-      await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+      await upnpClient.transportPlay(VARESE_AVTRANSPORT_URL);
       setIsPlaying(true);
     } catch (error) {
       console.error('Failed to resume playback on Varese:', error);
@@ -449,7 +449,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     
     if (newState) {
       console.log('Sending Play command to Varese');
-      upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1').catch((error) => {
+      upnpClient.transportPlay(VARESE_AVTRANSPORT_URL).catch((error) => {
         console.error('Failed to play on Varese:', error);
         setIsPlaying(false);
       });
@@ -502,7 +502,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     if (nextTrack?.uri) {
       try {
         await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, nextTrack.uri, nextTrack.metadata || '');
-        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+        await upnpClient.transportPlay(VARESE_AVTRANSPORT_URL);
       } catch (error) {
         console.error('Failed to play next track on Varese:', error);
       }
@@ -531,7 +531,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     if (prevTrack?.uri) {
       try {
         await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, prevTrack.uri, prevTrack.metadata || '');
-        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+        await upnpClient.transportPlay(VARESE_AVTRANSPORT_URL);
       } catch (error) {
         console.error('Failed to play previous track on Varese:', error);
       }

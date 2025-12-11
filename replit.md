@@ -9,7 +9,7 @@ SoundStream is a Roon-inspired mobile music player app built with Expo/React Nat
 - **Last Updated**: December 11, 2024
 - **Theme**: Light theme (default)
 - **Build Type**: Works in Expo Go for browsing; development build needed for SSDP discovery
-- **Latest Fix**: Fixed volume control by switching from standard RenderingControl to OpenHome Volume service (dCS Varese uses OpenHome protocol)
+- **Latest Fix**: Fixed playback by switching from standard AVTransport to OpenHome Transport service. Both volume control (OpenHome Volume) and playback (OpenHome Transport) now use correct dCS protocols matching Mosaic app
 
 ## Working Configuration (December 2024)
 
@@ -25,7 +25,8 @@ SoundStream is a Roon-inspired mobile music player app built with Expo/React Nat
 
 ### What Works
 - Library browsing from MinimServer via ContentDirectory
-- Playback control to dCS Varese via standard UPnP AVTransport
+- Playback control to dCS Varese via OpenHome Transport service
+- Volume control via OpenHome Volume service
 - Queue management in the app
 - Bit-perfect audio streaming directly from MinimServer to Varese
 
