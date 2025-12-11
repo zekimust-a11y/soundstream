@@ -12,21 +12,10 @@ const VARESE_UUID_BASE = `${VARESE_BASE}/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c7
 const VARESE_AVTRANSPORT_URL = `${VARESE_UUID_BASE}/ctl-urn-schemas-upnp-org-service-AVTransport-1`;
 const VARESE_RENDERINGCONTROL_URL = `${VARESE_UUID_BASE}/ctl-urn-schemas-upnp-org-service-RenderingControl-1`;
 
-// Try multiple OpenHome URL patterns - dCS uses OhNet which has different conventions
-const OPENHOME_URL_PATTERNS = [
-  // Pattern 1: Standard OhNet paths
-  `${VARESE_BASE}/openhome/control/product`,
-  `${VARESE_BASE}/openhome/control/playlist`,
-  // Pattern 2: Simple paths  
-  `${VARESE_BASE}/product`,
-  `${VARESE_BASE}/playlist`,
-  // Pattern 3: Ds paths (used by Linn and some dCS)
-  `${VARESE_BASE}/Ds/Product/control`,
-  `${VARESE_BASE}/Ds/Playlist/control`,
-  // Pattern 4: UUID-based (what we tried before)
-  `${VARESE_UUID_BASE}/ctl-urn-av-openhome-org-service-Product-1`,
-  `${VARESE_UUID_BASE}/ctl-urn-av-openhome-org-service-Playlist-1`,
-];
+// OpenHome URLs will be discovered via SSDP - these are placeholders for now
+// The real URLs must be derived from the device description fetched via SSDP location header
+let discoveredProductURL: string | null = null;
+let discoveredPlaylistURL: string | null = null;
 
 export interface Zone {
   id: string;
@@ -411,7 +400,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
     
     // Debounce rapid calls for the same track (within 500ms)
-    const trackId = track.id || track.uri;
+    const trackId = track.id || track.uri || null;
     if (lastPlayedTrackIdRef.current === trackId) {
       console.log('Same track requested again, ignoring');
       return;
@@ -432,91 +421,62 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       setCurrentTrack(track);
       setCurrentTime(0);
       
-      // Send UPnP commands to the dCS Varese
-      // Strategy: Set source via Product.SetSourceIndex, then use Playlist service
+      // Send UPnP commands to the dCS Varese via AVTransport
+      // OpenHome services require SSDP-based discovery which we can't access
+      // AVTransport SetAVTransportURI + Play is the standard UPnP approach
       if (track.uri) {
         console.log('=== PLAYING TRACK ===');
         console.log('Track title:', track.title);
         console.log('Track URI:', track.uri);
         
         try {
-          // Step 1: Set the Product source to Playlist (typically index 0 for UPnP sources)
-          // dCS requires this before Playlist commands will work
-          console.log('Setting Product source to Playlist...');
-          try {
-            // Try source index 0 first (commonly the UPnP/Playlist source)
-            await upnpClient.productSetSource(VARESE_PRODUCT_URL, 0);
-            console.log('Product source set to index 0');
-          } catch (sourceError) {
-            console.log('SetSourceIndex failed, trying without it:', sourceError);
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          // Step 2: Use OpenHome Playlist service
-          console.log('Using OpenHome Playlist service at:', VARESE_PLAYLIST_URL);
-          
-          // Clear the playlist
-          try {
-            await upnpClient.playlistDeleteAll(VARESE_PLAYLIST_URL);
-            console.log('Playlist cleared');
-          } catch (e) {
-            console.log('Playlist clear failed (may be empty already):', e);
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Insert the track
-          console.log('Inserting track into playlist...');
-          const trackId = await upnpClient.playlistInsert(
-            VARESE_PLAYLIST_URL,
-            0,
-            track.uri,
+          // Use AVTransport - the standard UPnP approach
+          const setResult = await upnpClient.setAVTransportURI(
+            VARESE_AVTRANSPORT_URL, 
+            0, 
+            track.uri, 
             track.metadata || ''
           );
-          console.log('Track inserted with ID:', trackId);
           
-          await new Promise(resolve => setTimeout(resolve, 100));
+          if (!setResult.success) {
+            console.error('SetAVTransportURI failed:', setResult.error);
+            setIsPlaying(false);
+            return;
+          }
           
-          // Seek to the track
-          console.log('Seeking to track ID:', trackId);
-          await upnpClient.playlistSeekId(VARESE_PLAYLIST_URL, trackId);
+          console.log('SetAVTransportURI succeeded, waiting before Play...');
+          await new Promise(resolve => setTimeout(resolve, 500));
           
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Check transport state before playing
+          try {
+            const transportInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
+            console.log('Transport state before Play:', transportInfo);
+          } catch (e) {
+            console.log('Could not get transport info:', e);
+          }
           
-          // Play
-          console.log('Sending Playlist Play...');
-          await upnpClient.playlistPlay(VARESE_PLAYLIST_URL);
-          console.log('OpenHome Playlist Play succeeded');
+          // Send Play command
+          await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+          console.log('Play command sent');
+          
+          // Check transport state after playing
+          await new Promise(resolve => setTimeout(resolve, 500));
+          try {
+            const transportInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
+            console.log('Transport state after Play:', transportInfo);
+            
+            const positionInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
+            console.log('Position info:', positionInfo);
+          } catch (e) {
+            console.log('Could not get transport/position info:', e);
+          }
+          
           setIsPlaying(true);
-          
           console.log('=== PLAY COMMAND SENT ===');
           
         } catch (error) {
-          console.error('OpenHome Playlist failed, falling back to AVTransport:', error);
-          
-          // Fallback to AVTransport
-          try {
-            const setResult = await upnpClient.setAVTransportURI(
-              VARESE_AVTRANSPORT_URL, 
-              0, 
-              track.uri, 
-              track.metadata || ''
-            );
-            
-            if (setResult.success) {
-              await new Promise(resolve => setTimeout(resolve, 300));
-              await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-              setIsPlaying(true);
-              console.log('AVTransport fallback succeeded');
-            } else {
-              console.error('AVTransport fallback failed:', setResult.error);
-              setIsPlaying(false);
-            }
-          } catch (avError) {
-            console.error('AVTransport fallback error:', avError);
-            setIsPlaying(false);
-          }
+          console.error('Playback failed:', error);
+          setIsPlaying(false);
         }
       } else {
         console.warn('Track has no URI, cannot play on renderer');
