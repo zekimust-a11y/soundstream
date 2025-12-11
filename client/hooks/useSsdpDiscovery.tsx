@@ -87,12 +87,17 @@ const parseDeviceDescription = async (location: string): Promise<Partial<Discove
   }
 };
 
+const DISCOVERY_TIMEOUT = 10000;
+
 export function useSsdpDiscovery() {
   const [devices, setDevices] = useState<DiscoveredDevice[]>([]);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState(0);
   const socketRef = useRef<any>(null);
   const discoveredLocationsRef = useRef<Set<string>>(new Set());
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
   
   const parseLocation = (location: string): { host: string; port: number } | null => {
     try {
@@ -219,10 +224,23 @@ export function useSsdpDiscovery() {
         }
       });
       
-      setTimeout(() => {
+      setTimeRemaining(Math.ceil(DISCOVERY_TIMEOUT / 1000));
+      countdownRef.current = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            if (countdownRef.current) clearInterval(countdownRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      timerRef.current = setTimeout(() => {
         console.log('Discovery period ended');
         setIsDiscovering(false);
-      }, 10000);
+        if (countdownRef.current) clearInterval(countdownRef.current);
+        setTimeRemaining(0);
+      }, DISCOVERY_TIMEOUT);
       
     } catch (err) {
       console.error('Failed to start SSDP discovery:', err);
@@ -240,7 +258,16 @@ export function useSsdpDiscovery() {
       }
       socketRef.current = null;
     }
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
     setIsDiscovering(false);
+    setTimeRemaining(0);
   }, []);
   
   useEffect(() => {
@@ -295,6 +322,7 @@ export function useSsdpDiscovery() {
     devices,
     isDiscovering,
     error,
+    timeRemaining,
     startDiscovery,
     stopDiscovery,
     getMediaServers,

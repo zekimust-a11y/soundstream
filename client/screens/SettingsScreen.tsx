@@ -80,7 +80,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, artists, albums, addServer } = useMusic();
   const { theme } = useTheme();
-  const { devices, isDiscovering, error: discoveryError, startDiscovery, getMediaServers, getMediaRenderers, getContentDirectoryUrl } = useSsdpDiscovery();
+  const { devices, isDiscovering, error: discoveryError, timeRemaining, startDiscovery, getMediaServers, getMediaRenderers, getContentDirectoryUrl, getAVTransportUrl } = useSsdpDiscovery();
 
   const [gapless, setGapless] = useState(true);
   const [crossfade, setCrossfade] = useState(false);
@@ -131,7 +131,7 @@ export default function SettingsScreen() {
                 <Feather name="wifi" size={18} color={theme.buttonText} />
               )}
               <ThemedText style={[styles.discoveryButtonText, { color: theme.buttonText }]}>
-                {isDiscovering ? "Discovering..." : "Discover Devices"}
+                {isDiscovering ? `Scanning... ${timeRemaining}s` : "Discover Devices"}
               </ThemedText>
             </Pressable>
             

@@ -29,6 +29,15 @@ export interface Server {
   contentDirectoryUrl?: string;
 }
 
+export interface Renderer {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  avTransportUrl: string;
+  isActive: boolean;
+}
+
 export interface Playlist {
   id: string;
   name: string;
@@ -51,6 +60,8 @@ interface SearchFilters {
 interface MusicContextType {
   servers: Server[];
   activeServer: Server | null;
+  renderers: Renderer[];
+  activeRenderer: Renderer | null;
   artists: Artist[];
   albums: Album[];
   recentlyPlayed: Track[];
@@ -61,6 +72,9 @@ interface MusicContextType {
   addServer: (server: Omit<Server, "id" | "connected">) => void;
   removeServer: (id: string) => void;
   setActiveServer: (server: Server | null) => void;
+  addRenderer: (renderer: Omit<Renderer, "id" | "isActive">) => void;
+  removeRenderer: (id: string) => void;
+  setActiveRenderer: (renderer: Renderer | null) => void;
   connectQobuz: (email: string, password: string) => Promise<boolean>;
   disconnectQobuz: () => void;
   searchMusic: (query: string, filters?: SearchFilters) => Promise<{ artists: Artist[]; albums: Album[]; tracks: Track[] }>;
@@ -86,6 +100,7 @@ interface MusicContextType {
 const MusicContext = createContext<MusicContextType | undefined>(undefined);
 
 const SERVERS_KEY = "@soundstream_servers";
+const RENDERERS_KEY = "@soundstream_renderers";
 const QOBUZ_KEY = "@soundstream_qobuz";
 const RECENT_KEY = "@soundstream_recent";
 const FAVORITES_KEY = "@soundstream_favorites";
