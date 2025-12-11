@@ -593,20 +593,19 @@ const styles = StyleSheet.create({
   volumeContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.xl,
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.lg,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
   },
   volumeSliderWrapper: {
     flex: 1,
-    height: 64,
+    height: 40,
     justifyContent: "center",
   },
   volumeSlider: {
     width: "100%",
-    height: 64,
+    height: 40,
   },
   deviceSelector: {
     alignItems: "center",

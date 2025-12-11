@@ -268,7 +268,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const runOpenHomeDiagnostic = async () => {
     console.log('=== RUNNING OPENHOME DIAGNOSTIC ===');
     const uuid = '938555d3-b45d-cdb9-7a3b-00e04c68c799';
-    await upnpClient.diagnoseOpenHomeServices(VARESE_BASE, uuid);
+    const baseUrl = buildVareseUrls(activeVareseIp).base;
+    await upnpClient.diagnoseOpenHomeServices(baseUrl, uuid);
   };
 
   const fetchVareseVolume = async () => {
@@ -285,11 +286,11 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const syncTransportState = async () => {
     try {
       const transportInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
-      console.log('Varese transport state:', transportInfo.CurrentTransportState);
+      console.log('Varese transport state:', transportInfo.currentTransportState);
       
-      const isActuallyPlaying = transportInfo.CurrentTransportState === 'PLAYING';
-      const isActuallyStopped = transportInfo.CurrentTransportState === 'STOPPED' || 
-                                transportInfo.CurrentTransportState === 'NO_MEDIA_PRESENT';
+      const isActuallyPlaying = transportInfo.currentTransportState === 'PLAYING';
+      const isActuallyStopped = transportInfo.currentTransportState === 'STOPPED' || 
+                                transportInfo.currentTransportState === 'NO_MEDIA_PRESENT';
       
       // Only update if state differs to avoid unnecessary re-renders
       if (isActuallyPlaying && !isPlaying) {
@@ -305,8 +306,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       // Also sync position if playing
       if (isActuallyPlaying) {
         const positionInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
-        if (positionInfo.relTimeSeconds !== undefined) {
-          const serverTime = positionInfo.relTimeSeconds;
+        // Parse relTime string (HH:MM:SS) to seconds
+        const relTimeParts = positionInfo.relTime?.split(':');
+        if (relTimeParts && relTimeParts.length === 3) {
+          const serverTime = parseInt(relTimeParts[0]) * 3600 + parseInt(relTimeParts[1]) * 60 + parseInt(relTimeParts[2]);
           // Only update if difference is significant (> 3 seconds)
           if (Math.abs(serverTime - currentTime) > 3) {
             console.log(`Syncing position: ${serverTime}s (was ${currentTime}s)`);
@@ -567,35 +570,19 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       clearTimeout(volumeTimeoutRef.current);
     }
     
-    // Debounce: only send volume after slider stops moving for 500ms
+    // Quick debounce (100ms) for responsive feel
     volumeTimeoutRef.current = setTimeout(() => {
-      // Skip if another request is in progress
-      if (volumeRequestInProgressRef.current) {
-        console.log('Volume request in progress, skipping');
-        return;
-      }
-      
       const finalVol = pendingVolumeRef.current;
       if (finalVol === null) return;
       
       const volumePercent = Math.round(finalVol * 100);
-      console.log('=== SENDING VOLUME (fire-and-forget) ===');
-      console.log('Volume percent:', volumePercent);
-      
-      volumeRequestInProgressRef.current = true;
+      console.log('Volume:', volumePercent);
       pendingVolumeRef.current = null;
       
-      // Fire and forget - don't await, just send and release lock after delay
+      // Fire and forget - no lock, no waiting
       upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent)
-        .then(() => console.log('Volume confirmed:', volumePercent))
-        .catch(() => {}) // Silently ignore errors - volume may still have been set
-        .finally(() => {
-          // Release lock after a short delay to prevent rapid requests
-          setTimeout(() => {
-            volumeRequestInProgressRef.current = false;
-          }, 500);
-        });
-    }, 500);
+        .catch(() => {}); // Silently ignore errors
+    }, 100);
   }, []);
 
   const addToQueue = useCallback((track: Track) => {
@@ -626,10 +613,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const isPlayingRef = useRef(false);
   const lastPlayedTrackIdRef = useRef<string | null>(null);
   
-  // Debounce volume changes to prevent race conditions
+  // Debounce volume changes
   const volumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingVolumeRef = useRef<number | null>(null);
-  const volumeRequestInProgressRef = useRef(false);
   
   const playTrack = useCallback(async (track: Track, tracks?: Track[]) => {
     if (isPlayingRef.current) {
