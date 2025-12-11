@@ -1,6 +1,105 @@
 import { DiscoveredDevice, ServiceInfo } from '../hooks/useSsdpDiscovery';
 import { debugLog } from './debugLog';
 
+// ============================================================================
+// COMMAND QUEUE - Serializes all SOAP requests to prevent connection exhaustion
+// ============================================================================
+// The dCS Varese (and most UPnP devices) can only handle one connection at a time.
+// Sending multiple concurrent requests causes TCP connection exhaustion and timeouts.
+// This queue ensures requests are processed one at a time with proper spacing.
+
+type QueuedCommand = {
+  execute: () => Promise<{ ok: boolean; status: number; text: string }>;
+  resolve: (result: { ok: boolean; status: number; text: string }) => void;
+  reject: (error: Error) => void;
+  actionName: string;
+  timestamp: number;
+};
+
+class SoapCommandQueue {
+  private queue: QueuedCommand[] = [];
+  private isProcessing = false;
+  private lastRequestTime = 0;
+  private minRequestInterval = 100; // Minimum 100ms between requests
+
+  async enqueue(
+    actionName: string,
+    execute: () => Promise<{ ok: boolean; status: number; text: string }>
+  ): Promise<{ ok: boolean; status: number; text: string }> {
+    return new Promise((resolve, reject) => {
+      this.queue.push({
+        execute,
+        resolve,
+        reject,
+        actionName,
+        timestamp: Date.now(),
+      });
+      
+      // Start processing if not already running
+      if (!this.isProcessing) {
+        this.processQueue();
+      }
+    });
+  }
+
+  private async processQueue(): Promise<void> {
+    if (this.isProcessing || this.queue.length === 0) return;
+    
+    this.isProcessing = true;
+    
+    while (this.queue.length > 0) {
+      const command = this.queue.shift()!;
+      
+      // Ensure minimum interval between requests
+      const timeSinceLastRequest = Date.now() - this.lastRequestTime;
+      if (timeSinceLastRequest < this.minRequestInterval) {
+        await new Promise(resolve => 
+          setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest)
+        );
+      }
+      
+      try {
+        debugLog.info(`Queue: executing ${command.actionName}`, `(${this.queue.length} waiting)`);
+        this.lastRequestTime = Date.now();
+        const result = await command.execute();
+        command.resolve(result);
+      } catch (error) {
+        command.reject(error instanceof Error ? error : new Error(String(error)));
+      }
+      
+      // Small delay between commands to let connection close properly
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    this.isProcessing = false;
+  }
+
+  // Get queue status for debugging
+  getStatus(): { queueLength: number; isProcessing: boolean } {
+    return {
+      queueLength: this.queue.length,
+      isProcessing: this.isProcessing,
+    };
+  }
+
+  // Clear queue (e.g., when switching tracks)
+  clear(): void {
+    const cleared = this.queue.length;
+    this.queue.forEach(cmd => cmd.reject(new Error('Queue cleared')));
+    this.queue = [];
+    if (cleared > 0) {
+      debugLog.info('Queue cleared', `${cleared} commands dropped`);
+    }
+  }
+}
+
+// Global command queue instance
+const soapQueue = new SoapCommandQueue();
+
+// Export for external access (debugging, clearing)
+export const getSoapQueueStatus = () => soapQueue.getStatus();
+export const clearSoapQueue = () => soapQueue.clear();
+
 // Bridge proxy URL for routing requests through Mac when Expo Go can't reach local devices
 let bridgeProxyUrl: string | null = null;
 
@@ -11,25 +110,20 @@ export const setBridgeProxyUrl = (url: string | null) => {
 
 export const getBridgeProxyUrl = () => bridgeProxyUrl;
 
-// Try direct request first, fall back to bridge proxy if direct fails
-// This gives best performance in development builds while still working in Expo Go
-const proxySoapRequest = async (
+// Internal function that actually makes the HTTP request (called by queue)
+const doSoapRequest = async (
   targetUrl: string,
   soapAction: string,
   body: string,
-  timeoutMs: number = 3000
+  actionName: string,
+  timeoutMs: number
 ): Promise<{ ok: boolean; status: number; text: string }> => {
-  // Extract action name from SOAP action string for logging
-  const actionMatch = soapAction.match(/#(\w+)"?$/);
-  const actionName = actionMatch ? actionMatch[1] : 'Unknown';
   const isLocalTarget = targetUrl.includes('192.168.') || targetUrl.includes('10.') || targetUrl.includes('172.');
   
   // Try direct request first (works in development builds with proper ATS settings)
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    
-    debugLog.request(`${actionName}`, `direct -> ${targetUrl.substring(0, 60)}...`);
     
     const response = await fetch(targetUrl, {
       method: 'POST',
@@ -45,17 +139,15 @@ const proxySoapRequest = async (
     const text = await response.text();
     
     if (response.ok) {
-      debugLog.response(`${actionName} OK (direct)`, `${response.status} in ${timeoutMs}ms`);
+      debugLog.response(`${actionName} OK`, `${response.status}`);
     } else {
-      debugLog.error(`${actionName} failed (direct)`, `${response.status}`);
+      debugLog.error(`${actionName} failed`, `HTTP ${response.status}`);
     }
     
     return { ok: response.ok, status: response.status, text };
   } catch (directError) {
     // Direct request failed - try bridge proxy if available
     if (bridgeProxyUrl && isLocalTarget) {
-      debugLog.info(`${actionName} direct failed, trying bridge...`);
-      
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -82,17 +174,30 @@ const proxySoapRequest = async (
         
         return { ok: response.ok, status: response.status, text };
       } catch (bridgeError) {
-        const errorMessage = bridgeError instanceof Error ? bridgeError.message : String(bridgeError);
-        debugLog.error(`${actionName} bridge error`, errorMessage);
         throw bridgeError;
       }
     }
     
-    // No bridge available, propagate original error
-    const errorMessage = directError instanceof Error ? directError.message : String(directError);
-    debugLog.error(`${actionName} error`, errorMessage);
     throw directError;
   }
+};
+
+// Try direct request first, fall back to bridge proxy if direct fails
+// ALL requests go through the queue to prevent connection exhaustion
+const proxySoapRequest = async (
+  targetUrl: string,
+  soapAction: string,
+  body: string,
+  timeoutMs: number = 3000
+): Promise<{ ok: boolean; status: number; text: string }> => {
+  // Extract action name from SOAP action string for logging
+  const actionMatch = soapAction.match(/#(\w+)"?$/);
+  const actionName = actionMatch ? actionMatch[1] : 'Unknown';
+  
+  // Enqueue the request - only one will execute at a time
+  return soapQueue.enqueue(actionName, () => 
+    doSoapRequest(targetUrl, soapAction, body, actionName, timeoutMs)
+  );
 };
 
 // Fetch with timeout helper - React Native fetch doesn't have native timeout
