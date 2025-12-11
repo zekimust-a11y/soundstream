@@ -445,100 +445,44 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       setCurrentTrack(track);
       setCurrentTime(0);
       
-      // Try OpenHome Playlist first (preferred for dCS devices), then fall back to AVTransport
+      // Use AVTransport for playback control
+      // Note: OpenHome services require SSDP discovery which is not available in Expo Go
+      // (needs native UDP multicast support in a development build)
       if (track.uri) {
         console.log('=== PLAYING TRACK ===');
         console.log('Track title:', track.title);
         console.log('Track URI:', track.uri);
         
-        let openHomeSuccess = false;
-        
-        // Try OpenHome Playlist approach first
         try {
-          console.log('Trying OpenHome Playlist approach...');
-          
-          // Step 1: Try to get sources to find Playlist source index
-          console.log('Getting Product sources...');
-          const sourceXml = await upnpClient.productSourceXml(VARESE_OH_PRODUCT_URL);
-          console.log('SourceXml retrieved, length:', sourceXml.length);
-          
-          // Find Playlist source index - look for a source with type "Playlist" or "NetAux"
-          const sourceMatches = sourceXml.matchAll(/<Source>[\s\S]*?<Index>(\d+)<\/Index>[\s\S]*?<Type>([^<]+)<\/Type>[\s\S]*?<\/Source>/gi);
-          let playlistSourceIndex = 0; // Default to 0
-          
-          for (const match of sourceMatches) {
-            const index = parseInt(match[1]);
-            const type = match[2];
-            console.log(`Found source ${index}: ${type}`);
-            if (type.toLowerCase().includes('playlist') || type.toLowerCase().includes('netaux')) {
-              playlistSourceIndex = index;
-              console.log('Using source index:', playlistSourceIndex);
-              break;
-            }
-          }
-          
-          // Step 2: Set source to Playlist
-          await upnpClient.productSetSource(VARESE_OH_PRODUCT_URL, playlistSourceIndex);
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          // Step 3: Clear playlist and insert track
-          await upnpClient.playlistDeleteAll(VARESE_OH_PLAYLIST_URL);
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Step 4: Insert track into playlist
-          await upnpClient.playlistInsert(
-            VARESE_OH_PLAYLIST_URL, 
-            0, // afterId - insert at beginning
+          // Step 1: Set the transport URI with metadata
+          const setResult = await upnpClient.setAVTransportURI(
+            VARESE_AVTRANSPORT_URL, 
+            0, 
             track.uri, 
             track.metadata || ''
           );
-          await new Promise(resolve => setTimeout(resolve, 200));
           
-          // Step 5: Play the playlist
-          await upnpClient.playlistPlay(VARESE_OH_PLAYLIST_URL);
-          
-          console.log('OpenHome Playlist play successful!');
-          openHomeSuccess = true;
-          setIsPlaying(true);
-          
-        } catch (ohError) {
-          console.log('OpenHome Playlist approach failed:', ohError);
-          console.log('Falling back to AVTransport...');
-        }
-        
-        // Fall back to AVTransport if OpenHome failed
-        if (!openHomeSuccess) {
-          try {
-            // Step 1: Set the transport URI with metadata
-            const setResult = await upnpClient.setAVTransportURI(
-              VARESE_AVTRANSPORT_URL, 
-              0, 
-              track.uri, 
-              track.metadata || ''
-            );
-            
-            if (!setResult.success) {
-              console.error('SetAVTransportURI failed:', setResult.error);
-              setIsPlaying(false);
-              return;
-            }
-            
-            console.log('SetAVTransportURI succeeded');
-            
-            // Step 2: Wait for the Varese to process the URI
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            // Step 3: Send Play command
-            await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-            console.log('AVTransport Play command sent');
-            
-            setIsPlaying(true);
-            console.log('=== PLAY COMMAND SENT (AVTransport) ===');
-            
-          } catch (error) {
-            console.error('AVTransport playback failed:', error);
+          if (!setResult.success) {
+            console.error('SetAVTransportURI failed:', setResult.error);
             setIsPlaying(false);
+            return;
           }
+          
+          console.log('SetAVTransportURI succeeded');
+          
+          // Step 2: Wait for the Varese to process the URI
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Step 3: Send Play command
+          await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+          console.log('AVTransport Play command sent');
+          
+          setIsPlaying(true);
+          console.log('=== PLAY COMMAND SENT (AVTransport) ===');
+          
+        } catch (error) {
+          console.error('AVTransport playback failed:', error);
+          setIsPlaying(false);
         }
         
         console.log('=== PLAY SEQUENCE COMPLETE ===');

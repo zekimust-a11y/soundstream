@@ -5,10 +5,34 @@ SoundStream is a Roon-inspired mobile music player app built with Expo/React Nat
 
 ## Current State
 - **Version**: 1.0.0
-- **Status**: Development Build Required for Full Functionality
+- **Status**: Library browsing works, playback control limited (see Known Limitations)
 - **Last Updated**: December 2024
 - **Theme**: Light theme (default)
-- **Build Type**: Expo Development Build (not Expo Go)
+- **Build Type**: Works in Expo Go for browsing; development build needed for SSDP discovery
+
+## Known Limitations
+
+### OpenHome Service Discovery Issue
+**Tested December 2024**: The dCS Varese requires SSDP (UDP multicast) discovery to expose its OpenHome service endpoints. Without SSDP, we cannot obtain the correct control URLs.
+
+**What works:**
+- Library browsing from MinimServer via ContentDirectory
+- Queue management in the app
+- AVTransport commands (SetAVTransportURI, Play, Pause, etc.) return success
+
+**What doesn't work:**
+- OpenHome services (Product, Playlist, Transport, Volume, Info) - all return UPnP error 404 "Invalid Action"
+- AVTransport commands don't trigger actual audio playback on Varese (compatibility shim only)
+
+**Why:**
+1. Expo Go cannot do UDP multicast (needs native modules)
+2. The Replit-hosted server cannot reach local network devices
+3. The Varese's device description returns 403 Forbidden
+4. Without SSDP discovery, OpenHome control URLs cannot be obtained
+
+**Workaround:**
+- Use the dCS Mosaic app for playback control
+- This app can be used for library browsing and queue building
 
 ## Architecture
 

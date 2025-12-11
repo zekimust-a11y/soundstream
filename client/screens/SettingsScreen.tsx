@@ -584,7 +584,7 @@ export default function SettingsScreen() {
             />
           </View>
           <ThemedText style={styles.refreshHint}>
-            Probes the dCS Varese for OpenHome services. Results appear in developer console.
+            The Varese requires SSDP network discovery to expose OpenHome services. This app currently uses AVTransport for playback commands. For full audio playback, use the dCS Mosaic app as the primary player.
           </ThemedText>
         </View>
       </ScrollView>
