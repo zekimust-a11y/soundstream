@@ -276,12 +276,14 @@ const makeSOAPRequestXHR = (controlUrl: string, soapEnvelope: string): Promise<{
     const xhr = new XMLHttpRequest();
     xhr.open('POST', controlUrl, true);
     
-    xhr.setRequestHeader('Content-Type', 'text/xml; charset=utf-8');
-    xhr.setRequestHeader('SOAPACTION', '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"');
+    xhr.setRequestHeader('Content-Type', 'text/xml; charset="utf-8"');
+    xhr.setRequestHeader('SOAPACTION', 'urn:schemas-upnp-org:service:ContentDirectory:1#Browse');
+    xhr.setRequestHeader('User-Agent', 'SoundStream/1.0 UPnP/1.0 DLNADOC/1.50');
     
-    xhr.timeout = 10000;
+    xhr.timeout = 15000;
     
     xhr.onload = () => {
+      console.log('SOAP response headers:', xhr.getAllResponseHeaders());
       resolve({ status: xhr.status, responseText: xhr.responseText });
     };
     
