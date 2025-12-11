@@ -5,6 +5,7 @@ import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrowseStackNavigator from "@/navigation/BrowseStackNavigator";
+import PlaylistsStackNavigator from "@/navigation/PlaylistsStackNavigator";
 import QueueScreen from "@/screens/QueueScreen";
 import SearchStackNavigator from "@/navigation/SearchStackNavigator";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
@@ -18,6 +19,7 @@ import { Image } from "expo-image";
 
 export type MainTabParamList = {
   BrowseTab: undefined;
+  PlaylistsTab: undefined;
   QueueTab: undefined;
   SearchTab: undefined;
   SettingsTab: undefined;
@@ -105,12 +107,22 @@ export default function MainTabNavigator() {
           }}
         />
         <Tab.Screen
+          name="PlaylistsTab"
+          component={PlaylistsStackNavigator}
+          options={{
+            title: "Playlists",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="music" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
           name="QueueTab"
           component={QueueScreen}
           options={{
             title: "Queue",
             tabBarIcon: ({ color, size }) => (
-              <Feather name="list" size={size} color={color} />
+              <Feather name="folder" size={size} color={color} />
             ),
           }}
         />

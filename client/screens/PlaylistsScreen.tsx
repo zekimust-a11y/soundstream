@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   emptyButtonText: {
-    ...Typography.bodyBold,
+    ...Typography.headline,
     color: Colors.light.buttonText,
   },
   playlistGrid: {
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.accent,
   },
   confirmButtonText: {
-    ...Typography.bodyBold,
+    ...Typography.headline,
     color: Colors.light.buttonText,
   },
   buttonDisabled: {
