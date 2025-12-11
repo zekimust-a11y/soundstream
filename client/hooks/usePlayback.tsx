@@ -358,13 +358,21 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     if (isPlaying && currentTrack) {
       interval = setInterval(() => {
         setCurrentTime((prev) => {
+          const newTime = prev + 1;
           // Duration is in milliseconds, currentTime is in seconds
           const durationInSeconds = currentTrack.duration / 1000;
-          if (durationInSeconds > 0 && prev >= durationInSeconds) {
-            next();
-            return 0;
+          
+          // If we've exceeded the stored duration, extend it (metadata was wrong)
+          // Add 30 seconds buffer each time we exceed
+          if (durationInSeconds > 0 && newTime > durationInSeconds) {
+            console.log(`Extending track duration: current ${newTime}s exceeds stored ${durationInSeconds}s`);
+            setCurrentTrack(prev => prev ? { 
+              ...prev, 
+              duration: (newTime + 60) * 1000 // Extend by 60 seconds
+            } : prev);
           }
-          return prev + 1;
+          
+          return newTime;
         });
       }, 1000);
     }
