@@ -1,0 +1,2621 @@
+Last login: Thu Dec 11 08:33:57 on ttys000
+zeki@MacBookAir ~ % cd documents/audio-streamer
+zeki@MacBookAir audio-streamer % npx expo prebuild --clean
+! Git branch has uncommitted file changes
+› It's recommended to commit all changes before proceeding in case you want to revert generated changes.
+
+✔ Continue with uncommitted changes? … yes
+
+✔ Cleared android, ios code
+✔ Created native directories
+✔ Updated package.json | no changes
+» ios: userInterfaceStyle: The existing `userInterfaceStyle` property is preventing splash screen from working properly. Remove it or disable dark mode splash screens.
+✔ Finished prebuild
+✔ Installed CocoaPods
+zeki@MacBookAir audio-streamer % cd ios && pod install && cd ..
+Using Expo modules
+[Expo] Enabling modular headers for pod ExpoModulesCore
+[Expo] Enabling modular headers for pod React-RCTAppDelegate
+[Expo] Enabling modular headers for pod React-RCTFabric
+[Expo] Enabling modular headers for pod
+ReactAppDependencyProvider
+[Expo] Enabling modular headers for pod React-Core
+[Expo] Enabling modular headers for pod ReactCodegen
+[Expo] Enabling modular headers for pod RCTRequired
+[Expo] Enabling modular headers for pod RCTTypeSafety
+[Expo] Enabling modular headers for pod ReactCommon
+[Expo] Enabling modular headers for pod
+React-NativeModulesApple
+[Expo] Enabling modular headers for pod Yoga
+[Expo] Enabling modular headers for pod React-Fabric
+[Expo] Enabling modular headers for pod React-graphics
+[Expo] Enabling modular headers for pod React-utils
+[Expo] Enabling modular headers for pod React-featureflags
+[Expo] Enabling modular headers for pod React-debug
+[Expo] Enabling modular headers for pod React-ImageManager
+[Expo] Enabling modular headers for pod React-rendererdebug
+[Expo] Enabling modular headers for pod React-jsi
+[Expo] Enabling modular headers for pod React-renderercss
+[Expo] Enabling modular headers for pod hermes-engine
+[Expo] Enabling modular headers for pod glog
+[Expo] Enabling modular headers for pod boost
+[Expo] Enabling modular headers for pod DoubleConversion
+[Expo] Enabling modular headers for pod fast_float
+[Expo] Enabling modular headers for pod fmt
+[Expo] Enabling modular headers for pod RCT-Folly
+[Expo] Enabling modular headers for pod SocketRocket
+[Expo] Enabling modular headers for pod SDWebImage
+[Expo] Enabling modular headers for pod SDWebImageAVIFCoder
+[Expo] Enabling modular headers for pod SDWebImageSVGCoder
+[Expo] Enabling modular headers for pod SDWebImageWebPCoder
+[Expo] Enabling modular headers for pod libavif
+Found 10 modules for target `SoundStream`
+link_native_modules! {ios_packages: [{configurations: [], name: "@react-native-async-storage/async-storage", root: "/Users/zeki/Documents/Audio-Streamer/node_modules/@react-native-async-storage/async-storage", path: "../node_modules/@react-native-async-storage/async-storage", podspec_path: "/Users/zeki/Documents/Audio-Streamer/node_modules/@react-native-async-storage/async-storage/RNCAsyncStorage.podspec", script_phases: []}, {configurations: [], name: "@react-native-community/slider", root: "/Users/zeki/Documents/Audio-Streamer/node_modules/@react-native-community/slider", path: "../node_modules/@react-native-community/slider", podspec_path: "/Users/zeki/Documents/Audio-Streamer/node_modules/@react-native-community/slider/react-native-slider.podspec", script_phases: []}, {configurations: [], name: "expo", root: "/Users/zeki/Documents/Audio-Streamer/node_modules/expo", path: "../node_modules/expo", podspec_path: "/Users/zeki/Documents/Audio-Streamer/node_modules/expo/Expo.podspec", script_phases: []}, {configurations: [], name: "react-native-gesture-handler", root: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-gesture-handler", path: "../node_modules/react-native-gesture-handler", podspec_path: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-gesture-handler/RNGestureHandler.podspec", script_phases: []}, {configurations: [], name: "react-native-keyboard-controller", root: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-keyboard-controller", path: "../node_modules/react-native-keyboard-controller", podspec_path: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-keyboard-controller/react-native-keyboard-controller.podspec", script_phases: []}, {configurations: [], name: "react-native-reanimated", root: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-reanimated", path: "../node_modules/react-native-reanimated", podspec_path: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-reanimated/RNReanimated.podspec", script_phases: []}, {configurations: [], name: "react-native-safe-area-context", root: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-safe-area-context", path: "../node_modules/react-native-safe-area-context", podspec_path: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-safe-area-context/react-native-safe-area-context.podspec", script_phases: []}, {configurations: [], name: "react-native-screens", root: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-screens", path: "../node_modules/react-native-screens", podspec_path: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-screens/RNScreens.podspec", script_phases: []}, {configurations: [], name: "react-native-udp", root: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-udp", path: "../node_modules/react-native-udp", podspec_path: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-udp/react-native-udp.podspec", script_phases: []}, {configurations: [], name: "react-native-worklets", root: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-worklets", path: "../node_modules/react-native-worklets", podspec_path: "/Users/zeki/Documents/Audio-Streamer/node_modules/react-native-worklets/RNWorklets.podspec", script_phases: []}], ios_project_root_path: "/Users/zeki/Documents/Audio-Streamer/ios", react_native_path: "../node_modules/react-native"}
+Auto-linking React Native modules for target `SoundStream`: RNCAsyncStorage, RNGestureHandler, RNReanimated, RNScreens, RNWorklets, react-native-keyboard-controller, react-native-safe-area-context, react-native-slider, and react-native-udp
+Framework build type is static library
+[ReactNativeDependencies] Setting up ReactNativeDependencies...
+[ReactNativeDependencies] Building from source: false
+[ReactNativeDependencies] Using release tarball
+[ReactNativeDependencies] Using tarball from URL: https://repo1.maven.org/maven2/com/facebook/react/react-native-artifacts/0.81.5/react-native-artifacts-0.81.5-reactnative-dependencies-debug.tar.gz
+[ReactNativeDependencies] Source: {http: "https://repo1.maven.org/maven2/com/facebook/react/react-native-artifacts/0.81.5/react-native-artifacts-0.81.5-reactnative-dependencies-debug.tar.gz"}
+[ReactNativeCore] Setting up ReactNativeCore...
+[ReactNativeCore] Building from source: false
+[ReactNativeCore] Using tarball from URL: https://repo1.maven.org/maven2/com/facebook/react/react-native-artifacts/0.81.5/react-native-artifacts-0.81.5-reactnative-core-debug.tar.gz
+[ReactNativeCore] Source: {http: "https://repo1.maven.org/maven2/com/facebook/react/react-native-artifacts/0.81.5/react-native-artifacts-0.81.5-reactnative-core-debug.tar.gz"}
+Configuring the target with the New Architecture
+[ReactNativeCore] Using React Native Core and React Native Dependencies prebuilt versions.
+[Codegen] Analyzing /Users/zeki/Documents/Audio-Streamer/package.json
+[Codegen] Searching for codegen-enabled libraries in the app.
+[Codegen] The "codegenConfig" field is not defined in package.json. Assuming there is nothing to generate at the app level.
+[Codegen] Searching for codegen-enabled libraries in react-native.config.js
+[Codegen] Found @react-native-async-storage/async-storage
+[Codegen] Found @react-native-community/slider
+[Codegen] Found react-native-gesture-handler
+[Codegen] Found react-native-keyboard-controller
+[Codegen] Found react-native-reanimated
+[Codegen] Found react-native-safe-area-context
+[Codegen] Found react-native-screens
+[Codegen] Found react-native-worklets
+[Codegen] Processing rnasyncstorage
+[Codegen] Searching for podspec in the project dependencies.
+[Codegen] Supported Apple platforms: ios, macos, tvos, visionos for rnasyncstorage
+[Codegen] Processing RNCSlider
+[Codegen] Searching for podspec in the project dependencies.
+[Codegen] Supported Apple platforms: ios, visionos for RNCSlider
+[Codegen] Processing rngesturehandler_codegen
+[Codegen] Searching for podspec in the project dependencies.
+[Codegen] Supported Apple platforms: ios, macos, tvos, visionos for rngesturehandler_codegen
+[Codegen] Processing reactnativekeyboardcontroller
+[Codegen] Searching for podspec in the project dependencies.
+[Codegen] Supported Apple platforms: ios for reactnativekeyboardcontroller
+[Codegen] Processing rnreanimated
+[Codegen] Searching for podspec in the project dependencies.
+[Codegen] Supported Apple platforms: ios, macos, tvos, visionos for rnreanimated
+[Codegen] Processing safeareacontext
+[Codegen] Searching for podspec in the project dependencies.
+[Codegen] Supported Apple platforms: ios, macos, tvos, visionos for safeareacontext
+[Codegen] Processing rnscreens
+[Codegen] Searching for podspec in the project dependencies.
+[Codegen] Supported Apple platforms: ios, tvos, visionos for rnscreens
+[Codegen] Processing rnworklets
+[Codegen] Searching for podspec in the project dependencies.
+[Codegen] Supported Apple platforms: ios, macos, tvos, visionos for rnworklets
+[Codegen] Generating Native Code for rnasyncstorage - ios
+[Codegen] Generated artifacts: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios
+[Codegen] Generating Native Code for RNCSlider - ios
+[Codegen] Generated artifacts: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios
+[Codegen] Generating Native Code for rngesturehandler_codegen - ios
+[Codegen] Generated artifacts: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios
+[Codegen] Generating Native Code for reactnativekeyboardcontroller - ios
+[Codegen] Generated artifacts: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios
+[Codegen] Generating Native Code for rnreanimated - ios
+[Codegen] Generated artifacts: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios
+[Codegen] Generating Native Code for safeareacontext - ios
+[Codegen] Generated artifacts: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios
+[Codegen] Generating Native Code for rnscreens - ios
+[Codegen] Generated artifacts: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios
+[Codegen] Generating Native Code for rnworklets - ios
+[Codegen] Generated artifacts: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios
+[Codegen] Generating RCTThirdPartyComponentsProvider.h
+[Codegen] Generated artifact: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios/RCTThirdPartyComponentsProvider.h
+[Codegen] Generating RCTThirdPartyComponentsProvider.mm
+[Codegen] Generated artifact: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios/RCTThirdPartyComponentsProvider.mm
+[Codegen] Generating RCTModulesProvider.h
+[Codegen] Generated artifact: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios/RCTModuleProviders.h
+[Codegen] Generating RCTModuleProviders.mm
+[Codegen] Generated artifact: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios/RCTModuleProviders.mm
+[Codegen] Generating RCTAppDependencyProvider
+[Codegen] Generated artifact: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios/RCTAppDependencyProvider.h
+[Codegen] Generated artifact: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios/RCTAppDependencyProvider.mm
+[Codegen] Generated podspec: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios/ReactAppDependencyProvider.podspec
+[Codegen] Generated podspec: /Users/zeki/Documents/Audio-Streamer/ios/build/generated/ios/ReactCodegen.podspec
+[Codegen] Done.
+[ReactNativeDependencies] Using release tarball
+[ReactNativeDependencies] Using tarball from URL: https://repo1.maven.org/maven2/com/facebook/react/react-native-artifacts/0.81.5/react-native-artifacts-0.81.5-reactnative-dependencies-debug.tar.gz
+Analyzing dependencies
+Downloading dependencies
+Generating Pods project
+Setting USE_HERMES build settings
+Setting REACT_NATIVE_PATH build settings
+Setting SWIFT_ACTIVE_COMPILATION_CONDITIONS build settings
+[Ccache]: Removing Ccache from CC, LD, CXX & LDPLUSPLUS build settings
+Setting SWIFT_ENABLE_EXPLICIT_MODULES build settings
+[SPM] Cleaning old SPM dependencies from Pods project
+[SPM] Adding SPM dependencies to Pods project
+[Privacy Manifest Aggregation] Appending aggregated reasons to existing PrivacyInfo.xcprivacy file.
+[Privacy Manifest Aggregation] Reading .xcprivacy files to aggregate all used Required Reason APIs.
+Setting CLANG_CXX_LANGUAGE_STANDARD to c++20 on /Users/zeki/Documents/Audio-Streamer/ios/SoundStream.xcodeproj
+
+==================== DEPRECATION NOTICE =====================
+Calling `pod install` directly is deprecated in React Native
+because we are moving away from Cocoapods toward alternative
+solutions to build the project.
+* If you are using Expo, please run:
+`npx expo run:ios`
+* If you are using the Community CLI, please run:
+`yarn ios`
+=============================================================
+
+Pod install took 12 [s] to run
+Integrating client project
+Pod installation complete! There are 93 dependencies from the Podfile and 100 total pods installed.
+[Expo] Adding '[Expo Autolinking] Run Codegen with autolinking' build phase to ReactCodegen
+zeki@MacBookAir audio-streamer % npx expo run:ios --"Zphone"
+CommandError: Unknown arguments: --Zphone
+zeki@MacBookAir audio-streamer % npx expo run:ios --Zphone
+CommandError: Unknown arguments: --Zphone
+zeki@MacBookAir audio-streamer % npx expo run:ios
+› Planning build
+› Executing react-native Pods/hermes-engine » [CP-User] [Hermes] Replace Hermes for the right configuration, if needed
+› Executing react-native Pods/ReactNativeDependencies » [CP-User] [RNDeps] Replace React Native Dependencies for the right configuration, if needed
+› Compiling expo-image Pods/libwebp » sharpyuv_csp.c
+› Compiling expo-image Pods/libwebp » yuv_sse41.c
+› Compiling expo-image Pods/libwebp » yuv_sse2.c
+› Compiling expo-image Pods/libwebp » yuv_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » yuv_mips32.c
+› Compiling expo-image Pods/libwebp » upsampling_sse41.c
+› Compiling expo-image Pods/libwebp » upsampling_sse2.c
+› Compiling expo-image Pods/libwebp » upsampling_msa.c
+› Compiling expo-image Pods/libwebp » upsampling_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » upsampling.c
+› Compiling expo-image Pods/libwebp » tree_enc.c
+› Compiling expo-image Pods/libwebp » tree_dec.c
+› Compiling expo-image Pods/libwebp » thread_utils.c
+› Compiling expo-image Pods/libwebp » syntax_enc.c
+› Compiling expo-image Pods/libwebp » ssim_sse2.c
+› Compiling expo-image Pods/libwebp » sharpyuv_sse2.c
+› Compiling expo-image Pods/libwebp » sharpyuv_gamma.c
+› Compiling expo-image Pods/libwebp » sharpyuv_cpu.c
+› Compiling expo-image Pods/libwebp » rescaler_sse2.c
+› Compiling expo-image Pods/libwebp » rescaler_msa.c
+› Compiling expo-image Pods/libwebp » rescaler_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » rescaler_mips32.c
+› Compiling expo-image Pods/libwebp » rescaler.c
+› Compiling expo-image Pods/libwebp » random_utils.c
+› Compiling expo-image Pods/libwebp » quant_levels_dec_utils.c
+› Compiling expo-image Pods/libwebp » quant_dec.c
+› Compiling expo-image Pods/libwebp » picture_tools_enc.c
+› Compiling expo-image Pods/libwebp » lossless_sse41.c
+› Compiling expo-image Pods/libwebp » lossless_sse2.c
+› Compiling expo-image Pods/libwebp » lossless_msa.c
+› Compiling expo-image Pods/libwebp » lossless_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » lossless_enc_sse41.c
+› Compiling expo-image Pods/libwebp » lossless_enc_sse2.c
+› Compiling expo-image Pods/libwebp » lossless_enc_msa.c
+› Compiling expo-image Pods/libwebp » lossless_enc_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » iterator_enc.c
+› Compiling expo-image Pods/libwebp » yuv.c
+› Compiling expo-image Pods/libwebp » webp_enc.c
+› Compiling expo-image Pods/libwebp » webp_dec.c
+› Compiling expo-image Pods/libwebp » vp8l_enc.c
+› Compiling expo-image Pods/libwebp » vp8l_dec.c
+› Compiling expo-image Pods/libwebp » vp8_dec.c
+› Compiling expo-image Pods/libwebp » utils.c
+› Compiling expo-image Pods/libwebp » token_enc.c
+› Compiling expo-image Pods/libwebp » ssim.c
+› Compiling expo-image Pods/libwebp » sharpyuv_dsp.c
+› Compiling expo-image Pods/libwebp » sharpyuv.c
+› Compiling expo-image Pods/libwebp » rescaler_utils.c
+› Compiling expo-image Pods/libwebp » quant_levels_utils.c
+› Compiling expo-image Pods/libwebp » predictor_enc.c
+› Compiling expo-image Pods/libwebp » picture_rescale_enc.c
+› Compiling expo-image Pods/libwebp » picture_psnr_enc.c
+› Compiling expo-image Pods/libwebp » picture_enc.c
+› Compiling expo-image Pods/libwebp » picture_csp_enc.c
+› Compiling expo-image Pods/libwebp » palette.c
+› Compiling expo-image Pods/libwebp » near_lossless_enc.c
+› Compiling expo-image Pods/libwebp » muxread.c
+› Compiling expo-image Pods/libwebp » yuv_neon.c
+› Compiling expo-image Pods/libwebp » upsampling_neon.c
+› Compiling expo-image Pods/libwebp » sharpyuv_neon.c
+› Compiling expo-image Pods/libwebp » rescaler_neon.c
+› Compiling expo-image Pods/libwebp » quant_enc.c
+› Compiling expo-image Pods/libwebp » muxinternal.c
+› Compiling expo-image Pods/libwebp » muxedit.c
+› Compiling expo-image Pods/libwebp » lossless_neon.c
+› Compiling expo-image Pods/libwebp » lossless_enc_neon.c
+› Compiling expo-image Pods/libwebp » lossless_enc_mips32.c
+› Compiling expo-image Pods/libwebp » lossless_enc.c
+› Compiling expo-image Pods/libwebp » lossless.c
+› Compiling expo-image Pods/libwebp » io_dec.c
+› Compiling expo-image Pods/libwebp » idec_dec.c
+› Compiling expo-image Pods/libwebp » huffman_utils.c
+› Compiling expo-image Pods/libwebp » huffman_encode_utils.c
+› Compiling expo-image Pods/libwebp » histogram_enc.c
+› Compiling expo-image Pods/libwebp » frame_enc.c
+› Compiling expo-image Pods/libwebp » frame_dec.c
+› Compiling expo-image Pods/libwebp » filters_utils.c
+› Compiling expo-image Pods/libwebp » filters_sse2.c
+› Compiling expo-image Pods/libwebp » filters_neon.c
+› Compiling expo-image Pods/libwebp » filters_msa.c
+› Compiling expo-image Pods/libwebp » filters_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » filters.c
+› Compiling expo-image Pods/libwebp » filter_enc.c
+› Compiling expo-image Pods/libwebp » enc_sse2.c
+› Compiling expo-image Pods/libwebp » enc_sse41.c
+› Compiling expo-image Pods/libwebp » enc_neon.c
+› Compiling expo-image Pods/libwebp » enc_msa.c
+› Compiling expo-image Pods/libwebp » enc_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » enc_mips32.c
+› Compiling expo-image Pods/libwebp » enc.c
+› Compiling expo-image Pods/libwebp » demux.c
+› Compiling expo-image Pods/libwebp » dec_sse41.c
+› Compiling expo-image Pods/libwebp » dec_sse2.c
+› Compiling expo-image Pods/libwebp » dec_msa.c
+› Compiling expo-image Pods/libwebp » dec_neon.c
+› Compiling expo-image Pods/libwebp » dec_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » dec_mips32.c
+› Compiling expo-image Pods/libwebp » dec_clip_tables.c
+› Compiling expo-image Pods/libwebp » cpu.c
+› Compiling expo-image Pods/libwebp » dec.c
+› Compiling expo-image Pods/libwebp » cost_sse2.c
+› Compiling expo-image Pods/libwebp » cost_neon.c
+› Compiling expo-image Pods/libwebp » cost_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » cost.c
+› Compiling expo-image Pods/libwebp » cost_mips32.c
+› Compiling expo-image Pods/libwebp » cost_enc.c
+› Compiling expo-image Pods/libwebp » config_enc.c
+› Compiling expo-image Pods/libwebp » color_cache_utils.c
+› Compiling expo-image Pods/libwebp » buffer_dec.c
+› Compiling expo-image Pods/libwebp » bit_writer_utils.c
+› Compiling expo-image Pods/libwebp » bit_reader_utils.c
+› Compiling expo-image Pods/libwebp » backward_references_enc.c
+› Compiling expo-image Pods/libwebp » anim_encode.c
+› Compiling expo-image Pods/libwebp » anim_decode.c
+› Compiling expo-image Pods/libwebp » backward_references_cost_enc.c
+› Compiling expo-image Pods/libwebp » analysis_enc.c
+› Compiling expo-image Pods/libwebp » alpha_processing_sse41.c
+› Compiling expo-image Pods/libwebp » alpha_processing_neon.c
+› Compiling expo-image Pods/libwebp » alpha_processing_sse2.c
+› Compiling expo-image Pods/libwebp » alpha_processing_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » alpha_processing.c
+› Compiling expo-image Pods/libwebp » alpha_dec.c
+› Compiling expo-image Pods/libwebp » alpha_enc.c
+› Compiling expo-image Pods/libdav1d » wedge.c
+› Compiling expo-image Pods/libdav1d » tables.c
+› Compiling expo-image Pods/libdav1d » scan.c
+› Compiling expo-image Pods/libdav1d » qm.c
+› Compiling expo-image Pods/libdav1d » lf_mask.c
+› Compiling expo-image Pods/libdav1d » itx_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » itx_tmpl.c
+› Compiling expo-image Pods/libdav1d » itx_1d.c
+› Compiling expo-image Pods/libdav1d » getbits.c
+› Compiling expo-image Pods/libdav1d » filmgrain_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » filmgrain_tmpl.c
+› Compiling expo-image Pods/libdav1d » dequant_tables.c
+› Compiling expo-image Pods/libdav1d » cpu.c
+› Compiling expo-image Pods/libdav1d » warpmv.c
+› Compiling expo-image Pods/libdav1d » thread_task.c
+› Compiling expo-image Pods/libdav1d » refmvs.c
+› Compiling expo-image Pods/libdav1d » ref.c
+› Compiling expo-image Pods/libdav1d » recon_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » recon_tmpl.c
+› Compiling expo-image Pods/libdav1d » picture.c
+› Compiling expo-image Pods/libdav1d » obu.c
+› Compiling expo-image Pods/libdav1d » msac.c
+› Compiling expo-image Pods/libdav1d » mem.c
+› Compiling expo-image Pods/libdav1d » mc_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » mc_tmpl.c
+› Compiling expo-image Pods/libdav1d » lr_apply_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » lr_apply_tmpl.c
+› Compiling expo-image Pods/libdav1d » looprestoration_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » looprestoration_tmpl.c
+› Compiling expo-image Pods/libdav1d » loopfilter_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » loopfilter_tmpl.c
+› Compiling expo-image Pods/libdav1d » log.c
+› Compiling expo-image Pods/libdav1d » lib.c
+› Compiling expo-image Pods/libdav1d » lf_apply_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » lf_apply_tmpl.c
+› Compiling expo-image Pods/libdav1d » ipred_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » ipred_tmpl.c
+› Compiling expo-image Pods/libdav1d » ipred_prepare_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » ipred_prepare_tmpl.c
+› Compiling expo-image Pods/libdav1d » intra_edge.c
+› Compiling expo-image Pods/libdav1d » fg_apply_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » fg_apply_tmpl.c
+› Compiling expo-image Pods/libdav1d » data.c
+› Compiling expo-image Pods/libdav1d » cdf.c
+› Compiling expo-image Pods/libdav1d » cdef_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » cdef_tmpl.c
+› Compiling expo-image Pods/libdav1d » cdef_apply_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » cdef_apply_tmpl.c
+› Compiling expo-image Pods/libdav1d » decode.c
+› Compiling Pods/libavif » write.c
+› Compiling Pods/libavif » utils.c
+› Compiling Pods/libavif » scale.c
+› Compiling expo-image Pods/libdav1d » cpu.c
+› Compiling Pods/libavif » reformat_libyuv.c
+› Compiling Pods/libavif » reformat_libsharpyuv.c
+› Compiling Pods/libavif » reformat.c
+› Compiling Pods/libavif » rawdata.c
+› Compiling Pods/libavif » obu.c
+› Compiling Pods/libavif » io.c
+› Compiling Pods/libavif » exif.c
+› Compiling Pods/libavif » diag.c
+› Compiling Pods/libavif » colr.c
+› Compiling Pods/libavif » codec_dav1d.c
+› Compiling Pods/libavif » avif.c
+› Compiling Pods/libavif » alpha.c
+› Compiling Pods/libavif » mem.c
+› Compiling Pods/libavif » stream.c
+› Compiling Pods/libavif » read.c
+› Executing react-native Pods/hermes-engine » [CP] Copy XCFrameworks
+› Compiling expo-image Pods/libwebp » libwebp-dummy.m
+› Compiling expo-image Pods/libdav1d » libdav1d-dummy.m
+› Compiling expo-image Pods/SDWebImage » UIView+WebCacheState.m
+› Compiling expo-image Pods/SDWebImage » UIView+WebCacheOperation.m
+› Compiling expo-image Pods/SDWebImage » UIView+WebCache.m
+› Compiling expo-image Pods/SDWebImage » UIImageView+WebCache.m
+› Compiling expo-image Pods/SDWebImage » UIImageView+HighlightedWebCache.m
+› Packaging expo-image Pods/libwebp » liblibwebp.a
+› Packaging expo-image Pods/libdav1d » liblibdav1d.a
+› Compiling expo-image Pods/SDWebImage » UIImage+Transform.m
+› Compiling expo-image Pods/SDWebImage » UIImage+MultiFormat.m
+› Compiling expo-image Pods/SDWebImage » UIImage+Metadata.m
+› Compiling expo-image Pods/SDWebImage » UIImage+MemoryCacheCost.m
+› Compiling expo-image Pods/SDWebImage » UIImage+GIF.m
+› Compiling expo-image Pods/SDWebImage » UIImage+ForceDecode.m
+› Compiling expo-image Pods/SDWebImage » UIImage+ExtendedCacheData.m
+› Compiling expo-image Pods/SDWebImage » UIColor+SDHexString.m
+› Compiling expo-image Pods/SDWebImage » UIButton+WebCache.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageTransition.m
+› Compiling expo-image Pods/SDWebImage » SDWebImagePrefetcher.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageOptionsProcessor.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageOperation.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageManager.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageIndicator.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageError.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageDownloaderResponseModifier.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageDownloaderRequestModifier.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageDownloaderOperation.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageDownloaderDecryptor.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageDownloaderConfig.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageDownloader.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageDefine.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageCompat.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageCacheSerializer.m
+› Compiling expo-image Pods/SDWebImage » SDWebImageCacheKeyFilter.m
+› Compiling expo-image Pods/SDWebImage » SDWebImage-dummy.m
+› Compiling expo-image Pods/SDWebImage » SDWeakProxy.m
+› Compiling expo-image Pods/SDWebImage » SDMemoryCache.m
+› Compiling expo-image Pods/SDWebImage » SDInternalMacros.m
+› Compiling expo-image Pods/SDWebImage » SDImageTransformer.m
+› Compiling expo-image Pods/SDWebImage » SDImageLoadersManager.m
+› Compiling expo-image Pods/SDWebImage » SDImageLoader.m
+› Compiling expo-image Pods/SDWebImage » SDImageIOCoder.m
+› Compiling expo-image Pods/SDWebImage » SDImageIOAnimatedCoder.m
+› Compiling expo-image Pods/SDWebImage » SDImageHEICCoder.m
+› Compiling expo-image Pods/SDWebImage » SDImageGraphics.m
+› Compiling expo-image Pods/SDWebImage » SDImageGIFCoder.m
+› Compiling expo-image Pods/SDWebImage » SDImageFramePool.m
+› Compiling expo-image Pods/SDWebImage » SDImageFrame.m
+› Compiling expo-image Pods/SDWebImage » SDImageCodersManager.m
+› Compiling expo-image Pods/SDWebImage » SDImageCoderHelper.m
+› Compiling expo-image Pods/SDWebImage » SDImageCoder.m
+› Compiling expo-image Pods/SDWebImage » SDImageCachesManagerOperation.m
+› Compiling expo-image Pods/SDWebImage » SDImageCachesManager.m
+› Compiling expo-image Pods/SDWebImage » SDImageCacheDefine.m
+› Compiling expo-image Pods/SDWebImage » SDImageCacheConfig.m
+› Compiling expo-image Pods/SDWebImage » SDImageCache.m
+› Compiling expo-image Pods/SDWebImage » SDImageAssetManager.m
+› Compiling expo-image Pods/SDWebImage » SDImageAWebPCoder.m
+› Compiling expo-image Pods/SDWebImage » SDImageAPNGCoder.m
+› Compiling expo-image Pods/SDWebImage » SDGraphicsImageRenderer.m
+› Compiling expo-image Pods/SDWebImage » SDFileAttributeHelper.m
+› Compiling expo-image Pods/SDWebImage » SDDisplayLink.m
+› Compiling expo-image Pods/SDWebImage » SDDiskCache.m
+› Compiling expo-image Pods/SDWebImage » SDDeviceHelper.m
+› Compiling expo-image Pods/SDWebImage » SDCallbackQueue.m
+› Compiling expo-image Pods/SDWebImage » SDAsyncBlockOperation.m
+› Compiling expo-image Pods/SDWebImage » SDAssociatedObject.m
+› Compiling expo-image Pods/SDWebImage » SDAnimatedImageView.m
+› Compiling expo-image Pods/SDWebImage » SDAnimatedImageView+WebCache.m
+› Compiling expo-image Pods/SDWebImage » SDAnimatedImageRep.m
+› Compiling expo-image Pods/SDWebImage » SDAnimatedImagePlayer.m
+› Compiling expo-image Pods/SDWebImage » SDAnimatedImage.m
+› Compiling expo-image Pods/SDWebImage » NSImage+Compatibility.m
+› Compiling expo-image Pods/SDWebImage » NSData+ImageContentType.m
+› Compiling expo-image Pods/SDWebImage » NSButton+WebCache.m
+› Compiling expo-image Pods/SDWebImage » NSBezierPath+SDRoundedCorners.m
+› Executing react-native Pods/ReactNativeDependencies » [CP] Copy XCFrameworks
+› Compiling expo-image Pods/SDWebImageSVGCoder » SDImageSVGCoder.m
+› Compiling expo-image Pods/SDWebImageSVGCoder » SDWebImageSVGCoder-dummy.m
+› Compiling expo-image Pods/SDWebImageSVGCoder » SDWebImageSVGCoderDefine.m
+› Compiling expo-image Pods/SDWebImageAVIFCoder » SDWebImageAVIFCoder-dummy.m
+› Compiling expo-image Pods/SDWebImageAVIFCoder » ColorSpace.m
+› Preparing expo-image Pods/SDWebImage-SDWebImage » ResourceBundle-SDWebImage-SDWebImage-Info.plist
+› Copying   expo-image SDWebImage/SDWebImage.bundle/PrivacyInfo.xcprivacy ➜ ios/Pods/SDWebImage/WebImage/PrivacyInfo.xcprivacy
+› Compiling expo-image Pods/SDWebImageAVIFCoder » Conversion.m
+› Compiling expo-image Pods/SDWebImageAVIFCoder » SDImageAVIFCoder.m
+› Preparing Pods/React-cxxreact-React-cxxreact_privacy » ResourceBundle-React-cxxreact_privacy-React-cxxreact-Info.plist
+› Copying   React-cxxreact/React-cxxreact_privacy.bundle/PrivacyInfo.xcprivacy ➜ node_modules/react-native/ReactCommon/cxxreact/PrivacyInfo.xcprivacy
+› Preparing Pods/React-Core-React-Core_privacy » ResourceBundle-React-Core_privacy-React-Core-Info.plist
+› Copying   React-Core/React-Core_privacy.bundle/PrivacyInfo.xcprivacy ➜ node_modules/react-native/React/Resources/PrivacyInfo.xcprivacy
+› Creating  expo-image Pods/SDWebImage-SDWebImage » SDWebImage.bundle
+› Creating  Pods/React-cxxreact-React-cxxreact_privacy » React-cxxreact_privacy.bundle
+› Packaging expo-image Pods/SDWebImage » libSDWebImage.a
+› Creating  Pods/React-Core-React-Core_privacy » React-Core_privacy.bundle
+› Preparing Pods/RNCAsyncStorage-RNCAsyncStorage_resources » ResourceBundle-RNCAsyncStorage_resources-RNCAsyncStorage-Info.plist
+› Copying   RNCAsyncStorage/RNCAsyncStorage_resources.bundle/PrivacyInfo.xcprivacy ➜ node_modules/@react-native-async-storage/async-storage/ios/PrivacyInfo.xcprivacy
+› Preparing Pods/ExpoSystemUI-ExpoSystemUI_privacy » ResourceBundle-ExpoSystemUI_privacy-ExpoSystemUI-Info.plist
+› Copying   ExpoSystemUI/ExpoSystemUI_privacy.bundle/PrivacyInfo.xcprivacy ➜ node_modules/expo-system-ui/ios/PrivacyInfo.xcprivacy
+› Preparing Pods/ExpoFileSystem-ExpoFileSystem_privacy » ResourceBundle-ExpoFileSystem_privacy-ExpoFileSystem-Info.plist
+› Copying   ExpoFileSystem/ExpoFileSystem_privacy.bundle/PrivacyInfo.xcprivacy ➜ node_modules/expo-file-system/ios/PrivacyInfo.xcprivacy
+› Creating  Pods/RNCAsyncStorage-RNCAsyncStorage_resources » RNCAsyncStorage_resources.bundle
+› Preparing Pods/EXConstants-ExpoConstants_privacy » ResourceBundle-ExpoConstants_privacy-EXConstants-Info.plist
+› Copying   EXConstants/ExpoConstants_privacy.bundle/PrivacyInfo.xcprivacy ➜ node_modules/expo-constants/ios/PrivacyInfo.xcprivacy
+› Packaging expo-image Pods/SDWebImageSVGCoder » libSDWebImageSVGCoder.a
+› Preparing expo-constants Pods/EXConstants-EXConstants » ResourceBundle-EXConstants-EXConstants-Info.plist
+› Creating  Pods/ExpoSystemUI-ExpoSystemUI_privacy » ExpoSystemUI_privacy.bundle
+› Executing react-native Pods/React-Core-prebuilt » [CP-User] [RNDeps] Replace React Native Core for the right configuration, if needed
+› Creating  Pods/ExpoFileSystem-ExpoFileSystem_privacy » ExpoFileSystem_privacy.bundle
+› Creating  expo-constants Pods/EXConstants-EXConstants » EXConstants.bundle
+› Creating  Pods/EXConstants-ExpoConstants_privacy » ExpoConstants_privacy.bundle
+› Compiling Pods/libavif » libavif-dummy.m
+› Packaging Pods/libavif » liblibavif.a
+› Packaging expo-image Pods/SDWebImageAVIFCoder » libSDWebImageAVIFCoder.a
+› Compiling react-native-udp Pods/CocoaAsyncSocket » GCDAsyncUdpSocket.m
+› Compiling react-native-udp Pods/CocoaAsyncSocket » CocoaAsyncSocket-dummy.m
+› Compiling react-native-udp Pods/CocoaAsyncSocket » GCDAsyncSocket.m
+› Executing react-native Pods/React-Core-prebuilt » [CP] Copy XCFrameworks
+› Packaging react-native-udp Pods/CocoaAsyncSocket » libCocoaAsyncSocket.a
+› Compiling expo-image Pods/SDWebImageWebPCoder » UIImage+WebP.m
+› Compiling expo-image Pods/SDWebImageWebPCoder » SDImageWebPCoder.m
+› Compiling expo-image Pods/SDWebImageWebPCoder » SDWebImageWebPCoder-dummy.m
+› Compiling expo-image Pods/SDWebImageWebPCoder » SDWebImageWebPCoderDefine.m
+› Packaging expo-image Pods/SDWebImageWebPCoder » libSDWebImageWebPCoder.a
+› Executing react-native Pods/React-RCTFBReactNativeSpec » [CP-User] [RN]Check FBReactNativeSpec
+› Executing my-app Pods/ReactCodegen » [CP-User] Generate Specs
+› Compiling react-native-udp Pods/react-native-udp » react-native-udp-dummy.m
+› Compiling react-native-udp Pods/react-native-udp » UdpSocketClient.m
+› Compiling react-native-udp Pods/react-native-udp » UdpSockets.m
+› Packaging react-native-udp Pods/react-native-udp » libreact-native-udp.a
+› Compiling my-app Pods/ReactCodegen » safeareacontext-generated.mm
+› Compiling my-app Pods/ReactCodegen » safeareacontextJSI-generated.cpp
+› Compiling my-app Pods/ReactCodegen » rnworklets-generated.mm
+› Compiling my-app Pods/ReactCodegen » rnworkletsJSI-generated.cpp
+› Compiling my-app Pods/ReactCodegen » rnscreensJSI-generated.cpp
+› Compiling my-app Pods/ReactCodegen » rnscreens-generated.mm
+› Compiling my-app Pods/ReactCodegen » rnreanimatedJSI-generated.cpp
+› Compiling my-app Pods/ReactCodegen » rnreanimated-generated.mm
+› Compiling my-app Pods/ReactCodegen » rngesturehandler_codegen-generated.mm
+› Compiling my-app Pods/ReactCodegen » rngesturehandler_codegenJSI-generated.cpp
+› Compiling my-app Pods/ReactCodegen » rnasyncstorageJSI-generated.cpp
+› Compiling my-app Pods/ReactCodegen » rnasyncstorage-generated.mm
+› Compiling my-app Pods/ReactCodegen » reactnativekeyboardcontrollerJSI-generated.cpp
+› Compiling my-app Pods/ReactCodegen » reactnativekeyboardcontroller-generated.mm
+› Compiling my-app Pods/ReactCodegen » States.cpp
+› Compiling my-app Pods/ReactCodegen » States.cpp
+› Compiling my-app Pods/ReactCodegen » States.cpp
+› Compiling my-app Pods/ReactCodegen » States.cpp
+› Compiling my-app Pods/ReactCodegen » States.cpp
+› Compiling my-app Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling my-app Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling my-app Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling my-app Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling my-app Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling my-app Pods/ReactCodegen » RCTUnstableModulesRequiringMainQueueSetupProvider.mm
+› Compiling my-app Pods/ReactCodegen » RCTThirdPartyComponentsProvider.mm
+› Compiling my-app Pods/ReactCodegen » RCTModulesConformingToProtocolsProvider.mm
+› Compiling my-app Pods/ReactCodegen » RCTModuleProviders.mm
+› Compiling my-app Pods/ReactCodegen » Props.cpp
+› Compiling my-app Pods/ReactCodegen » Props.cpp
+› Compiling my-app Pods/ReactCodegen » Props.cpp
+› Compiling my-app Pods/ReactCodegen » Props.cpp
+› Compiling my-app Pods/ReactCodegen » Props.cpp
+› Compiling my-app Pods/ReactCodegen » EventEmitters.cpp
+› Compiling my-app Pods/ReactCodegen » EventEmitters.cpp
+› Compiling my-app Pods/ReactCodegen » EventEmitters.cpp
+› Compiling my-app Pods/ReactCodegen » EventEmitters.cpp
+› Compiling my-app Pods/ReactCodegen » EventEmitters.cpp
+› Compiling my-app Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling my-app Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling my-app Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling my-app Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling my-app Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling @react-native-community/slider Pods/react-native-slider » RNCSliderShadowNode.cpp
+› Compiling @react-native-community/slider Pods/react-native-slider » RNCSliderMeasurementsManager.cpp
+› Compiling @react-native-community/slider Pods/react-native-slider » RNCSliderComponentView.mm
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaViewState.cpp
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaViewShadowNode.cpp
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaViewComponentView.mm
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaProviderComponentView.mm
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaContext.mm
+› Compiling my-app Pods/ReactCodegen » ReactCodegen-dummy.m
+› Compiling my-app Pods/ReactAppDependencyProvider » RCTAppDependencyProvider.mm
+› Packaging my-app Pods/ReactCodegen » libReactCodegen.a
+› Compiling @react-native-community/slider Pods/react-native-slider » react-native-slider-dummy.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » react-native-safe-area-context-dummy.m
+› Compiling @react-native-async-storage/async-storage Pods/RNCAsyncStorage » RNCAsyncStorage.mm
+› Compiling react-native-reanimated Pods/RNReanimated » vectors.cpp
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » RNKCOverKeyboardViewState.cpp
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » RNKCOverKeyboardViewShadowNode.cpp
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » RNKCKeyboardGestureAreaShadowNode.cpp
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » RNKCKeyboardExtenderShadowNode.cpp
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » RNKCKeyboardControllerViewShadowNode.cpp
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » RNKCKeyboardBackgroundViewShadowNode.cpp
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » OverKeyboardViewManager.mm
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » KeyboardGestureAreaManager.mm
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » KeyboardExtenderManager.mm
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » KeyboardControllerViewManager.mm
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » KeyboardControllerView.mm
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » KeyboardControllerModule.mm
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » KeyboardBackgroundViewManager.mm
+› Compiling my-app Pods/ReactAppDependencyProvider » ReactAppDependencyProvider-dummy.m
+› Compiling react-native-worklets Pods/RNWorklets » WorkletsVersion.cpp
+› Compiling react-native-worklets Pods/RNWorklets » WorkletsModuleProxy.cpp
+› Compiling react-native-worklets Pods/RNWorklets » WorkletsModule.mm
+› Compiling react-native-worklets Pods/RNWorklets » WorkletsMessageThread.mm
+› Compiling react-native-worklets Pods/RNWorklets » WorkletsJSIUtils.cpp
+› Compiling react-native-worklets Pods/RNWorklets » WorkletRuntimeRegistry.cpp
+› Compiling react-native-worklets Pods/RNWorklets » WorkletRuntimeDecorator.cpp
+› Compiling react-native-worklets Pods/RNWorklets » WorkletRuntime.cpp
+› Compiling react-native-worklets Pods/RNWorklets » WorkletHermesRuntime.cpp
+› Compiling react-native-worklets Pods/RNWorklets » WorkletEventHandler.cpp
+› Compiling react-native-worklets Pods/RNWorklets » VersionUtils.cpp
+› Compiling react-native-worklets Pods/RNWorklets » ValueUnpacker.cpp
+› Compiling react-native-worklets Pods/RNWorklets » UIScheduler.cpp
+› Compiling react-native-worklets Pods/RNWorklets » UIRuntimeDecorator.cpp
+› Compiling react-native-worklets Pods/RNWorklets » SynchronizableUnpacker.cpp
+› Compiling react-native-worklets Pods/RNWorklets » SynchronizableAccess.cpp
+› Compiling react-native-worklets Pods/RNWorklets » Synchronizable.cpp
+› Compiling react-native-worklets Pods/RNWorklets » SlowAnimations.mm
+› Compiling react-native-worklets Pods/RNWorklets » Serializable.cpp
+› Compiling react-native-worklets Pods/RNWorklets » RuntimeManager.cpp
+› Compiling react-native-worklets Pods/RNWorklets » RuntimeData.cpp
+› Compiling react-native-worklets Pods/RNWorklets » RNRuntimeWorkletDecorator.cpp
+› Compiling react-native-worklets Pods/RNWorklets » PlatformLogger.mm
+› Compiling react-native-worklets Pods/RNWorklets » JSScheduler.cpp
+› Compiling react-native-worklets Pods/RNWorklets » JSLogger.cpp
+› Compiling react-native-worklets Pods/RNWorklets » JSIWorkletsModuleProxy.cpp
+› Compiling react-native-worklets Pods/RNWorklets » JSISerializer.cpp
+› Compiling react-native-worklets Pods/RNWorklets » IOSUIScheduler.mm
+› Compiling react-native-worklets Pods/RNWorklets » FeatureFlags.cpp
+› Compiling react-native-worklets Pods/RNWorklets » EventLoop.cpp
+› Compiling react-native-worklets Pods/RNWorklets » EventHandlerRegistry.cpp
+› Compiling react-native-worklets Pods/RNWorklets » AsyncQueueImpl.cpp
+› Compiling react-native-worklets Pods/RNWorklets » AnimationFrameQueue.mm
+› Compiling react-native-worklets Pods/RNWorklets » AnimationFrameBatchinator.cpp
+› Compiling react-native-screens Pods/RNScreens » UIWindow+RNScreens.mm
+› Compiling react-native-screens Pods/RNScreens » UIViewController+RNScreens.mm
+› Compiling react-native-screens Pods/RNScreens » UIView+RNSUtility.mm
+› Compiling react-native-screens Pods/RNScreens » UIScrollView+RNScreens.mm
+› Compiling react-native-screens Pods/RNScreens » UINavigationBar+RNSUtility.mm
+› Compiling react-native-screens Pods/RNScreens » RNScreensTurboModule.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSViewControllerInvalidator.mm
+› Compiling react-native-screens Pods/RNScreens » RNSTabsScreenViewController.mm
+› Compiling react-native-screens Pods/RNScreens » RNSTabBarControllerDelegate.mm
+› Compiling react-native-screens Pods/RNScreens » RNSTabBarController.mm
+› Compiling react-native-screens Pods/RNScreens » RNSTabBarAppearanceCoordinator.mm
+› Compiling react-native-screens Pods/RNScreens » RNSSplitViewScreenShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSSearchBar.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScrollViewHelper.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScrollViewFinder.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenWindowTraits.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenViewEvent.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenState.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStackHeaderSubviewState.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStackHeaderSubviewShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStackHeaderSubview.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStackHeaderConfigState.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStackHeaderConfigShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStackHeaderConfig.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStackAnimator.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStack.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSScreenRemovalListener.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSScreenNavigationContainer.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenFooter.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenContentWrapper.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenContainer.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreen.mm
+› Compiling react-native-screens Pods/RNScreens » RNSReactBaseView.mm
+› Compiling react-native-screens Pods/RNScreens » RNSPercentDrivenInteractiveTransition.mm
+› Compiling react-native-screens Pods/RNScreens » RNSModule.mm
+› Compiling react-native-screens Pods/RNScreens » RNSModalScreenShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSModalScreen.mm
+› Compiling react-native-screens Pods/RNScreens » RNSInvalidatedComponentsRegistry.mm
+› Compiling react-native-screens Pods/RNScreens » RNSHeaderHeightChangeEvent.mm
+› Compiling react-native-screens Pods/RNScreens » RNSGammaStubs.mm
+› Compiling react-native-screens Pods/RNScreens » RNSFullWindowOverlayShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSFullWindowOverlay.mm
+› Compiling react-native-screens Pods/RNScreens » RNSConvert.mm
+› Compiling react-native-screens Pods/RNScreens » RNSConversions.mm
+› Compiling react-native-screens Pods/RNScreens » RNSConversions-SplitView.mm
+› Compiling react-native-screens Pods/RNScreens » RNSConversions-Fabric.mm
+› Compiling react-native-screens Pods/RNScreens » RNSConversions-BottomTabs.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsState.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsScreenEventEmitter.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsScreenComponentViewManager.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsScreenComponentView.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsHostEventEmitter.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsHostComponentViewManager.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsHostComponentView.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsHostComponentView+RNSImageLoader.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBackBarButtonItem.mm
+› Compiling react-native-screens Pods/RNScreens » RCTTouchHandler+RNSUtility.mm
+› Compiling react-native-screens Pods/RNScreens » RCTSurfaceTouchHandler+RNSUtility.mm
+› Compiling react-native-screens Pods/RNScreens » RCTImageComponentView+RNSScreenStackHeaderConfig.mm
+› Compiling react-native-screens Pods/RNScreens » RCTConvert+RNScreens.mm
+› Compiling react-native-screens Pods/RNScreens » RCTConvert+RNSBottomTabs.mm
+› Compiling react-native-screens Pods/RNScreens » NSString+RNSUtility.mm
+› Compiling react-native-reanimated Pods/RNReanimated » steps.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » props.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » matrix.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » linear.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » keyframes.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » interpolators.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » cubicBezier.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » common.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » algorithms.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » ViewStylesRepository.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » ValueInterpolator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » UpdatesRegistryManager.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » UpdatesRegistry.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » UIRuntimeDecorator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » TransitionStyleInterpolator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » TransitionProgressProvider.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » TransformsStyleInterpolator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » TransformOperationInterpolator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » TransformOperation.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » TransformOp.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » TransformMatrix3D.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » TransformMatrix2D.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » StaticPropsRegistry.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » SimpleValueInterpolator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » ShadowTreeCloner.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » SetGestureState.mm
+› Compiling react-native-reanimated Pods/RNReanimated » SVGStrokeDashArray.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » SVGLength.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » ResolvableValueInterpolator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » RecordPropertiesInterpolator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » ReanimatedVersion.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » ReanimatedMountHook.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » ReanimatedModuleProxySpec.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » ReanimatedModuleProxy.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » ReanimatedModule.mm
+› Compiling react-native-reanimated Pods/RNReanimated » ReanimatedCommitHook.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » RawProgressProvider.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » RNRuntimeDecorator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » REASlowAnimations.mm
+› Compiling react-native-reanimated Pods/RNReanimated » REANodesManager.mm
+› Compiling react-native-reanimated Pods/RNReanimated » REAKeyboardEventObserver.mm
+› Compiling react-native-reanimated Pods/RNReanimated » Quaternion.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » PropertyInterpolator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » PropValueProcessor.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » PlatformDepMethodsHolderImpl.mm
+› Compiling react-native-reanimated Pods/RNReanimated » NativeProxy.mm
+› Compiling react-native-reanimated Pods/RNReanimated » LayoutAnimationsUtils.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » LayoutAnimationsProxy.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » LayoutAnimationsManager.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » InterpolatorRegistry.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » InterpolatorFactory.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » GroupPropertiesInterpolator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » FeatureFlags.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » EasingFunctions.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » DelayedItemsManager.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSValueVariant.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSTransitionsRegistry.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSTransitionConfig.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSTransition.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSNumber.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSLength.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSKeyword.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSKeyframesRegistry.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSKeyframesConfig.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSDiscreteArray.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSColor.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSBoolean.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSAnimationsRegistry.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSAnimationConfig.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSAnimation.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » CSSAngle.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » ArrayPropertiesInterpolator.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » AnimationProgressProvider.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » AnimatedSensorModule.cpp
+› Compiling react-native-reanimated Pods/RNReanimated » AnimatedPropsRegistry.cpp
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNNativeViewHandler.mm
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandlerRootViewComponentView.mm
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandlerModule.mm
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandlerManager.mm
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandlerButtonManager.mm
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandlerButtonComponentView.mm
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandlerButton.mm
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandler.mm
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » react-native-keyboard-controller-dummy.m
+› Compiling @react-native-community/slider Pods/react-native-slider » RNCSlider.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaViewMode.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaViewManager.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaViewLocalData.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaViewEdges.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaViewEdgeMode.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaView.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaUtils.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaShadowView.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaProviderManager.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaProvider.m
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCOnInsetsChangeEvent.m
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » UITextView+DelegateManager.m
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » RCTUIManager+LayoutAnimationManager.m
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » KeyboardMoveEvent.m
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » FocusedInputTextChangedEvent.m
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » FocusedInputSelectionChangedEvent.m
+› Compiling react-native-keyboard-controller Pods/react-native-keyboard-controller » FocusedInputLayoutChangedEvent.m
+› Compiling react-native-screens Pods/RNScreens » RNScreens-dummy.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » TypedArray.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » SwiftUIVirtualViewObjC.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » SharedRef.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » SharedObject.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » ObjectDeallocator.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » NativeModule.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » MainThreadInvoker.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » LazyObject.cpp
+› Compiling @react-native-async-storage/async-storage Pods/RNCAsyncStorage » RNCAsyncStorage-dummy.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » JSIUtils.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » ExpoViewShadowNode.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » ExpoViewProps.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » ExpoViewEventEmitter.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » ExpoViewComponentDescriptor.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » ExpoModulesHostObject.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » ExpoFabricViewObjC.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » ExpoBridgeModule.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EventEmitter.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXStringUtils.cpp
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXSharedObjectUtils.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXReactNativeAdapter.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXReactDelegateWrapper.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXRawJavaScriptFunction.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXNativeModulesProxy.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXJavaScriptWeakObject.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXJavaScriptValue.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXJavaScriptTypedArray.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXJavaScriptSharedObjectBinding.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXJavaScriptRuntime.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXJavaScriptObject.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXJSIUtils.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXJSIInstaller.mm
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXJSIConversions.mm
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNTapHandler.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNRotationHandler.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNRootViewGestureRecognizer.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNPinchHandler.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNPanHandler.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNManualHandler.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNManualActivationRecognizer.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNLongPressHandler.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNHoverHandler.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandlerRegistry.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandlerPointerTracker.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandlerEvents.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGHVector.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGHStylusData.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNForceTouchHandler.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNFlingHandler.m
+› Compiling react-native-reanimated Pods/RNReanimated » ReanimatedSensorContainer.m
+› Compiling react-native-reanimated Pods/RNReanimated » ReanimatedSensor.m
+› Compiling react-native-reanimated Pods/RNReanimated » RCTUIView+Reanimated.m
+› Packaging @react-native-community/slider Pods/react-native-slider » libreact-native-slider.a
+› Packaging react-native-safe-area-context Pods/react-native-safe-area-context » libreact-native-safe-area-context.a
+› Packaging react-native-keyboard-controller Pods/react-native-keyboard-controller » libreact-native-keyboard-controller.a
+› Packaging my-app Pods/ReactAppDependencyProvider » libReactAppDependencyProvider.a
+› Packaging react-native-screens Pods/RNScreens » libRNScreens.a
+› Packaging @react-native-async-storage/async-storage Pods/RNCAsyncStorage » libRNCAsyncStorage.a
+› Compiling react-native-worklets Pods/RNWorklets » RNWorklets-dummy.m
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandler-dummy.m
+› Packaging react-native-worklets Pods/RNWorklets » libRNWorklets.a
+› Packaging react-native-gesture-handler Pods/RNGestureHandler » libRNGestureHandler.a
+› Compiling react-native-reanimated Pods/RNReanimated » RNReanimated-dummy.m
+› Executing react-native-keyboard-controller Pods/react-native-keyboard-controller » Copy generated compatibility header
+› Packaging react-native-reanimated Pods/RNReanimated » libRNReanimated.a
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXLogManager.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXAppDefines.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXModuleRegistryAdapter.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXUtilities.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXModuleRegistryHolderReactModule.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXExportedModule.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » RCTComponentData+Privates.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXSingletonModule.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXReactNativeUserNotificationCenterProxy.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXReactLogHandler.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXPermissionsService.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXPermissionsMethodsDelegate.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » CoreModuleHelper.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXModuleRegistryProvider.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXModuleRegistry.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » EXReactNativeEventEmitter.m
+› Compiling expo-modules-core Pods/ExpoModulesCore » ExpoModulesCore-dummy.m
+› Packaging expo-modules-core Pods/ExpoModulesCore » libExpoModulesCore.a
+› Executing expo-modules-core Pods/ExpoModulesCore » Copy generated compatibility header
+› Compiling expo Pods/Expo » EXReactRootViewFactory.mm
+› Compiling expo Pods/Expo » EXAppDelegateWrapper.mm
+› Compiling expo Pods/Expo » Expo-dummy.m
+› Compiling expo-web-browser Pods/ExpoWebBrowser » ExpoWebBrowser-dummy.m
+› Compiling expo-system-ui Pods/ExpoSystemUI » ExpoSystemUI-dummy.m
+› Packaging expo-web-browser Pods/ExpoWebBrowser » libExpoWebBrowser.a
+› Packaging expo-system-ui Pods/ExpoSystemUI » libExpoSystemUI.a
+› Compiling expo-symbols Pods/ExpoSymbols » ExpoSymbols-dummy.m
+› Compiling expo-splash-screen Pods/ExpoSplashScreen » ExpoSplashScreen-dummy.m
+› Packaging expo-symbols Pods/ExpoSymbols » libExpoSymbols.a
+› Compiling expo-linking Pods/ExpoLinking » ExpoLinking-dummy.m
+› Packaging expo-splash-screen Pods/ExpoSplashScreen » libExpoSplashScreen.a
+› Packaging expo-linking Pods/ExpoLinking » libExpoLinking.a
+› Compiling expo-image Pods/ExpoImage » ExpoImage-dummy.m
+› Packaging expo-image Pods/ExpoImage » libExpoImage.a
+› Compiling expo-keep-awake Pods/ExpoKeepAwake » ExpoKeepAwake-dummy.m
+› Packaging expo-keep-awake Pods/ExpoKeepAwake » libExpoKeepAwake.a
+› Compiling expo-haptics Pods/ExpoHaptics » ExpoHaptics-dummy.m
+› Packaging expo-haptics Pods/ExpoHaptics » libExpoHaptics.a
+› Compiling expo-glass-effect Pods/ExpoGlassEffect » ExpoGlassEffect-dummy.m
+› Compiling expo-font Pods/ExpoFont » ExpoFont-dummy.m
+› Packaging expo-glass-effect Pods/ExpoGlassEffect » libExpoGlassEffect.a
+› Packaging expo-font Pods/ExpoFont » libExpoFont.a
+› Compiling expo-file-system Pods/ExpoFileSystem » ExpoFileSystem-dummy.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXTaskHandlersManager.m
+› Compiling expo-file-system Pods/ExpoFileSystem » NSData+EXFileSystem.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionUploadTaskDelegate.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionTaskDispatcher.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionTaskDelegate.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionResumableDownloadTaskDelegate.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionDownloadTaskDelegate.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionHandler.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionCancelableUploadTaskDelegate.m
+› Compiling expo-asset Pods/ExpoAsset » ExpoAsset-dummy.m
+› Compiling expo-blur Pods/ExpoBlur » ExpoBlur-dummy.m
+› Packaging expo-asset Pods/ExpoAsset » libExpoAsset.a
+› Packaging expo-blur Pods/ExpoBlur » libExpoBlur.a
+› Executing expo-constants Pods/EXConstants » [CP-User] Generate app.config for prebuilt Constants.manifest
+› Executing expo-web-browser Pods/ExpoWebBrowser » Copy generated compatibility header
+› Executing expo-system-ui Pods/ExpoSystemUI » Copy generated compatibility header
+› Executing expo-symbols Pods/ExpoSymbols » Copy generated compatibility header
+› Executing expo-splash-screen Pods/ExpoSplashScreen » Copy generated compatibility header
+› Compiling expo-file-system Pods/ExpoFileSystem » EXFileSystemLocalFileHandler.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXFileSystemAssetLibraryHandler.m
+› Packaging expo-file-system Pods/ExpoFileSystem » libExpoFileSystem.a
+› Executing expo-linking Pods/ExpoLinking » Copy generated compatibility header
+› Executing expo-keep-awake Pods/ExpoKeepAwake » Copy generated compatibility header
+› Executing expo-image Pods/ExpoImage » Copy generated compatibility header
+› Executing expo-haptics Pods/ExpoHaptics » Copy generated compatibility header
+› Compiling expo Pods/Expo » EXLegacyAppDelegateWrapper.m
+› Compiling expo Pods/Expo » EXAppDelegatesLoader.m
+› Compiling expo Pods/Expo » EXAppDefinesLoader.m
+› Executing expo-glass-effect Pods/ExpoGlassEffect » Copy generated compatibility header
+› Executing expo-font Pods/ExpoFont » Copy generated compatibility header
+› Executing expo-file-system Pods/ExpoFileSystem » Copy generated compatibility header
+› Executing expo-blur Pods/ExpoBlur » Copy generated compatibility header
+› Executing expo-asset Pods/ExpoAsset » Copy generated compatibility header
+› Packaging expo Pods/Expo » libExpo.a
+› Executing expo Pods/Expo » Copy generated compatibility header
+› Compiling expo-constants Pods/EXConstants » EXConstants-dummy.m
+› Compiling expo-constants Pods/EXConstants » EXConstantsInstallationIdProvider.m
+› Compiling expo-constants Pods/EXConstants » EXConstantsService.m
+› Packaging expo-constants Pods/EXConstants » libEXConstants.a
+› Executing expo-constants Pods/EXConstants » Copy generated compatibility header
+› Compiling Pods/Pods-SoundStream » Pods-SoundStream-dummy.m
+› Packaging Pods/Pods-SoundStream » libPods-SoundStream.a
+› Executing SoundStream » [CP] Check Pods Manifest.lock
+› Executing SoundStream » [Expo] Configure project
+› Copying   ./PrivacyInfo.xcprivacy ➜ ios/SoundStream/PrivacyInfo.xcprivacy
+› Linking   SoundStream » __preview.dylib
+› Copying   ios/SoundStream/Supporting/Expo.plist ➜ ./Expo.plist
+› Compiling SoundStream » SplashScreen.storyboard
+› Compiling SoundStream » SoundStream_vers.c
+› Linking   SoundStream » SoundStream.debug.dylib
+⚠️  ld: ignoring duplicate libraries: '-lc++'
+› Linking   SoundStream » SoundStream
+› Generating debug SoundStream » SoundStream.app.dSYM
+› Preparing SoundStream » Info.plist
+› Executing SoundStream » Bundle React Native code and images
+› Generating debug SoundStream » SoundStream.app.dSYM
+› Executing SoundStream » [CP] Copy Pods Resources
+› Executing SoundStream » [CP] Embed Pods Frameworks
+› Signing   SoundStream » SoundStream.debug.dylib
+› Signing   SoundStream » __preview.dylib
+› Signing   SoundStream » SoundStream.app
+› Creating  SoundStream » SoundStream.app
+    Run script build phase '[CP-User] [Hermes] Replace Hermes for the right configuration, if needed' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'hermes-engine' from project 'Pods')
+› Build Succeeded
+
+› 0 error(s), and 2 warning(s)
+
+React Compiler enabled
+Starting Metro Bundler
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄▀ ▀  ▄▄▀▀█▄▀█  ▄ ██▄█ ▄▄▄▄▄ █
+█ █   █ █   █▀█▀▀▄▀ ▀▄█▀▀   ███ █   █ █
+█ █▄▄▄█ █▄█▀ ▄▀▄▀    ▄▄▀█▄▀█▄▄█ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄█ █ █▄▀ ▀▄▀ █▄█▄█ █ █▄▄▄▄▄▄▄█
+█▄ ▄▄█▀▄▀ █ ▄  ▀ ▄ █ ▄ ▀▀▄▀▄█  █▀▄▄ █▄█
+█▄▄▀▄ ▄▄█▀█▀▄▄▄██ ▄█▀██ ▄ ▀▀▀█▄█▀▄  ▀▀█
+█ ██▄█ ▄ ▄█▀▀ █  ▄▄▄  █ █▀▄   █   ▀▄█ █
+██▀▄█▄▄▄▀ ▀▄ █▄▀▀▄▄ ▄▄▀█▀▄▄ ▀▀█▄██▄▄▄██
+█  ▄▄  ▄▄▄▀ █▄█   █▀██▄▄▀▄▄█▀█▄▀██▀▄█ █
+█▄  ▀█▀▄█  █▀█  ▄█▀▄▀█▄██▀▄ ▄▀▄▀▀▄ ▄█▄█
+█ ▄██▀▄▄▀█▄▀██▄▄██ ▀▄▀ ▄ ▀█ █ ██▄▄██▄▄█
+█▀▀ █▄ ▄ █▀█▀▀▀ █▀█▄█▄█▄▄▀▀██▄▀ ▄ ▀▀▀▀█
+███▄ █ ▄▀██▀ █▀█▀▄  ▀ █▀█▀ ▀▀█  ▀ █▄ ▀█
+█▀▄▄▀█▀▄▄ ▀▀█ ▀▄▀███▄   ▀█▄ █▀ ▀██▄█ ██
+███▄▄██▄█▀██▄▀▀████▀█▄█ ▀▀ █▄ ▄▄▄   ▄▀█
+█ ▄▄▄▄▄ ██  ▄ ██ ▄▀█▀█▄▀▀▀▄█▀ █▄█  █ ▄█
+█ █   █ █▀▄█▄  ▀██▄█▄▀ ▄▀█▀▄▀▄  ▄  █ ▀█
+█ █▄▄▄█ █  ▀▄▄▄██▄▄▄█▄█▄▄▄▀█▀██ ▄▄▀ ███
+█▄▄▄▄▄▄▄█▄▄▄█▄█▄▄█▄▄█▄██▄▄▄▄███▄▄█▄▄▄▄█
+
+› Metro waiting on com.soundstream.app://expo-development-client/?url=http%3A%2F%2F192.168.0.144%3A8081
+› Scan the QR code above to open the project in a development build. Learn more: https://expo.fyi/start
+
+› Web is waiting on http://localhost:8081
+
+› Using development build
+› Press s │ switch to Expo Go
+
+› Press a │ open Android
+› Press i │ open iOS simulator
+› Press w │ open web
+
+› Press j │ open debugger
+› Press r │ reload app
+› Press m │ toggle menu
+› shift+m │ more tools
+› Press o │ open project code in your editor
+
+› Press ? │ show all commands
+
+› Installing /Users/zeki/Library/Developer/Xcode/DerivedData/SoundStream-gqenhimjfhwdqhcqmilrezfbcxgh/Build/Products/Debug-iphonesimulator/SoundStream.app
+› Installing on iPhone 17 Pro
+› Opening on iPhone 17 Pro (com.soundstream.app)
+› Opening com.soundstream.app://expo-development-client/?url=http%3A%2F%2F192.168.0.144%3A8081 on iPhone 17 Pro
+› Opening the iOS simulator, this might take a moment.
+
+› Logs for your project will appear below. Press Ctrl+C to exit.
+iOS Bundled 1222ms client/index.js (1578 modules)
+[libapp_launch_measurement.dylib] Failed to send CA Event for app launch measurements for ca_event_type: 0 event_name:
+com.apple.app_launch_measurement.FirstFramePresentationMetric
+[libapp_launch_measurement.dylib] Failed to send CA Event for app launch measurements for ca_event_type: 1 event_name:
+com.apple.app_launch_measurement.ExtendedLaunchMetrics
+ LOG  socket-0 binding, address: 0.0.0.0 port: 0
+ LOG  socket-0 bound to address: 0.0.0.0 port: 64024
+ LOG  SSDP socket bound, starting discovery...
+ LOG  Sent SSDP M-SEARCH for: ssdp:all
+ LOG  Sent SSDP M-SEARCH for: urn:schemas-upnp-org:device:MediaServer:1
+ LOG  Sent SSDP M-SEARCH for: urn:schemas-upnp-org:device:MediaRenderer:1
+ LOG  Sent SSDP M-SEARCH for: urn:schemas-upnp-org:service:ContentDirectory:1
+ LOG  Sent SSDP M-SEARCH for: urn:schemas-upnp-org:service:AVTransport:1
+ LOG  SSDP Response from: 192.168.0.1 : 35722
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.1:49153/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: upnp:rootdevice
+USN: uuid:bc329e00-1dd8-11b2-8601-14337548ae2
+ LOG  New device discovered at: http://192.168.0.1:49153/description.xml
+ LOG  Fetching device description from: http://192.168.0.1:49153/description.xml
+ LOG  SSDP Response from: 192.168.0.1 : 35722
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.1:49153/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: upnp:rootdevice
+USN: uuid:bc329e00-1dd8-11b2-8601-14337548ae2
+ LOG  SSDP Response from: 192.168.0.1 : 35722
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.1:49153/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: uuid:bc329e00-1dd8-11b2-8601-14337548ae22
+USN: uuid:bc329e00-
+ LOG  SSDP Response from: 192.168.0.1 : 35722
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.1:49153/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: uuid:bc329e00-1dd8-11b2-8601-14337548ae22
+USN: uuid:bc329e00-
+ LOG  SSDP Response from: 192.168.0.1 : 35722
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.1:49153/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: urn:schemas-wifialliance-org:device:WFADevice:1
+USN: uuid:bc3
+ LOG  SSDP Response from: 192.168.0.1 : 35722
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.1:49153/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: urn:schemas-wifialliance-org:device:WFADevice:1
+USN: uuid:bc3
+ LOG  SSDP Response from: 192.168.0.150 : 1900
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.150:44543/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+Ext:
+USN: uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08
+Server: Linux/5.10.109-venus-17 UPnP/1.0 GUPnP/1.2.4
+Cache-Control: max-age=1800
+ST: uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08
+Date: Th
+ LOG  New device discovered at: http://192.168.0.150:44543/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+ LOG  Fetching device description from: http://192.168.0.150:44543/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+ LOG  SSDP Response from: 192.168.0.150 : 1900
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.150:44543/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+Ext:
+USN: uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08::upnp:rootdevice
+Server: Linux/5.10.109-venus-17 UPnP/1.0 GUPnP/1.2.4
+Cache-Control: max-age=1800
+ST: upnp:rootdevice
+Date: Thu, 11 Dec 202
+ LOG  SSDP Response from: 192.168.0.150 : 1900
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.150:44543/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+Ext:
+USN: uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08::urn:schemas-upnp-org:device:Basic:1
+Server: Linux/5.10.109-venus-17 UPnP/1.0 GUPnP/1.2.4
+Cache-Control: max-age=1800
+ST: urn:schemas-upnp-o
+ LOG  SSDP Response from: 192.168.0.19 : 33599
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: upnp:rootdevice
+USN: uuid:88f1207c-ffc2-4070-940e-ca5af99aa4d3::upnp
+ LOG  New device discovered at: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+ LOG  Fetching device description from: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+ LOG  SSDP Response from: 192.168.0.217 : 39980
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:ContentDirectory:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MS::urn:schemas-upnp-org:service:ContentDirec
+ LOG  New device discovered at: http://192.168.0.217:1400/xml/device_description.xml
+ LOG  Fetching device description from: http://192.168.0.217:1400/xml/device_description.xml
+ LOG  SSDP Response from: 192.168.0.239 : 44455
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=1800
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.239:8008/ssdp/device-desc.xml
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: f0ba6bf8-1dd1-11b2-9412-8fcc600fe68d
+SERVER: Linux/5.15.170-android14-11-g46600fcae3cc, UPnP/1.
+ LOG  New device discovered at: http://192.168.0.239:8008/ssdp/device-desc.xml
+ LOG  Fetching device description from: http://192.168.0.239:8008/ssdp/device-desc.xml
+ LOG  SSDP Response from: 192.168.0.239 : 44455
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=1800
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.239:8008/ssdp/device-desc.xml
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: f0ba6bf8-1dd1-11b2-9412-8fcc600fe68d
+SERVER: Linux/5.15.170-android14-11-g46600fcae3cc, UPnP/1.
+ LOG  SSDP Response from: 192.168.0.239 : 44455
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=1800
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.239:8008/ssdp/device-desc.xml
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: f0ba6bf8-1dd1-11b2-9412-8fcc600fe68d
+SERVER: Linux/5.15.170-android14-11-g46600fcae3cc, UPnP/1.
+ LOG  SSDP Response from: 192.168.0.239 : 42989
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=1800
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.239:8008/ssdp/device-desc.xml
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: f0ba6bf8-1dd1-11b2-9412-8fcc600fe68d
+SERVER: Linux/5.15.170-android14-11-g46600fcae3cc, UPnP/1.
+ LOG  SSDP Response from: 192.168.0.19 : 45334
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: upnp:rootdevice
+USN: uuid:c9ffe739-7b45-47ed-b17e-11027fa89689::upnp
+ LOG  New device discovered at: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+ LOG  Fetching device description from: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+ LOG  SSDP Response from: 192.168.0.19 : 36138
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: uuid:88f1207c-ffc2-4070-940e-ca5af99aa4d3
+USN: uuid:88f1207c-ffc2-40
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: uuid:RINCON_7828CAE3A2FA01400
+USN: uuid:RINCON_7828CAE3A2FA01400
+X-RINCON-HOUSEHOLD: Sonos_BnwEt6ccmDNPX0p8oMRKsDwLeS
+X-RINCON
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:device:ZonePlayer:1
+USN: uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:device:ZonePlayer:1
+X-RINCON-
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: upnp:rootdevice
+USN: uuid:RINCON_7828CAE3A2FA01400::upnp:rootdevice
+X-RINCON-HOUSEHOLD: Sonos_BnwEt6ccmDNPX0p8oMRKsDwLeS
+X-RIN
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: uuid:RINCON_7828CAE3A2FA01400_MS
+USN: uuid:RINCON_7828CAE3A2FA01400_MS
+X-RINCON-HOUSEHOLD: Sonos_BnwEt6ccmDNPX0p8oMRKsDwLeS
+X-
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:device:MediaServer:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MS::urn:schemas-upnp-org:device:MediaServer:1
+X-RI
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: uuid:RINCON_7828CAE3A2FA01400_MR
+USN: uuid:RINCON_7828CAE3A2FA01400_MR
+X-RINCON-HOUSEHOLD: Sonos_BnwEt6ccmDNPX0p8oMRKsDwLeS
+X-
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:device:MediaRenderer:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:device:MediaRenderer:1
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:AlarmClock:1
+USN: uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:AlarmClock:1
+X-RINCO
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:MusicServices:1
+USN: uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:MusicServices:1
+X
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:DeviceProperties:1
+USN: uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:DevicePropertie
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:SystemProperties:1
+USN: uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:SystemPropertie
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:ZoneGroupTopology:1
+USN: uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:ZoneGroupTopol
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:GroupManagement:1
+USN: uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:GroupManagement:
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-tencent-com:service:QPlay:1
+USN: uuid:RINCON_7828CAE3A2FA01400::urn:schemas-tencent-com:service:QPlay:1
+X-RINCON-HO
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:ContentDirectory:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MS::urn:schemas-upnp-org:service:ContentDirec
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:ConnectionManager:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MS::urn:schemas-upnp-org:service:ConnectionM
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:RenderingControl:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:service:RenderingCon
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:ConnectionManager:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:service:ConnectionM
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:AVTransport:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:service:AVTransport:1
+X-
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-sonos-com:service:Queue:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-sonos-com:service:Queue:1
+X-RINCON-HOU
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:GroupRenderingControl:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:service:GroupRe
+ LOG  SSDP Response from: 192.168.0.217 : 57517
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:VirtualLineIn:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:service:VirtualLineIn:1
+ LOG  SSDP Response from: 192.168.0.217 : 57288
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:service:AVTransport:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:service:AVTransport:1
+X-
+ LOG  SSDP Response from: 192.168.0.217 : 48359
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:device:MediaServer:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MS::urn:schemas-upnp-org:device:MediaServer:1
+X-RI
+ LOG  SSDP Response from: 192.168.0.19 : 51167
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: uuid:c9ffe739-7b45-47ed-b17e-11027fa89689
+USN: uuid:c9ffe739-7b45-47
+ LOG  SSDP Response from: 192.168.0.217 : 38585
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age = 1800
+EXT:
+LOCATION: http://192.168.0.217:1400/xml/device_description.xml
+SERVER: Linux UPnP/1.0 Sonos/92.0-70280 (ZPS18)
+ST: urn:schemas-upnp-org:device:MediaRenderer:1
+USN: uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:device:MediaRenderer:1
+ LOG  SSDP Response from: 192.168.0.19 : 34184
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: urn:jminim-org:device:Monitor2:1
+USN: uuid:c9ffe739-7b45-47ed-b17e-1
+ LOG  SSDP Response from: 192.168.0.1 : 51461
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.1:49153/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: urn:schemas-wifialliance-org:service:WFAWLANConfig:1
+USN: uui
+ LOG  SSDP Response from: 192.168.0.1 : 51461
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:15 GMT
+EXT:
+LOCATION: http://192.168.0.1:49153/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: urn:schemas-wifialliance-org:service:WFAWLANConfig:1
+USN: uui
+ LOG  SSDP Response from: 192.168.0.19 : 52199
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: urn:schemas-upnp-org:device:MediaServer:1
+USN: uuid:88f1207c-ffc2-40
+ LOG  SSDP Response from: 192.168.0.1 : 38660
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:16 GMT
+EXT:
+LOCATION: http://192.168.0.1:49152/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: upnp:rootdevice
+USN: uuid:bc329e00-1dd8-11b2-8601-14337548ae2
+ LOG  New device discovered at: http://192.168.0.1:49152/description.xml
+ LOG  Fetching device description from: http://192.168.0.1:49152/description.xml
+ LOG  SSDP Response from: 192.168.0.1 : 38660
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:16 GMT
+EXT:
+LOCATION: http://192.168.0.1:49152/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: upnp:rootdevice
+USN: uuid:bc329e00-1dd8-11b2-8601-14337548ae2
+ LOG  SSDP Response from: 192.168.0.1 : 38660
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:16 GMT
+EXT:
+LOCATION: http://192.168.0.1:49152/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: uuid:bc329e00-1dd8-11b2-8601-14337548ae22
+USN: uuid:bc329e00-
+ LOG  SSDP Response from: 192.168.0.1 : 38660
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:16 GMT
+EXT:
+LOCATION: http://192.168.0.1:49152/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: uuid:bc329e00-1dd8-11b2-8601-14337548ae22
+USN: uuid:bc329e00-
+ LOG  SSDP Response from: 192.168.0.1 : 38660
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:16 GMT
+EXT:
+LOCATION: http://192.168.0.1:49152/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: urn:schemas-wifialliance-org:device:WFADevice:1
+USN: uuid:bc3
+ LOG  SSDP Response from: 192.168.0.1 : 38660
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:16 GMT
+EXT:
+LOCATION: http://192.168.0.1:49152/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: urn:schemas-wifialliance-org:device:WFADevice:1
+USN: uuid:bc3
+ LOG  SSDP Response from: 192.168.0.35 : 41660
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:16 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  New device discovered at: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+ LOG  Fetching device description from: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+ LOG  SSDP Response from: 169.254.11.158 : 1900
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://169.254.11.158:44271/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+Ext:
+USN: uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08::urn:schemas-upnp-org:device:Basic:1
+Server: Linux/5.10.109-venus-17 UPnP/1.0 GUPnP/1.2.4
+Cache-Control: max-age=1800
+ST: urn:schemas-upnp-
+ LOG  New device discovered at: http://169.254.11.158:44271/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+ LOG  Fetching device description from: http://169.254.11.158:44271/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+ LOG  SSDP Response from: 169.254.11.158 : 1900
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://169.254.11.158:44271/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+Ext:
+USN: uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08
+Server: Linux/5.10.109-venus-17 UPnP/1.0 GUPnP/1.2.4
+Cache-Control: max-age=1800
+ST: uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08
+Date: T
+ LOG  SSDP Response from: 169.254.11.158 : 1900
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://169.254.11.158:44271/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+Ext:
+USN: uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08::upnp:rootdevice
+Server: Linux/5.10.109-venus-17 UPnP/1.0 GUPnP/1.2.4
+Cache-Control: max-age=1800
+ST: upnp:rootdevice
+Date: Thu, 11 Dec 20
+ LOG  SSDP Response from: 192.168.0.19 : 47209
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: urn:jminim-org:service:Monitor2:2
+USN: uuid:c9ffe739-7b45-47ed-b17e-
+ LOG  SSDP Response from: 192.168.0.19 : 47856
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: urn:schemas-upnp-org:service:ConnectionManager:1
+USN: uuid:88f1207c-
+ LOG  SSDP Response from: 192.168.0.1 : 55550
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:16 GMT
+EXT:
+LOCATION: http://192.168.0.1:49152/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: urn:schemas-wifialliance-org:service:WFAWLANConfig:1
+USN: uui
+ LOG  SSDP Response from: 192.168.0.1 : 55550
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=100
+DATE: Thu, 11 Dec 2025 08:46:16 GMT
+EXT:
+LOCATION: http://192.168.0.1:49152/description.xml
+SERVER: Ubknown/Ubknown, UPnP/Ubknown, Portable SDK for UPnP devices
+X-User-Agent: redsonic
+ST: urn:schemas-wifialliance-org:service:WFAWLANConfig:1
+USN: uui
+ LOG  SSDP Response from: 192.168.0.19 : 50807
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: urn:schemas-upnp-org:device:MediaServer:1
+USN: uuid:88f1207c-ffc2-40
+ LOG  SSDP Response from: 192.168.0.35 : 37781
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.19 : 46718
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: urn:jminim-org:service:Log2:1
+USN: uuid:c9ffe739-7b45-47ed-b17e-1102
+ LOG  SSDP Response from: 192.168.0.19 : 35284
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: urn:schemas-upnp-org:service:ContentDirectory:1
+USN: uuid:88f1207c-f
+ LOG  SSDP Response from: 192.168.0.11 : 41000
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1136/
+Cache-Control: max-age=1800
+Server: WebOS/4.0.0 UPnP/1.0
+EXT: 
+USN: uuid:17127536-8f4b-4bb8-ae8b-07d28f204685::upnp:rootdevice
+ST: upnp:rootdevice
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  New device discovered at: http://192.168.0.11:1136/
+ LOG  Fetching device description from: http://192.168.0.11:1136/
+ LOG  SSDP Response from: 192.168.0.11 : 41000
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1136/
+Cache-Control: max-age=1800
+Server: WebOS/4.0.0 UPnP/1.0
+EXT: 
+USN: uuid:17127536-8f4b-4bb8-ae8b-07d28f204685
+ST: uuid:17127536-8f4b-4bb8-ae8b-07d28f204685
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 41000
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1136/
+Cache-Control: max-age=1800
+Server: WebOS/4.0.0 UPnP/1.0
+EXT: 
+USN: uuid:17127536-8f4b-4bb8-ae8b-07d28f204685::urn:lge:device:tv:1
+ST: urn:lge:device:tv:1
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 41000
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1136/
+Cache-Control: max-age=1800
+Server: WebOS/4.0.0 UPnP/1.0
+EXT: 
+USN: uuid:17127536-8f4b-4bb8-ae8b-07d28f204685::urn:lge:service:virtualSvc:1
+ST: urn:lge:service:virtualSvc:1
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 41000
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1136/
+Cache-Control: max-age=1800
+Server: WebOS/4.0.0 UPnP/1.0
+EXT: 
+USN: uuid:17127536-8f4b-4bb8-ae8b-07d28f204685::upnp:rootdevice
+ST: upnp:rootdevice
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 41000
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1136/
+Cache-Control: max-age=1800
+Server: WebOS/4.0.0 UPnP/1.0
+EXT: 
+USN: uuid:17127536-8f4b-4bb8-ae8b-07d28f204685
+ST: uuid:17127536-8f4b-4bb8-ae8b-07d28f204685
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 41000
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1136/
+Cache-Control: max-age=1800
+Server: WebOS/4.0.0 UPnP/1.0
+EXT: 
+USN: uuid:17127536-8f4b-4bb8-ae8b-07d28f204685::urn:lge:device:tv:1
+ST: urn:lge:device:tv:1
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 41000
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1136/
+Cache-Control: max-age=1800
+Server: WebOS/4.0.0 UPnP/1.0
+EXT: 
+USN: uuid:17127536-8f4b-4bb8-ae8b-07d28f204685::urn:lge:service:virtualSvc:1
+ST: urn:lge:service:virtualSvc:1
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::upnp:rootdevice
+ST: upnp:rootdevice
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+DLNADeviceName.lge.c
+ LOG  New device discovered at: http://192.168.0.11:1261/
+ LOG  Fetching device description from: http://192.168.0.11:1261/
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147
+ST: uuid:29b56c8c-17c4-e872-158c-38179a1b5147
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+DLNADeviceN
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:device:MediaRenderer:1
+ST: urn:schemas-upnp-org:device:MediaRenderer:1
+D
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:service:AVTransport:1
+ST: urn:schemas-upnp-org:service:AVTransport:1
+Dat
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:service:ConnectionManager:1
+ST: urn:schemas-upnp-org:service:ConnectionMa
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:service:RenderingControl:1
+ST: urn:schemas-upnp-org:service:RenderingCont
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::upnp:rootdevice
+ST: upnp:rootdevice
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+DLNADeviceName.lge.c
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147
+ST: uuid:29b56c8c-17c4-e872-158c-38179a1b5147
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+DLNADeviceN
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:device:MediaRenderer:1
+ST: urn:schemas-upnp-org:device:MediaRenderer:1
+D
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:service:AVTransport:1
+ST: urn:schemas-upnp-org:service:AVTransport:1
+Dat
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:service:ConnectionManager:1
+ST: urn:schemas-upnp-org:service:ConnectionMa
+ LOG  SSDP Response from: 192.168.0.11 : 37563
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:service:RenderingControl:1
+ST: urn:schemas-upnp-org:service:RenderingCont
+ LOG  SSDP Response from: 192.168.0.11 : 58967
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1216/
+Cache-Control: max-age=1800
+Server: WebOS/4.1.0 UPnP/1.0
+EXT: 
+USN: uuid:74c4fb1d-ac15-f685-ecb7-88aac46e5f29::upnp:rootdevice
+ST: upnp:rootdevice
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  New device discovered at: http://192.168.0.11:1216/
+ LOG  Fetching device description from: http://192.168.0.11:1216/
+ LOG  SSDP Response from: 192.168.0.11 : 58967
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1216/
+Cache-Control: max-age=1800
+Server: WebOS/4.1.0 UPnP/1.0
+EXT: 
+USN: uuid:74c4fb1d-ac15-f685-ecb7-88aac46e5f29
+ST: uuid:74c4fb1d-ac15-f685-ecb7-88aac46e5f29
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 58967
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1216/
+Cache-Control: max-age=1800
+Server: WebOS/4.1.0 UPnP/1.0
+EXT: 
+USN: uuid:74c4fb1d-ac15-f685-ecb7-88aac46e5f29::urn:schemas-upnp-org:device:Basic:1
+ST: urn:schemas-upnp-org:device:Basic:1
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 58967
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1216/
+Cache-Control: max-age=1800
+Server: WebOS/4.1.0 UPnP/1.0
+EXT: 
+USN: uuid:74c4fb1d-ac15-f685-ecb7-88aac46e5f29::urn:lge-com:service:webos-second-screen:1
+ST: urn:lge-com:service:webos-second-screen:1
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 58967
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1216/
+Cache-Control: max-age=1800
+Server: WebOS/4.1.0 UPnP/1.0
+EXT: 
+USN: uuid:74c4fb1d-ac15-f685-ecb7-88aac46e5f29::upnp:rootdevice
+ST: upnp:rootdevice
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 58967
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1216/
+Cache-Control: max-age=1800
+Server: WebOS/4.1.0 UPnP/1.0
+EXT: 
+USN: uuid:74c4fb1d-ac15-f685-ecb7-88aac46e5f29
+ST: uuid:74c4fb1d-ac15-f685-ecb7-88aac46e5f29
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 58967
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1216/
+Cache-Control: max-age=1800
+Server: WebOS/4.1.0 UPnP/1.0
+EXT: 
+USN: uuid:74c4fb1d-ac15-f685-ecb7-88aac46e5f29::urn:schemas-upnp-org:device:Basic:1
+ST: urn:schemas-upnp-org:device:Basic:1
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 58967
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1216/
+Cache-Control: max-age=1800
+Server: WebOS/4.1.0 UPnP/1.0
+EXT: 
+USN: uuid:74c4fb1d-ac15-f685-ecb7-88aac46e5f29::urn:lge-com:service:webos-second-screen:1
+ST: urn:lge-com:service:webos-second-screen:1
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 59601
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1798/
+Cache-Control: max-age=1800
+Server: WebOS/1.5 UPnP/1.0 webOSTV/1.0
+EXT: 
+USN: uuid:45e48204-e75c-496e-8574-0890f728b66e::upnp:rootdevice
+ST: upnp:rootdevice
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  New device discovered at: http://192.168.0.11:1798/
+ LOG  Fetching device description from: http://192.168.0.11:1798/
+ LOG  SSDP Response from: 192.168.0.11 : 59601
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1798/
+Cache-Control: max-age=1800
+Server: WebOS/1.5 UPnP/1.0 webOSTV/1.0
+EXT: 
+USN: uuid:45e48204-e75c-496e-8574-0890f728b66e
+ST: uuid:45e48204-e75c-496e-8574-0890f728b66e
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 59601
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1798/
+Cache-Control: max-age=1800
+Server: WebOS/1.5 UPnP/1.0 webOSTV/1.0
+EXT: 
+USN: uuid:45e48204-e75c-496e-8574-0890f728b66e::urn:dial-multiscreen-org:service:dial:1
+ST: urn:dial-multiscreen-org:service:dial:1
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 59601
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1798/
+Cache-Control: max-age=1800
+Server: WebOS/1.5 UPnP/1.0 webOSTV/1.0
+EXT: 
+USN: uuid:45e48204-e75c-496e-8574-0890f728b66e::urn:dial-multiscreen-org:service:dial:1
+ST: urn:dial-multiscreen-org:service:dial:1
+Date: Thu, 11 Dec 2025 08:46:16 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 59601
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1798/
+Cache-Control: max-age=1800
+Server: WebOS/1.5 UPnP/1.0 webOSTV/1.0
+EXT: 
+USN: uuid:45e48204-e75c-496e-8574-0890f728b66e::upnp:rootdevice
+ST: upnp:rootdevice
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+WAKEUP: MAC=20:28:bc:82:f8:b2;Timeout=60
+ LOG  SSDP Response from: 192.168.0.11 : 59601
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1798/
+Cache-Control: max-age=1800
+Server: WebOS/1.5 UPnP/1.0 webOSTV/1.0
+EXT: 
+USN: uuid:45e48204-e75c-496e-8574-0890f728b66e
+ST: uuid:45e48204-e75c-496e-8574-0890f728b66e
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+WAKEUP: MAC=20:28:bc:82:f8:b2;Timeout=
+ LOG  SSDP Response from: 192.168.0.11 : 59601
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1798/
+Cache-Control: max-age=1800
+Server: WebOS/1.5 UPnP/1.0 webOSTV/1.0
+EXT: 
+USN: uuid:45e48204-e75c-496e-8574-0890f728b66e::urn:dial-multiscreen-org:service:dial:1
+ST: urn:dial-multiscreen-org:service:dial:1
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 59601
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1798/
+Cache-Control: max-age=1800
+Server: WebOS/1.5 UPnP/1.0 webOSTV/1.0
+EXT: 
+USN: uuid:45e48204-e75c-496e-8574-0890f728b66e::urn:dial-multiscreen-org:service:dial:1
+ST: urn:dial-multiscreen-org:service:dial:1
+Date: Thu, 11 Dec 2025 08:46:17 GMT
+ LOG  SSDP Response from: 192.168.0.11 : 45625
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:device:MediaRenderer:1
+ST: urn:schemas-upnp-org:device:MediaRenderer:1
+D
+ LOG  SSDP Response from: 192.168.0.11 : 45625
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:device:MediaRenderer:1
+ST: urn:schemas-upnp-org:device:MediaRenderer:1
+D
+ LOG  SSDP Response from: 192.168.0.11 : 38263
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:service:AVTransport:1
+ST: urn:schemas-upnp-org:service:AVTransport:1
+Dat
+ LOG  SSDP Response from: 192.168.0.11 : 38263
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+Location: http://192.168.0.11:1261/
+Cache-Control: max-age=1800
+Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+EXT: 
+USN: uuid:29b56c8c-17c4-e872-158c-38179a1b5147::urn:schemas-upnp-org:service:AVTransport:1
+ST: urn:schemas-upnp-org:service:AVTransport:1
+Dat
+ LOG  SSDP Response from: 192.168.0.35 : 60273
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  New device discovered at: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+ LOG  Fetching device description from: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+ LOG  SSDP Response from: 192.168.0.35 : 60273
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 60273
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 60273
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 60273
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 60273
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 60273
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 60273
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 60273
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 60273
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 41406
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 41406
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 41406
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 41406
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 41406
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.35 : 41406
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+CACHE-CONTROL: max-age=3600
+DATE: Thu, 11 Dec 2025 08:46:17 GMT
+EXT:
+LOCATION: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+SERVER: Linux/6.5.12-100.fc37.x86_64 UPnP/1.0 Upmpdcli/1.5.12
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-N
+ LOG  SSDP Response from: 192.168.0.19 : 48126
+ LOG  SSDP Message preview: HTTP/1.1 200 OK
+SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+CACHE-CONTROL: max-age=1800
+EXT: 
+LOCATION: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+BOOTID.UPNP.ORG: 1
+CONFIGID.UPNP.ORG: 1
+ST: urn:schemas-upnp-org:service:ContentDirectory:1
+USN: uuid:88f1207c-f
+ LOG  Device description XML preview: <?xml version="1.0" encoding="utf-8"?><root xmlns="urn:schemas-upnp-org:device-1-0">
+<specVersion>
+<major>1</major>
+<minor>0</minor>
+</specVersion>
+<device>
+<deviceType>urn:schemas-wifialliance-org:device:WFADevice:1</deviceType>
+<friendlyName>EconetAPS</friendlyName>
+<manufacturer>Econet Technology, Corp.</manufacturer>
+<manufacturerURL>http://www.econet-inc.com</manufacturerURL>
+<modelDescription>Econet AP WSC device</modelDescription>
+<modelName>Econet Wireless Access Point</modelName>
+<model
+ LOG  Discovered device: EconetAPS Type: unknown Services: 1
+ LOG  Device description XML preview: <?xml version="1.0" encoding="utf-8"?><root xmlns="urn:schemas-upnp-org:device-1-0"><specVersion><major>1</major><minor>0</minor></specVersion><device><deviceType>urn:schemas-upnp-org:device:MediaServer:1</deviceType><iconList><icon><mimetype>image/png</mimetype><width>120</width><height>120</height><depth>24</depth><url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-120.png</url></icon><icon><mimetype>image/png</mimetype><width>48</width><height>48</height><depth>24</depth><url>/
+ LOG  Discovered device: MinimServer[OLADRAserver] Type: mediaServer Services: 2
+ LOG  Device description XML preview: <?xml version="1.0" encoding="utf-8"?><root xmlns="urn:schemas-upnp-org:device-1-0"><specVersion><major>1</major><minor>0</minor></specVersion><device><deviceType>urn:jminim-org:device:Monitor2:1</deviceType><friendlyName>Monitor Service 2</friendlyName><manufacturer>jminim.org</manufacturer><modelName>MonitorService2</modelName><UDN>uuid:c9ffe739-7b45-47ed-b17e-11027fa89689</UDN><serviceList><service><serviceType>urn:jminim-org:service:Monitor2:2</serviceType><serviceId>urn:jminim-org:serviceId
+ LOG  Discovered device: Monitor Service 2 Type: unknown Services: 2
+ LOG  Device description XML preview: <?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>
+    <friendlyName>Cerbo GX (c0619ab53308)</friendlyName>
+    <manufacturer>Victron Energy</manufacturer>
+    <manufacturerURL>https://www.victronenergy.com</manufacturerURL>
+    <modelName>Cerbo GX</modelName>
+    <modelNumber>C00A</modelNumber>
+    <modelURL>ht
+ LOG  Discovered device: Cerbo GX (c0619ab53308) Type: unknown Services: 0
+ LOG  Device description XML preview: <?xml version="1.0" encoding="utf-8" ?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:ZonePlayer:1</deviceType>
+    <friendlyName>192.168.0.217 - Sonos One - RINCON_7828CAE3A2FA01400</friendlyName>
+    <manufacturer>Sonos, Inc.</manufacturer>
+    <manufacturerURL>http://www.sonos.com</manufacturerURL>
+    <modelNumber>S18</modelNumber>
+    <modelDescription>Sonos One
+ LOG  Discovered device: 192.168.0.217 - Sonos One - RINCON_7828CAE3A2FA01400 Type: unknown Services: 15
+ LOG  Device description XML preview: <?xml version="1.0"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <URLBase>http://192.168.0.239:8008</URLBase>
+  <device>
+    <deviceType>urn:dial-multiscreen-org:device:dial:1</deviceType>
+    <friendlyName>Google chromecast</friendlyName>
+    <manufacturer>Google</manufacturer>
+    <modelName>Chromecast HD</modelName>
+    <UDN>uuid:40460550-e6f7-4cbb-5db9-a7b1661ab315</UDN>
+    <iconList>
+      <icon>
+ LOG  Discovered device: Google chromecast Type: unknown Services: 1
+ LOG  Device description XML preview: <?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>1</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+    <friendlyName>OLADRAplayer-UPnP/AV</friendlyName>
+    <manufacturer>JF Light Industries</manufacturer>
+    <manufacturerURL>https://framagit.org/medoc92</manufacturerURL>
+    <modelDescription>UPnP front-end to MPD</modelDescription>
+    <modelName>Up
+ LOG  Discovered device: OLADRAplayer-UPnP/AV Type: mediaRenderer Services: 3
+ LOG  Device description XML preview: <?xml version="1.0" encoding="UTF-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0" xmlns:dlna="urn:schemas-dlna-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:lge:device:tv:1</deviceType>
+    <friendlyName>[LG] webOS TV OLED48C26LB</friendlyName>
+    <manufacturer>LG Electronics</manufacturer>
+    <manufacturerURL></manufacturerURL>
+    <modelDescription></modelDescription>
+    <modelName>OLED48C26LB</model
+ LOG  Discovered device: [LG] webOS TV OLED48C26LB Type: unknown Services: 1
+ LOG  Device description XML preview: <?xml version="1.0" encoding="UTF-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0" xmlns:dlna="urn:schemas-dlna-org:device-1-0" xmlns:pnpx="http://schemas.microsoft.com/windows/pnpx/2005/11" xmlns:df="http://schemas.microsoft.com/windows/2008/09/devicefoundation">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+    <friendlyName>[LG] webOS TV OLED48C26LB</friendlyName>
+    <m
+ LOG  Discovered device: [LG] webOS TV OLED48C26LB Type: mediaRenderer Services: 3
+ LOG  Device description XML preview: <?xml version="1.0" encoding="UTF-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0" xmlns:dlna="urn:schemas-dlna-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>
+    <friendlyName>[LG] webOS TV OLED48C26LB</friendlyName>
+    <manufacturer>LG Electronics</manufacturer>
+    <manufacturerURL>http://www.lge.com</manufacturerURL>
+    <modelDescription></modelDescription>
+ LOG  Discovered device: [LG] webOS TV OLED48C26LB Type: unknown Services: 1
+ LOG  Device description XML preview: <?xml version="1.0" encoding="UTF-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0" xmlns:dlna="urn:schemas-dlna-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:dial-multiscreen-org:service:dial:1</deviceType>
+    <friendlyName>[LG] webOS TV OLED48C26LB</friendlyName>
+    <manufacturer>LG</manufacturer>
+    <manufacturerURL>http://www.lge.com</manufacturerURL>
+    <modelDescription></modelDescription>
+    <mo
+ LOG  Discovered device: [LG] webOS TV OLED48C26LB Type: unknown Services: 1
+ LOG  Device description XML preview: <?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>1</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:av-openhome-org:device:Source:1</deviceType>
+    <friendlyName>OLADRAplayer</friendlyName>
+    <manufacturer>JF Light Industries</manufacturer>
+    <manufacturerURL>https://framagit.org/medoc92</manufacturerURL>
+    <modelDescription>UPnP front-end to MPD</modelDescription>
+    <modelName>UpMPD</modelName>
+ LOG  Discovered device: OLADRAplayer Type: unknown Services: 7
+ LOG  Device description XML preview: <?xml version="1.0" encoding="utf-8"?><root xmlns="urn:schemas-upnp-org:device-1-0">
+<specVersion>
+<major>1</major>
+<minor>0</minor>
+</specVersion>
+<device>
+<deviceType>urn:schemas-wifialliance-org:device:WFADevice:1</deviceType>
+<friendlyName>EconetAPS</friendlyName>
+<manufacturer>Econet Technology, Corp.</manufacturer>
+<manufacturerURL>http://www.econet-inc.com</manufacturerURL>
+<modelDescription>Econet AP WSC device</modelDescription>
+<modelName>Econet Wireless Access Point</modelName>
+<model
+ LOG  Discovered device: EconetAPS Type: unknown Services: 1
+ LOG  Device description XML preview: <?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>
+    <friendlyName>Cerbo GX (c0619ab53308)</friendlyName>
+    <manufacturer>Victron Energy</manufacturer>
+    <manufacturerURL>https://www.victronenergy.com</manufacturerURL>
+    <modelName>Cerbo GX</modelName>
+    <modelNumber>C00A</modelNumber>
+    <modelURL>ht
+ LOG  Discovered device: Cerbo GX (c0619ab53308) Type: unknown Services: 0
+ LOG  Discovery period ended
+ LOG  Connecting to UPNP server at: http://192.168.0.19:9791 (content at: http://192.168.0.19:9791)
+ LOG  Trying web interface browse on port 9790...
+ LOG  Trying web browse path: http://192.168.0.19:9791/
+[UIKitCore] A UIRefreshControl received offscreen beginRefreshing. Ignored. Break on UIRefreshControlReceivedOffscreenBeginRefreshing to
+debug. <UIRefreshControl: 0x111a143e0; frame = (0 -60; 402 60); autoresize = W; layer = <CALayer: 0x600000d4ca20>>
+ LOG  Web browse response: 404 for path: /
+ LOG  Trying web browse path: http://192.168.0.19:9791/browse
+ LOG  Web browse response: 404 for path: /browse
+ LOG  Trying web browse path: http://192.168.0.19:9791/music
+ LOG  Web browse response: 404 for path: /music
+ LOG  Trying web browse path: http://192.168.0.19:9791/albums
+ LOG  Web browse response: 404 for path: /albums
+ LOG  Trying web browse path: http://192.168.0.19:9791/artists
+ LOG  Web browse response: 404 for path: /artists
+ LOG  Trying web browse path: http://192.168.0.19:9791/library
+ LOG  Web browse response: 404 for path: /library
+ LOG  Trying web browse path: http://192.168.0.19:9791/content
+ LOG  Web browse response: 404 for path: /content
+ LOG  Trying device description at: http://192.168.0.19:9791/DeviceDescription.xml
+ LOG  Device description response: 404 for /DeviceDescription.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/description.xml
+ LOG  Device description response: 404 for /description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/rootDesc.xml
+ LOG  Device description response: 404 for /rootDesc.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/upnp/description.xml
+ LOG  Device description response: 404 for /upnp/description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/
+ LOG  Device description response: 404 for /
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory for container: 0
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ctl/ContentDirectory for container: 0
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ContentDirectory/control for container: 0
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ContentDirectory/control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/upnp/control/content_dir for container: 0
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/upnp/control/content_dir
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/MediaServer/ContentDirectory/Control for container: 0
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/MediaServer/ContentDirectory/Control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Root browse result: 0 artists, 0 albums, 0 tracks
+ LOG  Trying device description at: http://192.168.0.19:9791/DeviceDescription.xml
+ LOG  Device description response: 404 for /DeviceDescription.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/description.xml
+ LOG  Device description response: 404 for /description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/rootDesc.xml
+ LOG  Device description response: 404 for /rootDesc.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/upnp/description.xml
+ LOG  Device description response: 404 for /upnp/description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/
+ LOG  Device description response: 404 for /
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory for container: 1
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ctl/ContentDirectory for container: 1
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ContentDirectory/control for container: 1
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ContentDirectory/control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/upnp/control/content_dir for container: 1
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/upnp/control/content_dir
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/MediaServer/ContentDirectory/Control for container: 1
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/MediaServer/ContentDirectory/Control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Container 1 result: 0 artists, 0 albums, 0 tracks
+ LOG  Trying device description at: http://192.168.0.19:9791/DeviceDescription.xml
+ LOG  Device description response: 404 for /DeviceDescription.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/description.xml
+ LOG  Device description response: 404 for /description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/rootDesc.xml
+ LOG  Device description response: 404 for /rootDesc.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/upnp/description.xml
+ LOG  Device description response: 404 for /upnp/description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/
+ LOG  Device description response: 404 for /
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory for container: 2
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ctl/ContentDirectory for container: 2
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ContentDirectory/control for container: 2
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ContentDirectory/control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/upnp/control/content_dir for container: 2
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/upnp/control/content_dir
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/MediaServer/ContentDirectory/Control for container: 2
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/MediaServer/ContentDirectory/Control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Container 2 result: 0 artists, 0 albums, 0 tracks
+ LOG  Trying device description at: http://192.168.0.19:9791/DeviceDescription.xml
+ LOG  Device description response: 404 for /DeviceDescription.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/description.xml
+ LOG  Device description response: 404 for /description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/rootDesc.xml
+ LOG  Device description response: 404 for /rootDesc.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/upnp/description.xml
+ LOG  Device description response: 404 for /upnp/description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/
+ LOG  Device description response: 404 for /
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory for container: 3
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ctl/ContentDirectory for container: 3
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ContentDirectory/control for container: 3
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ContentDirectory/control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/upnp/control/content_dir for container: 3
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/upnp/control/content_dir
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/MediaServer/ContentDirectory/Control for container: 3
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/MediaServer/ContentDirectory/Control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Container 3 result: 0 artists, 0 albums, 0 tracks
+ LOG  Trying device description at: http://192.168.0.19:9791/DeviceDescription.xml
+ LOG  Device description response: 404 for /DeviceDescription.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/description.xml
+ LOG  Device description response: 404 for /description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/rootDesc.xml
+ LOG  Device description response: 404 for /rootDesc.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/upnp/description.xml
+ LOG  Device description response: 404 for /upnp/description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/
+ LOG  Device description response: 404 for /
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory for container: 64
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ctl/ContentDirectory for container: 64
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ContentDirectory/control for container: 64
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ContentDirectory/control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/upnp/control/content_dir for container: 64
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/upnp/control/content_dir
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/MediaServer/ContentDirectory/Control for container: 64
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/MediaServer/ContentDirectory/Control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Container 64 result: 0 artists, 0 albums, 0 tracks
+ LOG  Trying device description at: http://192.168.0.19:9791/DeviceDescription.xml
+ LOG  Device description response: 404 for /DeviceDescription.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/description.xml
+ LOG  Device description response: 404 for /description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/rootDesc.xml
+ LOG  Device description response: 404 for /rootDesc.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/upnp/description.xml
+ LOG  Device description response: 404 for /upnp/description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/
+ LOG  Device description response: 404 for /
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory for container: 65
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ctl/ContentDirectory for container: 65
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ContentDirectory/control for container: 65
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ContentDirectory/control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/upnp/control/content_dir for container: 65
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/upnp/control/content_dir
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/MediaServer/ContentDirectory/Control for container: 65
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/MediaServer/ContentDirectory/Control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Container 65 result: 0 artists, 0 albums, 0 tracks
+ LOG  Trying device description at: http://192.168.0.19:9791/DeviceDescription.xml
+ LOG  Device description response: 404 for /DeviceDescription.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/description.xml
+ LOG  Device description response: 404 for /description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/rootDesc.xml
+ LOG  Device description response: 404 for /rootDesc.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/upnp/description.xml
+ LOG  Device description response: 404 for /upnp/description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/
+ LOG  Device description response: 404 for /
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory for container: Music
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ctl/ContentDirectory for container: Music
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ContentDirectory/control for container: Music
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ContentDirectory/control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/upnp/control/content_dir for container: Music
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/upnp/control/content_dir
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/MediaServer/ContentDirectory/Control for container: Music
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/MediaServer/ContentDirectory/Control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Container Music result: 0 artists, 0 albums, 0 tracks
+ LOG  Trying device description at: http://192.168.0.19:9791/DeviceDescription.xml
+ LOG  Device description response: 404 for /DeviceDescription.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/description.xml
+ LOG  Device description response: 404 for /description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/rootDesc.xml
+ LOG  Device description response: 404 for /rootDesc.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/upnp/description.xml
+ LOG  Device description response: 404 for /upnp/description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/
+ LOG  Device description response: 404 for /
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory for container: Albums
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ctl/ContentDirectory for container: Albums
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ContentDirectory/control for container: Albums
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ContentDirectory/control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/upnp/control/content_dir for container: Albums
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/upnp/control/content_dir
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/MediaServer/ContentDirectory/Control for container: Albums
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/MediaServer/ContentDirectory/Control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Container Albums result: 0 artists, 0 albums, 0 tracks
+ LOG  Trying device description at: http://192.168.0.19:9791/DeviceDescription.xml
+ LOG  Device description response: 404 for /DeviceDescription.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/description.xml
+ LOG  Device description response: 404 for /description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/rootDesc.xml
+ LOG  Device description response: 404 for /rootDesc.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/upnp/description.xml
+ LOG  Device description response: 404 for /upnp/description.xml
+ LOG  Trying device description at: http://192.168.0.19:9791/
+ LOG  Device description response: 404 for /
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory for container: Artists
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/dev/srv0/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ctl/ContentDirectory for container: Artists
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ctl/ContentDirectory
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/ContentDirectory/control for container: Artists
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/ContentDirectory/control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/upnp/control/content_dir for container: Artists
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/upnp/control/content_dir
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Trying UPNP control URL (XHR): http://192.168.0.19:9791/MediaServer/ContentDirectory/Control for container: Artists
+ LOG  UPNP XHR response status: 412 for URL: http://192.168.0.19:9791/MediaServer/ContentDirectory/Control
+ LOG  UPNP XHR error response: 412 body: 
+ LOG  412 Precondition Failed - full error: 
+ LOG  Container Artists result: 0 artists, 0 albums, 0 tracks
+
