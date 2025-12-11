@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -9,6 +9,9 @@ import {
   Alert,
   Platform,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const SETTINGS_KEY = "@soundstream_settings";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
@@ -86,6 +89,45 @@ export default function SettingsScreen() {
   const [crossfade, setCrossfade] = useState(false);
   const [normalization, setNormalization] = useState(false);
   const [streamingQuality, setStreamingQuality] = useState<"cd" | "hires">("cd");
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
+    if (settingsLoaded) {
+      saveSettings();
+    }
+  }, [gapless, crossfade, normalization, streamingQuality, settingsLoaded]);
+
+  const loadSettings = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(SETTINGS_KEY);
+      if (stored) {
+        const settings = JSON.parse(stored);
+        setGapless(settings.gapless ?? true);
+        setCrossfade(settings.crossfade ?? false);
+        setNormalization(settings.normalization ?? false);
+        setStreamingQuality(settings.streamingQuality ?? "cd");
+      }
+      setSettingsLoaded(true);
+    } catch (e) {
+      console.error("Failed to load settings:", e);
+      setSettingsLoaded(true);
+    }
+  };
+
+  const saveSettings = async () => {
+    try {
+      await AsyncStorage.setItem(
+        SETTINGS_KEY,
+        JSON.stringify({ gapless, crossfade, normalization, streamingQuality })
+      );
+    } catch (e) {
+      console.error("Failed to save settings:", e);
+    }
+  };
 
   const mediaServers = getMediaServers();
   const mediaRenderers = getMediaRenderers();
