@@ -5,10 +5,11 @@ SoundStream is a Roon-inspired mobile music player app built with Expo/React Nat
 
 ## Current State
 - **Version**: 1.0.0
-- **Status**: Library browsing works, playback control limited (see Known Limitations)
-- **Last Updated**: December 2024
+- **Status**: ✅ Library browsing + playback fully working
+- **Last Updated**: December 11, 2024
 - **Theme**: Light theme (default)
 - **Build Type**: Works in Expo Go for browsing; development build needed for SSDP discovery
+- **Latest Fix**: Removed AbortController timeout from SOAP requests - was interfering with large metadata payloads in SetAVTransportURI
 
 ## Working Configuration (December 2024)
 

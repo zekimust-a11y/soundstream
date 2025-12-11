@@ -406,14 +406,16 @@ export const setAVTransportURI = async (
   console.log('SetAVTransportURI SOAP body preview:', soapEnvelope.substring(0, 800));
   
   try {
-    const response = await fetchWithTimeout(controlURL, {
+    // Use regular fetch without AbortController - React Native's AbortController can cause issues
+    // with larger SOAP requests on some devices
+    const response = await fetch(controlURL, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset="utf-8"',
         'SOAPACTION': soapAction,
       },
       body: soapEnvelope,
-    }, 15000);
+    });
     
     const responseText = await response.text();
     console.log('SetAVTransportURI response status:', response.status);
@@ -452,14 +454,14 @@ export const play = async (controlURL: string, instanceId: number = 0, speed: st
   
   console.log('Play SOAP request to:', controlURL);
   
-  const response = await fetchWithTimeout(controlURL, {
+  const response = await fetch(controlURL, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset="utf-8"',
       'SOAPACTION': soapAction,
     },
     body: soapEnvelope,
-  }, 15000);
+  });
   
   const responseText = await response.text();
   console.log('Play response status:', response.status);
@@ -478,14 +480,14 @@ export const pause = async (controlURL: string, instanceId: number = 0): Promise
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetchWithTimeout(controlURL, {
+  const response = await fetch(controlURL, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset="utf-8"',
       'SOAPACTION': soapAction,
     },
     body: soapEnvelope,
-  }, 15000);
+  });
   
   if (!response.ok) {
     throw new Error(`Pause failed: ${response.status}`);
@@ -503,14 +505,14 @@ export const stop = async (controlURL: string, instanceId: number = 0): Promise<
   
   console.log('Stop SOAP request to:', controlURL);
   
-  const response = await fetchWithTimeout(controlURL, {
+  const response = await fetch(controlURL, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset="utf-8"',
       'SOAPACTION': soapAction,
     },
     body: soapEnvelope,
-  }, 15000);
+  });
   
   if (!response.ok) {
     throw new Error(`Stop failed: ${response.status}`);
