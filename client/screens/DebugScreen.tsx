@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { debugLog } from '@/lib/debugLog';
-import { browseContentDirectory, getTransportInfo } from '@/lib/upnpClient';
+import { browseContentDirectory, getTransportInfo, fetchDeviceServices } from '@/lib/upnpClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type LogEntry = {
@@ -84,7 +84,7 @@ export default function DebugScreen() {
     try {
       debugLog.info('Step 1: Raw HTTP GET to Varese...');
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       const rawResponse = await fetch('http://192.168.0.42:16500/', {
         method: 'GET',
@@ -96,12 +96,44 @@ export default function DebugScreen() {
     } catch (rawError) {
       debugLog.error('Raw HTTP failed', String(rawError));
       debugLog.info('Varese not reachable at HTTP level - check WiFi/network');
-      return; // Don't try SOAP if raw HTTP fails
+      return;
     }
     
-    // Step 2: SOAP test via queue
+    // Step 2: Discover services from device description
     try {
-      debugLog.info('Step 2: SOAP GetTransportInfo...');
+      debugLog.info('Step 2: Fetching device description...');
+      const descUrls = [
+        'http://192.168.0.42:16500/dcs.xml',
+        'http://192.168.0.42:16500/description.xml',
+        'http://192.168.0.42:16500/DeviceDescription.xml',
+      ];
+      
+      for (const descUrl of descUrls) {
+        try {
+          debugLog.info(`Trying ${descUrl}...`);
+          const services = await fetchDeviceServices(descUrl);
+          if (services.transportControlURL || services.avTransportControlURL) {
+            debugLog.response('Found services!', JSON.stringify(services, null, 2));
+            return;
+          }
+        } catch (e) {
+          debugLog.info(`${descUrl} failed`);
+        }
+      }
+      
+      // Try getting raw XML from root
+      debugLog.info('Fetching root for links...');
+      const rootResponse = await fetch('http://192.168.0.42:16500/');
+      const rootText = await rootResponse.text();
+      debugLog.response('Root response', rootText.substring(0, 500));
+      
+    } catch (error) {
+      debugLog.error('Device discovery failed', String(error));
+    }
+    
+    // Step 3: SOAP test via queue
+    try {
+      debugLog.info('Step 3: SOAP GetTransportInfo...');
       const url = 'http://192.168.0.42:16500/Control/LibRygelRenderer/RygelAVTransport';
       const result = await getTransportInfo(url, 0);
       debugLog.response('Varese responded', `State: ${result.currentTransportState}`);
