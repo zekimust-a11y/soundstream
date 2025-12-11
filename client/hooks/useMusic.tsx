@@ -101,105 +101,12 @@ interface ServerMusicLibrary {
 }
 
 const generateServerMusic = (server: Server): ServerMusicLibrary => {
-  const serverId = server.id;
-  const prefix = serverId.slice(-4);
-  
-  const serverMusicData: Record<string, { artists: Array<{name: string, albums: Array<{name: string, year: number, tracks: string[]}>}> }> = {
-    lms: {
-      artists: [
-        {
-          name: "Pink Floyd",
-          albums: [
-            { name: "The Dark Side of the Moon", year: 1973, tracks: ["Speak to Me", "Breathe", "Time", "Money", "Us and Them"] },
-            { name: "Wish You Were Here", year: 1975, tracks: ["Shine On You Crazy Diamond", "Welcome to the Machine", "Have a Cigar", "Wish You Were Here"] },
-          ]
-        },
-        {
-          name: "Led Zeppelin",
-          albums: [
-            { name: "Led Zeppelin IV", year: 1971, tracks: ["Black Dog", "Rock and Roll", "Stairway to Heaven", "Going to California"] },
-            { name: "Physical Graffiti", year: 1975, tracks: ["Custard Pie", "Kashmir", "Trampled Under Foot", "Ten Years Gone"] },
-          ]
-        },
-        {
-          name: "The Beatles",
-          albums: [
-            { name: "Abbey Road", year: 1969, tracks: ["Come Together", "Something", "Here Comes the Sun", "Golden Slumbers"] },
-            { name: "Sgt. Pepper's Lonely Hearts Club Band", year: 1967, tracks: ["Lucy in the Sky with Diamonds", "A Day in the Life", "With a Little Help from My Friends"] },
-          ]
-        },
-      ]
-    },
-    upnp: {
-      artists: [
-        {
-          name: "Miles Davis",
-          albums: [
-            { name: "Kind of Blue", year: 1959, tracks: ["So What", "Freddie Freeloader", "Blue in Green", "All Blues", "Flamenco Sketches"] },
-            { name: "Bitches Brew", year: 1970, tracks: ["Pharaoh's Dance", "Bitches Brew", "Spanish Key", "Miles Runs the Voodoo Down"] },
-          ]
-        },
-        {
-          name: "John Coltrane",
-          albums: [
-            { name: "A Love Supreme", year: 1965, tracks: ["Acknowledgement", "Resolution", "Pursuance", "Psalm"] },
-            { name: "Giant Steps", year: 1960, tracks: ["Giant Steps", "Cousin Mary", "Countdown", "Naima"] },
-          ]
-        },
-        {
-          name: "Herbie Hancock",
-          albums: [
-            { name: "Head Hunters", year: 1973, tracks: ["Chameleon", "Watermelon Man", "Sly", "Vein Melter"] },
-            { name: "Maiden Voyage", year: 1965, tracks: ["Maiden Voyage", "The Eye of the Hurricane", "Little One", "Survival of the Fittest"] },
-          ]
-        },
-      ]
-    }
-  };
-
-  const musicData = serverMusicData[server.type] || serverMusicData.upnp;
-  const artists: Artist[] = [];
-  const albums: Album[] = [];
-  const tracks: Track[] = [];
-
-  musicData.artists.forEach((artistData, artistIndex) => {
-    const artistId = `${prefix}-artist-${artistIndex}`;
-    artists.push({
-      id: artistId,
-      name: artistData.name,
-      albumCount: artistData.albums.length,
-    });
-
-    artistData.albums.forEach((albumData, albumIndex) => {
-      const albumId = `${prefix}-album-${artistIndex}-${albumIndex}`;
-      albums.push({
-        id: albumId,
-        name: albumData.name,
-        artist: artistData.name,
-        artistId: artistId,
-        year: albumData.year,
-        trackCount: albumData.tracks.length,
-      });
-
-      albumData.tracks.forEach((trackTitle, trackIndex) => {
-        tracks.push({
-          id: `${prefix}-track-${artistIndex}-${albumIndex}-${trackIndex}`,
-          title: trackTitle,
-          artist: artistData.name,
-          album: albumData.name,
-          duration: 180 + Math.floor(Math.random() * 300),
-          source: "local" as const,
-        });
-      });
-    });
-  });
-
   return {
     serverId: server.id,
     serverName: server.name,
-    artists,
-    albums,
-    tracks,
+    artists: [],
+    albums: [],
+    tracks: [],
   };
 };
 
