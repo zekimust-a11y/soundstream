@@ -1,4 +1,5 @@
 import { DiscoveredDevice, ServiceInfo } from '../hooks/useSsdpDiscovery';
+import { debugLog } from './debugLog';
 
 // Bridge proxy URL for routing requests through Mac when Expo Go can't reach local devices
 let bridgeProxyUrl: string | null = null;
@@ -20,13 +21,17 @@ const proxySoapRequest = async (
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
+  // Extract action name from SOAP action string for logging
+  const actionMatch = soapAction.match(/#(\w+)"?$/);
+  const actionName = actionMatch ? actionMatch[1] : 'Unknown';
+  
   try {
     // If bridge proxy is available and target is a local IP, route through proxy
     const isLocalTarget = targetUrl.includes('192.168.') || targetUrl.includes('10.') || targetUrl.includes('172.');
     
+    debugLog.request(`${actionName}`, `${isLocalTarget && bridgeProxyUrl ? 'via bridge' : 'direct'} -> ${targetUrl.substring(0, 50)}...`);
+    
     if (bridgeProxyUrl && isLocalTarget) {
-      console.log('[UPnP] Routing through bridge proxy:', bridgeProxyUrl);
-      
       const response = await fetch(`${bridgeProxyUrl}/proxy`, {
         method: 'POST',
         headers: {
@@ -40,6 +45,13 @@ const proxySoapRequest = async (
       
       clearTimeout(timeoutId);
       const text = await response.text();
+      
+      if (response.ok) {
+        debugLog.response(`${actionName} OK`, `Status: ${response.status}`);
+      } else {
+        debugLog.error(`${actionName} failed`, `Status: ${response.status} - ${text.substring(0, 100)}`);
+      }
+      
       return { ok: response.ok, status: response.status, text };
     }
     
@@ -56,9 +68,19 @@ const proxySoapRequest = async (
     
     clearTimeout(timeoutId);
     const text = await response.text();
+    
+    if (response.ok) {
+      debugLog.response(`${actionName} OK`, `Status: ${response.status}`);
+    } else {
+      debugLog.error(`${actionName} failed`, `Status: ${response.status} - ${text.substring(0, 100)}`);
+    }
+    
     return { ok: response.ok, status: response.status, text };
   } catch (error) {
     clearTimeout(timeoutId);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    debugLog.error(`${actionName} error`, errorMessage);
+    
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Network request timed out');
     }

@@ -562,6 +562,13 @@ export default function SettingsScreen() {
               title="Terms of Service"
               onPress={() => {}}
             />
+            <SettingRow
+              icon="terminal"
+              iconColor="#FF9800"
+              title="Debug Console"
+              subtitle="View logs and test connections"
+              onPress={() => navigation.navigate("Debug")}
+            />
           </View>
         </View>
 
