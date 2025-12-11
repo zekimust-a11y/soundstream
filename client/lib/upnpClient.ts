@@ -1250,6 +1250,207 @@ export const getMute = async (
   return muteMatch ? muteMatch[1] === '1' : false;
 };
 
+// Comprehensive device discovery diagnostic - mirrors JRiver's approach
+// This probes the Varese to find its actual UPnP service URLs
+export interface DeviceDiscoveryResult {
+  success: boolean;
+  deviceDescriptionUrl?: string;
+  friendlyName?: string;
+  manufacturer?: string;
+  modelName?: string;
+  services: {
+    name: string;
+    type: string;
+    controlURL: string;
+  }[];
+  avTransportUrl?: string;
+  renderingControlUrl?: string;
+  connectionManagerUrl?: string;
+  testResult?: {
+    action: string;
+    success: boolean;
+    response?: string;
+    error?: string;
+  };
+  error?: string;
+}
+
+export const discoverDeviceServices = async (
+  baseHost: string,
+  descriptionPaths: string[] = [
+    '/description.xml',
+    '/DeviceDescription.xml',
+    '/rootDesc.xml',
+    '/upnp/description.xml',
+    '/device.xml',
+    '/dmr/description.xml',
+    '/MediaRenderer/desc.xml',
+    '/desc.xml',
+  ]
+): Promise<DeviceDiscoveryResult> => {
+  console.log('=== JRIVER-STYLE DEVICE DISCOVERY ===');
+  console.log('Base host:', baseHost);
+  
+  const result: DeviceDiscoveryResult = {
+    success: false,
+    services: [],
+  };
+  
+  // Try each description path
+  for (const path of descriptionPaths) {
+    const url = `${baseHost}${path}`;
+    console.log(`Trying: ${url}`);
+    
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/xml, application/xml',
+          'User-Agent': 'SoundStream/1.0 UPnP/1.0',
+        },
+      });
+      
+      if (!response.ok) {
+        console.log(`  ${response.status} ${response.statusText}`);
+        continue;
+      }
+      
+      const xml = await response.text();
+      console.log(`  SUCCESS - Got ${xml.length} bytes`);
+      
+      result.deviceDescriptionUrl = url;
+      result.success = true;
+      
+      // Parse device info
+      const friendlyNameMatch = xml.match(/<friendlyName>([^<]+)<\/friendlyName>/);
+      const manufacturerMatch = xml.match(/<manufacturer>([^<]+)<\/manufacturer>/);
+      const modelNameMatch = xml.match(/<modelName>([^<]+)<\/modelName>/);
+      
+      result.friendlyName = friendlyNameMatch?.[1];
+      result.manufacturer = manufacturerMatch?.[1];
+      result.modelName = modelNameMatch?.[1];
+      
+      console.log(`  Device: ${result.friendlyName} (${result.manufacturer} ${result.modelName})`);
+      
+      // Parse all services
+      const serviceRegex = /<service>([\s\S]*?)<\/service>/gi;
+      let match;
+      
+      while ((match = serviceRegex.exec(xml)) !== null) {
+        const serviceXml = match[1];
+        
+        const serviceTypeMatch = serviceXml.match(/<serviceType>([^<]+)<\/serviceType>/);
+        const serviceIdMatch = serviceXml.match(/<serviceId>([^<]+)<\/serviceId>/);
+        const controlURLMatch = serviceXml.match(/<controlURL>([^<]+)<\/controlURL>/);
+        
+        if (serviceTypeMatch && controlURLMatch) {
+          const serviceType = serviceTypeMatch[1];
+          let controlURL = controlURLMatch[1];
+          
+          // Make URL absolute
+          if (controlURL.startsWith('/')) {
+            controlURL = baseHost + controlURL;
+          } else if (!controlURL.startsWith('http')) {
+            controlURL = baseHost + '/' + controlURL;
+          }
+          
+          const serviceName = serviceIdMatch?.[1]?.split(':').pop() || serviceType.split(':').slice(-2)[0];
+          
+          result.services.push({
+            name: serviceName,
+            type: serviceType,
+            controlURL: controlURL,
+          });
+          
+          console.log(`  Service: ${serviceName}`);
+          console.log(`    Type: ${serviceType}`);
+          console.log(`    Control: ${controlURL}`);
+          
+          // Identify key services
+          if (serviceType.includes('AVTransport')) {
+            result.avTransportUrl = controlURL;
+          } else if (serviceType.includes('RenderingControl')) {
+            result.renderingControlUrl = controlURL;
+          } else if (serviceType.includes('ConnectionManager')) {
+            result.connectionManagerUrl = controlURL;
+          }
+        }
+      }
+      
+      // If we found AVTransport, test it
+      if (result.avTransportUrl) {
+        console.log('\n=== TESTING AVTRANSPORT ===');
+        console.log('URL:', result.avTransportUrl);
+        
+        try {
+          const testSoap = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:GetTransportInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+      <InstanceID>0</InstanceID>
+    </u:GetTransportInfo>
+  </s:Body>
+</s:Envelope>`;
+          
+          const testResponse = await fetch(result.avTransportUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'text/xml; charset="utf-8"',
+              'SOAPAction': '"urn:schemas-upnp-org:service:AVTransport:1#GetTransportInfo"',
+            },
+            body: testSoap,
+          });
+          
+          const testXml = await testResponse.text();
+          console.log('GetTransportInfo response:', testResponse.status);
+          console.log('Response preview:', testXml.substring(0, 500));
+          
+          result.testResult = {
+            action: 'GetTransportInfo',
+            success: testResponse.ok,
+            response: testXml.substring(0, 1000),
+          };
+          
+          if (testResponse.ok) {
+            // Parse transport state
+            const stateMatch = testXml.match(/<CurrentTransportState>([^<]+)<\/CurrentTransportState>/);
+            if (stateMatch) {
+              console.log('Transport State:', stateMatch[1]);
+            }
+          }
+        } catch (testError: any) {
+          console.log('AVTransport test failed:', testError.message);
+          result.testResult = {
+            action: 'GetTransportInfo',
+            success: false,
+            error: testError.message,
+          };
+        }
+      }
+      
+      // Found device description, stop searching
+      break;
+      
+    } catch (error: any) {
+      console.log(`  Error: ${error.message}`);
+    }
+  }
+  
+  if (!result.success) {
+    result.error = 'Could not find device description at any known path';
+    console.log('=== DISCOVERY FAILED ===');
+    console.log('The Varese device description is not accessible from this network context.');
+    console.log('This is expected when running from Replit - the app cannot reach your local network.');
+    console.log('To properly discover the Varese, you need to:');
+    console.log('1. Run the app on your iPhone via Expo Go (scan QR code)');
+    console.log('2. Ensure your iPhone is on the same WiFi as the Varese');
+    console.log('3. Or build a development build for native SSDP discovery');
+  }
+  
+  console.log('=== DISCOVERY COMPLETE ===');
+  return result;
+};
+
 // High-level function to play a track via OpenHome Playlist
 // This is the preferred method for dCS devices when OpenHome services are discovered via SSDP
 export const playViaOpenHomePlaylist = async (

@@ -25,6 +25,7 @@ import { useMusic } from "@/hooks/useMusic";
 import { useTheme } from "@/hooks/useTheme";
 import { useSsdpDiscovery } from "@/hooks/useSsdpDiscovery";
 import { usePlayback } from "@/hooks/usePlayback";
+import * as upnpClient from "@/lib/upnpClient";
 import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SettingsStackParamList>;
@@ -87,6 +88,8 @@ export default function SettingsScreen() {
   const { devices, isDiscovering, error: discoveryError, timeRemaining, startDiscovery, getMediaServers, getMediaRenderers, getContentDirectoryUrl, getAVTransportUrl } = useSsdpDiscovery();
   const { runOpenHomeDiagnostic } = usePlayback();
   const [isDiagnosing, setIsDiagnosing] = useState(false);
+  const [isDiscoveringDevice, setIsDiscoveringDevice] = useState(false);
+  const [discoveryResult, setDiscoveryResult] = useState<upnpClient.DeviceDiscoveryResult | null>(null);
 
   const [gapless, setGapless] = useState(true);
   const [crossfade, setCrossfade] = useState(false);
@@ -562,6 +565,38 @@ export default function SettingsScreen() {
           <ThemedText style={styles.sectionTitle}>Developer</ThemedText>
           <View style={styles.sectionContent}>
             <SettingRow
+              icon="search"
+              iconColor="#2196F3"
+              title="Discover Varese Services (JRiver-style)"
+              subtitle="Find device description and UPnP service URLs"
+              onPress={async () => {
+                setIsDiscoveringDevice(true);
+                setDiscoveryResult(null);
+                try {
+                  const result = await upnpClient.discoverDeviceServices('http://192.168.0.35:49152');
+                  setDiscoveryResult(result);
+                  
+                  if (result.success) {
+                    const serviceList = result.services.map(s => `- ${s.name}`).join('\n');
+                    Alert.alert(
+                      "Device Found",
+                      `${result.friendlyName || 'Unknown'}\n${result.manufacturer || ''} ${result.modelName || ''}\n\nServices:\n${serviceList}\n\nAVTransport: ${result.avTransportUrl ? 'Found' : 'Not found'}\n\nTest: ${result.testResult?.success ? 'SUCCESS' : result.testResult?.error || 'Not tested'}`
+                    );
+                  } else {
+                    Alert.alert(
+                      "Discovery Failed",
+                      result.error || "Could not find device description.\n\nThis is expected when running from Replit. Try running the app on your iPhone via Expo Go while on the same WiFi network as your Varese."
+                    );
+                  }
+                } catch (error) {
+                  Alert.alert("Error", String(error));
+                } finally {
+                  setIsDiscoveringDevice(false);
+                }
+              }}
+              rightElement={isDiscoveringDevice ? <ActivityIndicator size="small" /> : null}
+            />
+            <SettingRow
               icon="activity"
               iconColor="#9C27B0"
               title="Run OpenHome Diagnostic"
@@ -583,8 +618,13 @@ export default function SettingsScreen() {
               rightElement={isDiagnosing ? <ActivityIndicator size="small" /> : null}
             />
           </View>
+          {discoveryResult ? (
+            <ThemedText style={styles.refreshHint}>
+              Last discovery: {discoveryResult.success ? `Found ${discoveryResult.friendlyName || 'device'} with ${discoveryResult.services.length} services` : discoveryResult.error}
+            </ThemedText>
+          ) : null}
           <ThemedText style={styles.refreshHint}>
-            The Varese requires SSDP network discovery to expose OpenHome services. This app currently uses AVTransport for playback commands. For full audio playback, use the dCS Mosaic app as the primary player.
+            JRiver successfully controls the Varese via standard UPnP. Run "Discover Varese Services" from your iPhone (on the same WiFi) to find the correct AVTransport URL. The OpenHome diagnostic tests specific service actions.
           </ThemedText>
         </View>
       </ScrollView>

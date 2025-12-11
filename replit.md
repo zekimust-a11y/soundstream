@@ -12,28 +12,30 @@ SoundStream is a Roon-inspired mobile music player app built with Expo/React Nat
 
 ## Known Limitations
 
-### dCS Varese OpenHome Incompatibility
-**Tested December 2024**: The dCS Varese does not respond to standard OpenHome SOAP commands. This is a device-level limitation, not a discovery issue.
+### UPnP Control Status
+**Updated December 2024**: dCS confirmed that JRiver can control the Varese via standard UPnP AVTransport. We need to discover the correct service URLs.
+
+**Current issue:**
+- We're using hardcoded/guessed URLs that may not match what the Varese actually exposes
+- JRiver uses SSDP to discover the device and get the correct service URLs from the device description
+- The app running from Replit cannot reach your local network devices
 
 **What works:**
 - Library browsing from MinimServer via ContentDirectory
 - Queue management in the app
-- AVTransport commands (SetAVTransportURI, Play, Pause) return success (HTTP 200)
 
-**What doesn't work:**
-- OpenHome services (Product, Playlist, Transport, Volume, Info) - all return UPnP error 404 "Invalid Action"
-- AVTransport commands are acknowledged but don't trigger actual audio playback (compatibility shim only)
+**Next step:**
+1. Open the app on your iPhone via Expo Go (scan QR code in Replit)
+2. Make sure iPhone is on the same WiFi as the Varese
+3. Go to Settings > Developer > "Discover Varese Services"
+4. This will probe the Varese for its actual UPnP service URLs
+5. If successful, we'll see what AVTransport URL JRiver uses
 
-**Technical findings:**
-- Probed all standard OpenHome service versions (Product:1/2, Playlist:1, Transport:1, Volume:1/2, Info:1)
-- Every action fails with SOAP fault errorCode 404 (Invalid Action)
-- The Varese responds to SOAP requests but doesn't recognize OpenHome actions
-- This behavior persists regardless of SSDP discovery - the device simply doesn't support standard OpenHome control
-
-**Workaround:**
-- Use **dCS Mosaic app** for audio playback control
-- Use **SoundStream** for library browsing and queue planning
-- Consider contacting dCS support for API documentation if direct control is required
+**Technical notes:**
+- JRiver uses standard UPnP AVTransport (not OpenHome) for renderer control
+- SSDP discovery is needed to get the device description URL
+- The device description XML contains the correct service control URLs
+- OpenHome services may not be available on Varese (focused on standard UPnP/DLNA)
 
 ## Architecture
 
