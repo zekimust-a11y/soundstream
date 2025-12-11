@@ -689,12 +689,15 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         0, 
         track.uri, 
         minimalMetadata
-      ).then((setResult) => {
+      ).then(async (setResult) => {
         if (!setResult.success) {
           console.error('SetAVTransportURI failed:', setResult.error);
           throw new Error(setResult.error || 'SetAVTransportURI failed');
         }
-        console.log('SetAVTransportURI succeeded, sending Play command...');
+        console.log('SetAVTransportURI succeeded, waiting for Varese to prepare...');
+        // Give Varese time to buffer/prepare the track before sending Play
+        await new Promise(resolve => setTimeout(resolve, 300));
+        console.log('Sending Play command...');
         return upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
       }).then(() => {
         console.log('=== PLAY COMMAND SENT SUCCESSFULLY ===');
