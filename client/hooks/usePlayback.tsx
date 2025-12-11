@@ -367,14 +367,29 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   // Track if we're currently sending a play command to prevent race conditions
   const isPlayingRef = useRef(false);
+  const lastPlayedTrackIdRef = useRef<string | null>(null);
   
   const playTrack = useCallback(async (track: Track, tracks?: Track[]) => {
-    // Prevent concurrent play attempts
+    // Prevent concurrent play attempts and duplicate calls for same track
     if (isPlayingRef.current) {
-      console.log('Play already in progress, ignoring');
+      console.log('Play already in progress, ignoring duplicate call');
       return;
     }
+    
+    // Debounce rapid calls for the same track (within 500ms)
+    const trackId = track.id || track.uri;
+    if (lastPlayedTrackIdRef.current === trackId) {
+      console.log('Same track requested again, ignoring');
+      return;
+    }
+    
     isPlayingRef.current = true;
+    lastPlayedTrackIdRef.current = trackId;
+    
+    // Reset after 5 seconds to allow replaying same track
+    setTimeout(() => {
+      lastPlayedTrackIdRef.current = null;
+    }, 5000);
     
     try {
       if (tracks) {
@@ -415,56 +430,27 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         
         console.log('SetAVTransportURI succeeded');
         
-        // Wait for the Varese to actually load the track (poll until duration is non-zero)
-        console.log('Waiting for track to buffer...');
-        let trackLoaded = false;
-        for (let attempt = 0; attempt < 20; attempt++) { // Max 4 seconds (20 x 200ms)
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          try {
-            const posInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
-            console.log(`Attempt ${attempt + 1}: Duration=${posInfo.trackDuration}, URI=${posInfo.trackURI?.substring(0, 50)}`);
-            
-            // Check if duration is non-zero (track is buffered)
-            if (posInfo.trackDuration && posInfo.trackDuration !== '00:00:00' && posInfo.trackDuration !== '0:00:00') {
-              console.log('Track buffered successfully!');
-              trackLoaded = true;
-              break;
-            }
-          } catch (posError) {
-            console.log('Could not get position info, continuing...');
-          }
-        }
+        // Small delay for Varese to register the new URI
+        await new Promise(resolve => setTimeout(resolve, 200));
         
-        if (!trackLoaded) {
-          console.warn('Track may not have loaded properly (duration still 0)');
-          // Continue anyway - user can tap Play in Actus as fallback
-        }
-        
-        // Check transport state before playing
-        const prePlayInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
-        console.log('Transport state before play:', prePlayInfo.currentTransportState);
-        
-        // Send Play command
+        // Send Play command - the Varese will start buffering when Play is received
         console.log('Sending Play command...');
         await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
         
-        // Wait a bit and check if playback actually started
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Wait and verify playback started
+        await new Promise(resolve => setTimeout(resolve, 500));
         
-        // If still STOPPED, try Play again
-        const afterFirstPlay = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
-        console.log('Transport state after first play:', afterFirstPlay.currentTransportState);
-        
-        if (afterFirstPlay.currentTransportState === 'STOPPED') {
-          console.log('Still STOPPED, sending Play again...');
-          await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        
-        // Final check
         const transportInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
-        console.log('Final transport state:', transportInfo.currentTransportState);
+        console.log('Transport state after play:', transportInfo.currentTransportState);
+        
+        // Check position info to see track details
+        try {
+          const posInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
+          console.log('Track URI:', posInfo.trackURI?.substring(0, 60));
+          console.log('Track duration:', posInfo.trackDuration);
+        } catch (posError) {
+          console.log('Could not get position info');
+        }
         
         setIsPlaying(transportInfo.currentTransportState === 'PLAYING');
         console.log('=== PLAY COMMAND SENT ===');
