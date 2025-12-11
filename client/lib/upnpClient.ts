@@ -485,6 +485,52 @@ export const seek = async (
   }
 };
 
+// Fetch device description and discover available services
+export const getDeviceServices = async (deviceDescriptionURL: string): Promise<{
+  services: Array<{
+    serviceType: string;
+    serviceId: string;
+    controlURL: string;
+    eventSubURL: string;
+    SCPDURL: string;
+  }>;
+}> => {
+  console.log('Fetching device description from:', deviceDescriptionURL);
+  
+  const response = await fetch(deviceDescriptionURL);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch device description: ${response.status}`);
+  }
+  
+  const xml = await response.text();
+  console.log('Device description (first 2000 chars):', xml.substring(0, 2000));
+  
+  // Parse services from the device description
+  const services: Array<{
+    serviceType: string;
+    serviceId: string;
+    controlURL: string;
+    eventSubURL: string;
+    SCPDURL: string;
+  }> = [];
+  
+  const serviceMatches = xml.matchAll(/<service>([\s\S]*?)<\/service>/gi);
+  for (const match of serviceMatches) {
+    const serviceXml = match[1];
+    const serviceType = serviceXml.match(/<serviceType>([^<]*)<\/serviceType>/)?.[1] || '';
+    const serviceId = serviceXml.match(/<serviceId>([^<]*)<\/serviceId>/)?.[1] || '';
+    const controlURL = serviceXml.match(/<controlURL>([^<]*)<\/controlURL>/)?.[1] || '';
+    const eventSubURL = serviceXml.match(/<eventSubURL>([^<]*)<\/eventSubURL>/)?.[1] || '';
+    const SCPDURL = serviceXml.match(/<SCPDURL>([^<]*)<\/SCPDURL>/)?.[1] || '';
+    
+    services.push({ serviceType, serviceId, controlURL, eventSubURL, SCPDURL });
+  }
+  
+  console.log('Discovered services:', services.map(s => s.serviceType).join(', '));
+  
+  return { services };
+};
+
 // OpenHome Product service for input source switching
 // dCS Varese uses OpenHome protocol for source management
 

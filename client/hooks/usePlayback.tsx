@@ -232,28 +232,16 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const togglePlayPause = useCallback(async () => {
     try {
       if (isPlaying) {
-        console.log('Sending OpenHome Pause command to Varese');
-        await upnpClient.playlistPause(VARESE_PLAYLIST_URL);
+        console.log('Sending Pause command to Varese');
+        await upnpClient.pause(VARESE_AVTRANSPORT_URL, 0);
         setIsPlaying(false);
       } else {
-        console.log('Sending OpenHome Play command to Varese');
-        await upnpClient.playlistPlay(VARESE_PLAYLIST_URL);
+        console.log('Sending Play command to Varese');
+        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
         setIsPlaying(true);
       }
     } catch (error) {
       console.error('Failed to toggle playback on Varese:', error);
-      // Try AVTransport fallback
-      try {
-        if (isPlaying) {
-          await upnpClient.pause(VARESE_AVTRANSPORT_URL, 0);
-          setIsPlaying(false);
-        } else {
-          await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-          setIsPlaying(true);
-        }
-      } catch (fallbackError) {
-        console.error('AVTransport fallback also failed:', fallbackError);
-      }
     }
   }, [isPlaying]);
 
@@ -383,43 +371,52 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setCurrentTrack(track);
     setCurrentTime(0);
     
-    // Send OpenHome commands to the dCS Varese
+    // Send UPnP AVTransport commands to the dCS Varese
     if (track.uri) {
       try {
-        // First, switch to the Playlist source using OpenHome Product service
-        console.log('Switching Varese to Playlist source...');
-        await upnpClient.switchToNetworkSource(VARESE_PRODUCT_URL);
+        // Log the track URI for debugging
+        console.log('=== PLAYING TRACK ===');
+        console.log('Track title:', track.title);
+        console.log('Track URI:', track.uri);
         
-        // Clear the playlist and insert the new track
-        console.log('Clearing Varese playlist...');
-        await upnpClient.playlistDeleteAll(VARESE_PLAYLIST_URL);
+        // Try to switch to network source first (may fail silently)
+        try {
+          console.log('Attempting to switch Varese source...');
+          await upnpClient.switchToNetworkSource(VARESE_PRODUCT_URL);
+        } catch (sourceError) {
+          console.log('Source switch failed (continuing anyway):', sourceError);
+        }
         
-        // Insert the track into the playlist
-        console.log('Inserting track into Varese playlist:', track.uri);
-        const trackId = await upnpClient.playlistInsert(VARESE_PLAYLIST_URL, 0, track.uri, '');
+        // Set the track URI using AVTransport
+        console.log('Setting AVTransport URI...');
+        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, '');
         
-        // Seek to the track (this also starts playback in OpenHome)
-        console.log('Seeking to track ID:', trackId);
-        await upnpClient.playlistSeekId(VARESE_PLAYLIST_URL, trackId);
+        // Small delay to let the URI be processed
+        await new Promise(resolve => setTimeout(resolve, 200));
         
-        // Send Play command to ensure playback starts
+        // Start playback
         console.log('Sending Play command...');
-        await upnpClient.playlistPlay(VARESE_PLAYLIST_URL);
+        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
         
-        console.log('Playback started on Varese via OpenHome Playlist');
+        // Check transport state
+        const transportInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
+        console.log('Transport state after play:', transportInfo.currentTransportState);
+        console.log('Transport status:', transportInfo.currentTransportStatus);
+        
+        // Get position info for more details
+        try {
+          const posInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
+          console.log('Current track URI:', posInfo.trackURI);
+          console.log('Track duration:', posInfo.trackDuration);
+        } catch (posError) {
+          console.log('Could not get position info');
+        }
+        
         setIsPlaying(true);
+        console.log('=== PLAY COMMAND SENT ===');
       } catch (error) {
         console.error('Failed to control Varese:', error);
-        // Fall back to trying AVTransport
-        try {
-          console.log('Trying AVTransport fallback...');
-          await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, '');
-          await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-          setIsPlaying(true);
-        } catch (fallbackError) {
-          console.error('AVTransport fallback also failed:', fallbackError);
-          setIsPlaying(false);
-        }
+        setIsPlaying(false);
       }
     } else {
       console.warn('Track has no URI, cannot play on renderer');
