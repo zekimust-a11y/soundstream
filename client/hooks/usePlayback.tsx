@@ -273,6 +273,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     // Send UPNP commands for the next track
     if (nextTrack?.uri) {
       try {
+        await upnpClient.switchToNetworkInput(VARESE_AVTRANSPORT_URL, 0);
         await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, nextTrack.uri, '');
         await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
       } catch (error) {
@@ -302,6 +303,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     // Send UPNP commands for the previous track
     if (prevTrack?.uri) {
       try {
+        await upnpClient.switchToNetworkInput(VARESE_AVTRANSPORT_URL, 0);
         await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, prevTrack.uri, '');
         await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
       } catch (error) {
@@ -372,12 +374,29 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     // Send UPNP commands to the dCS Varese
     if (track.uri) {
       try {
+        // First, switch the Varese to Network input (required for dCS devices)
+        console.log('Switching Varese to Network input...');
+        await upnpClient.switchToNetworkInput(VARESE_AVTRANSPORT_URL, 0);
+        
+        // Now set the actual track URI
         console.log('Sending SetAVTransportURI to Varese:', track.uri);
         await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, '');
+        
+        // Start playback
         console.log('Sending Play command to Varese');
         await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-        console.log('Playback started on Varese');
-        setIsPlaying(true);
+        
+        // Verify playback started
+        const transportInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
+        console.log('Varese transport state:', transportInfo.currentTransportState);
+        
+        if (transportInfo.currentTransportState === 'PLAYING') {
+          console.log('Playback started successfully on Varese');
+          setIsPlaying(true);
+        } else {
+          console.warn('Varese transport state:', transportInfo.currentTransportState);
+          setIsPlaying(true); // Still update UI optimistically
+        }
       } catch (error) {
         console.error('Failed to control Varese:', error);
         setIsPlaying(false);

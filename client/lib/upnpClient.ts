@@ -485,6 +485,61 @@ export const seek = async (
   }
 };
 
+// dCS-specific function to switch to Network input
+// The Varese requires input switching via a special URI before it will accept network streams
+export const switchToNetworkInput = async (controlURL: string, instanceId: number = 0): Promise<void> => {
+  const serviceType = 'urn:schemas-upnp-org:service:AVTransport:1';
+  
+  // First, set the transport to the dCS network input URI
+  const inputBody = `      <InstanceID>${instanceId}</InstanceID>
+      <CurrentURI>x-dcs-input:network</CurrentURI>
+      <CurrentURIMetaData></CurrentURIMetaData>`;
+  
+  const inputEnvelope = createSoapEnvelope('SetAVTransportURI', serviceType, inputBody);
+  
+  console.log('Switching Varese to Network input...');
+  
+  const setResponse = await fetch(controlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': `"${serviceType}#SetAVTransportURI"`,
+    },
+    body: inputEnvelope,
+  });
+  
+  if (!setResponse.ok) {
+    const errorText = await setResponse.text();
+    console.error('Failed to set network input:', errorText);
+    throw new Error(`Switch to network input failed: ${setResponse.status}`);
+  }
+  
+  console.log('Network input set, activating...');
+  
+  // Play briefly to activate the input change
+  const playBody = `      <InstanceID>${instanceId}</InstanceID>
+      <Speed>1</Speed>`;
+  const playEnvelope = createSoapEnvelope('Play', serviceType, playBody);
+  
+  const playResponse = await fetch(controlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': `"${serviceType}#Play"`,
+    },
+    body: playEnvelope,
+  });
+  
+  if (!playResponse.ok) {
+    console.log('Play after input switch returned:', playResponse.status);
+  }
+  
+  // Small delay to let the input switch take effect
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  console.log('Varese switched to Network input');
+};
+
 // RenderingControl service functions for volume control
 
 export const setVolume = async (
