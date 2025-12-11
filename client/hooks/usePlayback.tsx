@@ -694,28 +694,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           console.error('SetAVTransportURI failed:', setResult.error);
           throw new Error(setResult.error || 'SetAVTransportURI failed');
         }
-        console.log('SetAVTransportURI succeeded, polling for ready state...');
-        
-        // Poll for ready state instead of fixed delay - faster when Varese is ready
-        const maxWait = 800; // Max 800ms wait
-        const pollInterval = 100; // Poll every 100ms
-        const startTime = Date.now();
-        
-        while (Date.now() - startTime < maxWait) {
-          try {
-            const state = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
-            console.log('Transport state:', state.currentTransportState);
-            // Ready when not transitioning
-            if (state.currentTransportState !== 'TRANSITIONING') {
-              console.log('Varese ready, sending Play command...');
-              break;
-            }
-          } catch (e) {
-            // Ignore polling errors, just continue
-          }
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
-        }
-        
+        console.log('SetAVTransportURI succeeded, waiting for Varese to prepare...');
+        // Give Varese time to buffer/prepare the track before sending Play
+        await new Promise(resolve => setTimeout(resolve, 200));
         console.log('Sending Play command...');
         return upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
       }).then(() => {
