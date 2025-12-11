@@ -198,32 +198,49 @@ const discoverControlUrl = async (baseUrl: string): Promise<string | null> => {
       if (response.ok) {
         const xml = await response.text();
         console.log('Device description found, length:', xml.length);
+        console.log('Device description preview:', xml.substring(0, 1000));
         
-        const controlUrlMatch = xml.match(/<controlURL>([^<]+)<\/controlURL>/g);
-        if (controlUrlMatch) {
-          for (const match of controlUrlMatch) {
-            const url = match.replace(/<\/?controlURL>/g, '');
-            if (url.toLowerCase().includes('contentdirectory') || url.toLowerCase().includes('content')) {
+        const serviceTypeMatch = xml.match(/ContentDirectory[^<]*/gi);
+        if (serviceTypeMatch) {
+          console.log('Found ContentDirectory references:', serviceTypeMatch);
+        }
+        
+        const allControlUrls = xml.match(/<controlURL>([^<]+)<\/controlURL>/gi);
+        if (allControlUrls) {
+          console.log('All control URLs found:', allControlUrls);
+          for (const match of allControlUrls) {
+            const url = match.replace(/<\/?controlURL>/gi, '');
+            console.log('Checking control URL:', url);
+            if (url.toLowerCase().includes('contentdirectory') || url.toLowerCase().includes('content') || url.includes('CDS')) {
               const fullUrl = url.startsWith('http') ? url : baseUrl + (url.startsWith('/') ? url : '/' + url);
               console.log('Found ContentDirectory control URL:', fullUrl);
               return fullUrl;
             }
           }
-          const firstUrl = controlUrlMatch[0].replace(/<\/?controlURL>/g, '');
-          const fullUrl = firstUrl.startsWith('http') ? firstUrl : baseUrl + (firstUrl.startsWith('/') ? firstUrl : '/' + firstUrl);
-          console.log('Using first control URL:', fullUrl);
-          return fullUrl;
         }
         
-        const serviceMatch = xml.match(/<service>[\s\S]*?ContentDirectory[\s\S]*?<\/service>/i);
-        if (serviceMatch) {
-          const ctrlMatch = serviceMatch[0].match(/<controlURL>([^<]+)<\/controlURL>/);
-          if (ctrlMatch) {
-            const url = ctrlMatch[1];
-            const fullUrl = url.startsWith('http') ? url : baseUrl + (url.startsWith('/') ? url : '/' + url);
-            console.log('Found ContentDirectory service control URL:', fullUrl);
-            return fullUrl;
+        const serviceBlocks = xml.match(/<service>[\s\S]*?<\/service>/gi);
+        if (serviceBlocks) {
+          console.log('Found', serviceBlocks.length, 'service blocks');
+          for (const block of serviceBlocks) {
+            if (block.toLowerCase().includes('contentdirectory')) {
+              console.log('ContentDirectory service block:', block.substring(0, 500));
+              const ctrlMatch = block.match(/<controlURL>([^<]+)<\/controlURL>/i);
+              if (ctrlMatch) {
+                const url = ctrlMatch[1];
+                const fullUrl = url.startsWith('http') ? url : baseUrl + (url.startsWith('/') ? url : '/' + url);
+                console.log('Found ContentDirectory service control URL:', fullUrl);
+                return fullUrl;
+              }
+            }
           }
+        }
+        
+        if (allControlUrls && allControlUrls.length > 0) {
+          const firstUrl = allControlUrls[0].replace(/<\/?controlURL>/gi, '');
+          const fullUrl = firstUrl.startsWith('http') ? firstUrl : baseUrl + (firstUrl.startsWith('/') ? firstUrl : '/' + firstUrl);
+          console.log('Using first available control URL:', fullUrl);
+          return fullUrl;
         }
       }
     } catch (error) {
