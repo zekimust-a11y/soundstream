@@ -1188,6 +1188,69 @@ export const getVolume = async (
   return volumeMatch ? parseInt(volumeMatch[1]) : 0;
 };
 
+// OpenHome Volume service functions (used by dCS devices)
+export const setOpenHomeVolume = async (
+  controlURL: string,
+  desiredVolume: number
+): Promise<void> => {
+  const serviceType = 'urn:av-openhome-org:service:Volume:1';
+  const action = 'SetVolume';
+  
+  const volume = Math.max(0, Math.min(100, Math.round(desiredVolume)));
+  
+  const body = `      <Value>${volume}</Value>`;
+  
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log('Setting OpenHome volume to:', volume, 'at:', controlURL);
+  
+  const response = await fetch(controlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenHome SetVolume failed: ${response.status} - ${errorText}`);
+  }
+  
+  console.log('OpenHome SetVolume successful');
+};
+
+export const getOpenHomeVolume = async (
+  controlURL: string
+): Promise<number> => {
+  const serviceType = 'urn:av-openhome-org:service:Volume:1';
+  const action = 'Volume';
+  
+  const body = '';
+  
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  const response = await fetch(controlURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      'SOAPACTION': soapAction,
+    },
+    body: soapEnvelope,
+  });
+  
+  if (!response.ok) {
+    throw new Error(`OpenHome GetVolume failed: ${response.status}`);
+  }
+  
+  const xml = await response.text();
+  const volumeMatch = xml.match(/<Value>(\d+)<\/Value>/);
+  return volumeMatch ? parseInt(volumeMatch[1]) : 0;
+};
+
 export const setMute = async (
   controlURL: string,
   instanceId: number = 0,

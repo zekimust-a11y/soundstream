@@ -548,11 +548,19 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     
     // Send volume to Varese (convert 0-1 range to 0-100)
     const volumePercent = Math.round(clampedVol * 100);
+    console.log('=== SETTING VOLUME ===');
+    console.log('Volume percent:', volumePercent);
+    console.log('RenderingControl URL:', VARESE_RENDERINGCONTROL_URL);
+    
     try {
-      console.log('Setting Varese volume to:', volumePercent);
       await upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent);
+      console.log('Volume set successfully to:', volumePercent);
     } catch (error) {
       console.error('Failed to set volume on Varese:', error);
+      // Log the full error for debugging
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+      }
     }
   }, []);
 
