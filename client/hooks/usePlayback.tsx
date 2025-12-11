@@ -595,16 +595,24 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
     
     // Send after 200ms of no movement (gives time for slider to settle)
-    volumeTimeoutRef.current = setTimeout(() => {
+    volumeTimeoutRef.current = setTimeout(async () => {
       const finalVol = pendingVolumeRef.current;
       if (finalVol === null) return;
       
       const volumePercent = Math.round(finalVol * 100);
       pendingVolumeRef.current = null;
       
-      // Use OpenHome Volume service for dCS devices
-      upnpClient.setOpenHomeVolume(VARESE_OPENHOME_VOLUME_URL, volumePercent)
-        .catch(() => {}); // Silently ignore - UI already updated
+      // Try standard RenderingControl first (more widely supported)
+      try {
+        await upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent);
+      } catch {
+        // If standard fails, try OpenHome Volume service
+        try {
+          await upnpClient.setOpenHomeVolume(VARESE_OPENHOME_VOLUME_URL, volumePercent);
+        } catch {
+          // Silently ignore - UI already updated
+        }
+      }
     }, 200);
   }, []);
 

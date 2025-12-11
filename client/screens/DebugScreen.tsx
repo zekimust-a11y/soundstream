@@ -42,7 +42,7 @@ export default function DebugScreen() {
   const checkBridgeStatus = async () => {
     setBridgeStatus('checking');
     try {
-      const storedUrl = await AsyncStorage.getItem('ssdp_bridge_url');
+      const storedUrl = await AsyncStorage.getItem('@soundstream_bridge_url');
       setBridgeUrl(storedUrl || 'Not configured');
       
       if (storedUrl) {
