@@ -351,19 +351,21 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const togglePlayPause = useCallback(async () => {
-    try {
-      if (isPlaying) {
-        console.log('Sending Stop command to Varese');
-        await upnpClient.stop(VARESE_AVTRANSPORT_URL, 0);
+  const togglePlayPause = useCallback(() => {
+    const newState = !isPlaying;
+    setIsPlaying(newState);
+    
+    if (newState) {
+      console.log('Sending Play command to Varese');
+      upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1').catch((error) => {
+        console.error('Failed to play on Varese:', error);
         setIsPlaying(false);
-      } else {
-        console.log('Sending Play command to Varese');
-        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-        setIsPlaying(true);
-      }
-    } catch (error) {
-      console.error('Failed to toggle playback on Varese:', error);
+      });
+    } else {
+      console.log('Sending Stop command to Varese');
+      upnpClient.stop(VARESE_AVTRANSPORT_URL, 0).catch((error) => {
+        console.error('Failed to stop on Varese:', error);
+      });
     }
   }, [isPlaying]);
 
@@ -491,13 +493,11 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const lastPlayedTrackIdRef = useRef<string | null>(null);
   
   const playTrack = useCallback(async (track: Track, tracks?: Track[]) => {
-    // Prevent concurrent play attempts and duplicate calls for same track
     if (isPlayingRef.current) {
       console.log('Play already in progress, ignoring duplicate call');
       return;
     }
     
-    // Debounce rapid calls for the same track (within 500ms)
     const trackId = track.id || track.uri || null;
     if (lastPlayedTrackIdRef.current === trackId) {
       console.log('Same track requested again, ignoring');
@@ -507,62 +507,45 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     isPlayingRef.current = true;
     lastPlayedTrackIdRef.current = trackId;
     
-    // Reset after 5 seconds to allow replaying same track
     setTimeout(() => {
       lastPlayedTrackIdRef.current = null;
-    }, 5000);
+    }, 1000);
     
-    try {
-      if (tracks) {
-        setQueue(tracks);
-      }
-      setCurrentTrack(track);
-      setCurrentTime(0);
+    if (tracks) {
+      setQueue(tracks);
+    }
+    setCurrentTrack(track);
+    setCurrentTime(0);
+    setIsPlaying(true);
+    
+    if (track.uri) {
+      console.log('=== PLAYING TRACK ===');
+      console.log('Track title:', track.title);
+      console.log('Track URI:', track.uri);
       
-      // AVTransport playback - the dCS Varese only responds to AVTransport commands
-      // Note: AVTransport commands return success but don't trigger audio playback
-      // This is a compatibility shim only - use dCS Mosaic app for actual playback
-      if (track.uri) {
-        console.log('=== PLAYING TRACK ===');
-        console.log('Track title:', track.title);
-        console.log('Track URI:', track.uri);
-        
-        try {
-          const setResult = await upnpClient.setAVTransportURI(
-            VARESE_AVTRANSPORT_URL, 
-            0, 
-            track.uri, 
-            track.metadata || ''
-          );
-          
-          if (!setResult.success) {
-            console.error('SetAVTransportURI failed:', setResult.error);
-            setIsPlaying(false);
-            return;
-          }
-          
-          console.log('SetAVTransportURI succeeded');
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-          console.log('=== PLAY COMMAND SENT (AVTransport) ===');
-          
-          setIsPlaying(true);
-        } catch (error) {
-          console.error('AVTransport playback failed:', error);
-          setIsPlaying(false);
+      upnpClient.setAVTransportURI(
+        VARESE_AVTRANSPORT_URL, 
+        0, 
+        track.uri, 
+        track.metadata || ''
+      ).then((setResult) => {
+        if (!setResult.success) {
+          console.error('SetAVTransportURI failed:', setResult.error);
+          return;
         }
-        
-        console.log('=== PLAY SEQUENCE COMPLETE ===');
-        
-      } else {
-        console.warn('Track has no URI, cannot play on renderer');
+        console.log('SetAVTransportURI succeeded');
+        return upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+      }).then(() => {
+        console.log('=== PLAY COMMAND SENT ===');
+      }).catch((error) => {
+        console.error('AVTransport playback failed:', error);
         setIsPlaying(false);
-      }
-    } catch (error) {
-      console.error('Failed to control Varese:', error);
+      }).finally(() => {
+        isPlayingRef.current = false;
+      });
+    } else {
+      console.warn('Track has no URI, cannot play on renderer');
       setIsPlaying(false);
-    } finally {
       isPlayingRef.current = false;
     }
   }, []);
