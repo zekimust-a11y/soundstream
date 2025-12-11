@@ -3,8 +3,18 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as upnpClient from "@/lib/upnpClient";
 import { OpenHomeServices } from "@/lib/upnpClient";
 
-// Varese device description URL - try the standard UPnP root device location
-const VARESE_DEVICE_DESCRIPTION_URL = 'http://192.168.0.35:49152/device.xml';
+// Common device description URL paths to try
+const VARESE_BASE_HOST = 'http://192.168.0.35:49152';
+const DEVICE_DESCRIPTION_PATHS = [
+  '/device.xml',
+  '/description.xml',
+  '/desc.xml',
+  '/root.xml',
+  '/DeviceDescription.xml',
+  '/',
+  '/upnp/desc.xml',
+  '/rootDesc.xml',
+];
 
 // Hardcoded URLs based on discovered URL pattern from AVTransport
 const VARESE_BASE = 'http://192.168.0.35:49152';
@@ -104,13 +114,44 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   const discoverVareseServices = async () => {
     console.log('=== DISCOVERING VARESE SERVICES ===');
-    try {
-      const services = await upnpClient.fetchDeviceServices(VARESE_DEVICE_DESCRIPTION_URL);
-      console.log('Discovered Varese services:', services);
-      setVareseServices(services);
-    } catch (error) {
-      console.error('Failed to discover Varese services:', error);
+    
+    // Try to discover OpenHome services by probing the guessed URLs
+    // Based on the AVTransport URL pattern, construct OpenHome service URLs
+    const services: OpenHomeServices = {};
+    
+    // Try each device description path
+    for (const path of DEVICE_DESCRIPTION_PATHS) {
+      try {
+        console.log('Trying device description:', VARESE_BASE_HOST + path);
+        const deviceServices = await upnpClient.fetchDeviceServices(VARESE_BASE_HOST + path);
+        if (Object.keys(deviceServices).length > 0) {
+          console.log('Found services from:', path, deviceServices);
+          Object.assign(services, deviceServices);
+          break;
+        }
+      } catch (error) {
+        // Continue to next path
+      }
     }
+    
+    // If no services found via device description, test our guessed OpenHome URLs
+    if (!services.playlistControlURL) {
+      console.log('No services from device description, testing guessed OpenHome URLs...');
+      
+      // Test Product.SourceXml to verify OpenHome is accessible
+      try {
+        await upnpClient.productSourceXml(VARESE_OH_PRODUCT_URL);
+        console.log('OpenHome Product service is accessible!');
+        services.productControlURL = VARESE_OH_PRODUCT_URL;
+        services.playlistControlURL = VARESE_OH_PLAYLIST_URL;
+        services.transportControlURL = VARESE_OH_TRANSPORT_URL;
+      } catch (error) {
+        console.log('OpenHome Product probe failed:', error);
+      }
+    }
+    
+    console.log('Discovered Varese services:', services);
+    setVareseServices(services);
   };
 
   const fetchVareseVolume = async () => {

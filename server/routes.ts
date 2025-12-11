@@ -1,5 +1,182 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
+import dgram from "node:dgram";
+
+// SSDP discovery for UPnP/OpenHome devices
+interface DiscoveredDevice {
+  usn: string;
+  location: string;
+  server?: string;
+  st?: string;
+  friendlyName?: string;
+  manufacturer?: string;
+  modelName?: string;
+  services: {
+    avTransport?: string;
+    renderingControl?: string;
+    playlist?: string;
+    product?: string;
+    transport?: string;
+  };
+}
+
+async function performSsdpDiscovery(searchTarget: string = 'ssdp:all', timeoutMs: number = 5000): Promise<DiscoveredDevice[]> {
+  return new Promise((resolve) => {
+    const devices: Map<string, DiscoveredDevice> = new Map();
+    const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    
+    const SSDP_ADDRESS = '239.255.255.250';
+    const SSDP_PORT = 1900;
+    
+    const searchMessage = Buffer.from([
+      'M-SEARCH * HTTP/1.1',
+      `HOST: ${SSDP_ADDRESS}:${SSDP_PORT}`,
+      'MAN: "ssdp:discover"',
+      'MX: 3',
+      `ST: ${searchTarget}`,
+      '',
+      ''
+    ].join('\r\n'));
+
+    socket.on('message', (msg, rinfo) => {
+      const response = msg.toString();
+      const lines = response.split('\r\n');
+      
+      const headers: Record<string, string> = {};
+      for (const line of lines) {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx > 0) {
+          const key = line.substring(0, colonIdx).trim().toLowerCase();
+          const value = line.substring(colonIdx + 1).trim();
+          headers[key] = value;
+        }
+      }
+      
+      const location = headers['location'];
+      const usn = headers['usn'] || `${rinfo.address}:${rinfo.port}`;
+      const server = headers['server'];
+      const st = headers['st'];
+      
+      if (location) {
+        const deviceKey = location;
+        if (!devices.has(deviceKey)) {
+          devices.set(deviceKey, {
+            usn,
+            location,
+            server,
+            st,
+            services: {}
+          });
+          console.log(`[SSDP] Discovered device at ${location}`);
+        }
+      }
+    });
+
+    socket.on('error', (err) => {
+      console.error('[SSDP] Socket error:', err.message);
+    });
+
+    socket.bind(() => {
+      socket.setBroadcast(true);
+      socket.setMulticastTTL(4);
+      
+      // Send multiple M-SEARCH requests for better discovery
+      socket.send(searchMessage, 0, searchMessage.length, SSDP_PORT, SSDP_ADDRESS);
+      
+      // Send again after a short delay
+      setTimeout(() => {
+        socket.send(searchMessage, 0, searchMessage.length, SSDP_PORT, SSDP_ADDRESS);
+      }, 500);
+    });
+
+    // Wait for responses then close
+    setTimeout(() => {
+      socket.close();
+      resolve(Array.from(devices.values()));
+    }, timeoutMs);
+  });
+}
+
+async function fetchDeviceDescription(locationUrl: string): Promise<DiscoveredDevice | null> {
+  try {
+    console.log(`[SSDP] Fetching device description from: ${locationUrl}`);
+    
+    const response = await fetch(locationUrl, {
+      headers: {
+        'User-Agent': 'SoundStream/1.0 UPnP/1.0',
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    
+    if (!response.ok) {
+      console.log(`[SSDP] Device description fetch failed: ${response.status}`);
+      return null;
+    }
+    
+    const xml = await response.text();
+    console.log(`[SSDP] Got device description, length: ${xml.length}`);
+    
+    // Parse the URL to get base URL
+    const url = new URL(locationUrl);
+    const baseUrl = `${url.protocol}//${url.host}`;
+    
+    // Extract device info
+    const friendlyNameMatch = xml.match(/<friendlyName>([^<]*)<\/friendlyName>/i);
+    const manufacturerMatch = xml.match(/<manufacturer>([^<]*)<\/manufacturer>/i);
+    const modelNameMatch = xml.match(/<modelName>([^<]*)<\/modelName>/i);
+    
+    const device: DiscoveredDevice = {
+      usn: '',
+      location: locationUrl,
+      friendlyName: friendlyNameMatch?.[1],
+      manufacturer: manufacturerMatch?.[1],
+      modelName: modelNameMatch?.[1],
+      services: {}
+    };
+    
+    // Find all services
+    const serviceRegex = /<service>([\s\S]*?)<\/service>/gi;
+    let match;
+    
+    while ((match = serviceRegex.exec(xml)) !== null) {
+      const serviceXml = match[1];
+      
+      const serviceTypeMatch = serviceXml.match(/<serviceType>([^<]+)<\/serviceType>/i);
+      const controlURLMatch = serviceXml.match(/<controlURL>([^<]+)<\/controlURL>/i);
+      
+      if (serviceTypeMatch && controlURLMatch) {
+        const serviceType = serviceTypeMatch[1];
+        let controlURL = controlURLMatch[1];
+        
+        // Make absolute
+        if (controlURL.startsWith('/')) {
+          controlURL = baseUrl + controlURL;
+        } else if (!controlURL.startsWith('http')) {
+          controlURL = baseUrl + '/' + controlURL;
+        }
+        
+        console.log(`[SSDP] Found service: ${serviceType} -> ${controlURL}`);
+        
+        if (serviceType.includes('AVTransport')) {
+          device.services.avTransport = controlURL;
+        } else if (serviceType.includes('RenderingControl')) {
+          device.services.renderingControl = controlURL;
+        } else if (serviceType.includes('Playlist') && serviceType.includes('openhome')) {
+          device.services.playlist = controlURL;
+        } else if (serviceType.includes('Product') && serviceType.includes('openhome')) {
+          device.services.product = controlURL;
+        } else if (serviceType.includes('Transport') && serviceType.includes('openhome')) {
+          device.services.transport = controlURL;
+        }
+      }
+    }
+    
+    return device;
+  } catch (error) {
+    console.error(`[SSDP] Error fetching device description:`, error);
+    return null;
+  }
+}
 
 interface BrowseResult {
   artists: Array<{
@@ -274,6 +451,67 @@ async function discoverServerContent(host: string, port: number): Promise<Browse
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // SSDP discovery endpoint - discovers UPnP/OpenHome devices on the network
+  app.get('/api/discover', async (req: Request, res: Response) => {
+    try {
+      console.log('[SSDP] Starting network discovery...');
+      
+      // Perform SSDP discovery
+      const rawDevices = await performSsdpDiscovery('ssdp:all', 5000);
+      console.log(`[SSDP] Found ${rawDevices.length} raw devices`);
+      
+      // Fetch device descriptions to get service URLs
+      const devices: DiscoveredDevice[] = [];
+      
+      for (const device of rawDevices) {
+        const detailedDevice = await fetchDeviceDescription(device.location);
+        if (detailedDevice) {
+          detailedDevice.usn = device.usn;
+          detailedDevice.server = device.server;
+          detailedDevice.st = device.st;
+          devices.push(detailedDevice);
+        }
+      }
+      
+      console.log(`[SSDP] Returning ${devices.length} devices with descriptions`);
+      
+      res.json({ 
+        success: true, 
+        devices,
+        count: devices.length
+      });
+    } catch (error) {
+      console.error('[SSDP] Discovery error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Discovery failed'
+      });
+    }
+  });
+
+  // Fetch device description from a specific URL
+  app.get('/api/discover/device', async (req: Request, res: Response) => {
+    const { location } = req.query;
+    
+    if (!location || typeof location !== 'string') {
+      return res.status(400).json({ error: 'Location URL is required' });
+    }
+    
+    try {
+      const device = await fetchDeviceDescription(location);
+      if (device) {
+        res.json({ success: true, device });
+      } else {
+        res.status(404).json({ success: false, error: 'Failed to fetch device description' });
+      }
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to fetch device'
+      });
+    }
+  });
+
   app.get('/api/server/test', async (req: Request, res: Response) => {
     const { host, port } = req.query;
     
