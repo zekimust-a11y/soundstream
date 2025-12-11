@@ -196,7 +196,9 @@ export function useSsdpDiscovery() {
       
       socket.bind(0, () => {
         console.log('SSDP socket bound, starting discovery...');
+        console.log('Will send M-SEARCH to', SSDP_ADDRESS, ':', SSDP_PORT);
         
+        let sendCount = 0;
         for (const target of SEARCH_TARGETS) {
           const searchMessage = Buffer.from(
             'M-SEARCH * HTTP/1.1\r\n' +
@@ -207,6 +209,8 @@ export function useSsdpDiscovery() {
             '\r\n'
           );
           
+          console.log('Sending M-SEARCH #' + (sendCount + 1) + ' for:', target);
+          
           socket.send(
             searchMessage,
             0,
@@ -214,10 +218,11 @@ export function useSsdpDiscovery() {
             SSDP_PORT,
             SSDP_ADDRESS,
             (err: Error | null) => {
+              sendCount++;
               if (err) {
-                console.error('Failed to send SSDP search:', err);
+                console.error('Failed to send SSDP search:', err.message);
               } else {
-                console.log('Sent SSDP M-SEARCH for:', target);
+                console.log('Successfully sent M-SEARCH for:', target);
               }
             }
           );

@@ -1,0 +1,59 @@
+Last login: Thu Dec 11 08:57:21 on ttys007
+zeki@MacBookAir ~ % cd documents
+zeki@MacBookAir documents % cd audio-streamer
+zeki@MacBookAir audio-streamer % npx expo start --dev-client
+Starting project at /Users/zeki/Documents/Audio-Streamer
+React Compiler enabled
+Starting Metro Bundler
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ ██▄██ ▀ █▄█ █▀▄ ███ ▄▄▄▄▄ █
+█ █   █ █▀▄ ▀▄▀▀██▀▄▀▄ ▄▀▀█ █   █ █
+█ █▄▄▄█ █▄▀▀▄ █▄█▀██▄█▀▀▄▀█ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀▄█ █ █▄█ █ █▄█ █▄▄▄▄▄▄▄█
+█▄▄█▀▀▄▄ █▄ ▀▀▄█▀ ▄█ ██▄▀█▀█▀  ▀███
+█▄▄▄▀█▄▄█ ▄▀█ ▄▄▄▄█▀▀█▄▄▀██▄▀█▀ ▄▀█
+█▄▄▄▀██▄▄▀▄ ▀▀▀  ███ ▀▀▄▀▄▀  ██▀█▀█
+█    ▄ ▄  ▀ █▀█▀ ██ █▄▄▄█▄█▀▀▄ ▀ ▀█
+█▀▄▀▄▀█▄ █ ▄█▄ █▄▀▄ ▀ █▄ ▄▄▀▄▄ ▀ ▀█
+█ █▄▄▀ ▄█▄█  ▀██ ▄▄█ ▀█ ▄█▀▀▀▀  ▀ █
+█▀▄▄▄▄▄▄██▄▄▀▀▄█  ▄▄  ▀ ▀▄██▄ ▄▀▄▄█
+█ ██▀█▀▄▀▄▄█████▄ ▄▄▀ ▄▄▀▄ ▄▄ ▀▀ ▀█
+█▄▄▄▄██▄█ ▀█  ▀▄ ▄▄▀▀▄▀█  ▄▄▄  ▀  █
+█ ▄▄▄▄▄ █  ▄█▄▄  ██▄██▄█  █▄█   ▄▀█
+█ █   █ ██▄ ▀▀▄▀▄▀▄ ▀ █▄▀  ▄  █▀▄▄█
+█ █▄▄▄█ █▀█▄▄▄▄  ▄▄█  ▄▀█▄ █ ▄▀ █▄█
+█▄▄▄▄▄▄▄█▄█▄██▄█▄▄▄▄▄██▄▄▄███▄██▄██
+
+› Metro waiting on
+soundstream://expo-development-client/?url=http%3A%2F%2F192.168.0.144%3A8081
+› Scan the QR code above to open the project in a development build. Learn more:
+https://expo.fyi/start
+
+› Web is waiting on http://localhost:8081
+
+› Using development build
+› Press s │ switch to Expo Go
+
+› Press a │ open Android
+› Press i │ open iOS simulator
+› Press w │ open web
+
+› Press j │ open debugger
+› Press r │ reload app
+› Press m │ toggle menu
+› shift+m │ more tools
+› Press o │ open project code in your editor
+
+› Press ? │ show all commands
+
+Logs for your project will appear below. Press Ctrl+C to exit.
+iOS Bundled 622ms client/index.js (1450 modules)
+ WARN  [Reanimated] Reduced motion setting is enabled on this device. This warning is visible only in the development mode. Some animations will be disabled by default. You can override the behavior for individual animations, see https://docs.swmansion.com/react-native-reanimated/docs/guides/troubleshooting#reduced-motion-setting-is-enabled-on-this-device.
+ LOG  socket-0 binding, address: 0.0.0.0 port: 0
+ LOG  socket-0 bound to address: 0.0.0.0 port: 60694
+ LOG  SSDP socket bound, starting discovery...
+ LOG  Discovery period ended
+ LOG  socket-1 binding, address: 0.0.0.0 port: 0
+ LOG  socket-1 bound to address: 0.0.0.0 port: 57847
+ LOG  SSDP socket bound, starting discovery...
+
