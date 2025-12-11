@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -129,7 +129,15 @@ export default function NowPlayingScreen() {
     setActiveZone,
     setZoneVolume,
     toggleZone,
+    syncTransportState,
   } = usePlayback();
+
+  // Sync with Varese when Now Playing screen opens to get correct duration/position
+  useEffect(() => {
+    if (currentTrack) {
+      syncTransportState();
+    }
+  }, []);
 
   const activeZones = zones.filter(z => z.isActive);
   

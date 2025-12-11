@@ -138,6 +138,7 @@ interface PlaybackContextType extends PlaybackState {
   discoveredRenderers: BridgeRenderer[];
   setBridgeUrl: (url: string) => Promise<void>;
   refreshBridgeDevices: () => Promise<void>;
+  syncTransportState: () => Promise<void>;
 }
 
 const PlaybackContext = createContext<PlaybackContextType | undefined>(undefined);
@@ -303,17 +304,29 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         setIsPlaying(false);
       }
       
-      // Also sync position if playing
+      // Also sync position and duration if playing
       if (isActuallyPlaying) {
         const positionInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
         // Parse relTime string (HH:MM:SS) to seconds
         const relTimeParts = positionInfo.relTime?.split(':');
         if (relTimeParts && relTimeParts.length === 3) {
-          const serverTime = parseInt(relTimeParts[0]) * 3600 + parseInt(relTimeParts[1]) * 60 + parseInt(relTimeParts[2]);
+          const serverTime = parseInt(relTimeParts[0]) * 3600 + parseInt(relTimeParts[1]) * 60 + parseFloat(relTimeParts[2]);
           // Only update if difference is significant (> 3 seconds)
           if (Math.abs(serverTime - currentTime) > 3) {
             console.log(`Syncing position: ${serverTime}s (was ${currentTime}s)`);
             setCurrentTime(serverTime);
+          }
+        }
+        
+        // Sync track duration from Varese (more accurate than metadata)
+        const trackDurationParts = positionInfo.trackDuration?.split(':');
+        if (trackDurationParts && trackDurationParts.length === 3 && currentTrack) {
+          const serverDurationSec = parseInt(trackDurationParts[0]) * 3600 + parseInt(trackDurationParts[1]) * 60 + parseFloat(trackDurationParts[2]);
+          const serverDurationMs = serverDurationSec * 1000;
+          // Update track duration if significantly different (> 5 seconds)
+          if (serverDurationMs > 0 && Math.abs(serverDurationMs - currentTrack.duration) > 5000) {
+            console.log(`Syncing duration: ${serverDurationSec}s (was ${currentTrack.duration / 1000}s)`);
+            setCurrentTrack(prev => prev ? { ...prev, duration: serverDurationMs } : prev);
           }
         }
       }
@@ -345,7 +358,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     if (isPlaying && currentTrack) {
       interval = setInterval(() => {
         setCurrentTime((prev) => {
-          if (prev >= currentTrack.duration) {
+          // Duration is in milliseconds, currentTime is in seconds
+          const durationInSeconds = currentTrack.duration / 1000;
+          if (durationInSeconds > 0 && prev >= durationInSeconds) {
             next();
             return 0;
           }
@@ -665,6 +680,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         return upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
       }).then(() => {
         console.log('=== PLAY COMMAND SENT SUCCESSFULLY ===');
+        // Sync with Varese after a delay to get correct duration
+        setTimeout(() => {
+          syncTransportState();
+        }, 2000);
       }).catch((error) => {
         console.error('Playback error (may still be playing):', error);
         // Don't revert isPlaying - Varese may have received the command
@@ -748,6 +767,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         discoveredRenderers,
         setBridgeUrl,
         refreshBridgeDevices: () => refreshBridgeDevices(),
+        syncTransportState,
       }}
     >
       {children}
