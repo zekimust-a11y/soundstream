@@ -100,14 +100,190 @@ interface ServerMusicLibrary {
   tracks: Track[];
 }
 
-const generateServerMusic = (server: Server): ServerMusicLibrary => {
-  return {
-    serverId: server.id,
-    serverName: server.name,
-    artists: [],
-    albums: [],
-    tracks: [],
-  };
+const parseUPNPResponse = (xml: string, serverId: string): { artists: Artist[], albums: Album[], tracks: Track[] } => {
+  const artists: Artist[] = [];
+  const albums: Album[] = [];
+  const tracks: Track[] = [];
+  
+  const resultMatch = xml.match(/<Result[^>]*>([\s\S]*?)<\/Result>/i);
+  if (!resultMatch) return { artists, albums, tracks };
+  
+  let didl = resultMatch[1];
+  didl = didl.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+  
+  const containerMatches = Array.from(didl.matchAll(/<container[^>]*id="([^"]*)"[^>]*>([\s\S]*?)<\/container>/gi));
+  for (const match of containerMatches) {
+    const id = match[1];
+    const content = match[2];
+    const titleMatch = content.match(/<dc:title[^>]*>([^<]*)<\/dc:title>/i);
+    const classMatch = content.match(/<upnp:class[^>]*>([^<]*)<\/upnp:class>/i);
+    
+    if (titleMatch) {
+      const title = titleMatch[1];
+      const upnpClass = classMatch ? classMatch[1] : '';
+      
+      if (upnpClass.includes('musicArtist') || upnpClass.includes('person')) {
+        artists.push({ id: `${serverId}-${id}`, name: title });
+      } else if (upnpClass.includes('musicAlbum') || upnpClass.includes('album')) {
+        const artistMatch = content.match(/<upnp:artist[^>]*>([^<]*)<\/upnp:artist>/i) ||
+                           content.match(/<dc:creator[^>]*>([^<]*)<\/dc:creator>/i);
+        const artMatch = content.match(/<upnp:albumArtURI[^>]*>([^<]*)<\/upnp:albumArtURI>/i);
+        
+        albums.push({
+          id: `${serverId}-${id}`,
+          name: title,
+          artist: artistMatch ? artistMatch[1] : 'Unknown Artist',
+          artistId: '',
+          imageUrl: artMatch ? artMatch[1] : undefined,
+        });
+      }
+    }
+  }
+  
+  const itemMatches = Array.from(didl.matchAll(/<item[^>]*id="([^"]*)"[^>]*>([\s\S]*?)<\/item>/gi));
+  for (const match of itemMatches) {
+    const id = match[1];
+    const content = match[2];
+    const titleMatch = content.match(/<dc:title[^>]*>([^<]*)<\/dc:title>/i);
+    const artistMatch = content.match(/<upnp:artist[^>]*>([^<]*)<\/upnp:artist>/i) ||
+                       content.match(/<dc:creator[^>]*>([^<]*)<\/dc:creator>/i);
+    const albumMatch = content.match(/<upnp:album[^>]*>([^<]*)<\/upnp:album>/i);
+    const durationMatch = content.match(/<res[^>]*duration="([^"]*)"[^>]*>/i);
+    const resMatch = content.match(/<res[^>]*>([^<]*)<\/res>/i);
+    const artMatch = content.match(/<upnp:albumArtURI[^>]*>([^<]*)<\/upnp:albumArtURI>/i);
+    const classMatch = content.match(/<upnp:class[^>]*>([^<]*)<\/upnp:class>/i);
+    
+    if (titleMatch && classMatch && classMatch[1].includes('audioItem')) {
+      let duration = 0;
+      if (durationMatch) {
+        const parts = durationMatch[1].split(':');
+        if (parts.length === 3) {
+          duration = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
+        }
+      }
+      
+      tracks.push({
+        id: `${serverId}-${id}`,
+        title: titleMatch[1],
+        artist: artistMatch ? artistMatch[1] : 'Unknown Artist',
+        album: albumMatch ? albumMatch[1] : 'Unknown Album',
+        duration: Math.round(duration),
+        streamUrl: resMatch ? resMatch[1] : undefined,
+        albumArt: artMatch ? artMatch[1] : undefined,
+        source: 'local' as const,
+      });
+    }
+  }
+  
+  return { artists, albums, tracks };
+};
+
+const browseUPNPContainer = async (baseUrl: string, containerId: string, serverId: string): Promise<{ artists: Artist[], albums: Album[], tracks: Track[] }> => {
+  const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1">
+      <ObjectID>${containerId}</ObjectID>
+      <BrowseFlag>BrowseDirectChildren</BrowseFlag>
+      <Filter>*</Filter>
+      <StartingIndex>0</StartingIndex>
+      <RequestedCount>0</RequestedCount>
+      <SortCriteria></SortCriteria>
+    </u:Browse>
+  </s:Body>
+</s:Envelope>`;
+
+  const controlUrls = [
+    `${baseUrl}/dev/srv0/ctl/ContentDirectory`,
+    `${baseUrl}/ctl/ContentDirectory`,
+    `${baseUrl}/ContentDirectory/control`,
+    `${baseUrl}/upnp/control/content_dir`,
+  ];
+
+  for (const controlUrl of controlUrls) {
+    try {
+      console.log('Trying UPNP control URL:', controlUrl, 'for container:', containerId);
+      const response = await fetch(controlUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+          'SOAPAction': '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"',
+        },
+        body: soapEnvelope,
+      });
+
+      if (response.ok) {
+        const xml = await response.text();
+        console.log('UPNP response received, length:', xml.length);
+        return parseUPNPResponse(xml, serverId);
+      }
+    } catch (error) {
+      console.log('Control URL failed:', controlUrl, error);
+      continue;
+    }
+  }
+  
+  return { artists: [], albums: [], tracks: [] };
+};
+
+const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => {
+  const baseUrl = `http://${server.host}:${server.port}`;
+  console.log('Connecting to UPNP server at:', baseUrl);
+  
+  try {
+    const allArtists: Artist[] = [];
+    const allAlbums: Album[] = [];
+    const allTracks: Track[] = [];
+    
+    const rootContent = await browseUPNPContainer(baseUrl, '0', server.id);
+    console.log('Root browse result:', rootContent.artists.length, 'artists,', rootContent.albums.length, 'albums,', rootContent.tracks.length, 'tracks');
+    
+    allArtists.push(...rootContent.artists);
+    allAlbums.push(...rootContent.albums);
+    allTracks.push(...rootContent.tracks);
+    
+    if (allTracks.length === 0) {
+      const containerIds = ['1', '2', '3', '64', '65', 'Music', 'Albums', 'Artists'];
+      
+      for (const containerId of containerIds) {
+        const content = await browseUPNPContainer(baseUrl, containerId, server.id);
+        console.log(`Container ${containerId} result:`, content.artists.length, 'artists,', content.albums.length, 'albums,', content.tracks.length, 'tracks');
+        
+        allArtists.push(...content.artists);
+        allAlbums.push(...content.albums);
+        allTracks.push(...content.tracks);
+        
+        for (const album of content.albums) {
+          const albumId = album.id.replace(`${server.id}-`, '');
+          const albumContent = await browseUPNPContainer(baseUrl, albumId, server.id);
+          allTracks.push(...albumContent.tracks.map(t => ({
+            ...t,
+            album: album.name,
+            artist: album.artist,
+          })));
+        }
+        
+        if (allTracks.length > 0) break;
+      }
+    }
+    
+    return {
+      serverId: server.id,
+      serverName: server.name,
+      artists: allArtists,
+      albums: allAlbums,
+      tracks: allTracks,
+    };
+  } catch (error) {
+    console.error('Failed to fetch music from server:', error);
+    return {
+      serverId: server.id,
+      serverName: server.name,
+      artists: [],
+      albums: [],
+      tracks: [],
+    };
+  }
 };
 
 export function MusicProvider({ children }: { children: ReactNode }) {
@@ -214,9 +390,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const loadMusicFromServer = useCallback(async (server: Server) => {
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
     
-    const library = generateServerMusic(server);
+    const library = await fetchServerMusic(server);
     
     setArtists((prev) => {
       const existingIds = new Set(prev.map(a => a.id));
@@ -354,8 +529,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     setTracks([]);
     
     for (const server of servers) {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      const library = generateServerMusic(server);
+      const library = await fetchServerMusic(server);
       
       setArtists((prev) => [...prev, ...library.artists]);
       setAlbums((prev) => [...prev, ...library.albums]);
