@@ -568,8 +568,14 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       clearTimeout(volumeTimeoutRef.current);
     }
     
-    // Debounce: only send volume after slider stops moving for 150ms
+    // Debounce: only send volume after slider stops moving for 300ms
     volumeTimeoutRef.current = setTimeout(async () => {
+      // Skip if another request is in progress
+      if (volumeRequestInProgressRef.current) {
+        console.log('Volume request in progress, skipping');
+        return;
+      }
+      
       const finalVol = pendingVolumeRef.current;
       if (finalVol === null) return;
       
@@ -577,15 +583,18 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       console.log('=== SENDING VOLUME ===');
       console.log('Volume percent:', volumePercent);
       
+      volumeRequestInProgressRef.current = true;
+      
       try {
         await upnpClient.setVolume(VARESE_RENDERINGCONTROL_URL, 0, 'Master', volumePercent);
         console.log('Volume set successfully to:', volumePercent);
       } catch (error) {
         console.error('Volume control failed:', error);
+      } finally {
+        volumeRequestInProgressRef.current = false;
+        pendingVolumeRef.current = null;
       }
-      
-      pendingVolumeRef.current = null;
-    }, 150);
+    }, 300);
   }, []);
 
   const addToQueue = useCallback((track: Track) => {
@@ -619,6 +628,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   // Debounce volume changes to prevent race conditions
   const volumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingVolumeRef = useRef<number | null>(null);
+  const volumeRequestInProgressRef = useRef(false);
   
   const playTrack = useCallback(async (track: Track, tracks?: Track[]) => {
     if (isPlayingRef.current) {
