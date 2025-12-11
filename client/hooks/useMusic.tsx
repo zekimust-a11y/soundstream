@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Track } from "@/hooks/usePlayback";
+import { getBridgeProxyUrl } from "@/lib/upnpClient";
+import { debugLog } from "@/lib/debugLog";
 
 export interface Artist {
   id: string;
@@ -662,32 +664,72 @@ const browseWithDirectUrl = async (controlUrl: string, containerId: string, serv
   </s:Body>
 </s:Envelope>`;
 
+  const soapAction = '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"';
+  const isLocalTarget = controlUrl.includes('192.168.') || controlUrl.includes('10.') || controlUrl.includes('172.');
+  const bridgeUrl = getBridgeProxyUrl();
+  
+  debugLog.request(`Browse ${context}`, `${containerId} -> ${controlUrl.substring(0, 50)}...`);
+
+  // Try direct request first
   try {
-    console.log('UPNP Browse request to:', controlUrl, 'ObjectID:', containerId, 'context:', context);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     
     const response = await fetch(controlUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml;charset="utf-8"',
-        'SOAPAction': '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"',
+        'SOAPAction': soapAction,
       },
       body: soapEnvelope,
+      signal: controller.signal,
     });
     
-    console.log('UPNP Browse response status:', response.status);
+    clearTimeout(timeoutId);
     
     if (response.ok) {
       const responseText = await response.text();
-      console.log('UPNP Browse response length:', responseText.length);
+      debugLog.response(`Browse ${context} OK (direct)`, `${responseText.length} bytes`);
       return parseUPNPResponseWithContext(responseText, serverId, context);
-    } else {
-      console.error('UPNP Browse failed:', response.status, await response.text());
-      return { artists: [], albums: [], tracks: [] };
     }
-  } catch (error) {
-    console.error('UPNP Browse error:', error);
-    return { artists: [], albums: [], tracks: [] };
+  } catch (directError) {
+    // Direct failed, try bridge if available
+    if (bridgeUrl && isLocalTarget) {
+      debugLog.info(`Browse direct failed, trying bridge...`);
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        
+        const response = await fetch(`${bridgeUrl}/proxy`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/xml; charset="utf-8"',
+            'X-Target-URL': controlUrl,
+            'X-SOAP-Action': soapAction,
+          },
+          body: soapEnvelope,
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const responseText = await response.text();
+          debugLog.response(`Browse ${context} OK (bridge)`, `${responseText.length} bytes`);
+          return parseUPNPResponseWithContext(responseText, serverId, context);
+        } else {
+          debugLog.error(`Browse ${context} failed (bridge)`, `Status: ${response.status}`);
+        }
+      } catch (bridgeError) {
+        debugLog.error(`Browse ${context} bridge error`, String(bridgeError));
+      }
+    } else {
+      debugLog.error(`Browse ${context} error`, String(directError));
+    }
   }
+  
+  return { artists: [], albums: [], tracks: [] };
 };
 
 const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => {
