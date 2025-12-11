@@ -1211,27 +1211,16 @@ export const setVolume = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  console.log('SetVolume SOAP request to:', controlURL);
-  
   try {
     const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
     
-    console.log('SetVolume response status:', result.status);
-    console.log('SetVolume response:', result.text.substring(0, 500));
-    
-    if (!result.ok) {
-      throw new Error(`SetVolume failed: ${result.status} - ${result.text}`);
+    if (!result.ok || result.text.includes('Fault') || result.text.includes('UPnPError')) {
+      // Silently fail - UI already updated, don't disrupt user experience
+      return;
     }
-    
-    if (result.text.includes('Fault') || result.text.includes('UPnPError')) {
-      console.error('SetVolume SOAP Fault in response:', result.text);
-      throw new Error(`SetVolume SOAP Fault: ${result.text.substring(0, 200)}`);
-    }
-    
-    console.log('SetVolume succeeded');
   } catch (error) {
-    console.error('SetVolume error:', error);
-    throw error;
+    // Silently fail - volume slider already shows intended value
+    return;
   }
 };
 
@@ -1274,15 +1263,12 @@ export const setOpenHomeVolume = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  console.log('Setting OpenHome volume to:', volume, 'at:', controlURL);
-  
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
-  
-  if (!result.ok) {
-    throw new Error(`OpenHome SetVolume failed: ${result.status} - ${result.text}`);
+  try {
+    const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
+    // Silently succeed or fail - UI already updated
+  } catch (error) {
+    // Silently fail - volume slider already shows intended value
   }
-  
-  console.log('OpenHome SetVolume successful');
 };
 
 export const getOpenHomeVolume = async (
