@@ -166,7 +166,7 @@ export default function NowPlayingScreen() {
   if (!currentTrack) {
     return (
       <ThemedView style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.xs }]}>
           <Pressable
             style={({ pressed }) => [styles.closeButton, { opacity: pressed ? 0.6 : 1 }]}
             onPress={() => navigation.goBack()}
@@ -191,14 +191,14 @@ export default function NowPlayingScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.xs }]}>
         <Pressable
           style={({ pressed }) => [styles.closeButton, { opacity: pressed ? 0.6 : 1 }]}
           onPress={() => navigation.goBack()}
         >
           <Feather name="chevron-down" size={28} color={Colors.light.text} />
         </Pressable>
-        <ThemedText style={styles.headerTitle}>Now Playing</ThemedText>
+        <ThemedText style={styles.headerTitle}>NOW PLAYING</ThemedText>
         <Pressable
           style={({ pressed }) => [styles.menuButton, { opacity: pressed ? 0.6 : 1 }]}
         >
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.sm,
+    paddingBottom: 0,
   },
   closeButton: {
     width: 40,
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
+    paddingTop: 0,
     flexGrow: 1,
   },
   albumArtContainer: {
