@@ -26,6 +26,7 @@ export interface Server {
   host: string;
   port: number;
   connected: boolean;
+  contentDirectoryUrl?: string;
 }
 
 export interface Playlist {
@@ -169,7 +170,7 @@ const parseUPNPResponse = (xml: string, serverId: string): { artists: Artist[], 
         artist: artistMatch ? artistMatch[1] : 'Unknown Artist',
         album: albumMatch ? albumMatch[1] : 'Unknown Album',
         duration: Math.round(duration),
-        streamUrl: resMatch ? resMatch[1] : undefined,
+        uri: resMatch ? resMatch[1] : undefined,
         albumArt: artMatch ? artMatch[1] : undefined,
         source: 'local' as const,
       });

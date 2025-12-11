@@ -7,6 +7,7 @@ import {
   Switch,
   ActivityIndicator,
   Alert,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -19,6 +20,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { useTheme } from "@/hooks/useTheme";
+import { useSsdpDiscovery } from "@/hooks/useSsdpDiscovery";
 import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SettingsStackParamList>;
@@ -76,13 +78,29 @@ function SettingRow({
 export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, artists, albums } = useMusic();
+  const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, artists, albums, addServer } = useMusic();
   const { theme } = useTheme();
+  const { devices, isDiscovering, error: discoveryError, startDiscovery, getMediaServers, getMediaRenderers, getContentDirectoryUrl } = useSsdpDiscovery();
 
   const [gapless, setGapless] = useState(true);
   const [crossfade, setCrossfade] = useState(false);
   const [normalization, setNormalization] = useState(false);
   const [streamingQuality, setStreamingQuality] = useState<"cd" | "hires">("cd");
+
+  const mediaServers = getMediaServers();
+  const mediaRenderers = getMediaRenderers();
+
+  const handleAddDiscoveredServer = (device: typeof devices[0]) => {
+    const contentDirectoryUrl = getContentDirectoryUrl(device);
+    addServer({
+      name: device.name,
+      host: device.host,
+      port: device.port,
+      type: 'upnp',
+      contentDirectoryUrl: contentDirectoryUrl || undefined,
+    });
+    Alert.alert('Server Added', `${device.name} has been added to your servers.`);
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -93,6 +111,108 @@ export default function SettingsScreen() {
           { paddingBottom: tabBarHeight + Spacing["5xl"] },
         ]}
       >
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Network Discovery</ThemedText>
+          <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.discoveryButton,
+                { 
+                  backgroundColor: theme.accent,
+                  opacity: pressed || isDiscovering ? 0.7 : 1,
+                },
+              ]}
+              onPress={startDiscovery}
+              disabled={isDiscovering}
+            >
+              {isDiscovering ? (
+                <ActivityIndicator size="small" color={theme.buttonText} />
+              ) : (
+                <Feather name="wifi" size={18} color={theme.buttonText} />
+              )}
+              <ThemedText style={[styles.discoveryButtonText, { color: theme.buttonText }]}>
+                {isDiscovering ? "Discovering..." : "Discover Devices"}
+              </ThemedText>
+            </Pressable>
+            
+            {Platform.OS === 'web' ? (
+              <ThemedText style={[styles.discoveryHint, { color: theme.warning }]}>
+                Network discovery requires running on a mobile device via Expo Go or a development build.
+              </ThemedText>
+            ) : null}
+            
+            {discoveryError ? (
+              <ThemedText style={[styles.discoveryHint, { color: theme.error }]}>
+                {discoveryError}
+              </ThemedText>
+            ) : null}
+            
+            {mediaServers.length > 0 ? (
+              <View style={styles.discoveredSection}>
+                <ThemedText style={[styles.discoveredLabel, { color: theme.textSecondary }]}>
+                  Media Servers ({mediaServers.length})
+                </ThemedText>
+                {mediaServers.map((server) => (
+                  <Pressable
+                    key={server.id}
+                    style={({ pressed }) => [
+                      styles.discoveredDevice,
+                      { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
+                    ]}
+                    onPress={() => handleAddDiscoveredServer(server)}
+                  >
+                    <View style={[styles.deviceIcon, { backgroundColor: theme.accent + '20' }]}>
+                      <Feather name="server" size={16} color={theme.accent} />
+                    </View>
+                    <View style={styles.deviceInfo}>
+                      <ThemedText style={[styles.deviceName, { color: theme.text }]}>
+                        {server.name}
+                      </ThemedText>
+                      <ThemedText style={[styles.deviceAddress, { color: theme.textSecondary }]}>
+                        {server.host}:{server.port}
+                      </ThemedText>
+                    </View>
+                    <Feather name="plus-circle" size={20} color={theme.accent} />
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+            
+            {mediaRenderers.length > 0 ? (
+              <View style={styles.discoveredSection}>
+                <ThemedText style={[styles.discoveredLabel, { color: theme.textSecondary }]}>
+                  Audio Renderers ({mediaRenderers.length})
+                </ThemedText>
+                {mediaRenderers.map((renderer) => (
+                  <View
+                    key={renderer.id}
+                    style={[styles.discoveredDevice, { borderColor: theme.border }]}
+                  >
+                    <View style={[styles.deviceIcon, { backgroundColor: theme.success + '20' }]}>
+                      <Feather name="speaker" size={16} color={theme.success} />
+                    </View>
+                    <View style={styles.deviceInfo}>
+                      <ThemedText style={[styles.deviceName, { color: theme.text }]}>
+                        {renderer.name}
+                      </ThemedText>
+                      <ThemedText style={[styles.deviceAddress, { color: theme.textSecondary }]}>
+                        {renderer.host}:{renderer.port}
+                      </ThemedText>
+                    </View>
+                    <Feather name="check-circle" size={20} color={theme.success} />
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            
+            {devices.length === 0 && !isDiscovering ? (
+              <ThemedText style={[styles.discoveryHint, { color: theme.textTertiary }]}>
+                Tap "Discover Devices" to find music servers and audio devices on your network.
+              </ThemedText>
+            ) : null}
+          </View>
+        </View>
+
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Sources</ThemedText>
           <View style={styles.sectionContent}>
@@ -493,5 +613,64 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     textAlign: "center",
     paddingBottom: Spacing.md,
+  },
+  discoveryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+  },
+  discoveryButtonText: {
+    ...Typography.body,
+    fontWeight: "600",
+  },
+  discoveryHint: {
+    ...Typography.caption,
+    textAlign: "center",
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+  },
+  discoveredSection: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+  },
+  discoveredLabel: {
+    ...Typography.caption,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  discoveredDevice: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+  },
+  deviceIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  deviceInfo: {
+    flex: 1,
+  },
+  deviceName: {
+    ...Typography.body,
+    fontWeight: "500",
+  },
+  deviceAddress: {
+    ...Typography.caption,
+    marginTop: 2,
   },
 });

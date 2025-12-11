@@ -6,11 +6,21 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "soundstream",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.soundstream.app"
+      "bundleIdentifier": "com.soundstream.app",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "SoundStream needs local network access to discover and control your music servers and audio devices.",
+        "NSBonjourServices": [
+          "_upnp._tcp",
+          "_ssdp._udp"
+        ],
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
