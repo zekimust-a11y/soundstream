@@ -458,18 +458,18 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   const togglePlayPause = useCallback(() => {
     const newState = !isPlaying;
-    setIsPlaying(newState);
+    setIsPlaying(newState); // Optimistic update - don't revert on network error
     
     if (newState) {
       console.log('Sending Play command to Varese');
       upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1').catch((error) => {
-        console.error('Failed to play on Varese:', error);
-        setIsPlaying(false);
+        console.error('Play command error (may still be playing):', error);
+        // Don't revert state - Varese may have received the command
       });
     } else {
       console.log('Sending Stop command to Varese');
       upnpClient.stop(VARESE_AVTRANSPORT_URL, 0).catch((error) => {
-        console.error('Failed to stop on Varese:', error);
+        console.error('Stop command error:', error);
       });
     }
   }, [isPlaying]);
@@ -666,8 +666,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       }).then(() => {
         console.log('=== PLAY COMMAND SENT SUCCESSFULLY ===');
       }).catch((error) => {
-        console.error('Playback failed:', error);
-        setIsPlaying(false);
+        console.error('Playback error (may still be playing):', error);
+        // Don't revert isPlaying - Varese may have received the command
       }).finally(() => {
         isPlayingRef.current = false;
       });
