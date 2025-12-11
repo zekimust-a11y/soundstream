@@ -1,5 +1,13 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+export interface Zone {
+  id: string;
+  name: string;
+  type: "upnp" | "airplay" | "local";
+  isActive: boolean;
+  volume: number;
+}
 
 export interface Track {
   id: string;
@@ -20,6 +28,8 @@ interface PlaybackState {
   volume: number;
   shuffle: boolean;
   repeat: "off" | "all" | "one";
+  zones: Zone[];
+  activeZoneId: string | null;
 }
 
 interface PlaybackContextType extends PlaybackState {
@@ -37,11 +47,23 @@ interface PlaybackContextType extends PlaybackState {
   playTrack: (track: Track, tracks?: Track[]) => void;
   toggleShuffle: () => void;
   toggleRepeat: () => void;
+  setActiveZone: (zoneId: string) => void;
+  setZoneVolume: (zoneId: string, volume: number) => void;
+  toggleZone: (zoneId: string) => void;
+  activeZone: Zone | null;
 }
 
 const PlaybackContext = createContext<PlaybackContextType | undefined>(undefined);
 
 const STORAGE_KEY = "@soundstream_playback";
+const ZONES_KEY = "@soundstream_zones";
+
+const DEFAULT_ZONES: Zone[] = [
+  { id: "local", name: "This Device", type: "local", isActive: true, volume: 0.8 },
+  { id: "living-room", name: "Living Room", type: "upnp", isActive: false, volume: 0.7 },
+  { id: "bedroom", name: "Bedroom", type: "upnp", isActive: false, volume: 0.6 },
+  { id: "kitchen", name: "Kitchen Speaker", type: "airplay", isActive: false, volume: 0.5 },
+];
 
 export function PlaybackProvider({ children }: { children: ReactNode }) {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
@@ -51,14 +73,31 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const [volume, setVolumeState] = useState(0.8);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<"off" | "all" | "one">("off");
+  const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
+  const [activeZoneId, setActiveZoneId] = useState<string | null>("local");
+  
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedTimeRef = useRef<number>(0);
 
   useEffect(() => {
     loadState();
+    loadZones();
   }, []);
 
   useEffect(() => {
     saveState();
   }, [currentTrack, queue, volume, shuffle, repeat]);
+
+  useEffect(() => {
+    if (Math.abs(currentTime - lastSavedTimeRef.current) >= 10) {
+      lastSavedTimeRef.current = currentTime;
+      saveCurrentTime();
+    }
+  }, [currentTime]);
+
+  useEffect(() => {
+    saveZones();
+  }, [zones, activeZoneId]);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -85,9 +124,27 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         setVolumeState(state.volume ?? 0.8);
         setShuffle(state.shuffle ?? false);
         setRepeat(state.repeat ?? "off");
+        if (state.currentTrack) {
+          setCurrentTrack(state.currentTrack);
+          setCurrentTime(state.currentTime || 0);
+          lastSavedTimeRef.current = state.currentTime || 0;
+        }
       }
     } catch (e) {
       console.error("Failed to load playback state:", e);
+    }
+  };
+
+  const loadZones = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(ZONES_KEY);
+      if (stored) {
+        const data = JSON.parse(stored);
+        setZones(data.zones || DEFAULT_ZONES);
+        setActiveZoneId(data.activeZoneId || "local");
+      }
+    } catch (e) {
+      console.error("Failed to load zones:", e);
     }
   };
 
@@ -95,10 +152,41 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     try {
       await AsyncStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ queue, volume, shuffle, repeat })
+        JSON.stringify({ 
+          queue, 
+          volume, 
+          shuffle, 
+          repeat,
+          currentTrack,
+          currentTime: lastSavedTimeRef.current,
+        })
       );
     } catch (e) {
       console.error("Failed to save playback state:", e);
+    }
+  };
+
+  const saveCurrentTime = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const state = JSON.parse(stored);
+        state.currentTime = currentTime;
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+    } catch (e) {
+      console.error("Failed to save current time:", e);
+    }
+  };
+
+  const saveZones = async () => {
+    try {
+      await AsyncStorage.setItem(
+        ZONES_KEY,
+        JSON.stringify({ zones, activeZoneId })
+      );
+    } catch (e) {
+      console.error("Failed to save zones:", e);
     }
   };
 
@@ -205,6 +293,28 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setActiveZone = useCallback((zoneId: string) => {
+    setActiveZoneId(zoneId);
+  }, []);
+
+  const setZoneVolume = useCallback((zoneId: string, newVolume: number) => {
+    setZones((prev) =>
+      prev.map((z) =>
+        z.id === zoneId ? { ...z, volume: Math.max(0, Math.min(1, newVolume)) } : z
+      )
+    );
+  }, []);
+
+  const toggleZone = useCallback((zoneId: string) => {
+    setZones((prev) =>
+      prev.map((z) =>
+        z.id === zoneId ? { ...z, isActive: !z.isActive } : z
+      )
+    );
+  }, []);
+
+  const activeZone = zones.find((z) => z.id === activeZoneId) || null;
+
   return (
     <PlaybackContext.Provider
       value={{
@@ -215,6 +325,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         volume,
         shuffle,
         repeat,
+        zones,
+        activeZoneId,
+        activeZone,
         play,
         pause,
         togglePlayPause,
@@ -229,6 +342,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         playTrack,
         toggleShuffle,
         toggleRepeat,
+        setActiveZone,
+        setZoneVolume,
+        toggleZone,
       }}
     >
       {children}

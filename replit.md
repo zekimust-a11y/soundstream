@@ -54,6 +54,20 @@ client/
 - Server management for UPNP/LMS servers
 - Qobuz account connection flow
 
+### Latest Updates (December 2024)
+- **Persistent Playback State**: Playback state (currentTrack, currentTime, queue, volume, shuffle, repeat) now persists via AsyncStorage
+- **Multi-Zone Audio**: Zone selector modal in Now Playing screen allows multi-zone audio control with per-zone volume
+- **Favorites & Playlists**: Full favorites and playlist management with AsyncStorage persistence
+  - Toggle favorite on artists, albums, and tracks
+  - Create, rename, delete playlists
+  - Add/remove tracks, reorder playlist contents
+- **Enhanced Search**: Source filtering (Local/Qobuz/All), type filtering, favorites indicators, Qobuz badges
+- **Playlists Screen**: New dedicated screen accessible from Browse with full CRUD operations
+
+### Hooks API Summary
+- `usePlayback`: currentTrack, isPlaying, queue, zones, volume, shuffle, repeat, playTrack(), togglePlayPause(), next(), previous(), seek(), setActiveZone(), toggleZone(), setZoneVolume()
+- `useMusic`: artists, albums, servers, qobuzConnected, favorites, playlists, searchMusic(), toggleFavoriteTrack(), createPlaylist(), addToPlaylist(), etc.
+
 ## Running the App
 ```bash
 npm run dev
@@ -66,6 +80,7 @@ npm run dev
 - Real UPNP/DLNA server discovery and browsing
 - LMS (Logitech Media Server) integration
 - Actual Qobuz API integration for streaming
-- Multi-zone audio playback
 - Offline downloads
-- Playlist creation and management
+- Audio waveform visualization
+- Lyrics display
+- Crossfade and gapless playback

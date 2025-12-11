@@ -31,7 +31,7 @@ export default function BrowseScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { artists, albums, recentlyPlayed, isLoading, refreshLibrary, activeServer } = useMusic();
+  const { artists, albums, recentlyPlayed, isLoading, refreshLibrary, activeServer, playlists } = useMusic();
   const { playTrack } = usePlayback();
 
   const handleArtistPress = useCallback((artist: { id: string; name: string }) => {
@@ -76,6 +76,22 @@ export default function BrowseScreen() {
           />
         }
       >
+        <View style={styles.quickAccess}>
+          <Pressable
+            style={({ pressed }) => [styles.quickAccessCard, { opacity: pressed ? 0.7 : 1 }]}
+            onPress={() => navigation.navigate("Playlists")}
+          >
+            <View style={[styles.quickAccessIcon, { backgroundColor: Colors.dark.accent + "20" }]}>
+              <Feather name="list" size={20} color={Colors.dark.accent} />
+            </View>
+            <View style={styles.quickAccessInfo}>
+              <ThemedText style={styles.quickAccessTitle}>Playlists</ThemedText>
+              <ThemedText style={styles.quickAccessMeta}>{playlists.length} playlists</ThemedText>
+            </View>
+            <Feather name="chevron-right" size={20} color={Colors.dark.textTertiary} />
+          </Pressable>
+        </View>
+
         {recentlyPlayed.length > 0 ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -324,5 +340,34 @@ const styles = StyleSheet.create({
     ...Typography.label,
     color: Colors.dark.textTertiary,
     marginTop: Spacing.xs,
+  },
+  quickAccess: {
+    marginBottom: Spacing.xl,
+  },
+  quickAccessCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+  },
+  quickAccessIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  quickAccessInfo: {
+    flex: 1,
+  },
+  quickAccessTitle: {
+    ...Typography.headline,
+    color: Colors.dark.text,
+  },
+  quickAccessMeta: {
+    ...Typography.caption,
+    color: Colors.dark.textSecondary,
   },
 });

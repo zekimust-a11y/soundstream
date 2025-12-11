@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   StyleSheet,
   Pressable,
   Dimensions,
+  Modal,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -14,7 +16,7 @@ import Slider from "@react-native-community/slider";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
-import { usePlayback } from "@/hooks/usePlayback";
+import { usePlayback, Zone } from "@/hooks/usePlayback";
 
 const { width } = Dimensions.get("window");
 const ALBUM_ART_SIZE = width * 0.8;
@@ -25,9 +27,71 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
+  zone: Zone;
+  isActive: boolean;
+  onSelect: () => void;
+  onToggle: () => void;
+  onVolumeChange: (volume: number) => void;
+}) {
+  const iconName = zone.type === "airplay" ? "airplay" : zone.type === "upnp" ? "speaker" : "smartphone";
+  
+  return (
+    <View style={styles.zoneItem}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.zoneHeader,
+          isActive && styles.zoneHeaderActive,
+          { opacity: pressed ? 0.7 : 1 },
+        ]}
+        onPress={onSelect}
+      >
+        <View style={[styles.zoneIcon, zone.isActive && styles.zoneIconActive]}>
+          <Feather name={iconName} size={20} color={zone.isActive ? Colors.dark.accent : Colors.dark.textSecondary} />
+        </View>
+        <View style={styles.zoneInfo}>
+          <ThemedText style={[styles.zoneName, zone.isActive && styles.zoneNameActive]}>
+            {zone.name}
+          </ThemedText>
+          <ThemedText style={styles.zoneType}>
+            {zone.type === "upnp" ? "UPNP Renderer" : zone.type === "airplay" ? "AirPlay" : "Local"}
+          </ThemedText>
+        </View>
+        <Pressable
+          style={({ pressed }) => [styles.zoneToggle, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={onToggle}
+        >
+          <View style={[styles.checkbox, zone.isActive && styles.checkboxActive]}>
+            {zone.isActive ? (
+              <Feather name="check" size={14} color={Colors.dark.buttonText} />
+            ) : null}
+          </View>
+        </Pressable>
+      </Pressable>
+      {zone.isActive ? (
+        <View style={styles.zoneVolume}>
+          <Feather name="volume" size={14} color={Colors.dark.textTertiary} />
+          <Slider
+            style={styles.zoneVolumeSlider}
+            minimumValue={0}
+            maximumValue={1}
+            value={zone.volume}
+            onValueChange={onVolumeChange}
+            minimumTrackTintColor={Colors.dark.accent}
+            maximumTrackTintColor={Colors.dark.backgroundTertiary}
+            thumbTintColor={Colors.dark.accent}
+          />
+          <ThemedText style={styles.zoneVolumeText}>{Math.round(zone.volume * 100)}%</ThemedText>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export default function NowPlayingScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const [showZoneModal, setShowZoneModal] = useState(false);
   const {
     currentTrack,
     isPlaying,
@@ -35,6 +99,9 @@ export default function NowPlayingScreen() {
     volume,
     shuffle,
     repeat,
+    zones,
+    activeZone,
+    activeZoneId,
     togglePlayPause,
     next,
     previous,
@@ -42,7 +109,12 @@ export default function NowPlayingScreen() {
     setVolume,
     toggleShuffle,
     toggleRepeat,
+    setActiveZone,
+    setZoneVolume,
+    toggleZone,
   } = usePlayback();
+
+  const activeZones = zones.filter(z => z.isActive);
 
   if (!currentTrack) {
     return (
@@ -202,13 +274,64 @@ export default function NowPlayingScreen() {
         <View style={[styles.deviceSelector, { marginBottom: insets.bottom + Spacing.xl }]}>
           <Pressable
             style={({ pressed }) => [styles.deviceButton, { opacity: pressed ? 0.6 : 1 }]}
+            onPress={() => setShowZoneModal(true)}
           >
             <Feather name="speaker" size={16} color={Colors.dark.accent} />
-            <ThemedText style={styles.deviceText}>This device</ThemedText>
+            <ThemedText style={styles.deviceText}>
+              {activeZones.length > 1 
+                ? `${activeZones.length} zones` 
+                : activeZone?.name || "Select zone"}
+            </ThemedText>
             <Feather name="chevron-up" size={16} color={Colors.dark.textSecondary} />
           </Pressable>
         </View>
       </View>
+
+      <Modal
+        visible={showZoneModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowZoneModal(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setShowZoneModal(false)}
+        >
+          <Pressable 
+            style={[styles.modalContent, { paddingBottom: insets.bottom + Spacing.lg }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <ThemedText style={styles.modalTitle}>Play To</ThemedText>
+              <ThemedText style={styles.modalSubtitle}>
+                Select one or more zones
+              </ThemedText>
+            </View>
+            <ScrollView style={styles.zoneList}>
+              {zones.map((zone) => (
+                <ZoneItem
+                  key={zone.id}
+                  zone={zone}
+                  isActive={zone.id === activeZoneId}
+                  onSelect={() => setActiveZone(zone.id)}
+                  onToggle={() => toggleZone(zone.id)}
+                  onVolumeChange={(vol) => setZoneVolume(zone.id, vol)}
+                />
+              ))}
+            </ScrollView>
+            <Pressable
+              style={({ pressed }) => [
+                styles.doneButton,
+                { opacity: pressed ? 0.8 : 1 },
+              ]}
+              onPress={() => setShowZoneModal(false)}
+            >
+              <ThemedText style={styles.doneButtonText}>Done</ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -374,5 +497,130 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.dark.textSecondary,
     textAlign: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderTopLeftRadius: BorderRadius.md,
+    borderTopRightRadius: BorderRadius.md,
+    paddingTop: Spacing.md,
+    maxHeight: "70%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: Colors.dark.textTertiary,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: Spacing.lg,
+  },
+  modalHeader: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  modalTitle: {
+    ...Typography.title,
+    color: Colors.dark.text,
+  },
+  modalSubtitle: {
+    ...Typography.caption,
+    color: Colors.dark.textSecondary,
+    marginTop: Spacing.xs,
+  },
+  zoneList: {
+    paddingHorizontal: Spacing.lg,
+  },
+  zoneItem: {
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.dark.backgroundSecondary,
+    borderRadius: BorderRadius.sm,
+    overflow: "hidden",
+  },
+  zoneHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+  },
+  zoneHeaderActive: {
+    backgroundColor: Colors.dark.accent + "10",
+  },
+  zoneIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.dark.backgroundTertiary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  zoneIconActive: {
+    backgroundColor: Colors.dark.accent + "20",
+  },
+  zoneInfo: {
+    flex: 1,
+  },
+  zoneName: {
+    ...Typography.body,
+    color: Colors.dark.text,
+  },
+  zoneNameActive: {
+    color: Colors.dark.accent,
+  },
+  zoneType: {
+    ...Typography.caption,
+    color: Colors.dark.textTertiary,
+    marginTop: 2,
+  },
+  zoneToggle: {
+    padding: Spacing.sm,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: Colors.dark.textTertiary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  checkboxActive: {
+    backgroundColor: Colors.dark.accent,
+    borderColor: Colors.dark.accent,
+  },
+  zoneVolume: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+    paddingTop: Spacing.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.dark.border,
+  },
+  zoneVolumeSlider: {
+    flex: 1,
+    height: 30,
+    marginHorizontal: Spacing.sm,
+  },
+  zoneVolumeText: {
+    ...Typography.caption,
+    color: Colors.dark.textSecondary,
+    width: 40,
+    textAlign: "right",
+  },
+  doneButton: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.dark.accent,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    alignItems: "center",
+  },
+  doneButtonText: {
+    ...Typography.bodyBold,
+    color: Colors.dark.buttonText,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -23,6 +23,7 @@ import type { SearchStackParamList } from "@/navigation/SearchStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SearchStackParamList>;
 type FilterTab = "all" | "artists" | "albums" | "tracks";
+type SourceFilter = "all" | "local" | "qobuz";
 
 interface SearchResult {
   type: "artist" | "album" | "track";
@@ -33,11 +34,12 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { searchMusic, addToRecentlyPlayed } = useMusic();
+  const { searchMusic, addToRecentlyPlayed, isFavoriteTrack, toggleFavoriteTrack } = useMusic();
   const { playTrack } = usePlayback();
 
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [results, setResults] = useState<{
     artists: Artist[];
     albums: Album[];
@@ -45,17 +47,27 @@ export default function SearchScreen() {
   }>({ artists: [], albums: [], tracks: [] });
   const [isSearching, setIsSearching] = useState(false);
 
-  const handleSearch = useCallback(async (text: string) => {
-    setQuery(text);
+  const performSearch = useCallback(async (text: string, source: SourceFilter, type: FilterTab) => {
     if (text.length < 2) {
       setResults({ artists: [], albums: [], tracks: [] });
       return;
     }
     setIsSearching(true);
-    const searchResults = await searchMusic(text);
+    const searchResults = await searchMusic(text, { source, type });
     setResults(searchResults);
     setIsSearching(false);
   }, [searchMusic]);
+
+  const handleSearch = useCallback(async (text: string) => {
+    setQuery(text);
+    performSearch(text, sourceFilter, activeTab);
+  }, [performSearch, sourceFilter, activeTab]);
+
+  useEffect(() => {
+    if (query.length >= 2) {
+      performSearch(query, sourceFilter, activeTab);
+    }
+  }, [sourceFilter, activeTab]);
 
   const getFilteredResults = (): SearchResult[] => {
     const allResults: SearchResult[] = [];
@@ -136,6 +148,7 @@ export default function SearchScreen() {
       );
     } else {
       const track = item.data as Track;
+      const isFavorite = isFavoriteTrack(track.id);
       return (
         <Pressable
           style={({ pressed }) => [styles.resultRow, { opacity: pressed ? 0.6 : 1 }]}
@@ -147,13 +160,31 @@ export default function SearchScreen() {
             contentFit="cover"
           />
           <View style={styles.resultInfo}>
-            <ThemedText style={styles.resultTitle} numberOfLines={1}>
-              {track.title}
-            </ThemedText>
+            <View style={styles.trackTitleRow}>
+              <ThemedText style={styles.resultTitle} numberOfLines={1}>
+                {track.title}
+              </ThemedText>
+              {track.source === "qobuz" ? (
+                <View style={styles.qobuzBadge}>
+                  <ThemedText style={styles.qobuzBadgeText}>Q</ThemedText>
+                </View>
+              ) : null}
+            </View>
             <ThemedText style={styles.resultSubtitle} numberOfLines={1}>
               Track • {track.artist}
             </ThemedText>
           </View>
+          <Pressable
+            style={({ pressed }) => [styles.favoriteButton, { opacity: pressed ? 0.6 : 1 }]}
+            onPress={() => toggleFavoriteTrack(track.id)}
+          >
+            <Feather 
+              name={isFavorite ? "heart" : "heart"} 
+              size={18} 
+              color={isFavorite ? Colors.dark.error : Colors.dark.textTertiary} 
+              style={isFavorite ? { opacity: 1 } : { opacity: 0.5 }}
+            />
+          </Pressable>
           <Feather name="play-circle" size={24} color={Colors.dark.accent} />
         </Pressable>
       );
@@ -197,28 +228,71 @@ export default function SearchScreen() {
         </View>
 
         {query.length > 0 ? (
-          <View style={styles.tabsContainer}>
-            {tabs.map((tab) => (
+          <>
+            <View style={styles.tabsContainer}>
+              {tabs.map((tab) => (
+                <Pressable
+                  key={tab.key}
+                  style={({ pressed }) => [
+                    styles.tab,
+                    activeTab === tab.key && styles.tabActive,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                  onPress={() => setActiveTab(tab.key)}
+                >
+                  <ThemedText
+                    style={[
+                      styles.tabText,
+                      activeTab === tab.key && styles.tabTextActive,
+                    ]}
+                  >
+                    {tab.label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.sourceFilters}>
               <Pressable
-                key={tab.key}
                 style={({ pressed }) => [
-                  styles.tab,
-                  activeTab === tab.key && styles.tabActive,
+                  styles.sourceChip,
+                  sourceFilter === "all" && styles.sourceChipActive,
                   { opacity: pressed ? 0.6 : 1 },
                 ]}
-                onPress={() => setActiveTab(tab.key)}
+                onPress={() => setSourceFilter("all")}
               >
-                <ThemedText
-                  style={[
-                    styles.tabText,
-                    activeTab === tab.key && styles.tabTextActive,
-                  ]}
-                >
-                  {tab.label}
+                <Feather name="globe" size={12} color={sourceFilter === "all" ? Colors.dark.text : Colors.dark.textSecondary} />
+                <ThemedText style={[styles.sourceChipText, sourceFilter === "all" && styles.sourceChipTextActive]}>
+                  All Sources
                 </ThemedText>
               </Pressable>
-            ))}
-          </View>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.sourceChip,
+                  sourceFilter === "local" && styles.sourceChipActive,
+                  { opacity: pressed ? 0.6 : 1 },
+                ]}
+                onPress={() => setSourceFilter("local")}
+              >
+                <Feather name="server" size={12} color={sourceFilter === "local" ? Colors.dark.text : Colors.dark.textSecondary} />
+                <ThemedText style={[styles.sourceChipText, sourceFilter === "local" && styles.sourceChipTextActive]}>
+                  Local
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.sourceChip,
+                  sourceFilter === "qobuz" && styles.sourceChipActive,
+                  { opacity: pressed ? 0.6 : 1 },
+                ]}
+                onPress={() => setSourceFilter("qobuz")}
+              >
+                <ThemedText style={[styles.qobuzIcon, sourceFilter === "qobuz" && styles.qobuzIconActive]}>Q</ThemedText>
+                <ThemedText style={[styles.sourceChipText, sourceFilter === "qobuz" && styles.sourceChipTextActive]}>
+                  Qobuz
+                </ThemedText>
+              </Pressable>
+            </View>
+          </>
         ) : null}
       </View>
 
@@ -361,5 +435,59 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.dark.textSecondary,
     textAlign: "center",
+  },
+  sourceFilters: {
+    flexDirection: "row",
+    marginTop: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  sourceChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    gap: 4,
+  },
+  sourceChipActive: {
+    backgroundColor: Colors.dark.accentSecondary,
+    borderColor: Colors.dark.accentSecondary,
+  },
+  sourceChipText: {
+    ...Typography.label,
+    color: Colors.dark.textSecondary,
+  },
+  sourceChipTextActive: {
+    color: Colors.dark.text,
+  },
+  qobuzIcon: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.dark.textSecondary,
+  },
+  qobuzIconActive: {
+    color: Colors.dark.text,
+  },
+  trackTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  qobuzBadge: {
+    backgroundColor: "#F99C38",
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  qobuzBadgeText: {
+    fontSize: 8,
+    fontWeight: "700",
+    color: "#000",
+  },
+  favoriteButton: {
+    padding: Spacing.sm,
+    marginRight: Spacing.xs,
   },
 });
