@@ -594,7 +594,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       clearTimeout(volumeTimeoutRef.current);
     }
     
-    // Send after 200ms of no movement (gives time for slider to settle)
+    // Send after 300ms of no movement (gives time for slider to settle)
     volumeTimeoutRef.current = setTimeout(async () => {
       const finalVol = pendingVolumeRef.current;
       if (finalVol === null) return;
