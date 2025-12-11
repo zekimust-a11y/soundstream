@@ -24,6 +24,7 @@ import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { useTheme } from "@/hooks/useTheme";
 import { useSsdpDiscovery } from "@/hooks/useSsdpDiscovery";
+import { usePlayback } from "@/hooks/usePlayback";
 import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SettingsStackParamList>;
@@ -84,6 +85,8 @@ export default function SettingsScreen() {
   const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, artists, albums, addServer } = useMusic();
   const { theme } = useTheme();
   const { devices, isDiscovering, error: discoveryError, timeRemaining, startDiscovery, getMediaServers, getMediaRenderers, getContentDirectoryUrl, getAVTransportUrl } = useSsdpDiscovery();
+  const { runOpenHomeDiagnostic } = usePlayback();
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
 
   const [gapless, setGapless] = useState(true);
   const [crossfade, setCrossfade] = useState(false);
@@ -553,6 +556,36 @@ export default function SettingsScreen() {
               onPress={() => {}}
             />
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Developer</ThemedText>
+          <View style={styles.sectionContent}>
+            <SettingRow
+              icon="activity"
+              iconColor="#9C27B0"
+              title="Run OpenHome Diagnostic"
+              subtitle="Probe Varese for available OpenHome services"
+              onPress={async () => {
+                setIsDiagnosing(true);
+                try {
+                  await runOpenHomeDiagnostic();
+                  Alert.alert(
+                    "Diagnostic Complete",
+                    "Check the console logs for results. Look for SUCCESS entries to see which services work."
+                  );
+                } catch (error) {
+                  Alert.alert("Error", String(error));
+                } finally {
+                  setIsDiagnosing(false);
+                }
+              }}
+              rightElement={isDiagnosing ? <ActivityIndicator size="small" /> : null}
+            />
+          </View>
+          <ThemedText style={styles.refreshHint}>
+            Probes the dCS Varese for OpenHome services. Results appear in developer console.
+          </ThemedText>
         </View>
       </ScrollView>
     </ThemedView>

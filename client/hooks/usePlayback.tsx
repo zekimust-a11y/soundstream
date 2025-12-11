@@ -79,6 +79,7 @@ interface PlaybackContextType extends PlaybackState {
   setZoneVolume: (zoneId: string, volume: number) => void;
   toggleZone: (zoneId: string) => void;
   activeZone: Zone | null;
+  runOpenHomeDiagnostic: () => Promise<void>;
 }
 
 const PlaybackContext = createContext<PlaybackContextType | undefined>(undefined);
@@ -113,45 +114,26 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const discoverVareseServices = async () => {
-    console.log('=== DISCOVERING VARESE SERVICES ===');
+    console.log('=== DISCOVERING VARESE SERVICES (silent mode) ===');
     
-    // Try to discover OpenHome services by probing the guessed URLs
-    // Based on the AVTransport URL pattern, construct OpenHome service URLs
-    const services: OpenHomeServices = {};
+    // Since device description returns 403 and OpenHome probes fail,
+    // we just use the hardcoded AVTransport URL which we know works
+    // OpenHome services require further investigation via the diagnostic tool
     
-    // Try each device description path
-    for (const path of DEVICE_DESCRIPTION_PATHS) {
-      try {
-        console.log('Trying device description:', VARESE_BASE_HOST + path);
-        const deviceServices = await upnpClient.fetchDeviceServices(VARESE_BASE_HOST + path);
-        if (Object.keys(deviceServices).length > 0) {
-          console.log('Found services from:', path, deviceServices);
-          Object.assign(services, deviceServices);
-          break;
-        }
-      } catch (error) {
-        // Continue to next path
-      }
-    }
+    const services: OpenHomeServices = {
+      avTransportControlURL: VARESE_AVTRANSPORT_URL,
+      renderingControlURL: VARESE_RENDERINGCONTROL_URL,
+    };
     
-    // If no services found via device description, test our guessed OpenHome URLs
-    if (!services.playlistControlURL) {
-      console.log('No services from device description, testing guessed OpenHome URLs...');
-      
-      // Test Product.SourceXml to verify OpenHome is accessible
-      try {
-        await upnpClient.productSourceXml(VARESE_OH_PRODUCT_URL);
-        console.log('OpenHome Product service is accessible!');
-        services.productControlURL = VARESE_OH_PRODUCT_URL;
-        services.playlistControlURL = VARESE_OH_PLAYLIST_URL;
-        services.transportControlURL = VARESE_OH_TRANSPORT_URL;
-      } catch (error) {
-        console.log('OpenHome Product probe failed:', error);
-      }
-    }
-    
-    console.log('Discovered Varese services:', services);
+    console.log('Using hardcoded Varese services:', services);
     setVareseServices(services);
+  };
+  
+  // Run diagnostic to probe all OpenHome services
+  const runOpenHomeDiagnostic = async () => {
+    console.log('=== RUNNING OPENHOME DIAGNOSTIC ===');
+    const uuid = '938555d3-b45d-cdb9-7a3b-00e04c68c799';
+    await upnpClient.diagnoseOpenHomeServices(VARESE_BASE, uuid);
   };
 
   const fetchVareseVolume = async () => {
@@ -637,6 +619,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         setActiveZone,
         setZoneVolume,
         toggleZone,
+        runOpenHomeDiagnostic,
       }}
     >
       {children}

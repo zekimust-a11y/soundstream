@@ -6,6 +6,7 @@ export interface OpenHomeServices {
   transportControlURL?: string;
   productControlURL?: string;
   avTransportControlURL?: string;
+  renderingControlURL?: string;
 }
 
 // Fetch and parse device description to discover OpenHome service URLs
@@ -978,6 +979,77 @@ export const productSetSource = async (productControlURL: string, sourceIndex: n
   }
   
   console.log('Product source set successfully');
+};
+
+// Probe an OpenHome service with a simple action to see if it responds
+export const probeOpenHomeService = async (
+  controlURL: string, 
+  serviceType: string, 
+  action: string
+): Promise<{ success: boolean; response: string }> => {
+  const body = '';
+  const soapEnvelope = createSoapEnvelope(action, serviceType, body);
+  const soapAction = `"${serviceType}#${action}"`;
+  
+  console.log(`Probing ${serviceType} action ${action} at ${controlURL}`);
+  
+  try {
+    const response = await fetch(controlURL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset="utf-8"',
+        'SOAPACTION': soapAction,
+      },
+      body: soapEnvelope,
+    });
+    
+    const responseText = await response.text();
+    console.log(`Probe ${action} status: ${response.status}`);
+    console.log(`Probe ${action} response:`, responseText.substring(0, 300));
+    
+    return { success: response.ok, response: responseText };
+  } catch (error) {
+    console.log(`Probe ${action} failed:`, error);
+    return { success: false, response: String(error) };
+  }
+};
+
+// Diagnose which OpenHome services are available on a device
+export const diagnoseOpenHomeServices = async (baseUrl: string, uuid: string): Promise<void> => {
+  console.log('=== DIAGNOSING OPENHOME SERVICES ===');
+  
+  const servicesToProbe = [
+    { service: 'Product', version: 1, actions: ['Manufacturer', 'Model', 'Source', 'SourceIndex'] },
+    { service: 'Product', version: 2, actions: ['Manufacturer', 'Model'] },
+    { service: 'Transport', version: 1, actions: ['TransportState', 'ModeInfo'] },
+    { service: 'Playlist', version: 1, actions: ['TransportState', 'Id', 'IdArray'] },
+    { service: 'Volume', version: 1, actions: ['Volume', 'Mute'] },
+    { service: 'Volume', version: 2, actions: ['Volume', 'Mute'] },
+    { service: 'Info', version: 1, actions: ['Track', 'Metatext'] },
+  ];
+  
+  for (const { service, version, actions } of servicesToProbe) {
+    const controlUrl = `${baseUrl}/uuid-${uuid}/ctl-urn-av-openhome-org-service-${service}-${version}`;
+    const serviceType = `urn:av-openhome-org:service:${service}:${version}`;
+    
+    console.log(`\n--- Testing ${service}:${version} ---`);
+    
+    for (const action of actions) {
+      const result = await probeOpenHomeService(controlUrl, serviceType, action);
+      if (result.success) {
+        console.log(`SUCCESS: ${service}:${version}.${action} works!`);
+      } else if (result.response.includes('errorCode>404<')) {
+        console.log(`FAIL: ${service}:${version}.${action} - Invalid action`);
+      } else if (result.response.includes('errorCode>')) {
+        const errorCode = result.response.match(/errorCode>(\d+)</)?.[1];
+        console.log(`FAIL: ${service}:${version}.${action} - Error code ${errorCode}`);
+      } else {
+        console.log(`UNKNOWN: ${service}:${version}.${action} - ${result.response.substring(0, 100)}`);
+      }
+    }
+  }
+  
+  console.log('\n=== DIAGNOSIS COMPLETE ===');
 };
 
 export const productSourceXml = async (productControlURL: string): Promise<string> => {
