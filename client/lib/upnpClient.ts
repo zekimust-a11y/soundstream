@@ -609,20 +609,14 @@ export const getTransportInfo = async (controlURL: string, instanceId: number = 
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  // Use proxySoapRequest - 1s for LAN polling
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 1000);
   
-  if (!response.ok) {
-    throw new Error(`GetTransportInfo failed: ${response.status}`);
+  if (!result.ok) {
+    throw new Error(`GetTransportInfo failed: ${result.status}`);
   }
   
-  const xml = await response.text();
+  const xml = result.text;
   
   return {
     currentTransportState: xml.match(/<CurrentTransportState>([^<]+)<\/CurrentTransportState>/)?.[1] || 'UNKNOWN',
@@ -647,20 +641,14 @@ export const getPositionInfo = async (controlURL: string, instanceId: number = 0
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  // Use proxySoapRequest - 2s for position queries
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 2000);
   
-  if (!response.ok) {
-    throw new Error(`GetPositionInfo failed: ${response.status}`);
+  if (!result.ok) {
+    throw new Error(`GetPositionInfo failed: ${result.status}`);
   }
   
-  const xml = await response.text();
+  const xml = result.text;
   
   return {
     track: parseInt(xml.match(/<Track>(\d+)<\/Track>/)?.[1] || '0'),
@@ -688,17 +676,11 @@ export const seek = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  // Use proxySoapRequest for consistent timeout handling
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 3000);
   
-  if (!response.ok) {
-    throw new Error(`Seek failed: ${response.status}`);
+  if (!result.ok) {
+    throw new Error(`Seek failed: ${result.status}`);
   }
 };
 
