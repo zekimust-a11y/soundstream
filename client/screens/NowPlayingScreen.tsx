@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 24,
     justifyContent: "center",
-    marginBottom: -20,
+    marginBottom: -12,
     zIndex: 1,
   },
   progressTrackBackground: {
@@ -539,13 +539,14 @@ const styles = StyleSheet.create({
   },
   progressSlider: {
     width: "100%",
-    height: 40,
+    height: 24,
+    marginTop: -8,
     zIndex: 2,
   },
   timeLabels: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: -Spacing.sm,
+    marginTop: Spacing.sm,
   },
   timeLabel: {
     ...Typography.caption,
