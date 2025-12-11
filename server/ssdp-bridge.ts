@@ -265,11 +265,57 @@ function sendSsdpSearch(socket: dgram.Socket) {
   console.log('[SSDP] Sent discovery requests');
 }
 
+async function proxyUpnpRequest(targetUrl: string, soapAction: string, body: string): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(targetUrl);
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || 80,
+      path: parsedUrl.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset="utf-8"',
+        'SOAPACTION': soapAction,
+        'Content-Length': Buffer.byteLength(body),
+        'Connection': 'close',
+        'User-Agent': 'SoundStream/1.0 UPnP/1.1'
+      }
+    };
+
+    console.log(`[Proxy] Forwarding to ${targetUrl}`);
+    console.log(`[Proxy] SOAPAction: ${soapAction}`);
+
+    const req = http.request(options, (response) => {
+      let data = '';
+      response.on('data', chunk => data += chunk);
+      response.on('end', () => {
+        console.log(`[Proxy] Response status: ${response.statusCode}`);
+        console.log(`[Proxy] Response preview: ${data.substring(0, 200)}`);
+        resolve({ status: response.statusCode || 500, body: data });
+      });
+    });
+
+    req.on('error', (e) => {
+      console.error(`[Proxy] Request error:`, e);
+      reject(e);
+    });
+
+    req.setTimeout(10000, () => {
+      console.error(`[Proxy] Request timeout`);
+      req.destroy();
+      reject(new Error('Timeout'));
+    });
+
+    req.write(body);
+    req.end();
+  });
+}
+
 function startHttpServer() {
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Target-URL, X-SOAP-Action');
     
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -278,6 +324,32 @@ function startHttpServer() {
     }
 
     const url = new URL(req.url || '/', `http://localhost:${BRIDGE_PORT}`);
+    
+    if (url.pathname === '/proxy' && req.method === 'POST') {
+      const targetUrl = req.headers['x-target-url'] as string;
+      const soapAction = req.headers['x-soap-action'] as string;
+      
+      if (!targetUrl || !soapAction) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing X-Target-URL or X-SOAP-Action header' }));
+        return;
+      }
+      
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', async () => {
+        try {
+          const result = await proxyUpnpRequest(targetUrl, soapAction, body);
+          res.writeHead(result.status, { 'Content-Type': 'text/xml' });
+          res.end(result.body);
+        } catch (e: any) {
+          console.error('[Proxy] Error:', e);
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message || 'Proxy error' }));
+        }
+      });
+      return;
+    }
     
     if (url.pathname === '/devices' || url.pathname === '/') {
       const deviceList = Array.from(devices.values());
@@ -342,10 +414,11 @@ function startHttpServer() {
     console.log(`[Bridge] HTTP API running on http://localhost:${BRIDGE_PORT}`);
     console.log('');
     console.log('Available endpoints:');
-    console.log(`  GET /devices    - All discovered UPnP devices`);
-    console.log(`  GET /renderers  - Media renderers (DACs, streamers)`);
-    console.log(`  GET /servers    - Media servers (MinimServer, etc.)`);
-    console.log(`  GET /discover   - Trigger new SSDP search`);
+    console.log(`  GET  /devices    - All discovered UPnP devices`);
+    console.log(`  GET  /renderers  - Media renderers (DACs, streamers)`);
+    console.log(`  GET  /servers    - Media servers (MinimServer, etc.)`);
+    console.log(`  GET  /discover   - Trigger new SSDP search`);
+    console.log(`  POST /proxy      - Proxy UPnP requests to local devices`);
     console.log('');
   });
 }

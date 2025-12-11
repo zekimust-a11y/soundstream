@@ -89,6 +89,17 @@ The bridge needs to stay running in Terminal while you use the app. You can:
 1. Keep the Terminal window open in the background
 2. Or use a tool like `screen` or `tmux` to run it in the background
 
+## UPnP Proxy Feature
+
+The bridge now includes a **proxy endpoint** that forwards UPnP control requests from your iPhone to local network devices. This solves a common issue where Expo Go's networking cannot reliably reach certain devices on your local network.
+
+### How it works:
+1. When the app detects the bridge is running, it automatically routes UPnP requests through it
+2. The bridge forwards requests to your Varese (or other UPnP devices)
+3. Responses are relayed back to your iPhone
+
+This means playback and volume control will work as long as the bridge is running!
+
 ## Security Note
 
-The bridge only listens on your local network and provides read-only device discovery information. It does not expose any sensitive data or allow control of your devices from outside your home network.
+The bridge only listens on your local network and provides device discovery and control relay. It does not expose any sensitive data or allow control of your devices from outside your home network.

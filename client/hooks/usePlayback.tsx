@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as upnpClient from "@/lib/upnpClient";
-import { OpenHomeServices } from "@/lib/upnpClient";
+import { OpenHomeServices, setBridgeProxyUrl } from "@/lib/upnpClient";
 
 // Fallback hardcoded URLs (used when bridge is not available)
 // dCS Varese Core - has multiple network interfaces, try both IPs
@@ -216,6 +216,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         setBridgeConnected(true);
         setDiscoveredRenderers(data.renderers);
         
+        // Enable proxy routing for UPnP requests through the bridge
+        setBridgeProxyUrl(bridgeEndpoint);
+        console.log(`[Bridge] Proxy routing enabled through ${bridgeEndpoint}`);
+        
         // If we found a renderer with AVTransport URL, update the services
         const varese = data.renderers.find(r => 
           r.name?.toLowerCase().includes('varese') || 
@@ -233,11 +237,13 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         console.log('[Bridge] Not available or returned error');
         setBridgeConnected(false);
         setDiscoveredRenderers([]);
+        setBridgeProxyUrl(null); // Disable proxy when bridge unavailable
       }
     } catch (e) {
       console.log('[Bridge] Not reachable (this is normal if not running):', e);
       setBridgeConnected(false);
       setDiscoveredRenderers([]);
+      setBridgeProxyUrl(null); // Disable proxy when bridge unavailable
     }
   };
 

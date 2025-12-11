@@ -30,12 +30,18 @@ SoundStream is a Roon-inspired mobile music player app built with Expo/React Nat
 - Queue management in the app
 - Bit-perfect audio streaming directly from MinimServer to Varese
 
-### SSDP Bridge (Optional)
-For discovering new devices, run the SSDP Bridge on your Mac:
+### SSDP Bridge (Required for Playback)
+The SSDP Bridge is **required** for playback control because Expo Go cannot reliably reach local network devices. The bridge proxies UPnP commands from your iPhone through your Mac to the Varese.
+
+Run the SSDP Bridge on your Mac:
 ```bash
-node ~/ssdp-bridge.js
+npx tsx server/ssdp-bridge.ts
 ```
 See `SSDP_BRIDGE_GUIDE.md` for setup instructions.
+
+When the bridge is running and detected by the app:
+- All UPnP requests are automatically routed through the bridge's /proxy endpoint
+- Playback, volume, and transport controls work reliably
 
 ## Architecture
 

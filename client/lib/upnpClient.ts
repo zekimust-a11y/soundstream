@@ -1,5 +1,71 @@
 import { DiscoveredDevice, ServiceInfo } from '../hooks/useSsdpDiscovery';
 
+// Bridge proxy URL for routing requests through Mac when Expo Go can't reach local devices
+let bridgeProxyUrl: string | null = null;
+
+export const setBridgeProxyUrl = (url: string | null) => {
+  bridgeProxyUrl = url;
+  console.log('[UPnP] Bridge proxy URL set to:', url);
+};
+
+export const getBridgeProxyUrl = () => bridgeProxyUrl;
+
+// Proxy-aware SOAP request that routes through bridge when available
+const proxySoapRequest = async (
+  targetUrl: string,
+  soapAction: string,
+  body: string,
+  timeoutMs: number = 15000
+): Promise<{ ok: boolean; status: number; text: string }> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    // If bridge proxy is available and target is a local IP, route through proxy
+    const isLocalTarget = targetUrl.includes('192.168.') || targetUrl.includes('10.') || targetUrl.includes('172.');
+    
+    if (bridgeProxyUrl && isLocalTarget) {
+      console.log('[UPnP] Routing through bridge proxy:', bridgeProxyUrl);
+      
+      const response = await fetch(`${bridgeProxyUrl}/proxy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/xml; charset="utf-8"',
+          'X-Target-URL': targetUrl,
+          'X-SOAP-Action': soapAction,
+        },
+        body: body,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      const text = await response.text();
+      return { ok: response.ok, status: response.status, text };
+    }
+    
+    // Direct request
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset="utf-8"',
+        'SOAPACTION': soapAction,
+      },
+      body: body,
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    const text = await response.text();
+    return { ok: response.ok, status: response.status, text };
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Network request timed out');
+    }
+    throw error;
+  }
+};
+
 // Fetch with timeout helper - React Native fetch doesn't have native timeout
 const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs: number = 15000): Promise<Response> => {
   const controller = new AbortController();
@@ -383,8 +449,6 @@ export const setAVTransportURI = async (
   const serviceType = 'urn:schemas-upnp-org:service:AVTransport:1';
   const action = 'SetAVTransportURI';
   
-  // Double-escape for XML: first escape any bare ampersands, then escape < and >
-  // Be careful not to double-escape already escaped entities
   const escapeForXml = (str: string): string => {
     return str
       .replace(/&(?!amp;|lt;|gt;|quot;|apos;)/g, '&amp;')
@@ -405,7 +469,6 @@ export const setAVTransportURI = async (
   console.log('SetAVTransportURI SOAP request to:', controlURL);
   console.log('SetAVTransportURI SOAP body preview:', soapEnvelope.substring(0, 800));
   
-  // Retry logic for network failures
   const maxRetries = 3;
   let lastError = '';
   
@@ -413,28 +476,20 @@ export const setAVTransportURI = async (
     try {
       console.log(`SetAVTransportURI attempt ${attempt}/${maxRetries}`);
       
-      const response = await fetch(controlURL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/xml; charset="utf-8"',
-          'SOAPACTION': soapAction,
-        },
-        body: soapEnvelope,
-      });
+      // Use proxy-aware request
+      const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 15000);
       
-      const responseText = await response.text();
-      console.log('SetAVTransportURI response status:', response.status);
-      console.log('SetAVTransportURI response:', responseText.substring(0, 500));
+      console.log('SetAVTransportURI response status:', result.status);
+      console.log('SetAVTransportURI response:', result.text.substring(0, 500));
       
-      if (!response.ok) {
-        console.error('SetAVTransportURI HTTP error:', response.status, responseText);
-        return { success: false, error: `HTTP ${response.status}: ${responseText.substring(0, 200)}` };
+      if (!result.ok) {
+        console.error('SetAVTransportURI HTTP error:', result.status, result.text);
+        return { success: false, error: `HTTP ${result.status}: ${result.text.substring(0, 200)}` };
       }
       
-      // Check for SOAP Fault in the response
-      if (responseText.includes('Fault') || responseText.includes('UPnPError')) {
-        const errorCodeMatch = responseText.match(/<errorCode>(\d+)<\/errorCode>/);
-        const errorDescMatch = responseText.match(/<errorDescription>([^<]+)<\/errorDescription>/);
+      if (result.text.includes('Fault') || result.text.includes('UPnPError')) {
+        const errorCodeMatch = result.text.match(/<errorCode>(\d+)<\/errorCode>/);
+        const errorDescMatch = result.text.match(/<errorDescription>([^<]+)<\/errorDescription>/);
         const errorMsg = `UPnP Error ${errorCodeMatch?.[1] || 'unknown'}: ${errorDescMatch?.[1] || 'Unknown error'}`;
         console.error('SetAVTransportURI SOAP Fault:', errorMsg);
         return { success: false, error: errorMsg };
@@ -446,7 +501,6 @@ export const setAVTransportURI = async (
       lastError = String(error);
       console.error(`SetAVTransportURI attempt ${attempt} failed:`, error);
       
-      // If not the last attempt, wait before retrying
       if (attempt < maxRetries) {
         console.log('Retrying in 500ms...');
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -470,20 +524,12 @@ export const play = async (controlURL: string, instanceId: number = 0, speed: st
   
   console.log('Play SOAP request to:', controlURL);
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 15000);
   
-  const responseText = await response.text();
-  console.log('Play response status:', response.status);
+  console.log('Play response status:', result.status);
   
-  if (!response.ok) {
-    throw new Error(`Play failed: ${response.status} - ${responseText}`);
+  if (!result.ok) {
+    throw new Error(`Play failed: ${result.status} - ${result.text}`);
   }
 };
 
@@ -496,17 +542,10 @@ export const pause = async (controlURL: string, instanceId: number = 0): Promise
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 15000);
   
-  if (!response.ok) {
-    throw new Error(`Pause failed: ${response.status}`);
+  if (!result.ok) {
+    throw new Error(`Pause failed: ${result.status}`);
   }
 };
 
@@ -521,17 +560,10 @@ export const stop = async (controlURL: string, instanceId: number = 0): Promise<
   
   console.log('Stop SOAP request to:', controlURL);
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 15000);
   
-  if (!response.ok) {
-    throw new Error(`Stop failed: ${response.status}`);
+  if (!result.ok) {
+    throw new Error(`Stop failed: ${result.status}`);
   }
 };
 
@@ -1170,7 +1202,6 @@ export const setVolume = async (
   const serviceType = 'urn:schemas-upnp-org:service:RenderingControl:1';
   const action = 'SetVolume';
   
-  // Clamp volume between 0 and 100
   const volume = Math.max(0, Math.min(100, Math.round(desiredVolume)));
   
   const body = `      <InstanceID>${instanceId}</InstanceID>
@@ -1183,27 +1214,18 @@ export const setVolume = async (
   console.log('SetVolume SOAP request to:', controlURL);
   
   try {
-    const response = await fetch(controlURL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/xml; charset="utf-8"',
-        'SOAPACTION': soapAction,
-      },
-      body: soapEnvelope,
-    });
+    const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
     
-    const responseText = await response.text();
-    console.log('SetVolume response status:', response.status);
-    console.log('SetVolume response:', responseText.substring(0, 500));
+    console.log('SetVolume response status:', result.status);
+    console.log('SetVolume response:', result.text.substring(0, 500));
     
-    if (!response.ok) {
-      throw new Error(`SetVolume failed: ${response.status} - ${responseText}`);
+    if (!result.ok) {
+      throw new Error(`SetVolume failed: ${result.status} - ${result.text}`);
     }
     
-    // Check for SOAP Fault
-    if (responseText.includes('Fault') || responseText.includes('UPnPError')) {
-      console.error('SetVolume SOAP Fault in response:', responseText);
-      throw new Error(`SetVolume SOAP Fault: ${responseText.substring(0, 200)}`);
+    if (result.text.includes('Fault') || result.text.includes('UPnPError')) {
+      console.error('SetVolume SOAP Fault in response:', result.text);
+      throw new Error(`SetVolume SOAP Fault: ${result.text.substring(0, 200)}`);
     }
     
     console.log('SetVolume succeeded');
@@ -1227,21 +1249,13 @@ export const getVolume = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
   
-  if (!response.ok) {
-    throw new Error(`GetVolume failed: ${response.status}`);
+  if (!result.ok) {
+    throw new Error(`GetVolume failed: ${result.status}`);
   }
   
-  const xml = await response.text();
-  const volumeMatch = xml.match(/<CurrentVolume>(\d+)<\/CurrentVolume>/);
+  const volumeMatch = result.text.match(/<CurrentVolume>(\d+)<\/CurrentVolume>/);
   return volumeMatch ? parseInt(volumeMatch[1]) : 0;
 };
 
@@ -1262,18 +1276,10 @@ export const setOpenHomeVolume = async (
   
   console.log('Setting OpenHome volume to:', volume, 'at:', controlURL);
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
   
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenHome SetVolume failed: ${response.status} - ${errorText}`);
+  if (!result.ok) {
+    throw new Error(`OpenHome SetVolume failed: ${result.status} - ${result.text}`);
   }
   
   console.log('OpenHome SetVolume successful');
@@ -1290,21 +1296,13 @@ export const getOpenHomeVolume = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
   
-  if (!response.ok) {
-    throw new Error(`OpenHome GetVolume failed: ${response.status}`);
+  if (!result.ok) {
+    throw new Error(`OpenHome GetVolume failed: ${result.status}`);
   }
   
-  const xml = await response.text();
-  const volumeMatch = xml.match(/<Value>(\d+)<\/Value>/);
+  const volumeMatch = result.text.match(/<Value>(\d+)<\/Value>/);
   return volumeMatch ? parseInt(volumeMatch[1]) : 0;
 };
 
@@ -1324,17 +1322,10 @@ export const setMute = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
   
-  if (!response.ok) {
-    throw new Error(`SetMute failed: ${response.status}`);
+  if (!result.ok) {
+    throw new Error(`SetMute failed: ${result.status}`);
   }
 };
 
@@ -1352,22 +1343,14 @@ export const getMute = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
   
-  if (!response.ok) {
-    throw new Error(`GetMute failed: ${response.status}`);
+  if (!result.ok) {
+    throw new Error(`GetMute failed: ${result.status}`);
   }
   
-  const xml = await response.text();
-  const muteMatch = xml.match(/<CurrentMute>(\d+)<\/CurrentMute>/);
-  return muteMatch ? muteMatch[1] === '1' : false;
+  const muteMatch = result.text.match(/<CurrentMute>([01])<\/CurrentMute>/);
+  return muteMatch?.[1] === '1';
 };
 
 // Comprehensive device discovery diagnostic - mirrors JRiver's approach
