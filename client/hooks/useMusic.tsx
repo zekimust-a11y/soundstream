@@ -594,7 +594,7 @@ const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => 
       for (const t of albumContent.tracks) {
         allTracks.push({
           ...t,
-          album: t.album || album.name,
+          album: album.name,
           artist: t.artist || album.artist || 'Unknown Artist',
           albumArt: t.albumArt || album.imageUrl,
         });
