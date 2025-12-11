@@ -6,6 +6,7 @@ import {
   Pressable,
   Switch,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -75,7 +76,7 @@ function SettingRow({
 export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { servers, qobuzConnected, refreshLibrary, isLoading, artists, albums } = useMusic();
+  const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, artists, albums } = useMusic();
   const { theme } = useTheme();
 
   const [gapless, setGapless] = useState(true);
@@ -281,6 +282,32 @@ export default function SettingsScreen() {
                 <View style={styles.radioEmpty} />
               )}
             </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Data</ThemedText>
+          <View style={styles.sectionContent}>
+            <SettingRow
+              icon="trash-2"
+              iconColor="#E53935"
+              title="Clear All Data"
+              subtitle="Remove all servers, library, and settings"
+              onPress={() => {
+                Alert.alert(
+                  "Clear All Data",
+                  "This will remove all servers, library data, favorites, and playlists. This cannot be undone.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Clear All",
+                      style: "destructive",
+                      onPress: clearAllData,
+                    },
+                  ]
+                );
+              }}
+            />
           </View>
         </View>
 

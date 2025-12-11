@@ -66,6 +66,7 @@ interface MusicContextType {
   getArtistAlbums: (artistId: string) => Album[];
   getAlbumTracks: (albumId: string) => Track[];
   refreshLibrary: () => void;
+  clearAllData: () => Promise<void>;
   addToRecentlyPlayed: (track: Track) => void;
   toggleFavoriteArtist: (artistId: string) => void;
   toggleFavoriteAlbum: (albumId: string) => void;
@@ -539,6 +540,30 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, [servers]);
 
+  const clearAllData = useCallback(async () => {
+    try {
+      await Promise.all([
+        AsyncStorage.removeItem(SERVERS_KEY),
+        AsyncStorage.removeItem(QOBUZ_KEY),
+        AsyncStorage.removeItem(RECENT_KEY),
+        AsyncStorage.removeItem(FAVORITES_KEY),
+        AsyncStorage.removeItem(PLAYLISTS_KEY),
+        AsyncStorage.removeItem(LIBRARY_KEY),
+      ]);
+      setServers([]);
+      setActiveServerState(null);
+      setArtists([]);
+      setAlbums([]);
+      setTracks([]);
+      setRecentlyPlayed([]);
+      setQobuzConnected(false);
+      setFavorites(DEFAULT_FAVORITES);
+      setPlaylists([]);
+    } catch (e) {
+      console.error("Failed to clear all data:", e);
+    }
+  }, []);
+
   const addToRecentlyPlayed = useCallback(async (track: Track) => {
     setRecentlyPlayed((prev) => {
       const filtered = prev.filter((t) => t.id !== track.id);
@@ -706,6 +731,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         getArtistAlbums,
         getAlbumTracks,
         refreshLibrary,
+        clearAllData,
         addToRecentlyPlayed,
         toggleFavoriteArtist,
         toggleFavoriteAlbum,

@@ -60,9 +60,6 @@ const ZONES_KEY = "@soundstream_zones";
 
 const DEFAULT_ZONES: Zone[] = [
   { id: "local", name: "This Device", type: "local", isActive: true, volume: 0.8 },
-  { id: "living-room", name: "Living Room", type: "upnp", isActive: false, volume: 0.7 },
-  { id: "bedroom", name: "Bedroom", type: "upnp", isActive: false, volume: 0.6 },
-  { id: "kitchen", name: "Kitchen Speaker", type: "airplay", isActive: false, volume: 0.5 },
 ];
 
 export function PlaybackProvider({ children }: { children: ReactNode }) {
