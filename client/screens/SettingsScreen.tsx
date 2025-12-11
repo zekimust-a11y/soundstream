@@ -210,6 +210,49 @@ export default function SettingsScreen() {
                 Tap "Discover Devices" to find music servers and audio devices on your network.
               </ThemedText>
             ) : null}
+            
+            <Pressable
+              style={({ pressed }) => [
+                styles.manualAddButton,
+                { 
+                  borderColor: theme.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+              onPress={() => {
+                Alert.prompt(
+                  "Add Server Manually",
+                  "Enter the server IP address (e.g., 192.168.0.19)",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Add",
+                      onPress: (ip: string | undefined) => {
+                        if (ip && ip.trim()) {
+                          const port = 9790;
+                          addServer({
+                            name: `MinimServer (${ip.trim()})`,
+                            host: ip.trim(),
+                            port,
+                            type: 'upnp',
+                            contentDirectoryUrl: `http://${ip.trim()}:${port}/dev/srv0/ctl/ContentDirectory`,
+                          });
+                          Alert.alert('Server Added', `Server at ${ip.trim()}:${port} has been added.`);
+                        }
+                      },
+                    },
+                  ],
+                  "plain-text",
+                  "",
+                  "default"
+                );
+              }}
+            >
+              <Feather name="plus" size={18} color={theme.textSecondary} />
+              <ThemedText style={[styles.manualAddText, { color: theme.textSecondary }]}>
+                Add Server Manually
+              </ThemedText>
+            </Pressable>
           </View>
         </View>
 
@@ -672,5 +715,21 @@ const styles = StyleSheet.create({
   deviceAddress: {
     ...Typography.caption,
     marginTop: 2,
+  },
+  manualAddButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderStyle: "dashed",
+  },
+  manualAddText: {
+    ...Typography.body,
   },
 });
