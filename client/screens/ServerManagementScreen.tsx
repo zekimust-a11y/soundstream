@@ -1,11 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
-  ScrollView,
   Pressable,
   TextInput,
   Alert,
+  Animated,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -18,6 +19,42 @@ import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic, type Server } from "@/hooks/useMusic";
 import { Image } from "expo-image";
 
+interface DiscoveredServer {
+  id: string;
+  name: string;
+  type: "upnp" | "lms";
+  host: string;
+  port: number;
+  manufacturer?: string;
+}
+
+function ScanningIndicator() {
+  const rotation = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.timing(rotation, {
+        toValue: 1,
+        duration: 1500,
+        useNativeDriver: true,
+      })
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [rotation]);
+
+  const spin = rotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
+  return (
+    <Animated.View style={{ transform: [{ rotate: spin }] }}>
+      <Feather name="loader" size={20} color={Colors.dark.accent} />
+    </Animated.View>
+  );
+}
+
 export default function ServerManagementScreen() {
   const insets = useSafeAreaInsets();
   const { servers, activeServer, addServer, removeServer, setActiveServer } = useMusic();
@@ -27,6 +64,98 @@ export default function ServerManagementScreen() {
   const [serverHost, setServerHost] = useState("");
   const [serverPort, setServerPort] = useState("9000");
   const [serverType, setServerType] = useState<"upnp" | "lms">("lms");
+
+  const [isScanning, setIsScanning] = useState(false);
+  const [discoveredServers, setDiscoveredServers] = useState<DiscoveredServer[]>([]);
+  const [scanComplete, setScanComplete] = useState(false);
+
+  const scanForServers = async () => {
+    setIsScanning(true);
+    setScanComplete(false);
+    setDiscoveredServers([]);
+
+    const simulatedServers: DiscoveredServer[] = [];
+    const baseIP = "192.168.1.";
+    
+    for (let i = 0; i < 3; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 800 + Math.random() * 400));
+      
+      const newServer = getSimulatedServer(baseIP, i);
+      if (newServer) {
+        const isAlreadyAdded = servers.some(
+          (s) => s.host === newServer.host && s.port === newServer.port
+        );
+        if (!isAlreadyAdded) {
+          simulatedServers.push(newServer);
+          setDiscoveredServers([...simulatedServers]);
+        }
+      }
+    }
+
+    setIsScanning(false);
+    setScanComplete(true);
+  };
+
+  const getSimulatedServer = (baseIP: string, index: number): DiscoveredServer | null => {
+    const serverConfigs = [
+      {
+        id: "disc-1",
+        name: "Living Room LMS",
+        type: "lms" as const,
+        host: `${baseIP}10`,
+        port: 9000,
+        manufacturer: "Logitech Media Server",
+      },
+      {
+        id: "disc-2",
+        name: "Sonos Media Server",
+        type: "upnp" as const,
+        host: `${baseIP}25`,
+        port: 1400,
+        manufacturer: "Sonos, Inc.",
+      },
+      {
+        id: "disc-3",
+        name: "QNAP NAS Media",
+        type: "upnp" as const,
+        host: `${baseIP}50`,
+        port: 8200,
+        manufacturer: "QNAP Systems",
+      },
+      {
+        id: "disc-4",
+        name: "Plex Media Server",
+        type: "upnp" as const,
+        host: `${baseIP}100`,
+        port: 32400,
+        manufacturer: "Plex, Inc.",
+      },
+      {
+        id: "disc-5",
+        name: "MinimServer",
+        type: "upnp" as const,
+        host: `${baseIP}15`,
+        port: 9790,
+        manufacturer: "MinimServer",
+      },
+    ];
+
+    const available = serverConfigs.filter(
+      (s) => !servers.some((existing) => existing.host === s.host && existing.port === s.port)
+    );
+
+    return available[index] || null;
+  };
+
+  const handleAddDiscoveredServer = (discovered: DiscoveredServer) => {
+    addServer({
+      name: discovered.name,
+      host: discovered.host,
+      port: discovered.port,
+      type: discovered.type,
+    });
+    setDiscoveredServers((prev) => prev.filter((s) => s.id !== discovered.id));
+  };
 
   const handleAddServer = () => {
     if (!serverName.trim() || !serverHost.trim()) {
@@ -62,6 +191,101 @@ export default function ServerManagementScreen() {
     );
   };
 
+  const renderDiscoverySection = () => (
+    <View style={styles.discoverySection}>
+      <View style={styles.discoverySectionHeader}>
+        <ThemedText style={styles.sectionTitle}>Network Discovery</ThemedText>
+        {Platform.OS === "web" ? (
+          <ThemedText style={styles.webNotice}>
+            Simulated on web
+          </ThemedText>
+        ) : null}
+      </View>
+      
+      <View style={styles.discoveryCard}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.scanButton,
+            isScanning && styles.scanButtonScanning,
+            { opacity: pressed && !isScanning ? 0.8 : 1 },
+          ]}
+          onPress={scanForServers}
+          disabled={isScanning}
+        >
+          {isScanning ? (
+            <ScanningIndicator />
+          ) : (
+            <Feather name="wifi" size={20} color={Colors.dark.accent} />
+          )}
+          <ThemedText style={styles.scanButtonText}>
+            {isScanning ? "Scanning network..." : "Scan for Servers"}
+          </ThemedText>
+        </Pressable>
+
+        {isScanning ? (
+          <View style={styles.scanningInfo}>
+            <ThemedText style={styles.scanningText}>
+              Searching for UPNP and LMS servers on your network...
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {discoveredServers.length > 0 ? (
+          <View style={styles.discoveredList}>
+            <ThemedText style={styles.discoveredTitle}>
+              Found {discoveredServers.length} server{discoveredServers.length > 1 ? "s" : ""}
+            </ThemedText>
+            {discoveredServers.map((server) => (
+              <View key={server.id} style={styles.discoveredServerCard}>
+                <View style={styles.discoveredServerIcon}>
+                  <Feather
+                    name={server.type === "upnp" ? "cast" : "server"}
+                    size={18}
+                    color={Colors.dark.success}
+                  />
+                </View>
+                <View style={styles.discoveredServerInfo}>
+                  <ThemedText style={styles.discoveredServerName}>
+                    {server.name}
+                  </ThemedText>
+                  <ThemedText style={styles.discoveredServerAddress}>
+                    {server.host}:{server.port}
+                  </ThemedText>
+                  {server.manufacturer ? (
+                    <ThemedText style={styles.discoveredServerManufacturer}>
+                      {server.manufacturer}
+                    </ThemedText>
+                  ) : null}
+                </View>
+                <View style={styles.discoveredServerType}>
+                  <ThemedText style={styles.serverTypeBadge}>
+                    {server.type.toUpperCase()}
+                  </ThemedText>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.addDiscoveredButton,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                  onPress={() => handleAddDiscoveredServer(server)}
+                >
+                  <Feather name="plus" size={18} color={Colors.dark.buttonText} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : scanComplete && !isScanning ? (
+          <View style={styles.noServersFound}>
+            <Feather name="info" size={18} color={Colors.dark.textTertiary} />
+            <ThemedText style={styles.noServersText}>
+              No new servers found on your network
+            </ThemedText>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+
   return (
     <ThemedView style={styles.container}>
       <KeyboardAwareScrollViewCompat
@@ -71,6 +295,8 @@ export default function ServerManagementScreen() {
           { paddingBottom: insets.bottom + Spacing.xl },
         ]}
       >
+        {renderDiscoverySection()}
+
         {servers.length === 0 && !showAddForm ? (
           <View style={styles.emptyState}>
             <Image
@@ -80,72 +306,77 @@ export default function ServerManagementScreen() {
             />
             <ThemedText style={styles.emptyTitle}>No servers configured</ThemedText>
             <ThemedText style={styles.emptySubtitle}>
-              Add a UPNP or LMS server to browse your music library
+              Scan for servers above or add one manually
             </ThemedText>
             <Button
-              title="Add Server"
+              title="Add Manually"
               onPress={() => setShowAddForm(true)}
               style={styles.addButton}
             />
           </View>
         ) : (
           <>
-            {servers.map((server) => (
-              <View key={server.id} style={styles.serverCard}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.serverContent,
-                    { opacity: pressed ? 0.6 : 1 },
-                  ]}
-                  onPress={() => setActiveServer(server)}
-                >
-                  <View style={styles.serverIcon}>
-                    <Feather
-                      name={server.type === "upnp" ? "cast" : "server"}
-                      size={20}
-                      color={Colors.dark.accent}
-                    />
-                  </View>
-                  <View style={styles.serverInfo}>
-                    <View style={styles.serverNameRow}>
-                      <ThemedText style={styles.serverName}>{server.name}</ThemedText>
-                      {activeServer?.id === server.id ? (
-                        <View style={styles.activeBadge}>
-                          <ThemedText style={styles.activeBadgeText}>Active</ThemedText>
-                        </View>
-                      ) : null}
-                    </View>
-                    <ThemedText style={styles.serverHost}>
-                      {server.host}:{server.port}
-                    </ThemedText>
-                    <ThemedText style={styles.serverType}>
-                      {server.type.toUpperCase()}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.serverStatus}>
-                    <View
-                      style={[
-                        styles.statusDot,
-                        { backgroundColor: server.connected ? Colors.dark.success : Colors.dark.error },
+            {servers.length > 0 ? (
+              <View style={styles.configuredSection}>
+                <ThemedText style={styles.sectionTitle}>Configured Servers</ThemedText>
+                {servers.map((server) => (
+                  <View key={server.id} style={styles.serverCard}>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.serverContent,
+                        { opacity: pressed ? 0.6 : 1 },
                       ]}
-                    />
+                      onPress={() => setActiveServer(server)}
+                    >
+                      <View style={styles.serverIcon}>
+                        <Feather
+                          name={server.type === "upnp" ? "cast" : "server"}
+                          size={20}
+                          color={Colors.dark.accent}
+                        />
+                      </View>
+                      <View style={styles.serverInfo}>
+                        <View style={styles.serverNameRow}>
+                          <ThemedText style={styles.serverName}>{server.name}</ThemedText>
+                          {activeServer?.id === server.id ? (
+                            <View style={styles.activeBadge}>
+                              <ThemedText style={styles.activeBadgeText}>Active</ThemedText>
+                            </View>
+                          ) : null}
+                        </View>
+                        <ThemedText style={styles.serverHost}>
+                          {server.host}:{server.port}
+                        </ThemedText>
+                        <ThemedText style={styles.serverTypeLabel}>
+                          {server.type.toUpperCase()}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.serverStatus}>
+                        <View
+                          style={[
+                            styles.statusDot,
+                            { backgroundColor: server.connected ? Colors.dark.success : Colors.dark.error },
+                          ]}
+                        />
+                      </View>
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.removeButton,
+                        { opacity: pressed ? 0.6 : 1 },
+                      ]}
+                      onPress={() => handleRemoveServer(server)}
+                    >
+                      <Feather name="trash-2" size={18} color={Colors.dark.error} />
+                    </Pressable>
                   </View>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.removeButton,
-                    { opacity: pressed ? 0.6 : 1 },
-                  ]}
-                  onPress={() => handleRemoveServer(server)}
-                >
-                  <Feather name="trash-2" size={18} color={Colors.dark.error} />
-                </Pressable>
+                ))}
               </View>
-            ))}
+            ) : null}
 
             {showAddForm ? (
               <View style={styles.addForm}>
-                <ThemedText style={styles.formTitle}>Add New Server</ThemedText>
+                <ThemedText style={styles.formTitle}>Add Server Manually</ThemedText>
 
                 <View style={styles.typeSelector}>
                   <Pressable
@@ -241,7 +472,7 @@ export default function ServerManagementScreen() {
               >
                 <Feather name="plus" size={20} color={Colors.dark.accent} />
                 <ThemedText style={styles.addServerButtonText}>
-                  Add Server
+                  Add Server Manually
                 </ThemedText>
               </Pressable>
             )}
@@ -263,16 +494,143 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing.lg,
   },
+  discoverySection: {
+    marginBottom: Spacing.xl,
+  },
+  discoverySectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    ...Typography.headline,
+    color: Colors.dark.text,
+  },
+  webNotice: {
+    ...Typography.label,
+    color: Colors.dark.textTertiary,
+    fontStyle: "italic",
+  },
+  discoveryCard: {
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderRadius: BorderRadius.sm,
+    overflow: "hidden",
+  },
+  scanButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.dark.border,
+  },
+  scanButtonScanning: {
+    backgroundColor: Colors.dark.backgroundSecondary,
+  },
+  scanButtonText: {
+    ...Typography.body,
+    color: Colors.dark.accent,
+    fontWeight: "600",
+  },
+  scanningInfo: {
+    padding: Spacing.md,
+    alignItems: "center",
+  },
+  scanningText: {
+    ...Typography.caption,
+    color: Colors.dark.textSecondary,
+    textAlign: "center",
+  },
+  discoveredList: {
+    padding: Spacing.md,
+  },
+  discoveredTitle: {
+    ...Typography.caption,
+    color: Colors.dark.success,
+    marginBottom: Spacing.md,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  discoveredServerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.backgroundSecondary,
+    borderRadius: BorderRadius.xs,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  discoveredServerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.dark.success + "20",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  discoveredServerInfo: {
+    flex: 1,
+  },
+  discoveredServerName: {
+    ...Typography.body,
+    color: Colors.dark.text,
+    fontWeight: "500",
+  },
+  discoveredServerAddress: {
+    ...Typography.caption,
+    color: Colors.dark.accent,
+    marginTop: 2,
+  },
+  discoveredServerManufacturer: {
+    ...Typography.label,
+    color: Colors.dark.textTertiary,
+    marginTop: 2,
+  },
+  discoveredServerType: {
+    marginRight: Spacing.sm,
+  },
+  serverTypeBadge: {
+    ...Typography.label,
+    color: Colors.dark.textSecondary,
+    backgroundColor: Colors.dark.backgroundTertiary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+  },
+  addDiscoveredButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.dark.accent,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  noServersFound: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  noServersText: {
+    ...Typography.caption,
+    color: Colors.dark.textTertiary,
+  },
+  configuredSection: {
+    marginBottom: Spacing.lg,
+  },
   emptyState: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing["5xl"],
+    paddingVertical: Spacing["3xl"],
   },
   emptyImage: {
-    width: 160,
-    height: 160,
-    marginBottom: Spacing.xl,
+    width: 120,
+    height: 120,
+    marginBottom: Spacing.lg,
     opacity: 0.6,
   },
   emptyTitle: {
@@ -294,7 +652,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: Colors.dark.backgroundDefault,
     borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.md,
+    marginTop: Spacing.md,
     overflow: "hidden",
   },
   serverContent: {
@@ -339,7 +697,7 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     marginTop: 2,
   },
-  serverType: {
+  serverTypeLabel: {
     ...Typography.label,
     color: Colors.dark.textTertiary,
     marginTop: 2,
