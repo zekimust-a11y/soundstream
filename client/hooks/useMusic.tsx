@@ -429,56 +429,106 @@ const browseMinimServerWeb = async (baseUrl: string, serverId: string): Promise<
   return { artists, albums, tracks };
 };
 
+const browseWithDirectUrl = async (controlUrl: string, containerId: string, serverId: string): Promise<{ artists: Artist[], albums: Album[], tracks: Track[] }> => {
+  const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1">
+      <ObjectID>${containerId}</ObjectID>
+      <BrowseFlag>BrowseDirectChildren</BrowseFlag>
+      <Filter>*</Filter>
+      <StartingIndex>0</StartingIndex>
+      <RequestedCount>0</RequestedCount>
+      <SortCriteria></SortCriteria>
+    </u:Browse>
+  </s:Body>
+</s:Envelope>`;
+
+  try {
+    console.log('UPNP Browse request to:', controlUrl, 'ObjectID:', containerId);
+    
+    const response = await fetch(controlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml;charset="utf-8"',
+        'SOAPAction': '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"',
+      },
+      body: soapEnvelope,
+    });
+    
+    console.log('UPNP Browse response status:', response.status);
+    
+    if (response.ok) {
+      const responseText = await response.text();
+      console.log('UPNP Browse response length:', responseText.length);
+      if (responseText.length > 0) {
+        console.log('UPNP response preview:', responseText.substring(0, 300));
+      }
+      return parseUPNPResponse(responseText, serverId);
+    } else {
+      console.error('UPNP Browse failed:', response.status, await response.text());
+      return { artists: [], albums: [], tracks: [] };
+    }
+  } catch (error) {
+    console.error('UPNP Browse error:', error);
+    return { artists: [], albums: [], tracks: [] };
+  }
+};
+
 const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => {
-  const upnpPort = server.port === 9790 ? 9791 : server.port;
-  const baseUrl = `http://${server.host}:${upnpPort}`;
-  const contentUrl = `http://${server.host}:${server.port}`;
-  console.log('Connecting to UPNP server at:', baseUrl, '(content at:', contentUrl + ')');
+  console.log('Fetching music from server:', server.name);
   
-  cachedControlUrl = null;
+  // Use the pre-configured contentDirectoryUrl if available
+  const controlUrl = server.contentDirectoryUrl;
+  
+  if (!controlUrl) {
+    console.error('No contentDirectoryUrl configured for server:', server.name);
+    return {
+      serverId: server.id,
+      serverName: server.name,
+      artists: [],
+      albums: [],
+      tracks: [],
+    };
+  }
+  
+  console.log('Using ContentDirectory control URL:', controlUrl);
   
   try {
     const allArtists: Artist[] = [];
     const allAlbums: Album[] = [];
     const allTracks: Track[] = [];
     
-    console.log('Trying web interface browse on port 9790...');
-    const webContent = await browseMinimServerWeb(contentUrl, server.id);
-    allArtists.push(...webContent.artists);
-    allAlbums.push(...webContent.albums);
-    allTracks.push(...webContent.tracks);
-    
-    const rootContent = await browseUPNPContainer(baseUrl, '0', server.id);
+    // Browse root container
+    const rootContent = await browseWithDirectUrl(controlUrl, '0', server.id);
     console.log('Root browse result:', rootContent.artists.length, 'artists,', rootContent.albums.length, 'albums,', rootContent.tracks.length, 'tracks');
     
     allArtists.push(...rootContent.artists);
     allAlbums.push(...rootContent.albums);
     allTracks.push(...rootContent.tracks);
     
-    if (allTracks.length === 0) {
-      const containerIds = ['1', '2', '3', '64', '65', 'Music', 'Albums', 'Artists'];
-      
-      for (const containerId of containerIds) {
-        const content = await browseUPNPContainer(baseUrl, containerId, server.id);
-        console.log(`Container ${containerId} result:`, content.artists.length, 'artists,', content.albums.length, 'albums,', content.tracks.length, 'tracks');
-        
-        allArtists.push(...content.artists);
-        allAlbums.push(...content.albums);
-        allTracks.push(...content.tracks);
-        
-        for (const album of content.albums) {
-          const albumId = album.id.replace(`${server.id}-`, '');
-          const albumContent = await browseUPNPContainer(baseUrl, albumId, server.id);
-          allTracks.push(...albumContent.tracks.map(t => ({
-            ...t,
-            album: album.name,
-            artist: album.artist,
-          })));
-        }
-        
-        if (allTracks.length > 0) break;
-      }
+    // MinimServer uses container IDs like "0$albums", "0$items" etc.
+    // Browse albums container to get album list
+    const albumsContent = await browseWithDirectUrl(controlUrl, '0$albums', server.id);
+    console.log('Albums container result:', albumsContent.albums.length, 'albums');
+    allAlbums.push(...albumsContent.albums);
+    
+    // Browse each album to get tracks
+    for (const album of albumsContent.albums.slice(0, 50)) { // Limit to first 50 albums for initial load
+      const albumId = album.id.replace(`${server.id}-`, '');
+      const albumContent = await browseWithDirectUrl(controlUrl, albumId, server.id);
+      allTracks.push(...albumContent.tracks.map(t => ({
+        ...t,
+        album: album.name,
+        artist: album.artist,
+        albumArt: album.imageUrl || t.albumArt,
+      })));
     }
+    
+    // Browse artists container
+    const artistsContent = await browseWithDirectUrl(controlUrl, '0$=Artist', server.id);
+    console.log('Artists container result:', artistsContent.artists.length, 'artists');
+    allArtists.push(...artistsContent.artists);
     
     return {
       serverId: server.id,
@@ -499,23 +549,23 @@ const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => 
   }
 };
 
-// Pre-configured devices
+// Pre-configured devices - discovered via SSDP
 const DEFAULT_SERVER: Server = {
   id: 'minimserver-default',
-  name: 'MinimServer',
+  name: 'MinimServer[OLADRAserver]',
   type: 'upnp',
   host: '192.168.0.19',
   port: 9790,
   connected: true,
-  contentDirectoryUrl: 'http://192.168.0.19:9791/ctl/ContentDirectory',
+  contentDirectoryUrl: 'http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control',
 };
 
 const DEFAULT_RENDERER: Renderer = {
   id: 'varese-default',
   name: 'dCS Varese',
-  host: '192.168.0.20', // User should update this IP
-  port: 80,
-  avTransportUrl: 'http://192.168.0.20/upnp/AVTransport/ctrl',
+  host: '192.168.0.35',
+  port: 49152,
+  avTransportUrl: 'http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/AVTransport/control',
   isActive: true,
 };
 
