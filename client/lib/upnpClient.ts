@@ -17,7 +17,7 @@ const proxySoapRequest = async (
   targetUrl: string,
   soapAction: string,
   body: string,
-  timeoutMs: number = 8000
+  timeoutMs: number = 3000
 ): Promise<{ ok: boolean; status: number; text: string }> => {
   // Extract action name from SOAP action string for logging
   const actionMatch = soapAction.match(/#(\w+)"?$/);
@@ -506,7 +506,7 @@ export const setAVTransportURI = async (
       console.log(`SetAVTransportURI attempt ${attempt}/${maxRetries}`);
       
       // Use proxy-aware request
-      const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 15000);
+      const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 3000);
       
       console.log('SetAVTransportURI response status:', result.status);
       console.log('SetAVTransportURI response:', result.text.substring(0, 500));
@@ -553,7 +553,7 @@ export const play = async (controlURL: string, instanceId: number = 0, speed: st
   
   console.log('Play SOAP request to:', controlURL);
   
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 15000);
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 2000);
   
   console.log('Play response status:', result.status);
   
@@ -571,7 +571,7 @@ export const pause = async (controlURL: string, instanceId: number = 0): Promise
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 15000);
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 2000);
   
   if (!result.ok) {
     throw new Error(`Pause failed: ${result.status}`);
@@ -589,7 +589,7 @@ export const stop = async (controlURL: string, instanceId: number = 0): Promise<
   
   console.log('Stop SOAP request to:', controlURL);
   
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 15000);
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 2000);
   
   if (!result.ok) {
     throw new Error(`Stop failed: ${result.status}`);
@@ -1241,7 +1241,7 @@ export const setVolume = async (
   const soapAction = `"${serviceType}#${action}"`;
   
   try {
-    const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
+    const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 2000);
     
     if (!result.ok || result.text.includes('Fault') || result.text.includes('UPnPError')) {
       // Silently fail - UI already updated, don't disrupt user experience
@@ -1267,7 +1267,7 @@ export const getVolume = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 3000);
   
   if (!result.ok) {
     throw new Error(`GetVolume failed: ${result.status}`);
@@ -1293,7 +1293,7 @@ export const setOpenHomeVolume = async (
   const soapAction = `"${serviceType}#${action}"`;
   
   try {
-    const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
+    const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 2000);
     // Silently succeed or fail - UI already updated
   } catch (error) {
     // Silently fail - volume slider already shows intended value
@@ -1311,7 +1311,7 @@ export const getOpenHomeVolume = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 3000);
   
   if (!result.ok) {
     throw new Error(`OpenHome GetVolume failed: ${result.status}`);
@@ -1337,7 +1337,7 @@ export const setMute = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 10000);
+  const result = await proxySoapRequest(controlURL, soapAction, soapEnvelope, 2000);
   
   if (!result.ok) {
     throw new Error(`SetMute failed: ${result.status}`);
