@@ -215,11 +215,56 @@ function sendMSearch(socket) {
   console.log('[SSDP] Sent M-SEARCH requests');
 }
 
+async function proxyUpnpRequest(targetUrl, soapAction, body) {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(targetUrl);
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || 80,
+      path: parsedUrl.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset="utf-8"',
+        'SOAPACTION': soapAction,
+        'Content-Length': Buffer.byteLength(body),
+        'Connection': 'close',
+        'User-Agent': 'SoundStream/1.0 UPnP/1.1'
+      }
+    };
+
+    console.log(`[Proxy] Forwarding to ${targetUrl}`);
+    console.log(`[Proxy] SOAPAction: ${soapAction}`);
+
+    const req = http.request(options, (response) => {
+      let data = '';
+      response.on('data', chunk => data += chunk);
+      response.on('end', () => {
+        console.log(`[Proxy] Response status: ${response.statusCode}`);
+        resolve({ status: response.statusCode || 500, body: data });
+      });
+    });
+
+    req.on('error', (e) => {
+      console.error(`[Proxy] Request error:`, e.message);
+      reject(e);
+    });
+
+    req.setTimeout(10000, () => {
+      console.error(`[Proxy] Request timeout`);
+      req.destroy();
+      reject(new Error('Timeout'));
+    });
+
+    req.write(body);
+    req.end();
+  });
+}
+
 function startHttpServer() {
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Target-URL, X-SOAP-Action');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -228,6 +273,32 @@ function startHttpServer() {
     }
 
     const url = new URL(req.url, `http://localhost:${BRIDGE_PORT}`);
+
+    if (url.pathname === '/proxy' && req.method === 'POST') {
+      const targetUrl = req.headers['x-target-url'];
+      const soapAction = req.headers['x-soap-action'];
+      
+      if (!targetUrl || !soapAction) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing X-Target-URL or X-SOAP-Action header' }));
+        return;
+      }
+      
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', async () => {
+        try {
+          const result = await proxyUpnpRequest(targetUrl, soapAction, body);
+          res.writeHead(result.status, { 'Content-Type': 'text/xml' });
+          res.end(result.body);
+        } catch (e) {
+          console.error('[Proxy] Error:', e.message);
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message || 'Proxy error' }));
+        }
+      });
+      return;
+    }
 
     if (url.pathname === '/devices') {
       const deviceList = Array.from(devices.values());
@@ -260,7 +331,8 @@ function startHttpServer() {
 
   server.listen(BRIDGE_PORT, '0.0.0.0', () => {
     console.log(`[Bridge] HTTP server listening on http://0.0.0.0:${BRIDGE_PORT}`);
-    console.log(`[Bridge] Endpoints: /devices, /renderers, /servers, /discover, /health`);
+    console.log(`[Bridge] Endpoints: /devices, /renderers, /servers, /discover, /health, /proxy`);
+    console.log(`[Bridge] Proxy enabled for UPnP control requests`);
   });
 
   return server;
