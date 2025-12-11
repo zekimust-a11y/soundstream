@@ -179,6 +179,63 @@ const parseUPNPResponse = (xml: string, serverId: string): { artists: Artist[], 
   return { artists, albums, tracks };
 };
 
+const discoverControlUrl = async (baseUrl: string): Promise<string | null> => {
+  const descriptionPaths = [
+    '/DeviceDescription.xml',
+    '/description.xml', 
+    '/rootDesc.xml',
+    '/upnp/description.xml',
+    '/',
+  ];
+
+  for (const path of descriptionPaths) {
+    try {
+      console.log('Trying device description at:', baseUrl + path);
+      const response = await fetch(baseUrl + path, {
+        headers: { 'Accept': 'text/xml, application/xml, */*' },
+      });
+      
+      if (response.ok) {
+        const xml = await response.text();
+        console.log('Device description found, length:', xml.length);
+        
+        const controlUrlMatch = xml.match(/<controlURL>([^<]+)<\/controlURL>/g);
+        if (controlUrlMatch) {
+          for (const match of controlUrlMatch) {
+            const url = match.replace(/<\/?controlURL>/g, '');
+            if (url.toLowerCase().includes('contentdirectory') || url.toLowerCase().includes('content')) {
+              const fullUrl = url.startsWith('http') ? url : baseUrl + (url.startsWith('/') ? url : '/' + url);
+              console.log('Found ContentDirectory control URL:', fullUrl);
+              return fullUrl;
+            }
+          }
+          const firstUrl = controlUrlMatch[0].replace(/<\/?controlURL>/g, '');
+          const fullUrl = firstUrl.startsWith('http') ? firstUrl : baseUrl + (firstUrl.startsWith('/') ? firstUrl : '/' + firstUrl);
+          console.log('Using first control URL:', fullUrl);
+          return fullUrl;
+        }
+        
+        const serviceMatch = xml.match(/<service>[\s\S]*?ContentDirectory[\s\S]*?<\/service>/i);
+        if (serviceMatch) {
+          const ctrlMatch = serviceMatch[0].match(/<controlURL>([^<]+)<\/controlURL>/);
+          if (ctrlMatch) {
+            const url = ctrlMatch[1];
+            const fullUrl = url.startsWith('http') ? url : baseUrl + (url.startsWith('/') ? url : '/' + url);
+            console.log('Found ContentDirectory service control URL:', fullUrl);
+            return fullUrl;
+          }
+        }
+      }
+    } catch (error) {
+      console.log('Description fetch failed for', path, ':', error instanceof Error ? error.message : String(error));
+    }
+  }
+  
+  return null;
+};
+
+let cachedControlUrl: string | null = null;
+
 const browseUPNPContainer = async (baseUrl: string, containerId: string, serverId: string): Promise<{ artists: Artist[], albums: Album[], tracks: Track[] }> => {
   const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
@@ -194,12 +251,19 @@ const browseUPNPContainer = async (baseUrl: string, containerId: string, serverI
   </s:Body>
 </s:Envelope>`;
 
-  const controlUrls = [
-    `${baseUrl}/dev/srv0/ctl/ContentDirectory`,
-    `${baseUrl}/ctl/ContentDirectory`,
-    `${baseUrl}/ContentDirectory/control`,
-    `${baseUrl}/upnp/control/content_dir`,
-  ];
+  if (!cachedControlUrl) {
+    cachedControlUrl = await discoverControlUrl(baseUrl);
+  }
+
+  const controlUrls = cachedControlUrl 
+    ? [cachedControlUrl]
+    : [
+        `${baseUrl}/dev/srv0/ctl/ContentDirectory`,
+        `${baseUrl}/ctl/ContentDirectory`,
+        `${baseUrl}/ContentDirectory/control`,
+        `${baseUrl}/upnp/control/content_dir`,
+        `${baseUrl}/MediaServer/ContentDirectory/Control`,
+      ];
 
   for (const controlUrl of controlUrls) {
     try {
@@ -241,6 +305,8 @@ const browseUPNPContainer = async (baseUrl: string, containerId: string, serverI
 const fetchServerMusic = async (server: Server): Promise<ServerMusicLibrary> => {
   const baseUrl = `http://${server.host}:${server.port}`;
   console.log('Connecting to UPNP server at:', baseUrl);
+  
+  cachedControlUrl = null;
   
   try {
     const allArtists: Artist[] = [];
