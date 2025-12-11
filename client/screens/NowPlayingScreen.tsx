@@ -22,9 +22,18 @@ const { width } = Dimensions.get("window");
 const ALBUM_ART_SIZE = width * 0.8;
 
 function formatTime(seconds: number): string {
+  if (!seconds || !isFinite(seconds) || seconds < 0) return "0:00";
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+function normalizeDuration(duration: number): number {
+  if (!duration || !isFinite(duration) || duration <= 0) return 0;
+  if (duration > 36000) {
+    return Math.round(duration / 1000);
+  }
+  return duration;
 }
 
 function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
@@ -181,7 +190,7 @@ export default function NowPlayingScreen() {
           <Slider
             style={styles.progressSlider}
             minimumValue={0}
-            maximumValue={currentTrack.duration}
+            maximumValue={normalizeDuration(currentTrack.duration)}
             value={currentTime}
             onSlidingComplete={seek}
             minimumTrackTintColor={Colors.light.accent}
@@ -193,7 +202,7 @@ export default function NowPlayingScreen() {
               {formatTime(currentTime)}
             </ThemedText>
             <ThemedText style={styles.timeLabel}>
-              -{formatTime(currentTrack.duration - currentTime)}
+              -{formatTime(normalizeDuration(currentTrack.duration) - currentTime)}
             </ThemedText>
           </View>
         </View>
