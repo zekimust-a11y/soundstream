@@ -221,12 +221,13 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const loadData = async () => {
     try {
-      const [serversData, qobuzData, recentData, favoritesData, playlistsData] = await Promise.all([
+      const [serversData, qobuzData, recentData, favoritesData, playlistsData, libraryData] = await Promise.all([
         AsyncStorage.getItem(SERVERS_KEY),
         AsyncStorage.getItem(QOBUZ_KEY),
         AsyncStorage.getItem(RECENT_KEY),
         AsyncStorage.getItem(FAVORITES_KEY),
         AsyncStorage.getItem(PLAYLISTS_KEY),
+        AsyncStorage.getItem(LIBRARY_KEY),
       ]);
 
       if (serversData) {
@@ -252,6 +253,13 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
       if (playlistsData) {
         setPlaylists(JSON.parse(playlistsData));
+      }
+
+      if (libraryData) {
+        const library = JSON.parse(libraryData);
+        setArtists(library.artists || []);
+        setAlbums(library.albums || []);
+        setTracks(library.tracks || []);
       }
     } catch (e) {
       console.error("Failed to load music data:", e);
@@ -285,6 +293,54 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const saveLibrary = async (newArtists: Artist[], newAlbums: Album[], newTracks: Track[]) => {
+    try {
+      await AsyncStorage.setItem(LIBRARY_KEY, JSON.stringify({
+        artists: newArtists,
+        albums: newAlbums,
+        tracks: newTracks,
+      }));
+    } catch (e) {
+      console.error("Failed to save library:", e);
+    }
+  };
+
+  const loadMusicFromServer = useCallback(async (server: Server) => {
+    setIsLoading(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    
+    const library = generateServerMusic(server);
+    
+    setArtists((prev) => {
+      const existingIds = new Set(prev.map(a => a.id));
+      const newArtists = library.artists.filter(a => !existingIds.has(a.id));
+      const updated = [...prev, ...newArtists];
+      return updated;
+    });
+    
+    setAlbums((prev) => {
+      const existingIds = new Set(prev.map(a => a.id));
+      const newAlbums = library.albums.filter(a => !existingIds.has(a.id));
+      const updated = [...prev, ...newAlbums];
+      return updated;
+    });
+    
+    setTracks((prev) => {
+      const existingIds = new Set(prev.map(t => t.id));
+      const newTracks = library.tracks.filter(t => !existingIds.has(t.id));
+      const updated = [...prev, ...newTracks];
+      return updated;
+    });
+
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (artists.length > 0 || albums.length > 0 || tracks.length > 0) {
+      saveLibrary(artists, albums, tracks);
+    }
+  }, [artists, albums, tracks]);
+
   const addServer = useCallback((server: Omit<Server, "id" | "connected">) => {
     const newServer: Server = {
       ...server,
@@ -296,7 +352,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       saveServers(updated, activeServer?.id);
       return updated;
     });
-  }, [activeServer]);
+    loadMusicFromServer(newServer);
+  }, [activeServer, loadMusicFromServer]);
 
   const removeServer = useCallback((id: string) => {
     setServers((prev) => {
@@ -354,7 +411,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }
 
     if (typeFilter === "all" || typeFilter === "tracks") {
-      filteredTracks = DEMO_TRACKS.filter((t) => {
+      filteredTracks = tracks.filter((t) => {
         const matchesQuery = t.title.toLowerCase().includes(lowerQuery) ||
           t.artist.toLowerCase().includes(lowerQuery) ||
           t.album.toLowerCase().includes(lowerQuery);
@@ -369,7 +426,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       albums: filteredAlbums,
       tracks: filteredTracks,
     };
-  }, [artists, albums]);
+  }, [artists, albums, tracks]);
 
   const getArtistAlbums = useCallback((artistId: string) => {
     return albums.filter((a) => a.artistId === artistId);
@@ -378,15 +435,28 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const getAlbumTracks = useCallback((albumId: string) => {
     const album = albums.find((a) => a.id === albumId);
     if (!album) return [];
-    return DEMO_TRACKS.filter((t) => t.album === album.name);
-  }, [albums]);
+    return tracks.filter((t) => t.album === album.name);
+  }, [albums, tracks]);
 
-  const refreshLibrary = useCallback(() => {
+  const refreshLibrary = useCallback(async () => {
+    if (servers.length === 0) return;
+    
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+    setArtists([]);
+    setAlbums([]);
+    setTracks([]);
+    
+    for (const server of servers) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      const library = generateServerMusic(server);
+      
+      setArtists((prev) => [...prev, ...library.artists]);
+      setAlbums((prev) => [...prev, ...library.albums]);
+      setTracks((prev) => [...prev, ...library.tracks]);
+    }
+    
+    setIsLoading(false);
+  }, [servers]);
 
   const addToRecentlyPlayed = useCallback(async (track: Track) => {
     setRecentlyPlayed((prev) => {

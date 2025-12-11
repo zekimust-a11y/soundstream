@@ -5,6 +5,7 @@ import {
   ScrollView,
   Pressable,
   Switch,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -16,6 +17,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
+import { useTheme } from "@/hooks/useTheme";
 import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SettingsStackParamList>;
@@ -73,7 +75,8 @@ function SettingRow({
 export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { servers, qobuzConnected } = useMusic();
+  const { servers, qobuzConnected, refreshLibrary, isLoading, artists, albums } = useMusic();
+  const { theme } = useTheme();
 
   const [gapless, setGapless] = useState(true);
   const [crossfade, setCrossfade] = useState(false);
@@ -112,11 +115,61 @@ export default function SettingsScreen() {
               rightElement={
                 qobuzConnected ? (
                   <View style={styles.connectedBadge}>
-                    <Feather name="check" size={12} color={Colors.dark.success} />
+                    <Feather name="check" size={12} color={theme.success} />
                   </View>
                 ) : null
               }
             />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Library</ThemedText>
+          <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.libraryStats}>
+              <View style={styles.libraryStat}>
+                <ThemedText style={[styles.libraryStatNumber, { color: theme.text }]}>
+                  {artists.length}
+                </ThemedText>
+                <ThemedText style={[styles.libraryStatLabel, { color: theme.textSecondary }]}>
+                  Artists
+                </ThemedText>
+              </View>
+              <View style={[styles.libraryStatDivider, { backgroundColor: theme.border }]} />
+              <View style={styles.libraryStat}>
+                <ThemedText style={[styles.libraryStatNumber, { color: theme.text }]}>
+                  {albums.length}
+                </ThemedText>
+                <ThemedText style={[styles.libraryStatLabel, { color: theme.textSecondary }]}>
+                  Albums
+                </ThemedText>
+              </View>
+            </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.refreshButton,
+                { 
+                  backgroundColor: theme.accent,
+                  opacity: pressed || isLoading ? 0.7 : 1,
+                },
+              ]}
+              onPress={refreshLibrary}
+              disabled={isLoading || servers.length === 0}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color={theme.buttonText} />
+              ) : (
+                <Feather name="refresh-cw" size={18} color={theme.buttonText} />
+              )}
+              <ThemedText style={[styles.refreshButtonText, { color: theme.buttonText }]}>
+                {isLoading ? "Refreshing..." : "Refresh Library"}
+              </ThemedText>
+            </Pressable>
+            {servers.length === 0 ? (
+              <ThemedText style={[styles.refreshHint, { color: theme.textTertiary }]}>
+                Add a server to load music
+              </ThemedText>
+            ) : null}
           </View>
         </View>
 
@@ -372,5 +425,46 @@ const styles = StyleSheet.create({
   hiResBadgeText: {
     ...Typography.label,
     color: Colors.dark.warning,
+  },
+  libraryStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.lg,
+    gap: Spacing.xl,
+  },
+  libraryStat: {
+    alignItems: "center",
+  },
+  libraryStatNumber: {
+    ...Typography.title,
+    fontWeight: "700",
+  },
+  libraryStatLabel: {
+    ...Typography.caption,
+    marginTop: 2,
+  },
+  libraryStatDivider: {
+    width: 1,
+    height: 40,
+  },
+  refreshButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+  },
+  refreshButtonText: {
+    ...Typography.body,
+    fontWeight: "600",
+  },
+  refreshHint: {
+    ...Typography.caption,
+    textAlign: "center",
+    paddingBottom: Spacing.md,
   },
 });
