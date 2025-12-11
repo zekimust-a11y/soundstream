@@ -285,12 +285,21 @@ export const setAVTransportURI = async (
   instanceId: number = 0,
   currentURI: string,
   currentURIMetaData: string = ''
-): Promise<void> => {
+): Promise<{ success: boolean; error?: string }> => {
   const serviceType = 'urn:schemas-upnp-org:service:AVTransport:1';
   const action = 'SetAVTransportURI';
   
-  const escapedURI = currentURI.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const escapedMetaData = currentURIMetaData.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Double-escape for XML: first escape any bare ampersands, then escape < and >
+  // Be careful not to double-escape already escaped entities
+  const escapeForXml = (str: string): string => {
+    return str
+      .replace(/&(?!amp;|lt;|gt;|quot;|apos;)/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  };
+  
+  const escapedURI = escapeForXml(currentURI);
+  const escapedMetaData = escapeForXml(currentURIMetaData);
   
   const body = `      <InstanceID>${instanceId}</InstanceID>
       <CurrentURI>${escapedURI}</CurrentURI>
@@ -299,18 +308,40 @@ export const setAVTransportURI = async (
   const soapEnvelope = createSoapEnvelope(action, serviceType, body);
   const soapAction = `"${serviceType}#${action}"`;
   
-  const response = await fetch(controlURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      'SOAPACTION': soapAction,
-    },
-    body: soapEnvelope,
-  });
+  console.log('SetAVTransportURI SOAP request to:', controlURL);
   
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`SetAVTransportURI failed: ${response.status} - ${errorText}`);
+  try {
+    const response = await fetch(controlURL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset="utf-8"',
+        'SOAPACTION': soapAction,
+      },
+      body: soapEnvelope,
+    });
+    
+    const responseText = await response.text();
+    console.log('SetAVTransportURI response status:', response.status);
+    console.log('SetAVTransportURI response:', responseText.substring(0, 500));
+    
+    if (!response.ok) {
+      console.error('SetAVTransportURI HTTP error:', response.status, responseText);
+      return { success: false, error: `HTTP ${response.status}: ${responseText.substring(0, 200)}` };
+    }
+    
+    // Check for SOAP Fault in the response
+    if (responseText.includes('Fault') || responseText.includes('UPnPError')) {
+      const errorCodeMatch = responseText.match(/<errorCode>(\d+)<\/errorCode>/);
+      const errorDescMatch = responseText.match(/<errorDescription>([^<]+)<\/errorDescription>/);
+      const errorMsg = `UPnP Error ${errorCodeMatch?.[1] || 'unknown'}: ${errorDescMatch?.[1] || 'Unknown error'}`;
+      console.error('SetAVTransportURI SOAP Fault:', errorMsg);
+      return { success: false, error: errorMsg };
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('SetAVTransportURI network error:', error);
+    return { success: false, error: String(error) };
   }
 };
 

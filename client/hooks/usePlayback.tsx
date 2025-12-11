@@ -365,69 +365,102 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Track if we're currently sending a play command to prevent race conditions
+  const isPlayingRef = useRef(false);
+  
   const playTrack = useCallback(async (track: Track, tracks?: Track[]) => {
-    if (tracks) {
-      setQueue(tracks);
+    // Prevent concurrent play attempts
+    if (isPlayingRef.current) {
+      console.log('Play already in progress, ignoring');
+      return;
     }
-    setCurrentTrack(track);
-    setCurrentTime(0);
+    isPlayingRef.current = true;
     
-    // Send UPnP AVTransport commands to the dCS Varese
-    if (track.uri) {
-      try {
+    try {
+      if (tracks) {
+        setQueue(tracks);
+      }
+      setCurrentTrack(track);
+      setCurrentTime(0);
+      
+      // Send UPnP AVTransport commands to the dCS Varese
+      if (track.uri) {
         // Log the track URI for debugging
         console.log('=== PLAYING TRACK ===');
         console.log('Track title:', track.title);
         console.log('Track URI:', track.uri);
         
-        // Try to switch to network source first (may fail silently)
-        try {
-          console.log('Attempting to switch Varese source...');
-          await upnpClient.switchToNetworkSource(VARESE_PRODUCT_URL);
-        } catch (sourceError) {
-          console.log('Source switch failed (continuing anyway):', sourceError);
-        }
-        
         // Set the track URI using AVTransport with DIDL-Lite metadata
         console.log('Setting AVTransport URI...');
         console.log('Track metadata length:', track.metadata?.length || 0);
-        await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, track.metadata || '');
         
-        // Small delay to let the URI be processed
-        await new Promise(resolve => setTimeout(resolve, 300));
+        const setResult = await upnpClient.setAVTransportURI(VARESE_AVTRANSPORT_URL, 0, track.uri, track.metadata || '');
         
-        // Send Play command twice - dCS Varese often ignores the first Play after SetAVTransportURI
-        console.log('Sending first Play command...');
-        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-        
-        await new Promise(resolve => setTimeout(resolve, 250));
-        
-        console.log('Sending second Play command...');
-        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
-        
-        // Check transport state
-        const transportInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
-        console.log('Transport state after play:', transportInfo.currentTransportState);
-        console.log('Transport status:', transportInfo.currentTransportStatus);
-        
-        // Get position info for more details
-        try {
-          const posInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
-          console.log('Current track URI:', posInfo.trackURI);
-          console.log('Track duration:', posInfo.trackDuration);
-        } catch (posError) {
-          console.log('Could not get position info');
+        if (!setResult.success) {
+          console.error('SetAVTransportURI failed:', setResult.error);
+          // Don't proceed with Play if the track wasn't set
+          setIsPlaying(false);
+          return;
         }
         
-        setIsPlaying(true);
+        console.log('SetAVTransportURI succeeded');
+        
+        // Wait for the Varese to process the URI (500ms is safer for dCS devices)
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Verify the track was actually loaded by checking position info
+        try {
+          const posInfo = await upnpClient.getPositionInfo(VARESE_AVTRANSPORT_URL, 0);
+          console.log('Track loaded - URI:', posInfo.trackURI?.substring(0, 80));
+          console.log('Track loaded - Duration:', posInfo.trackDuration);
+          
+          // Verify it's our track (check if URI contains part of our track path)
+          const trackPathPart = track.uri.split('/').pop() || '';
+          if (!posInfo.trackURI?.includes(trackPathPart.substring(0, 20))) {
+            console.warn('Track URI mismatch - renderer may have rejected our track');
+            console.warn('Expected:', track.uri.substring(0, 80));
+            console.warn('Got:', posInfo.trackURI?.substring(0, 80));
+          }
+        } catch (posError) {
+          console.log('Could not verify track loaded');
+        }
+        
+        // Check transport state before playing
+        const prePlayInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
+        console.log('Transport state before play:', prePlayInfo.currentTransportState);
+        
+        // Send Play command
+        console.log('Sending Play command...');
+        await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+        
+        // Wait a bit and check if playback actually started
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // If still STOPPED, try Play again
+        const afterFirstPlay = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
+        console.log('Transport state after first play:', afterFirstPlay.currentTransportState);
+        
+        if (afterFirstPlay.currentTransportState === 'STOPPED') {
+          console.log('Still STOPPED, sending Play again...');
+          await upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        // Final check
+        const transportInfo = await upnpClient.getTransportInfo(VARESE_AVTRANSPORT_URL, 0);
+        console.log('Final transport state:', transportInfo.currentTransportState);
+        
+        setIsPlaying(transportInfo.currentTransportState === 'PLAYING');
         console.log('=== PLAY COMMAND SENT ===');
-      } catch (error) {
-        console.error('Failed to control Varese:', error);
+      } else {
+        console.warn('Track has no URI, cannot play on renderer');
         setIsPlaying(false);
       }
-    } else {
-      console.warn('Track has no URI, cannot play on renderer');
+    } catch (error) {
+      console.error('Failed to control Varese:', error);
       setIsPlaying(false);
+    } finally {
+      isPlayingRef.current = false;
     }
   }, []);
 
