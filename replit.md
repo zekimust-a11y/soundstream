@@ -24,12 +24,15 @@ SoundStream is a Roon-inspired mobile music player app built with Expo/React Nat
 - Library browsing from MinimServer via ContentDirectory
 - Queue management in the app
 
-**Next step:**
-1. Open the app on your iPhone via Expo Go (scan QR code in Replit)
-2. Make sure iPhone is on the same WiFi as the Varese
-3. Go to Settings > Developer > "Discover Varese Services"
-4. This will probe the Varese for its actual UPnP service URLs
-5. If successful, we'll see what AVTransport URL JRiver uses
+**Solution: SSDP Bridge**
+The SSDP Bridge runs on your Mac and performs proper UPnP discovery, then shares the discovered device info with the app:
+
+1. On your Mac, open Terminal and run: `npx tsx server/ssdp-bridge.ts`
+2. Open the app on your iPhone via Expo Go (scan QR code)
+3. Go to Settings > SSDP Bridge > "Refresh Bridge Devices"
+4. The bridge discovers your Varese and provides the correct AVTransport URL
+
+See `SSDP_BRIDGE_GUIDE.md` for detailed instructions.
 
 **Technical notes:**
 - JRiver uses standard UPnP AVTransport (not OpenHome) for renderer control

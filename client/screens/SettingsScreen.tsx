@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  TextInput,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -86,10 +87,13 @@ export default function SettingsScreen() {
   const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, artists, albums, addServer } = useMusic();
   const { theme } = useTheme();
   const { devices, isDiscovering, error: discoveryError, timeRemaining, startDiscovery, getMediaServers, getMediaRenderers, getContentDirectoryUrl, getAVTransportUrl } = useSsdpDiscovery();
-  const { runOpenHomeDiagnostic } = usePlayback();
+  const { runOpenHomeDiagnostic, bridgeUrl, bridgeConnected, discoveredRenderers, setBridgeUrl, refreshBridgeDevices } = usePlayback();
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [isDiscoveringDevice, setIsDiscoveringDevice] = useState(false);
   const [discoveryResult, setDiscoveryResult] = useState<upnpClient.DeviceDiscoveryResult | null>(null);
+  const [isRefreshingBridge, setIsRefreshingBridge] = useState(false);
+  const [showBridgeUrlInput, setShowBridgeUrlInput] = useState(false);
+  const [tempBridgeUrl, setTempBridgeUrl] = useState(bridgeUrl);
 
   const [gapless, setGapless] = useState(true);
   const [crossfade, setCrossfade] = useState(false);
@@ -562,6 +566,100 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>SSDP Bridge</ThemedText>
+          <View style={styles.sectionContent}>
+            <SettingRow
+              icon="server"
+              iconColor={bridgeConnected ? Colors.light.success : Colors.light.textSecondary}
+              title="Bridge Status"
+              subtitle={bridgeConnected ? `Connected - ${discoveredRenderers.length} renderer(s) found` : "Not connected (run bridge on your Mac)"}
+              rightElement={
+                bridgeConnected ? (
+                  <View style={styles.connectedBadge}>
+                    <Feather name="check" size={12} color={Colors.light.success} />
+                  </View>
+                ) : null
+              }
+              showChevron={false}
+            />
+            <SettingRow
+              icon="refresh-cw"
+              iconColor="#2196F3"
+              title="Refresh Bridge Devices"
+              subtitle="Fetch discovered devices from bridge"
+              onPress={async () => {
+                setIsRefreshingBridge(true);
+                try {
+                  await refreshBridgeDevices();
+                  if (bridgeConnected) {
+                    Alert.alert("Bridge Connected", `Found ${discoveredRenderers.length} renderer(s)`);
+                  } else {
+                    Alert.alert(
+                      "Bridge Not Available",
+                      "Make sure the SSDP Bridge is running on your Mac. Run: npx tsx server/ssdp-bridge.ts"
+                    );
+                  }
+                } catch (error) {
+                  Alert.alert("Error", String(error));
+                } finally {
+                  setIsRefreshingBridge(false);
+                }
+              }}
+              rightElement={isRefreshingBridge ? <ActivityIndicator size="small" /> : null}
+            />
+            <SettingRow
+              icon="edit-2"
+              iconColor={Colors.light.textSecondary}
+              title="Bridge URL"
+              subtitle={showBridgeUrlInput ? "Enter your Mac's IP address" : bridgeUrl}
+              onPress={() => {
+                setTempBridgeUrl(bridgeUrl);
+                setShowBridgeUrlInput(!showBridgeUrlInput);
+              }}
+            />
+            {showBridgeUrlInput ? (
+              <View style={styles.bridgeUrlInputContainer}>
+                <TextInput
+                  style={styles.bridgeUrlInput}
+                  value={tempBridgeUrl}
+                  onChangeText={setTempBridgeUrl}
+                  placeholder="http://192.168.0.42:3847"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                />
+                <Pressable
+                  style={styles.bridgeUrlSaveButton}
+                  onPress={async () => {
+                    await setBridgeUrl(tempBridgeUrl);
+                    setShowBridgeUrlInput(false);
+                    Alert.alert("Saved", "Bridge URL updated. Tap 'Refresh Bridge Devices' to connect.");
+                  }}
+                >
+                  <ThemedText style={styles.bridgeUrlSaveText}>Save</ThemedText>
+                </Pressable>
+              </View>
+            ) : null}
+            {discoveredRenderers.length > 0 ? (
+              discoveredRenderers.map((renderer, index) => (
+                <SettingRow
+                  key={index}
+                  icon="speaker"
+                  iconColor="#FF5722"
+                  title={renderer.name}
+                  subtitle={`${renderer.manufacturer || ''} ${renderer.model || ''}\n${renderer.avTransportUrl ? 'AVTransport available' : 'No AVTransport'}`}
+                  showChevron={false}
+                />
+              ))
+            ) : null}
+          </View>
+          <ThemedText style={styles.refreshHint}>
+            The SSDP Bridge runs on your Mac and discovers UPnP devices on your network. Change the URL to your Mac's IP if connecting from your iPhone.
+          </ThemedText>
+        </View>
+
+        <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Developer</ThemedText>
           <View style={styles.sectionContent}>
             <SettingRow
@@ -860,5 +958,33 @@ const styles = StyleSheet.create({
   },
   manualAddText: {
     ...Typography.body,
+  },
+  bridgeUrlInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.border,
+    gap: Spacing.sm,
+  },
+  bridgeUrlInput: {
+    flex: 1,
+    ...Typography.body,
+    color: Colors.light.text,
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.xs,
+  },
+  bridgeUrlSaveButton: {
+    backgroundColor: Colors.light.link,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.xs,
+  },
+  bridgeUrlSaveText: {
+    ...Typography.body,
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 });

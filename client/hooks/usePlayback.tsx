@@ -3,30 +3,28 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as upnpClient from "@/lib/upnpClient";
 import { OpenHomeServices } from "@/lib/upnpClient";
 
-// Common device description URL paths to try
-const VARESE_BASE_HOST = 'http://192.168.0.35:49152';
-const DEVICE_DESCRIPTION_PATHS = [
-  '/device.xml',
-  '/description.xml',
-  '/desc.xml',
-  '/root.xml',
-  '/DeviceDescription.xml',
-  '/',
-  '/upnp/desc.xml',
-  '/rootDesc.xml',
-];
-
-// Hardcoded URLs based on discovered URL pattern from AVTransport
+// Fallback hardcoded URLs (used when bridge is not available)
 const VARESE_BASE = 'http://192.168.0.35:49152';
 const VARESE_UUID_BASE = `${VARESE_BASE}/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799`;
 const VARESE_AVTRANSPORT_URL = `${VARESE_UUID_BASE}/ctl-urn-schemas-upnp-org-service-AVTransport-1`;
 const VARESE_RENDERINGCONTROL_URL = `${VARESE_UUID_BASE}/ctl-urn-schemas-upnp-org-service-RenderingControl-1`;
 
-// OpenHome URLs - guessed based on the same pattern as AVTransport
-// OpenHome uses av.openhome.org namespace, converted to URL path format
-const VARESE_OH_PLAYLIST_URL = `${VARESE_UUID_BASE}/ctl-urn-av-openhome-org-service-Playlist-1`;
-const VARESE_OH_PRODUCT_URL = `${VARESE_UUID_BASE}/ctl-urn-av-openhome-org-service-Product-1`;
-const VARESE_OH_TRANSPORT_URL = `${VARESE_UUID_BASE}/ctl-urn-av-openhome-org-service-Transport-1`;
+// SSDP Bridge configuration - runs on user's computer for proper device discovery
+const BRIDGE_STORAGE_KEY = "@soundstream_bridge_url";
+const DEFAULT_BRIDGE_URL = "http://localhost:3847";
+
+interface BridgeRenderer {
+  name: string;
+  manufacturer?: string;
+  model?: string;
+  avTransportUrl?: string;
+  location: string;
+}
+
+interface BridgeResponse {
+  count: number;
+  renderers: BridgeRenderer[];
+}
 
 export interface Zone {
   id: string;
@@ -80,6 +78,11 @@ interface PlaybackContextType extends PlaybackState {
   toggleZone: (zoneId: string) => void;
   activeZone: Zone | null;
   runOpenHomeDiagnostic: () => Promise<void>;
+  bridgeUrl: string;
+  bridgeConnected: boolean;
+  discoveredRenderers: BridgeRenderer[];
+  setBridgeUrl: (url: string) => Promise<void>;
+  refreshBridgeDevices: () => Promise<void>;
 }
 
 const PlaybackContext = createContext<PlaybackContextType | undefined>(undefined);
@@ -103,15 +106,85 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const [activeZoneId, setActiveZoneId] = useState<string | null>("local");
   const [vareseServices, setVareseServices] = useState<OpenHomeServices>({});
   
+  // SSDP Bridge state
+  const [bridgeUrl, setBridgeUrlState] = useState(DEFAULT_BRIDGE_URL);
+  const [bridgeConnected, setBridgeConnected] = useState(false);
+  const [discoveredRenderers, setDiscoveredRenderers] = useState<BridgeRenderer[]>([]);
+  
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedTimeRef = useRef<number>(0);
 
   useEffect(() => {
     loadState();
     loadZones();
+    loadBridgeUrl();
     fetchVareseVolume();
     discoverVareseServices();
   }, []);
+  
+  const loadBridgeUrl = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(BRIDGE_STORAGE_KEY);
+      if (stored) {
+        setBridgeUrlState(stored);
+        refreshBridgeDevices(stored);
+      } else {
+        refreshBridgeDevices(DEFAULT_BRIDGE_URL);
+      }
+    } catch (e) {
+      console.error("Failed to load bridge URL:", e);
+    }
+  };
+  
+  const setBridgeUrl = async (url: string) => {
+    setBridgeUrlState(url);
+    await AsyncStorage.setItem(BRIDGE_STORAGE_KEY, url);
+    await refreshBridgeDevices(url);
+  };
+  
+  const refreshBridgeDevices = async (url?: string) => {
+    const bridgeEndpoint = url || bridgeUrl;
+    console.log(`[Bridge] Fetching renderers from ${bridgeEndpoint}/renderers`);
+    
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      
+      const response = await fetch(`${bridgeEndpoint}/renderers`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      
+      if (response.ok) {
+        const data: BridgeResponse = await response.json();
+        console.log(`[Bridge] Found ${data.count} renderers:`, data.renderers);
+        setBridgeConnected(true);
+        setDiscoveredRenderers(data.renderers);
+        
+        // If we found a renderer with AVTransport URL, update the services
+        const varese = data.renderers.find(r => 
+          r.name?.toLowerCase().includes('varese') || 
+          r.manufacturer?.toLowerCase().includes('dcs')
+        );
+        
+        if (varese?.avTransportUrl) {
+          console.log(`[Bridge] Found Varese AVTransport: ${varese.avTransportUrl}`);
+          setVareseServices(prev => ({
+            ...prev,
+            avTransportControlURL: varese.avTransportUrl
+          }));
+        }
+      } else {
+        console.log('[Bridge] Not available or returned error');
+        setBridgeConnected(false);
+        setDiscoveredRenderers([]);
+      }
+    } catch (e) {
+      console.log('[Bridge] Not reachable (this is normal if not running):', e);
+      setBridgeConnected(false);
+      setDiscoveredRenderers([]);
+    }
+  };
 
   const discoverVareseServices = async () => {
     console.log('=== CONFIGURING VARESE SERVICES ===');
@@ -559,6 +632,11 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         setZoneVolume,
         toggleZone,
         runOpenHomeDiagnostic,
+        bridgeUrl,
+        bridgeConnected,
+        discoveredRenderers,
+        setBridgeUrl,
+        refreshBridgeDevices: () => refreshBridgeDevices(),
       }}
     >
       {children}
