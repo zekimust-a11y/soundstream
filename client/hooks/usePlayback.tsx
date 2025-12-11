@@ -671,14 +671,14 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       ).then((setResult) => {
         if (!setResult.success) {
           console.error('SetAVTransportURI failed:', setResult.error);
-          return;
+          throw new Error(setResult.error || 'SetAVTransportURI failed');
         }
-        console.log('SetAVTransportURI succeeded');
+        console.log('SetAVTransportURI succeeded, sending Play command...');
         return upnpClient.play(VARESE_AVTRANSPORT_URL, 0, '1');
       }).then(() => {
-        console.log('=== PLAY COMMAND SENT ===');
+        console.log('=== PLAY COMMAND SENT SUCCESSFULLY ===');
       }).catch((error) => {
-        console.error('UPnP AVTransport playback failed:', error);
+        console.error('Playback failed:', error);
         setIsPlaying(false);
       }).finally(() => {
         isPlayingRef.current = false;

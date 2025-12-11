@@ -405,41 +405,57 @@ export const setAVTransportURI = async (
   console.log('SetAVTransportURI SOAP request to:', controlURL);
   console.log('SetAVTransportURI SOAP body preview:', soapEnvelope.substring(0, 800));
   
-  try {
-    // Use regular fetch without AbortController - React Native's AbortController can cause issues
-    // with larger SOAP requests on some devices
-    const response = await fetch(controlURL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/xml; charset="utf-8"',
-        'SOAPACTION': soapAction,
-      },
-      body: soapEnvelope,
-    });
-    
-    const responseText = await response.text();
-    console.log('SetAVTransportURI response status:', response.status);
-    console.log('SetAVTransportURI response:', responseText.substring(0, 500));
-    
-    if (!response.ok) {
-      console.error('SetAVTransportURI HTTP error:', response.status, responseText);
-      return { success: false, error: `HTTP ${response.status}: ${responseText.substring(0, 200)}` };
+  // Retry logic for network failures
+  const maxRetries = 3;
+  let lastError = '';
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`SetAVTransportURI attempt ${attempt}/${maxRetries}`);
+      
+      const response = await fetch(controlURL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/xml; charset="utf-8"',
+          'SOAPACTION': soapAction,
+        },
+        body: soapEnvelope,
+      });
+      
+      const responseText = await response.text();
+      console.log('SetAVTransportURI response status:', response.status);
+      console.log('SetAVTransportURI response:', responseText.substring(0, 500));
+      
+      if (!response.ok) {
+        console.error('SetAVTransportURI HTTP error:', response.status, responseText);
+        return { success: false, error: `HTTP ${response.status}: ${responseText.substring(0, 200)}` };
+      }
+      
+      // Check for SOAP Fault in the response
+      if (responseText.includes('Fault') || responseText.includes('UPnPError')) {
+        const errorCodeMatch = responseText.match(/<errorCode>(\d+)<\/errorCode>/);
+        const errorDescMatch = responseText.match(/<errorDescription>([^<]+)<\/errorDescription>/);
+        const errorMsg = `UPnP Error ${errorCodeMatch?.[1] || 'unknown'}: ${errorDescMatch?.[1] || 'Unknown error'}`;
+        console.error('SetAVTransportURI SOAP Fault:', errorMsg);
+        return { success: false, error: errorMsg };
+      }
+      
+      console.log('SetAVTransportURI succeeded on attempt', attempt);
+      return { success: true };
+    } catch (error) {
+      lastError = String(error);
+      console.error(`SetAVTransportURI attempt ${attempt} failed:`, error);
+      
+      // If not the last attempt, wait before retrying
+      if (attempt < maxRetries) {
+        console.log('Retrying in 500ms...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
-    
-    // Check for SOAP Fault in the response
-    if (responseText.includes('Fault') || responseText.includes('UPnPError')) {
-      const errorCodeMatch = responseText.match(/<errorCode>(\d+)<\/errorCode>/);
-      const errorDescMatch = responseText.match(/<errorDescription>([^<]+)<\/errorDescription>/);
-      const errorMsg = `UPnP Error ${errorCodeMatch?.[1] || 'unknown'}: ${errorDescMatch?.[1] || 'Unknown error'}`;
-      console.error('SetAVTransportURI SOAP Fault:', errorMsg);
-      return { success: false, error: errorMsg };
-    }
-    
-    return { success: true };
-  } catch (error) {
-    console.error('SetAVTransportURI network error:', error);
-    return { success: false, error: String(error) };
   }
+  
+  console.error('SetAVTransportURI failed after all retries');
+  return { success: false, error: lastError };
 };
 
 export const play = async (controlURL: string, instanceId: number = 0, speed: string = '1'): Promise<void> => {
