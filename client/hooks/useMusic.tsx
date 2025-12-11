@@ -285,11 +285,17 @@ const browseUPNPContainer = async (baseUrl: string, containerId: string, serverI
   for (const controlUrl of controlUrls) {
     try {
       console.log('Trying UPNP control URL:', controlUrl, 'for container:', containerId);
+      const urlObj = new URL(controlUrl);
+      const hostHeader = `${urlObj.hostname}:${urlObj.port || '80'}`;
+      
       const response = await fetch(controlUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'text/xml; charset=utf-8',
           'SOAPAction': '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"',
+          'Host': hostHeader,
+          'User-Agent': 'SoundStream/1.0 UPnP/1.0',
+          'Connection': 'close',
         },
         body: soapEnvelope,
       });
