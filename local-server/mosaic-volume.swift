@@ -136,26 +136,44 @@ func findMosaicApp() -> NSRunningApplication? {
 
 // MARK: - Find Volume Slider
 
-func findVolumeSlider(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 10) -> AXUIElement? {
+func findVolumeSlider(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 15) -> AXUIElement? {
     if depth > maxDepth { return nil }
     
     let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+    let subrole = getStringAttribute(element, kAXSubroleAttribute as String) ?? ""
     let title = (getStringAttribute(element, kAXTitleAttribute as String) ?? "").lowercased()
     let description = (getStringAttribute(element, kAXDescriptionAttribute as String) ?? "").lowercased()
     let identifier = (getStringAttribute(element, "AXIdentifier") ?? "").lowercased()
+    let label = (getStringAttribute(element, kAXLabelValueAttribute as String) ?? "").lowercased()
     
-    let isSlider = role == "AXSlider"
-    let hasVolumeKeyword = title.contains("volume") || description.contains("volume") || identifier.contains("volume")
+    let adjustableRoles = ["AXSlider", "AXValueIndicator", "AXIncrementor", "AXStepper"]
+    let isAdjustable = adjustableRoles.contains(role)
+    let hasVolumeKeyword = title.contains("volume") || description.contains("volume") || 
+                           identifier.contains("volume") || label.contains("volume") ||
+                           title.contains("level") || description.contains("level")
     
-    if isSlider && hasVolumeKeyword {
+    if isAdjustable && hasVolumeKeyword {
         return element
     }
     
-    if isSlider {
+    if isAdjustable {
         let minVal = getNumberAttribute(element, kAXMinValueAttribute as String)
         let maxVal = getNumberAttribute(element, kAXMaxValueAttribute as String)
-        if minVal != nil && maxVal != nil {
-            return element
+        let value = getNumberAttribute(element, kAXValueAttribute as String)
+        if (minVal != nil && maxVal != nil) || value != nil {
+            if maxVal ?? 0 > 0 {
+                return element
+            }
+        }
+    }
+    
+    if role == "AXGroup" || role == "AXScrollArea" || role == "AXSplitGroup" {
+        if let children = getArrayAttribute(element, kAXChildrenAttribute as String) {
+            for child in children {
+                if let found = findVolumeSlider(child, depth: depth + 1, maxDepth: maxDepth) {
+                    return found
+                }
+            }
         }
     }
     
@@ -168,6 +186,44 @@ func findVolumeSlider(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 10
     }
     
     return nil
+}
+
+func getAllAdjustableElements(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 15) -> [[String: Any]] {
+    var results: [[String: Any]] = []
+    if depth > maxDepth { return results }
+    
+    let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+    let title = getStringAttribute(element, kAXTitleAttribute as String) ?? ""
+    let description = getStringAttribute(element, kAXDescriptionAttribute as String) ?? ""
+    let identifier = getStringAttribute(element, "AXIdentifier") ?? ""
+    let label = getStringAttribute(element, kAXLabelValueAttribute as String) ?? ""
+    let value = getNumberAttribute(element, kAXValueAttribute as String)
+    let minVal = getNumberAttribute(element, kAXMinValueAttribute as String)
+    let maxVal = getNumberAttribute(element, kAXMaxValueAttribute as String)
+    
+    let adjustableRoles = ["AXSlider", "AXValueIndicator", "AXIncrementor", "AXStepper", "AXGroup"]
+    
+    if adjustableRoles.contains(role) || value != nil || minVal != nil || maxVal != nil {
+        results.append([
+            "role": role,
+            "title": title,
+            "description": description,
+            "identifier": identifier,
+            "label": label,
+            "value": value ?? 0,
+            "min": minVal ?? 0,
+            "max": maxVal ?? 0,
+            "depth": depth
+        ])
+    }
+    
+    if let children = getArrayAttribute(element, kAXChildrenAttribute as String) {
+        for child in children {
+            results.append(contentsOf: getAllAdjustableElements(child, depth: depth + 1, maxDepth: maxDepth))
+        }
+    }
+    
+    return results
 }
 
 func findMuteButton(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 10) -> AXUIElement? {
@@ -271,27 +327,12 @@ func main() {
     
     switch command {
     case "--list":
-        let sliders = getAllSliders(axApp)
-        var info: [[String: Any]] = []
-        for slider in sliders {
-            let title = getStringAttribute(slider, kAXTitleAttribute as String) ?? ""
-            let desc = getStringAttribute(slider, kAXDescriptionAttribute as String) ?? ""
-            let value = getNumberAttribute(slider, kAXValueAttribute as String)
-            let minVal = getNumberAttribute(slider, kAXMinValueAttribute as String)
-            let maxVal = getNumberAttribute(slider, kAXMaxValueAttribute as String)
-            info.append([
-                "title": title,
-                "description": desc,
-                "value": value ?? 0,
-                "min": minVal ?? 0,
-                "max": maxVal ?? 0
-            ])
-        }
-        if let data = try? JSONSerialization.data(withJSONObject: ["success": true, "sliders": info], options: []),
+        let elements = getAllAdjustableElements(axApp)
+        if let data = try? JSONSerialization.data(withJSONObject: ["success": true, "elements": elements, "count": elements.count], options: [.prettyPrinted]),
            let json = String(data: data, encoding: .utf8) {
             print(json)
         } else {
-            print("{\"success\":true,\"sliders\":[]}")
+            print("{\"success\":true,\"elements\":[],\"count\":0}")
         }
         exit(0)
         
