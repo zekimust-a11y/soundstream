@@ -11,6 +11,7 @@ import { queryClient } from "@/lib/query-client";
 
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { LmsProvider } from "@/hooks/useLms";
 import { Colors } from "@/constants/theme";
 
 const AppTheme = {
@@ -30,16 +31,18 @@ export default function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <SafeAreaProvider>
-          <GestureHandlerRootView style={styles.root}>
-            <KeyboardProvider>
-              <NavigationContainer theme={AppTheme}>
-                <RootStackNavigator />
-              </NavigationContainer>
-              <StatusBar style="dark" />
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        </SafeAreaProvider>
+        <LmsProvider>
+          <SafeAreaProvider>
+            <GestureHandlerRootView style={styles.root}>
+              <KeyboardProvider>
+                <NavigationContainer theme={AppTheme}>
+                  <RootStackNavigator />
+                </NavigationContainer>
+                <StatusBar style="dark" />
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </SafeAreaProvider>
+        </LmsProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );
