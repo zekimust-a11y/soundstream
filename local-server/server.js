@@ -5,6 +5,7 @@ const fs = require('fs');
 const readline = require('readline');
 
 const app = express();
+app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 const LMS_HOST = process.env.LMS_HOST || '192.168.0.19';
