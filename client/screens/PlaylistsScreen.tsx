@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, memo } from "react";
 import {
   View,
   StyleSheet,
@@ -27,11 +27,72 @@ import type { PlaylistsStackParamList } from "@/navigation/PlaylistsStackNavigat
 const { width } = Dimensions.get("window");
 const NUM_COLUMNS = 2;
 const GRID_ITEM_SIZE = (width - Spacing.lg * 3) / NUM_COLUMNS;
+const TILE_SIZE = GRID_ITEM_SIZE / 2;
 
 type NavigationProp = NativeStackNavigationProp<PlaylistsStackParamList>;
 type ViewMode = "grid" | "list";
 
 const VIEW_MODE_KEY = "@playlists_view_mode";
+
+const PlaylistMosaic = memo(({ artworks, size }: { artworks: string[]; size: number }) => {
+  const tileSize = size / 2;
+  
+  if (artworks.length === 0) {
+    return (
+      <View style={[styles.mosaicContainer, { width: size, height: size }]}>
+        <View style={[styles.mosaicPlaceholder, { width: size, height: size }]}>
+          <Feather name="music" size={40} color={Colors.light.textTertiary} />
+        </View>
+      </View>
+    );
+  }
+  
+  if (artworks.length === 1) {
+    return (
+      <View style={[styles.mosaicContainer, { width: size, height: size }]}>
+        <Image
+          source={artworks[0]}
+          style={{ width: size, height: size, borderRadius: BorderRadius.sm }}
+          contentFit="cover"
+        />
+      </View>
+    );
+  }
+  
+  const tiles = artworks.slice(0, 4);
+  while (tiles.length < 4) {
+    tiles.push(tiles[tiles.length % artworks.length] || tiles[0]);
+  }
+  
+  return (
+    <View style={[styles.mosaicContainer, { width: size, height: size }]}>
+      <View style={styles.mosaicRow}>
+        <Image
+          source={tiles[0]}
+          style={[styles.mosaicTile, { width: tileSize, height: tileSize }, styles.mosaicTopLeft]}
+          contentFit="cover"
+        />
+        <Image
+          source={tiles[1]}
+          style={[styles.mosaicTile, { width: tileSize, height: tileSize }, styles.mosaicTopRight]}
+          contentFit="cover"
+        />
+      </View>
+      <View style={styles.mosaicRow}>
+        <Image
+          source={tiles[2]}
+          style={[styles.mosaicTile, { width: tileSize, height: tileSize }, styles.mosaicBottomLeft]}
+          contentFit="cover"
+        />
+        <Image
+          source={tiles[3]}
+          style={[styles.mosaicTile, { width: tileSize, height: tileSize }, styles.mosaicBottomRight]}
+          contentFit="cover"
+        />
+      </View>
+    </View>
+  );
+});
 
 export default function PlaylistsScreen() {
   const insets = useSafeAreaInsets();
@@ -40,7 +101,7 @@ export default function PlaylistsScreen() {
   const { activeServer } = useMusic();
   const { activePlayer, playPlaylist } = usePlayback();
   const [playlists, setPlaylists] = useState<LmsPlaylist[]>([]);
-  const [playlistArtwork, setPlaylistArtwork] = useState<Record<string, string>>({});
+  const [playlistArtworks, setPlaylistArtworks] = useState<Record<string, string[]>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -58,17 +119,27 @@ export default function PlaylistsScreen() {
     AsyncStorage.setItem(VIEW_MODE_KEY, mode);
   };
 
-  const loadPlaylistArtwork = useCallback(async (playlist: LmsPlaylist) => {
+  const loadPlaylistArtworks = useCallback(async (playlist: LmsPlaylist) => {
     try {
       const tracks = await lmsClient.getPlaylistTracks(playlist.id);
-      if (tracks.length > 0 && tracks[0].artwork_url) {
-        setPlaylistArtwork(prev => ({
+      const uniqueArtworks: string[] = [];
+      const seen = new Set<string>();
+      
+      for (const track of tracks) {
+        if (track.artwork_url && !seen.has(track.artwork_url)) {
+          seen.add(track.artwork_url);
+          uniqueArtworks.push(track.artwork_url);
+          if (uniqueArtworks.length >= 4) break;
+        }
+      }
+      
+      if (uniqueArtworks.length > 0) {
+        setPlaylistArtworks(prev => ({
           ...prev,
-          [playlist.id]: tracks[0].artwork_url!,
+          [playlist.id]: uniqueArtworks,
         }));
       }
     } catch (error) {
-      // Silently fail for artwork loading
     }
   }, []);
 
@@ -80,14 +151,13 @@ export default function PlaylistsScreen() {
       const fetchedPlaylists = await lmsClient.getPlaylists();
       setPlaylists(fetchedPlaylists);
       
-      // Load artwork for first 20 playlists
       fetchedPlaylists.slice(0, 20).forEach(playlist => {
-        loadPlaylistArtwork(playlist);
+        loadPlaylistArtworks(playlist);
       });
     } catch (error) {
       console.error("Failed to load playlists:", error);
     }
-  }, [activeServer, loadPlaylistArtwork]);
+  }, [activeServer, loadPlaylistArtworks]);
 
   useEffect(() => {
     if (activeServer) {
@@ -95,7 +165,7 @@ export default function PlaylistsScreen() {
       loadPlaylists().finally(() => setIsLoading(false));
     } else {
       setPlaylists([]);
-      setPlaylistArtwork({});
+      setPlaylistArtworks({});
     }
   }, [activeServer, loadPlaylists]);
 
@@ -121,7 +191,7 @@ export default function PlaylistsScreen() {
   };
 
   const renderGridItem = ({ item }: { item: LmsPlaylist }) => {
-    const artwork = playlistArtwork[item.id];
+    const artworks = playlistArtworks[item.id] || [];
     const displayName = item.name.replace(/^Qobuz\s*:?\s*/i, '').trim();
     const isQobuz = item.url?.includes('qobuz');
     
@@ -134,17 +204,7 @@ export default function PlaylistsScreen() {
         onPress={() => handleOpenPlaylist(item)}
       >
         <View style={styles.gridImageContainer}>
-          {artwork ? (
-            <Image
-              source={artwork}
-              style={styles.gridImage}
-              contentFit="cover"
-            />
-          ) : (
-            <View style={[styles.gridImage, styles.gridPlaceholder]}>
-              <Feather name="music" size={40} color={Colors.light.textTertiary} />
-            </View>
-          )}
+          <PlaylistMosaic artworks={artworks} size={GRID_ITEM_SIZE} />
           {isQobuz ? (
             <View style={styles.gridQobuzBadge}>
               <ThemedText style={styles.gridQobuzText}>Q</ThemedText>
@@ -373,15 +433,32 @@ const styles = StyleSheet.create({
     position: "relative",
     marginBottom: Spacing.sm,
   },
-  gridImage: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
+  mosaicContainer: {
     borderRadius: BorderRadius.sm,
+    overflow: "hidden",
   },
-  gridPlaceholder: {
+  mosaicRow: {
+    flexDirection: "row",
+  },
+  mosaicTile: {
+  },
+  mosaicTopLeft: {
+    borderTopLeftRadius: BorderRadius.sm,
+  },
+  mosaicTopRight: {
+    borderTopRightRadius: BorderRadius.sm,
+  },
+  mosaicBottomLeft: {
+    borderBottomLeftRadius: BorderRadius.sm,
+  },
+  mosaicBottomRight: {
+    borderBottomRightRadius: BorderRadius.sm,
+  },
+  mosaicPlaceholder: {
     backgroundColor: Colors.light.backgroundSecondary,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: BorderRadius.sm,
   },
   gridQobuzBadge: {
     position: "absolute",
