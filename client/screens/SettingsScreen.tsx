@@ -107,15 +107,10 @@ export default function SettingsScreen() {
 
   const nowPlayingUrl = useMemo(() => {
     if (!activeServer || !activePlayer) return null;
-    // For web, use current origin; for mobile, use the EXPO_PUBLIC_DOMAIN
-    let baseUrl: string;
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      baseUrl = window.location.origin;
-    } else {
-      // Use the domain from environment, fallback to localhost
-      const domain = process.env.EXPO_PUBLIC_DOMAIN || 'localhost:5000';
-      baseUrl = domain.startsWith('http') ? domain : `https://${domain}`;
-    }
+    // Generate a local network URL using the LMS server's IP address
+    // This URL format is for when SoundStream is running on the local network
+    // Port 5000 is the default SoundStream server port
+    const baseUrl = `http://${activeServer.host}:5000`;
     return `${baseUrl}/now-playing?host=${activeServer.host}&port=${activeServer.port}&player=${encodeURIComponent(activePlayer.id)}`;
   }, [activeServer, activePlayer]);
 
@@ -725,7 +720,7 @@ export default function SettingsScreen() {
                   ) : null}
                 </View>
                 <ThemedText style={[styles.tvDisplayHint, { color: theme.textTertiary }]}>
-                  Open this URL in Chrome on your computer, then use Chrome's built-in Cast feature to display on your TV
+                  This URL requires SoundStream to be running on your local network at port 5000. Open the URL on a device connected to the same network as your LMS server.
                 </ThemedText>
               </View>
             </View>
