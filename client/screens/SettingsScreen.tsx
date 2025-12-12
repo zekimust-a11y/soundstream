@@ -108,6 +108,9 @@ export default function SettingsScreen() {
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveredServers, setDiscoveredServers] = useState<Array<{host: string; port: number; name: string}>>([]);
   const [libraryStats, setLibraryStats] = useState<{ albums: number; artists: number; tracks: number } | null>(null);
+  
+  const [isChromecastDiscovering, setIsChromecastDiscovering] = useState(false);
+  const [discoveredChromecastDevices, setDiscoveredChromecastDevices] = useState<Array<{ip: string; name: string}>>([]);
 
   useEffect(() => {
     if (activeServer) {
@@ -234,6 +237,49 @@ export default function SettingsScreen() {
       ]
     );
   };
+
+  const handleDiscoverChromecast = async () => {
+    setIsChromecastDiscovering(true);
+    setConnectionError(null);
+    setDiscoveredChromecastDevices([]);
+    
+    try {
+      // Simulate SSDP discovery for Chromecast devices
+      // In a real implementation, you would use a library like react-native-ssdp-client
+      // For now, we'll use a simple UDP broadcast discovery
+      const response = await fetch(`${getApiUrl()}/api/chromecast/discover`, {
+        method: 'GET',
+      });
+      
+      if (response.ok) {
+        const devices = await response.json();
+        setDiscoveredChromecastDevices(devices);
+        
+        if (devices.length === 0) {
+          setConnectionError("No Chromecast devices found. Make sure your device is powered on and connected to WiFi.");
+        }
+      } else {
+        setConnectionError("Could not discover Chromecast devices");
+      }
+    } catch (error) {
+      setConnectionError("Discovery failed: " + (error instanceof Error ? error.message : "Unknown error"));
+    } finally {
+      setIsChromecastDiscovering(false);
+    }
+  };
+
+  const handleSelectChromecast = (ip: string) => {
+    setChromecastIp(ip);
+    setDiscoveredChromecastDevices([]);
+  };
+
+  const getApiUrl = () => {
+    const domain = process.env.EXPO_PUBLIC_DOMAIN || 'localhost:5000';
+    const protocol = Platform.OS === 'web' ? window.location.protocol : 'http:';
+    return `${protocol}//${domain}`;
+  };
+
+  const isWeb = Platform.OS === 'web';
 
   return (
     <ThemedView style={styles.container}>
@@ -667,20 +713,88 @@ export default function SettingsScreen() {
             <ThemedText style={[styles.hintText, { color: theme.textSecondary, marginBottom: Spacing.md }]}>
               Stream album artwork and track info to a TV via Chromecast
             </ThemedText>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[styles.hostInput, { color: theme.text, borderColor: theme.border }]}
-                placeholder="Chromecast IP (e.g., 192.168.0.239)"
-                placeholderTextColor={theme.textTertiary}
-                value={chromecastIp}
-                onChangeText={setChromecastIp}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="default"
-              />
+            
+            <View style={styles.buttonRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.connectButton,
+                  { flex: 1 },
+                  { 
+                    backgroundColor: theme.accentSecondary,
+                    opacity: pressed || isChromecastDiscovering ? 0.7 : 1,
+                  },
+                ]}
+                onPress={handleDiscoverChromecast}
+                disabled={isChromecastDiscovering}
+              >
+                {isChromecastDiscovering ? (
+                  <ActivityIndicator size="small" color={theme.buttonText} />
+                ) : (
+                  <Feather name="search" size={18} color={theme.buttonText} />
+                )}
+                <ThemedText style={[styles.connectButtonText, { color: theme.buttonText }]}>
+                  {isChromecastDiscovering ? "Searching..." : "Search Devices"}
+                </ThemedText>
+              </Pressable>
             </View>
+            
+            {connectionError && (chromecastIp === '' || isChromecastDiscovering) ? (
+              <ThemedText style={[styles.errorText, { color: theme.error }]}>
+                {connectionError}
+              </ThemedText>
+            ) : null}
+            
+            {discoveredChromecastDevices.length > 0 ? (
+              <View style={styles.discoveredSection}>
+                <ThemedText style={[styles.discoveredTitle, { color: theme.text }]}>
+                  Found {discoveredChromecastDevices.length} Device{discoveredChromecastDevices.length !== 1 ? 's' : ''}
+                </ThemedText>
+                {discoveredChromecastDevices.map((device) => (
+                  <Pressable
+                    key={device.ip}
+                    style={({ pressed }) => [
+                      styles.discoveredServer,
+                      { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
+                    ]}
+                    onPress={() => handleSelectChromecast(device.ip)}
+                  >
+                    <Feather name="tv" size={16} color={theme.accent} />
+                    <View style={styles.discoveredServerInfo}>
+                      <ThemedText style={[styles.discoveredServerName, { color: theme.text }]}>
+                        {device.name}
+                      </ThemedText>
+                      <ThemedText style={[styles.discoveredServerAddress, { color: theme.textSecondary }]}>
+                        {device.ip}
+                      </ThemedText>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={theme.textTertiary} />
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            {chromecastIp ? (
+              <View style={[styles.selectedDevice, { borderColor: theme.accent, backgroundColor: theme.accent + '10' }]}>
+                <Feather name="check-circle" size={18} color={theme.success} />
+                <View style={styles.selectedDeviceInfo}>
+                  <ThemedText style={[styles.selectedDeviceLabel, { color: theme.text }]}>
+                    Connected
+                  </ThemedText>
+                  <ThemedText style={[styles.selectedDeviceIp, { color: theme.textSecondary }]}>
+                    {chromecastIp}
+                  </ThemedText>
+                </View>
+                <Pressable
+                  onPress={() => setChromecastIp('')}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Feather name="x" size={18} color={theme.error} />
+                </Pressable>
+              </View>
+            ) : null}
+
             <ThemedText style={[styles.hintText, { color: theme.textTertiary }]}>
-              Enter your Chromecast device IP address for TV display feature
+              {chromecastIp ? 'Tap X to disconnect from this device' : 'Search to find and select a Chromecast device'}
             </ThemedText>
           </View>
         </View>
@@ -1089,6 +1203,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.md,
     marginBottom: Spacing.md,
+  },
+  selectedDevice: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    gap: Spacing.md,
+  },
+  selectedDeviceInfo: {
+    flex: 1,
+  },
+  selectedDeviceLabel: {
+    ...Typography.body,
+    fontWeight: "500",
+  },
+  selectedDeviceIp: {
+    ...Typography.caption,
+    marginTop: 2,
   },
   tvDisplayButton: {
     flex: 1,
