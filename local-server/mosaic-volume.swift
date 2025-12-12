@@ -343,51 +343,85 @@ func toggleMute(_ button: AXUIElement) -> Bool {
     return performAction(button, kAXPressAction as String)
 }
 
-// MARK: - Keyboard Simulation
+// MARK: - Mouse Drag Simulation
 
-func sendKeyToMosaic(_ keyCode: CGKeyCode, app: NSRunningApplication) -> Bool {
+func getWindowPosition(_ app: NSRunningApplication) -> CGPoint? {
+    let axApp = AXUIElementCreateApplication(app.processIdentifier)
+    
+    guard let windows = getArrayAttribute(axApp, kAXWindowsAttribute as String),
+          !windows.isEmpty else {
+        return nil
+    }
+    
+    for window in windows {
+        let title = getStringAttribute(window, kAXTitleAttribute as String) ?? ""
+        if title.lowercased().contains("volume") {
+            if let posValue = getAttributeValue(window, kAXPositionAttribute as String) {
+                var point = CGPoint.zero
+                AXValueGetValue(posValue as! AXValue, .cgPoint, &point)
+                
+                if let sizeValue = getAttributeValue(window, kAXSizeAttribute as String) {
+                    var size = CGSize.zero
+                    AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+                    return CGPoint(x: point.x + size.width / 2, y: point.y + size.height / 2)
+                }
+            }
+        }
+    }
+    
+    if let posValue = getAttributeValue(windows[0], kAXPositionAttribute as String) {
+        var point = CGPoint.zero
+        AXValueGetValue(posValue as! AXValue, .cgPoint, &point)
+        
+        if let sizeValue = getAttributeValue(windows[0], kAXSizeAttribute as String) {
+            var size = CGSize.zero
+            AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+            return CGPoint(x: point.x + size.width / 2, y: point.y + size.height / 2)
+        }
+    }
+    
+    return nil
+}
+
+func simulateDrag(from start: CGPoint, deltaY: CGFloat, app: NSRunningApplication) -> Bool {
     app.activate(options: [])
-    usleep(100000)
+    usleep(200000)
     
-    let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)
-    let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
-    
-    keyDown?.post(tap: .cghidEventTap)
+    let moveToStart = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: start, mouseButton: .left)
+    moveToStart?.post(tap: .cghidEventTap)
     usleep(50000)
-    keyUp?.post(tap: .cghidEventTap)
+    
+    let mouseDown = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: start, mouseButton: .left)
+    mouseDown?.post(tap: .cghidEventTap)
+    usleep(50000)
+    
+    let steps = 10
+    let stepSize = deltaY / CGFloat(steps)
+    var currentY = start.y
+    
+    for _ in 0..<steps {
+        currentY += stepSize
+        let dragPoint = CGPoint(x: start.x, y: currentY)
+        let drag = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged, mouseCursorPosition: dragPoint, mouseButton: .left)
+        drag?.post(tap: .cghidEventTap)
+        usleep(20000)
+    }
+    
+    let endPoint = CGPoint(x: start.x, y: start.y + deltaY)
+    let mouseUp = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: endPoint, mouseButton: .left)
+    mouseUp?.post(tap: .cghidEventTap)
     
     return true
 }
 
-func sendArrowKeys(_ direction: String, count: Int, app: NSRunningApplication) -> Bool {
-    let keyCode: CGKeyCode
-    switch direction {
-    case "up":
-        keyCode = 126
-    case "down":
-        keyCode = 125
-    case "left":
-        keyCode = 123
-    case "right":
-        keyCode = 124
-    default:
+func adjustVolumeByDrag(amount: Double, app: NSRunningApplication) -> Bool {
+    guard let dialCenter = getWindowPosition(app) else {
         return false
     }
     
-    app.activate(options: [])
-    usleep(200000)
+    let dragDistance = CGFloat(-amount * 3)
     
-    for _ in 0..<count {
-        let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)
-        let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
-        
-        keyDown?.post(tap: .cghidEventTap)
-        usleep(30000)
-        keyUp?.post(tap: .cghidEventTap)
-        usleep(50000)
-    }
-    
-    return true
+    return simulateDrag(from: dialCenter, deltaY: dragDistance, app: app)
 }
 
 // MARK: - Main
@@ -412,20 +446,20 @@ func main() {
     let command = args[1]
     
     switch command {
-    case "--arrow-up":
-        let count = args.count >= 3 ? (Int(args[2]) ?? 1) : 1
-        if sendArrowKeys("up", count: count, app: mosaicApp) {
-            output(Result(success: true, message: "Sent \(count) up arrow key(s)"))
+    case "--drag-up":
+        let amount = args.count >= 3 ? (Double(args[2]) ?? 5.0) : 5.0
+        if adjustVolumeByDrag(amount: amount, app: mosaicApp) {
+            output(Result(success: true, message: "Dragged volume up by \(amount)"))
         } else {
-            exitWithError("Failed to send arrow keys")
+            exitWithError("Failed to find Mosaic volume window. Make sure Volume Control panel is open.")
         }
         
-    case "--arrow-down":
-        let count = args.count >= 3 ? (Int(args[2]) ?? 1) : 1
-        if sendArrowKeys("down", count: count, app: mosaicApp) {
-            output(Result(success: true, message: "Sent \(count) down arrow key(s)"))
+    case "--drag-down":
+        let amount = args.count >= 3 ? (Double(args[2]) ?? 5.0) : 5.0
+        if adjustVolumeByDrag(amount: -amount, app: mosaicApp) {
+            output(Result(success: true, message: "Dragged volume down by \(amount)"))
         } else {
-            exitWithError("Failed to send arrow keys")
+            exitWithError("Failed to find Mosaic volume window. Make sure Volume Control panel is open.")
         }
         
     case "--list":
