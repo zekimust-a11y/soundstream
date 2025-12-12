@@ -57,10 +57,12 @@ client/
 1. **LMS Connection**: Connect to LMS server by IP address
 2. **Player Selection**: Discover and select from available players
 3. **Browse Tab**: Library browsing with artists, albums, and recently played
-4. **Queue Tab**: Playback queue management with drag-to-reorder
-5. **Search Tab**: Search music library
-6. **Settings Tab**: Server management, player selection, playback settings
-7. **Now Playing**: Full-screen modal with player controls
+4. **Playlists Tab**: Browse playlists, tap to view tracks, shuffle or play buttons
+5. **Queue Tab**: Playback queue management with drag-to-reorder
+6. **Search Tab**: Search music library
+7. **Settings Tab**: Server management, player selection, playback settings
+8. **Now Playing**: Full-screen modal with player controls
+9. **iOS Shortcuts**: Server endpoints for Siri voice control via iOS Shortcuts app
 
 ### LMS JSON-RPC API
 The app uses LMS's JSON-RPC API at `http://<server>:9000/jsonrpc.js`:
@@ -116,3 +118,31 @@ For mobile testing:
 - UPnP client (upnpClient.ts)
 - SSDP discovery (useSsdpDiscovery.tsx)
 - SSDP bridge server (ssdp-bridge.ts)
+
+## iOS Shortcuts Integration
+
+The server exposes REST endpoints for iOS Shortcuts to enable Siri voice control.
+
+### Available Endpoints
+
+All endpoints require `host` (LMS IP) and `playerId` (MAC address) parameters.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/shortcuts/play` | POST | Toggle play/pause |
+| `/api/shortcuts/next` | POST | Skip to next track |
+| `/api/shortcuts/previous` | POST | Skip to previous track |
+| `/api/shortcuts/volume` | POST | Set volume (0-100) |
+| `/api/shortcuts/playlist` | POST | Play playlist by name (supports shuffle) |
+| `/api/shortcuts/playlists` | GET | List available playlists |
+| `/api/shortcuts/status` | GET | Get current playback status |
+| `/api/shortcuts/players` | GET | List available players |
+
+### Example: Create "Play Jazz" Shortcut
+1. Open iOS Shortcuts app
+2. Create new shortcut
+3. Add "Get Contents of URL" action
+4. URL: `https://your-app-url/api/shortcuts/playlist`
+5. Method: POST, Request Body: JSON
+6. Body: `{"host": "192.168.0.100", "playerId": "00:11:22:33:44:55", "name": "Jazz", "shuffle": true}`
+7. Save and add to Siri

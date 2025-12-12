@@ -9,6 +9,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -17,10 +19,14 @@ import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback } from "@/hooks/usePlayback";
 import { lmsClient, type LmsPlaylist } from "@/lib/lmsClient";
+import type { PlaylistsStackParamList } from "@/navigation/PlaylistsStackNavigator";
+
+type NavigationProp = NativeStackNavigationProp<PlaylistsStackParamList>;
 
 export default function PlaylistsScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
+  const navigation = useNavigation<NavigationProp>();
   const { activeServer } = useMusic();
   const { activePlayer, playPlaylist } = usePlayback();
   const [playlists, setPlaylists] = useState<LmsPlaylist[]>([]);
@@ -59,29 +65,68 @@ export default function PlaylistsScreen() {
     playPlaylist(playlist.id);
   };
 
+  const handleShufflePlaylist = async (playlist: LmsPlaylist) => {
+    if (!activePlayer) return;
+    await lmsClient.setShuffle(activePlayer.id, 1);
+    playPlaylist(playlist.id);
+  };
+
+  const handleOpenPlaylist = (playlist: LmsPlaylist) => {
+    navigation.navigate("PlaylistDetail", { playlist });
+  };
+
   const renderPlaylist = ({ item }: { item: LmsPlaylist }) => (
-    <Pressable
-      style={({ pressed }) => [
-        styles.playlistRow,
-        { opacity: pressed ? 0.6 : 1 },
-      ]}
-      onPress={() => handlePlayPlaylist(item)}
-    >
-      <View style={styles.playlistIcon}>
-        <Feather name="list" size={24} color={Colors.light.accent} />
+    <View style={styles.playlistRow}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.playlistMainArea,
+          { opacity: pressed ? 0.6 : 1 },
+        ]}
+        onPress={() => handleOpenPlaylist(item)}
+      >
+        <View style={styles.playlistIcon}>
+          <Feather name="list" size={24} color={Colors.light.accent} />
+        </View>
+        <View style={styles.playlistInfo}>
+          <View style={styles.playlistNameRow}>
+            <ThemedText style={styles.playlistName} numberOfLines={1}>
+              {item.name}
+            </ThemedText>
+            {item.url?.includes('qobuz') ? (
+              <View style={styles.qobuzBadge}>
+                <ThemedText style={styles.qobuzBadgeText}>Q</ThemedText>
+              </View>
+            ) : null}
+          </View>
+          {item.trackCount !== undefined ? (
+            <ThemedText style={styles.playlistTracks}>
+              {item.trackCount} {item.trackCount === 1 ? "track" : "tracks"}
+            </ThemedText>
+          ) : null}
+        </View>
+        <Feather name="chevron-right" size={20} color={Colors.light.textTertiary} />
+      </Pressable>
+      <View style={styles.playlistActions}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.actionButton,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+          onPress={() => handleShufflePlaylist(item)}
+        >
+          <Feather name="shuffle" size={20} color={Colors.light.textSecondary} />
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.actionButton,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+          onPress={() => handlePlayPlaylist(item)}
+        >
+          <Feather name="play-circle" size={22} color={Colors.light.accent} />
+        </Pressable>
       </View>
-      <View style={styles.playlistInfo}>
-        <ThemedText style={styles.playlistName} numberOfLines={1}>
-          {item.name}
-        </ThemedText>
-        {item.trackCount !== undefined ? (
-          <ThemedText style={styles.playlistTracks}>
-            {item.trackCount} {item.trackCount === 1 ? "track" : "tracks"}
-          </ThemedText>
-        ) : null}
-      </View>
-      <Feather name="play-circle" size={24} color={Colors.light.textSecondary} />
-    </Pressable>
+    </View>
   );
 
   const renderEmptyState = () => {
@@ -177,6 +222,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.light.border,
   },
+  playlistMainArea: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
   playlistIcon: {
     width: 48,
     height: 48,
@@ -188,15 +238,46 @@ const styles = StyleSheet.create({
   playlistInfo: {
     flex: 1,
     marginLeft: Spacing.md,
+    marginRight: Spacing.sm,
+  },
+  playlistNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   playlistName: {
     ...Typography.body,
     color: Colors.light.text,
+    flexShrink: 1,
+  },
+  qobuzBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: "#F99C38",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: Spacing.sm,
+  },
+  qobuzBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#fff",
   },
   playlistTracks: {
     ...Typography.caption,
     color: Colors.light.textSecondary,
     marginTop: 2,
+  },
+  playlistActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  actionButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyState: {
     alignItems: "center",

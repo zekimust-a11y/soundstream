@@ -667,6 +667,260 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==========================================
+  // iOS Shortcuts / Siri Integration Endpoints
+  // ==========================================
+  // These endpoints can be called from iOS Shortcuts app to enable Siri voice control
+  // All endpoints require: host (LMS IP), port (LMS port, default 9000), playerId (MAC address)
+
+  // Helper function for LMS requests
+  async function lmsRequest(host: string, port: number, playerId: string, command: string[]): Promise<Record<string, unknown>> {
+    const response = await fetch(`http://${host}:${port}/jsonrpc.js`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 1,
+        method: 'slim.request',
+        params: [playerId, command]
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`LMS returned ${response.status}`);
+    }
+    
+    const data = await response.json() as { result?: Record<string, unknown> };
+    return data.result || {};
+  }
+
+  // Play/Pause toggle
+  app.post('/api/shortcuts/play', async (req: Request, res: Response) => {
+    const { host, port = 9000, playerId } = req.body;
+    
+    if (!host || !playerId) {
+      return res.status(400).json({ error: 'Missing host or playerId' });
+    }
+    
+    try {
+      await lmsRequest(host, port, playerId, ['pause']);
+      res.json({ success: true, action: 'play/pause toggled' });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to toggle play/pause' 
+      });
+    }
+  });
+
+  // Skip to next track
+  app.post('/api/shortcuts/next', async (req: Request, res: Response) => {
+    const { host, port = 9000, playerId } = req.body;
+    
+    if (!host || !playerId) {
+      return res.status(400).json({ error: 'Missing host or playerId' });
+    }
+    
+    try {
+      await lmsRequest(host, port, playerId, ['playlist', 'index', '+1']);
+      res.json({ success: true, action: 'skipped to next track' });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to skip track' 
+      });
+    }
+  });
+
+  // Skip to previous track
+  app.post('/api/shortcuts/previous', async (req: Request, res: Response) => {
+    const { host, port = 9000, playerId } = req.body;
+    
+    if (!host || !playerId) {
+      return res.status(400).json({ error: 'Missing host or playerId' });
+    }
+    
+    try {
+      await lmsRequest(host, port, playerId, ['playlist', 'index', '-1']);
+      res.json({ success: true, action: 'skipped to previous track' });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to skip track' 
+      });
+    }
+  });
+
+  // Set volume
+  app.post('/api/shortcuts/volume', async (req: Request, res: Response) => {
+    const { host, port = 9000, playerId, volume } = req.body;
+    
+    if (!host || !playerId || volume === undefined) {
+      return res.status(400).json({ error: 'Missing host, playerId, or volume' });
+    }
+    
+    const vol = Math.max(0, Math.min(100, parseInt(volume)));
+    
+    try {
+      await lmsRequest(host, port, playerId, ['mixer', 'volume', String(vol)]);
+      res.json({ success: true, action: `volume set to ${vol}` });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to set volume' 
+      });
+    }
+  });
+
+  // Play a specific playlist by name
+  app.post('/api/shortcuts/playlist', async (req: Request, res: Response) => {
+    const { host, port = 9000, playerId, name, shuffle = false } = req.body;
+    
+    if (!host || !playerId || !name) {
+      return res.status(400).json({ error: 'Missing host, playerId, or playlist name' });
+    }
+    
+    try {
+      // First, get list of playlists to find matching one
+      const playlistsResult = await lmsRequest(host, port, playerId, ['playlists', '0', '999']);
+      const playlists = (playlistsResult.playlists_loop || []) as Array<{ id: string; playlist: string }>;
+      
+      // Find playlist by name (case-insensitive partial match)
+      const searchName = String(name).toLowerCase();
+      const match = playlists.find(p => 
+        p.playlist.toLowerCase().includes(searchName)
+      );
+      
+      if (!match) {
+        return res.status(404).json({ 
+          success: false, 
+          error: `Playlist "${name}" not found`,
+          available: playlists.map(p => p.playlist)
+        });
+      }
+      
+      // Set shuffle if requested
+      if (shuffle) {
+        await lmsRequest(host, port, playerId, ['playlist', 'shuffle', '1']);
+      }
+      
+      // Play the playlist
+      await lmsRequest(host, port, playerId, ['playlistcontrol', 'cmd:load', `playlist_id:${match.id}`]);
+      
+      res.json({ 
+        success: true, 
+        action: shuffle ? `playing "${match.playlist}" on shuffle` : `playing "${match.playlist}"`,
+        playlist: match.playlist 
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to play playlist' 
+      });
+    }
+  });
+
+  // Get list of available playlists
+  app.get('/api/shortcuts/playlists', async (req: Request, res: Response) => {
+    const { host, port = '9000', playerId } = req.query;
+    
+    if (!host || !playerId) {
+      return res.status(400).json({ error: 'Missing host or playerId' });
+    }
+    
+    try {
+      const result = await lmsRequest(
+        host as string, 
+        parseInt(port as string), 
+        playerId as string, 
+        ['playlists', '0', '999']
+      );
+      
+      const playlists = (result.playlists_loop || []) as Array<{ id: string; playlist: string }>;
+      
+      res.json({ 
+        success: true, 
+        playlists: playlists.map(p => ({ id: p.id, name: p.playlist }))
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to get playlists' 
+      });
+    }
+  });
+
+  // Get current playback status
+  app.get('/api/shortcuts/status', async (req: Request, res: Response) => {
+    const { host, port = '9000', playerId } = req.query;
+    
+    if (!host || !playerId) {
+      return res.status(400).json({ error: 'Missing host or playerId' });
+    }
+    
+    try {
+      const result = await lmsRequest(
+        host as string, 
+        parseInt(port as string), 
+        playerId as string, 
+        ['status', '-', '1', 'tags:adKl']
+      );
+      
+      const playlist = (result.playlist_loop || []) as Array<{ title?: string; artist?: string; album?: string }>;
+      const currentTrack = playlist[0] || {};
+      
+      res.json({ 
+        success: true, 
+        playing: result.mode === 'play',
+        mode: result.mode,
+        volume: result['mixer volume'],
+        track: currentTrack.title || 'Unknown',
+        artist: currentTrack.artist || 'Unknown',
+        album: currentTrack.album || 'Unknown',
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to get status' 
+      });
+    }
+  });
+
+  // Get list of available players
+  app.get('/api/shortcuts/players', async (req: Request, res: Response) => {
+    const { host, port = '9000' } = req.query;
+    
+    if (!host) {
+      return res.status(400).json({ error: 'Missing host' });
+    }
+    
+    try {
+      const result = await lmsRequest(
+        host as string, 
+        parseInt(port as string), 
+        '', 
+        ['players', '0', '99']
+      );
+      
+      const players = (result.players_loop || []) as Array<{ playerid: string; name: string; connected: number; power: number }>;
+      
+      res.json({ 
+        success: true, 
+        players: players.map(p => ({ 
+          id: p.playerid, 
+          name: p.name, 
+          connected: p.connected === 1,
+          power: p.power === 1
+        }))
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to get players' 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
