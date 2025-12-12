@@ -188,11 +188,21 @@ func findVolumeSlider(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 15
     return nil
 }
 
+func getActions(_ element: AXUIElement) -> [String] {
+    var actionsRef: CFArray?
+    let result = AXUIElementCopyActionNames(element, &actionsRef)
+    if result == .success, let actions = actionsRef as? [String] {
+        return actions
+    }
+    return []
+}
+
 func getAllAdjustableElements(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 15) -> [[String: Any]] {
     var results: [[String: Any]] = []
     if depth > maxDepth { return results }
     
     let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+    let subrole = getStringAttribute(element, kAXSubroleAttribute as String) ?? ""
     let title = getStringAttribute(element, kAXTitleAttribute as String) ?? ""
     let description = getStringAttribute(element, kAXDescriptionAttribute as String) ?? ""
     let identifier = getStringAttribute(element, "AXIdentifier") ?? ""
@@ -200,12 +210,16 @@ func getAllAdjustableElements(_ element: AXUIElement, depth: Int = 0, maxDepth: 
     let value = getNumberAttribute(element, kAXValueAttribute as String)
     let minVal = getNumberAttribute(element, kAXMinValueAttribute as String)
     let maxVal = getNumberAttribute(element, kAXMaxValueAttribute as String)
+    let actions = getActions(element)
     
-    let adjustableRoles = ["AXSlider", "AXValueIndicator", "AXIncrementor", "AXStepper", "AXGroup"]
+    let hasAdjustableActions = actions.contains("AXIncrement") || actions.contains("AXDecrement")
+    let adjustableRoles = ["AXSlider", "AXValueIndicator", "AXIncrementor", "AXStepper"]
+    let isAdjustable = adjustableRoles.contains(role) || hasAdjustableActions
     
-    if adjustableRoles.contains(role) || value != nil || minVal != nil || maxVal != nil {
+    if isAdjustable || value != nil || (minVal != nil && maxVal != nil) {
         results.append([
             "role": role,
+            "subrole": subrole,
             "title": title,
             "description": description,
             "identifier": identifier,
@@ -213,6 +227,7 @@ func getAllAdjustableElements(_ element: AXUIElement, depth: Int = 0, maxDepth: 
             "value": value ?? 0,
             "min": minVal ?? 0,
             "max": maxVal ?? 0,
+            "actions": actions,
             "depth": depth
         ])
     }
@@ -224,6 +239,30 @@ func getAllAdjustableElements(_ element: AXUIElement, depth: Int = 0, maxDepth: 
     }
     
     return results
+}
+
+func findRotaryDial(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 15) -> AXUIElement? {
+    if depth > maxDepth { return nil }
+    
+    let actions = getActions(element)
+    let hasIncrementDecrement = actions.contains("AXIncrement") && actions.contains("AXDecrement")
+    
+    if hasIncrementDecrement {
+        let value = getNumberAttribute(element, kAXValueAttribute as String)
+        if value != nil {
+            return element
+        }
+    }
+    
+    if let children = getArrayAttribute(element, kAXChildrenAttribute as String) {
+        for child in children {
+            if let found = findRotaryDial(child, depth: depth + 1, maxDepth: maxDepth) {
+                return found
+            }
+        }
+    }
+    
+    return nil
 }
 
 func findMuteButton(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 10) -> AXUIElement? {
