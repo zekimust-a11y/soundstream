@@ -772,6 +772,131 @@ app.get('/api/chromecasts', (req, res) => {
   }, timeout);
 });
 
+// ============================================
+// Mosaic Volume Control (via macOS Accessibility)
+// ============================================
+
+const MOSAIC_VOLUME_SCRIPT = path.join(__dirname, 'mosaic-volume.swift');
+const MOSAIC_VOLUME_BINARY = path.join(__dirname, 'mosaic-volume');
+let mosaicVolumeAvailable = false;
+
+// Check if mosaic-volume binary exists (compiled version is faster)
+if (fs.existsSync(MOSAIC_VOLUME_BINARY)) {
+  mosaicVolumeAvailable = true;
+  console.log('Mosaic volume control enabled (compiled binary)');
+} else if (fs.existsSync(MOSAIC_VOLUME_SCRIPT)) {
+  mosaicVolumeAvailable = true;
+  console.log('Mosaic volume control enabled (Swift script - compile for faster execution)');
+  console.log('  swiftc -O -o mosaic-volume mosaic-volume.swift');
+}
+
+function executeMosaicVolume(args) {
+  return new Promise((resolve, reject) => {
+    // Use compiled binary if available, otherwise use swift interpreter
+    const command = fs.existsSync(MOSAIC_VOLUME_BINARY) 
+      ? `"${MOSAIC_VOLUME_BINARY}" ${args}`
+      : `swift "${MOSAIC_VOLUME_SCRIPT}" ${args}`;
+    
+    exec(command, { timeout: 10000 }, (error, stdout, stderr) => {
+      if (error) {
+        // Try to parse JSON error from script
+        try {
+          const result = JSON.parse(stdout || stderr);
+          reject(new Error(result.error || error.message));
+        } catch {
+          reject(new Error(error.message));
+        }
+        return;
+      }
+      
+      try {
+        const result = JSON.parse(stdout);
+        resolve(result);
+      } catch (e) {
+        reject(new Error(`Invalid JSON response: ${stdout}`));
+      }
+    });
+  });
+}
+
+app.get('/api/mosaic/volume', async (req, res) => {
+  if (!mosaicVolumeAvailable) {
+    return res.status(503).json({ 
+      success: false, 
+      error: 'Mosaic volume control not available',
+      hint: 'Ensure mosaic-volume.swift exists in local-server directory'
+    });
+  }
+  
+  try {
+    const result = await executeMosaicVolume('--get');
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/mosaic/volume', async (req, res) => {
+  if (!mosaicVolumeAvailable) {
+    return res.status(503).json({ 
+      success: false, 
+      error: 'Mosaic volume control not available'
+    });
+  }
+  
+  const { action, value } = req.body;
+  
+  try {
+    let args;
+    switch (action) {
+      case 'get':
+        args = '--get';
+        break;
+      case 'set':
+        if (value === undefined) {
+          return res.status(400).json({ success: false, error: 'Volume value required for set action' });
+        }
+        args = `--set ${value}`;
+        break;
+      case 'up':
+        args = value !== undefined ? `--up ${value}` : '--up';
+        break;
+      case 'down':
+        args = value !== undefined ? `--down ${value}` : '--down';
+        break;
+      case 'mute':
+        args = '--mute';
+        break;
+      default:
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Invalid action. Use: get, set, up, down, or mute' 
+        });
+    }
+    
+    const result = await executeMosaicVolume(args);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.get('/api/mosaic/sliders', async (req, res) => {
+  if (!mosaicVolumeAvailable) {
+    return res.status(503).json({ 
+      success: false, 
+      error: 'Mosaic volume control not available'
+    });
+  }
+  
+  try {
+    const result = await executeMosaicVolume('--list');
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   serverIp = getLocalIp();
   

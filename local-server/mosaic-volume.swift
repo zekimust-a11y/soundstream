@@ -1,0 +1,384 @@
+#!/usr/bin/env swift
+/**
+ * Mosaic Volume Control CLI
+ * 
+ * Control dCS Mosaic app volume via macOS accessibility APIs.
+ * 
+ * Prerequisites:
+ * 1. Grant Terminal/your IDE accessibility permissions:
+ *    System Settings > Privacy & Security > Accessibility > Add Terminal
+ * 2. Have Mosaic app running (can be minimized)
+ * 
+ * Usage:
+ *   swift mosaic-volume.swift --get              # Get current volume
+ *   swift mosaic-volume.swift --set 75           # Set volume to 75%
+ *   swift mosaic-volume.swift --up [amount]      # Volume up (default 5%)
+ *   swift mosaic-volume.swift --down [amount]    # Volume down (default 5%)
+ *   swift mosaic-volume.swift --mute             # Toggle mute
+ * 
+ * Or compile for faster execution:
+ *   swiftc -O -o mosaic-volume mosaic-volume.swift
+ *   ./mosaic-volume --set 75
+ * 
+ * Output:
+ *   JSON format: {"success": true, "volume": 75} or {"success": false, "error": "message"}
+ */
+
+import Cocoa
+import ApplicationServices
+import Foundation
+
+// MARK: - JSON Output
+
+struct Result: Codable {
+    let success: Bool
+    let volume: Double?
+    let muted: Bool?
+    let error: String?
+    
+    init(success: Bool, volume: Double? = nil, muted: Bool? = nil, error: String? = nil) {
+        self.success = success
+        self.volume = volume
+        self.muted = muted
+        self.error = error
+    }
+}
+
+func output(_ result: Result) {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = []
+    if let data = try? encoder.encode(result),
+       let json = String(data: data, encoding: .utf8) {
+        print(json)
+    }
+    exit(result.success ? 0 : 1)
+}
+
+func exitWithError(_ message: String) -> Never {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = []
+    if let data = try? encoder.encode(Result(success: false, error: message)),
+       let json = String(data: data, encoding: .utf8) {
+        print(json)
+    }
+    exit(1)
+}
+
+// MARK: - Accessibility Helpers
+
+func checkAccessibilityPermission() -> Bool {
+    let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false] as CFDictionary
+    return AXIsProcessTrustedWithOptions(options)
+}
+
+func getAttributeValue(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
+    var value: CFTypeRef?
+    let result = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+    return result == .success ? value : nil
+}
+
+func setAttributeValue(_ element: AXUIElement, _ attribute: String, _ value: CFTypeRef) -> Bool {
+    let result = AXUIElementSetAttributeValue(element, attribute as CFString, value)
+    return result == .success
+}
+
+func getStringAttribute(_ element: AXUIElement, _ attribute: String) -> String? {
+    return getAttributeValue(element, attribute) as? String
+}
+
+func getNumberAttribute(_ element: AXUIElement, _ attribute: String) -> Double? {
+    if let value = getAttributeValue(element, attribute) {
+        if let num = value as? NSNumber {
+            return num.doubleValue
+        }
+    }
+    return nil
+}
+
+func getBoolAttribute(_ element: AXUIElement, _ attribute: String) -> Bool? {
+    if let value = getAttributeValue(element, attribute) as? NSNumber {
+        return value.boolValue
+    }
+    return nil
+}
+
+func getArrayAttribute(_ element: AXUIElement, _ attribute: String) -> [AXUIElement]? {
+    return getAttributeValue(element, attribute) as? [AXUIElement]
+}
+
+func performAction(_ element: AXUIElement, _ action: String) -> Bool {
+    return AXUIElementPerformAction(element, action as CFString) == .success
+}
+
+// MARK: - Find Mosaic Application
+
+func findMosaicApp() -> NSRunningApplication? {
+    let workspace = NSWorkspace.shared
+    
+    let possibleBundleIds = [
+        "com.dcs.mosaic",
+        "com.dcsltd.mosaic", 
+        "uk.co.dcsltd.mosaic",
+        "com.dCS.Mosaic",
+        "com.dcs.Mosaic"
+    ]
+    
+    for bundleId in possibleBundleIds {
+        if let app = workspace.runningApplications.first(where: { $0.bundleIdentifier == bundleId }) {
+            return app
+        }
+    }
+    
+    return workspace.runningApplications.first { app in
+        app.localizedName?.lowercased().contains("mosaic") == true
+    }
+}
+
+// MARK: - Find Volume Slider
+
+func findVolumeSlider(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 10) -> AXUIElement? {
+    if depth > maxDepth { return nil }
+    
+    let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+    let title = (getStringAttribute(element, kAXTitleAttribute as String) ?? "").lowercased()
+    let description = (getStringAttribute(element, kAXDescriptionAttribute as String) ?? "").lowercased()
+    let identifier = (getStringAttribute(element, "AXIdentifier") ?? "").lowercased()
+    
+    let isSlider = role == "AXSlider"
+    let hasVolumeKeyword = title.contains("volume") || description.contains("volume") || identifier.contains("volume")
+    
+    if isSlider && hasVolumeKeyword {
+        return element
+    }
+    
+    if isSlider {
+        let minVal = getNumberAttribute(element, kAXMinValueAttribute as String)
+        let maxVal = getNumberAttribute(element, kAXMaxValueAttribute as String)
+        if minVal != nil && maxVal != nil {
+            return element
+        }
+    }
+    
+    if let children = getArrayAttribute(element, kAXChildrenAttribute as String) {
+        for child in children {
+            if let found = findVolumeSlider(child, depth: depth + 1, maxDepth: maxDepth) {
+                return found
+            }
+        }
+    }
+    
+    return nil
+}
+
+func findMuteButton(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 10) -> AXUIElement? {
+    if depth > maxDepth { return nil }
+    
+    let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+    let title = (getStringAttribute(element, kAXTitleAttribute as String) ?? "").lowercased()
+    let description = (getStringAttribute(element, kAXDescriptionAttribute as String) ?? "").lowercased()
+    let identifier = (getStringAttribute(element, "AXIdentifier") ?? "").lowercased()
+    
+    let isButton = role == "AXButton" || role == "AXCheckBox" || role == "AXToggle"
+    let hasMuteKeyword = title.contains("mute") || description.contains("mute") || identifier.contains("mute")
+    
+    if isButton && hasMuteKeyword {
+        return element
+    }
+    
+    if let children = getArrayAttribute(element, kAXChildrenAttribute as String) {
+        for child in children {
+            if let found = findMuteButton(child, depth: depth + 1, maxDepth: maxDepth) {
+                return found
+            }
+        }
+    }
+    
+    return nil
+}
+
+func getAllSliders(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 10) -> [AXUIElement] {
+    var sliders: [AXUIElement] = []
+    if depth > maxDepth { return sliders }
+    
+    let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+    
+    if role == "AXSlider" {
+        sliders.append(element)
+    }
+    
+    if let children = getArrayAttribute(element, kAXChildrenAttribute as String) {
+        for child in children {
+            sliders.append(contentsOf: getAllSliders(child, depth: depth + 1, maxDepth: maxDepth))
+        }
+    }
+    
+    return sliders
+}
+
+// MARK: - Volume Control Functions
+
+func getVolume(_ slider: AXUIElement) -> Double? {
+    guard let currentValue = getNumberAttribute(slider, kAXValueAttribute as String),
+          let minValue = getNumberAttribute(slider, kAXMinValueAttribute as String),
+          let maxValue = getNumberAttribute(slider, kAXMaxValueAttribute as String) else {
+        return nil
+    }
+    
+    let range = maxValue - minValue
+    if range <= 0 { return nil }
+    
+    let normalized = (currentValue - minValue) / range * 100
+    return max(0, min(100, normalized))
+}
+
+func setVolume(_ slider: AXUIElement, percent: Double) -> Bool {
+    guard let minValue = getNumberAttribute(slider, kAXMinValueAttribute as String),
+          let maxValue = getNumberAttribute(slider, kAXMaxValueAttribute as String) else {
+        return false
+    }
+    
+    let clamped = max(0, min(100, percent))
+    let range = maxValue - minValue
+    let newValue = minValue + (clamped / 100.0 * range)
+    
+    return setAttributeValue(slider, kAXValueAttribute as String, NSNumber(value: newValue))
+}
+
+func toggleMute(_ button: AXUIElement) -> Bool {
+    return performAction(button, kAXPressAction as String)
+}
+
+// MARK: - Main
+
+func main() {
+    let args = CommandLine.arguments
+    
+    if args.count < 2 {
+        exitWithError("Usage: mosaic-volume --get | --set <value> | --up [amount] | --down [amount] | --mute | --list")
+    }
+    
+    if !checkAccessibilityPermission() {
+        exitWithError("Accessibility permission required. Grant in System Settings > Privacy & Security > Accessibility")
+    }
+    
+    guard let mosaicApp = findMosaicApp() else {
+        exitWithError("Mosaic app not found. Please ensure it is running.")
+    }
+    
+    let axApp = AXUIElementCreateApplication(mosaicApp.processIdentifier)
+    
+    let command = args[1]
+    
+    switch command {
+    case "--list":
+        let sliders = getAllSliders(axApp)
+        var info: [[String: Any]] = []
+        for slider in sliders {
+            let title = getStringAttribute(slider, kAXTitleAttribute as String) ?? ""
+            let desc = getStringAttribute(slider, kAXDescriptionAttribute as String) ?? ""
+            let value = getNumberAttribute(slider, kAXValueAttribute as String)
+            let minVal = getNumberAttribute(slider, kAXMinValueAttribute as String)
+            let maxVal = getNumberAttribute(slider, kAXMaxValueAttribute as String)
+            info.append([
+                "title": title,
+                "description": desc,
+                "value": value ?? 0,
+                "min": minVal ?? 0,
+                "max": maxVal ?? 0
+            ])
+        }
+        if let data = try? JSONSerialization.data(withJSONObject: ["success": true, "sliders": info], options: []),
+           let json = String(data: data, encoding: .utf8) {
+            print(json)
+        } else {
+            print("{\"success\":true,\"sliders\":[]}")
+        }
+        exit(0)
+        
+    case "--get":
+        guard let slider = findVolumeSlider(axApp) else {
+            exitWithError("Volume slider not found in Mosaic. Try bringing the app to foreground.")
+        }
+        
+        guard let volume = getVolume(slider) else {
+            exitWithError("Could not read volume value")
+        }
+        
+        output(Result(success: true, volume: round(volume * 10) / 10))
+        
+    case "--set":
+        guard args.count >= 3, let targetVolume = Double(args[2]) else {
+            exitWithError("Usage: --set <volume 0-100>")
+        }
+        
+        guard let slider = findVolumeSlider(axApp) else {
+            exitWithError("Volume slider not found in Mosaic. Try bringing the app to foreground.")
+        }
+        
+        if setVolume(slider, percent: targetVolume) {
+            usleep(100000)
+            let newVolume = getVolume(slider) ?? targetVolume
+            output(Result(success: true, volume: round(newVolume * 10) / 10))
+        } else {
+            exitWithError("Failed to set volume")
+        }
+        
+    case "--up":
+        let amount = args.count >= 3 ? (Double(args[2]) ?? 5.0) : 5.0
+        
+        guard let slider = findVolumeSlider(axApp) else {
+            exitWithError("Volume slider not found in Mosaic. Try bringing the app to foreground.")
+        }
+        
+        guard let currentVolume = getVolume(slider) else {
+            exitWithError("Could not read current volume")
+        }
+        
+        let newVolume = min(100, currentVolume + amount)
+        if setVolume(slider, percent: newVolume) {
+            usleep(100000)
+            let actualVolume = getVolume(slider) ?? newVolume
+            output(Result(success: true, volume: round(actualVolume * 10) / 10))
+        } else {
+            exitWithError("Failed to increase volume")
+        }
+        
+    case "--down":
+        let amount = args.count >= 3 ? (Double(args[2]) ?? 5.0) : 5.0
+        
+        guard let slider = findVolumeSlider(axApp) else {
+            exitWithError("Volume slider not found in Mosaic. Try bringing the app to foreground.")
+        }
+        
+        guard let currentVolume = getVolume(slider) else {
+            exitWithError("Could not read current volume")
+        }
+        
+        let newVolume = max(0, currentVolume - amount)
+        if setVolume(slider, percent: newVolume) {
+            usleep(100000)
+            let actualVolume = getVolume(slider) ?? newVolume
+            output(Result(success: true, volume: round(actualVolume * 10) / 10))
+        } else {
+            exitWithError("Failed to decrease volume")
+        }
+        
+    case "--mute":
+        if let muteButton = findMuteButton(axApp) {
+            if toggleMute(muteButton) {
+                usleep(100000)
+                let isMuted = getBoolAttribute(muteButton, kAXValueAttribute as String)
+                output(Result(success: true, muted: isMuted))
+            } else {
+                exitWithError("Failed to toggle mute")
+            }
+        } else {
+            exitWithError("Mute button not found in Mosaic")
+        }
+        
+    default:
+        exitWithError("Unknown command: \(command). Use --get, --set, --up, --down, --mute, or --list")
+    }
+}
+
+main()

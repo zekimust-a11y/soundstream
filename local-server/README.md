@@ -220,6 +220,85 @@ TTYVHangup=yes
 
 Alternatively, run in a tmux/screen session for easier access.
 
+## dCS Mosaic Volume Control
+
+Control your dCS DAC volume through the Mosaic macOS app using accessibility APIs.
+
+### How It Works
+
+The `mosaic-volume.swift` script uses macOS accessibility APIs to find and control the volume slider in the Mosaic app. This allows the SoundStream app to control your dCS DAC's volume directly.
+
+### Prerequisites
+
+1. **macOS only** - This feature uses macOS accessibility APIs
+2. **Mosaic app installed** and running (can be in background)
+3. **Accessibility permission** granted to Terminal (or your IDE)
+
+### Setup
+
+1. **Grant accessibility permission**:
+   - Go to System Settings > Privacy & Security > Accessibility
+   - Add Terminal (or the app running the server)
+
+2. **Compile the Swift script** (optional but recommended for faster execution):
+   ```bash
+   cd local-server
+   swiftc -O -o mosaic-volume mosaic-volume.swift
+   ```
+
+3. **Test the CLI**:
+   ```bash
+   # Get current volume
+   ./mosaic-volume --get
+   
+   # Set volume to 75%
+   ./mosaic-volume --set 75
+   
+   # Volume up/down
+   ./mosaic-volume --up 5
+   ./mosaic-volume --down 5
+   
+   # List all sliders (debugging)
+   ./mosaic-volume --list
+   ```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/mosaic/volume` | GET | Get current volume |
+| `/api/mosaic/volume` | POST | Set volume or mute |
+| `/api/mosaic/sliders` | GET | List all sliders (debug) |
+
+#### POST /api/mosaic/volume Body:
+
+```json
+// Set volume to 75%
+{ "action": "set", "value": 75 }
+
+// Volume up 5%
+{ "action": "up", "value": 5 }
+
+// Volume down 5%
+{ "action": "down", "value": 5 }
+
+// Toggle mute
+{ "action": "mute" }
+```
+
+### Troubleshooting
+
+**"Accessibility permission required"**
+- Grant Terminal access in System Settings > Privacy & Security > Accessibility
+
+**"Mosaic app not found"**
+- Ensure Mosaic is running (can be minimized or in background)
+
+**"Volume slider not found"**
+- Try bringing Mosaic to the foreground
+- Run `./mosaic-volume --list` to see available sliders
+- The app may use a non-standard volume control
+
 ## Troubleshooting
 
 ### Chromecast not connecting

@@ -131,14 +131,37 @@ For mobile testing:
 - SSDP discovery (useSsdpDiscovery.tsx)
 - SSDP bridge server (ssdp-bridge.ts)
 
-## dCS Varese Volume Control (Investigated)
+## dCS Mosaic Volume Control
 
-Investigated direct volume control of dCS Varese DAC from the app. Findings:
-- **Core** (192.168.0.17): Web interface on port 80 (firmware updates only), ACTUS protocol on port 7878 (encrypted/proprietary)
-- **Interface** (192.168.0.42): UPnP on port 16500, Chromecast on port 8009
-- dCS Mosaic app uses proprietary encrypted ACTUS protocol - cannot reverse-engineer
-- Third-party apps like mConnect/BubbleUPnP can control volume via UPnP but experience is flaky
-- **Decision**: Use LMS player volume control instead (reliable and already working)
+The local-server includes Mosaic volume control via macOS accessibility APIs.
+
+### How It Works
+- `mosaic-volume.swift` uses macOS accessibility APIs to find and control the volume slider in the Mosaic app
+- Requires accessibility permission granted to Terminal in System Settings
+- Can be compiled for faster execution: `swiftc -O -o mosaic-volume mosaic-volume.swift`
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/mosaic/volume` | GET | Get current volume |
+| `/api/mosaic/volume` | POST | Set volume (action: set/up/down/mute) |
+| `/api/mosaic/sliders` | GET | List all sliders (debug) |
+
+### CLI Usage
+
+```bash
+./mosaic-volume --get           # Get current volume
+./mosaic-volume --set 75        # Set volume to 75%
+./mosaic-volume --up 5          # Volume up 5%
+./mosaic-volume --down 5        # Volume down 5%
+./mosaic-volume --mute          # Toggle mute
+```
+
+### Prerequisites
+1. macOS only (uses accessibility APIs)
+2. Mosaic app running (can be in background)
+3. Accessibility permission granted to Terminal
 
 ## Flirc USB / IR Remote Control
 
