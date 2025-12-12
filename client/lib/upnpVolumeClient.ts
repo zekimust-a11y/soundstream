@@ -1,5 +1,4 @@
 import { debugLog } from './debugLog';
-import { getApiUrl } from './query-client';
 
 interface UpnpDevice {
   ip: string;
@@ -29,31 +28,74 @@ class UpnpVolumeClient {
     return this.device;
   }
 
+  private parseVolumeFromResponse(xml: string): number | null {
+    const match = xml.match(/<CurrentVolume>([^<]+)<\/CurrentVolume>/i);
+    if (match) {
+      const value = match[1].trim();
+      const num = parseFloat(value);
+      if (!isNaN(num)) {
+        if (num <= 0 && num >= -80) {
+          const percent = Math.round(((num + 80) / 80) * 100);
+          debugLog.info('Volume parsed', `${value}dB = ${percent}%`);
+          return percent;
+        }
+        return Math.round(Math.max(0, Math.min(100, num)));
+      }
+    }
+    return null;
+  }
+
+  private percentToDb(percent: number): string {
+    const clamped = Math.max(0, Math.min(100, percent));
+    const db = ((clamped / 100) * 80) - 80;
+    return db.toFixed(1);
+  }
+
   async getVolume(): Promise<number> {
     if (!this.device) {
       throw new Error('UPnP device not configured');
     }
 
+    const soapBody = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:GetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+    </u:GetVolume>
+  </s:Body>
+</s:Envelope>`;
+
     try {
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/api/upnp/volume`, {
+      const url = `http://${this.device.ip}:${this.device.port}/RenderingControl/ctrl`;
+      debugLog.request('UPnP GetVolume', url);
+      
+      const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'get',
-          ip: this.device.ip,
-          port: this.device.port,
-        }),
+        headers: {
+          'Content-Type': 'text/xml; charset="utf-8"',
+          'SOAPAction': '"urn:schemas-upnp-org:service:RenderingControl:1#GetVolume"',
+        },
+        body: soapBody,
       });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const data = await response.json();
-      this.currentVolume = data.volume;
-      debugLog.response('UPnP GetVolume', `${data.volume}%`);
-      return data.volume;
+      const xml = await response.text();
+      debugLog.response('UPnP GetVolume raw', xml.substring(0, 200));
+      
+      const volumeValue = this.parseVolumeFromResponse(xml);
+      
+      if (volumeValue !== null) {
+        this.currentVolume = volumeValue;
+        debugLog.response('UPnP GetVolume', `${volumeValue}%`);
+        return volumeValue;
+      }
+      
+      debugLog.error('UPnP GetVolume', 'Could not parse volume from response');
+      return this.currentVolume;
     } catch (error) {
       debugLog.error('UPnP GetVolume failed', error instanceof Error ? error.message : String(error));
       throw error;
@@ -66,26 +108,40 @@ class UpnpVolumeClient {
     }
 
     const clampedVolume = Math.max(0, Math.min(100, Math.round(volume)));
-    
+    const dbValue = this.percentToDb(clampedVolume);
+
+    const soapBody = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+      <DesiredVolume>${dbValue}</DesiredVolume>
+    </u:SetVolume>
+  </s:Body>
+</s:Envelope>`;
+
     try {
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/api/upnp/volume`, {
+      const url = `http://${this.device.ip}:${this.device.port}/RenderingControl/ctrl`;
+      debugLog.request('UPnP SetVolume', `${url} -> ${clampedVolume}% (${dbValue}dB)`);
+      
+      const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'set',
-          ip: this.device.ip,
-          port: this.device.port,
-          volume: clampedVolume,
-        }),
+        headers: {
+          'Content-Type': 'text/xml; charset="utf-8"',
+          'SOAPAction': '"urn:schemas-upnp-org:service:RenderingControl:1#SetVolume"',
+        },
+        body: soapBody,
       });
 
       if (!response.ok) {
+        const text = await response.text();
+        debugLog.error('UPnP SetVolume response', text.substring(0, 200));
         throw new Error(`HTTP ${response.status}`);
       }
 
       this.currentVolume = clampedVolume;
-      debugLog.request('UPnP SetVolume', `${clampedVolume}%`);
+      debugLog.response('UPnP SetVolume', `${clampedVolume}% OK`);
     } catch (error) {
       debugLog.error('UPnP SetVolume failed', error instanceof Error ? error.message : String(error));
       throw error;
@@ -109,17 +165,26 @@ class UpnpVolumeClient {
       throw new Error('UPnP device not configured');
     }
 
+    const soapBody = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetMute xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+      <DesiredMute>1</DesiredMute>
+    </u:SetMute>
+  </s:Body>
+</s:Envelope>`;
+
     try {
-      const apiUrl = getApiUrl();
-      await fetch(`${apiUrl}/api/upnp/volume`, {
+      const url = `http://${this.device.ip}:${this.device.port}/RenderingControl/ctrl`;
+      await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'mute',
-          ip: this.device.ip,
-          port: this.device.port,
-          mute: true,
-        }),
+        headers: {
+          'Content-Type': 'text/xml; charset="utf-8"',
+          'SOAPAction': '"urn:schemas-upnp-org:service:RenderingControl:1#SetMute"',
+        },
+        body: soapBody,
       });
       debugLog.request('UPnP Mute', 'ON');
     } catch (error) {
@@ -133,17 +198,26 @@ class UpnpVolumeClient {
       throw new Error('UPnP device not configured');
     }
 
+    const soapBody = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetMute xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+      <DesiredMute>0</DesiredMute>
+    </u:SetMute>
+  </s:Body>
+</s:Envelope>`;
+
     try {
-      const apiUrl = getApiUrl();
-      await fetch(`${apiUrl}/api/upnp/volume`, {
+      const url = `http://${this.device.ip}:${this.device.port}/RenderingControl/ctrl`;
+      await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'mute',
-          ip: this.device.ip,
-          port: this.device.port,
-          mute: false,
-        }),
+        headers: {
+          'Content-Type': 'text/xml; charset="utf-8"',
+          'SOAPAction': '"urn:schemas-upnp-org:service:RenderingControl:1#SetMute"',
+        },
+        body: soapBody,
       });
       debugLog.request('UPnP Mute', 'OFF');
     } catch (error) {

@@ -1568,4 +1568,11 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     fontWeight: "500",
   },
+  textInput: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    ...Typography.body,
+  },
 });

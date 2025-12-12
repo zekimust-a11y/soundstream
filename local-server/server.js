@@ -552,6 +552,159 @@ try {
   console.log('mDNS discovery unavailable (install mdns-js to enable)');
 }
 
+// ============================================
+// UPnP Volume Control (dCS DAC)
+// ============================================
+
+const DAC_IP = process.env.DAC_IP || '192.168.0.42';
+const DAC_PORT = process.env.DAC_PORT || 80;
+
+function sendUpnpCommand(ip, port, action, body) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: ip,
+      port: port,
+      path: '/RenderingControl/ctrl',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset="utf-8"',
+        'Content-Length': Buffer.byteLength(body),
+        'SOAPAction': `"urn:schemas-upnp-org:service:RenderingControl:1#${action}"`
+      }
+    };
+
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve({ status: res.statusCode, data }));
+    });
+
+    req.on('error', reject);
+    req.setTimeout(5000, () => {
+      req.destroy();
+      reject(new Error('UPnP request timeout'));
+    });
+    req.write(body);
+    req.end();
+  });
+}
+
+function parseVolumeFromResponse(xml) {
+  // Try to extract CurrentVolume value from UPnP response
+  const match = xml.match(/<CurrentVolume>([^<]+)<\/CurrentVolume>/i);
+  if (match) {
+    const value = match[1].trim();
+    // Check if it's a dB value (negative number with decimal)
+    const dbMatch = value.match(/^-?\d+(\.\d+)?$/);
+    if (dbMatch) {
+      const num = parseFloat(value);
+      // If it looks like dB (negative or small positive), convert to percentage
+      // dCS uses -80dB to 0dB range typically
+      if (num <= 0 && num >= -80) {
+        // Convert dB to percentage: -80dB = 0%, 0dB = 100%
+        const percent = Math.round(((num + 80) / 80) * 100);
+        console.log(`Volume: ${value}dB = ${percent}%`);
+        return percent;
+      }
+      // Otherwise treat as 0-100 percentage
+      return Math.round(Math.max(0, Math.min(100, num)));
+    }
+  }
+  return null;
+}
+
+function percentToDb(percent) {
+  // Convert 0-100% to -80dB to 0dB
+  // 0% = -80dB, 100% = 0dB
+  const clamped = Math.max(0, Math.min(100, percent));
+  const db = ((clamped / 100) * 80) - 80;
+  return db.toFixed(1);
+}
+
+app.post('/api/upnp/volume', async (req, res) => {
+  const { action, ip, port, volume, mute, useDb } = req.body;
+  const targetIp = ip || DAC_IP;
+  const targetPort = port || DAC_PORT;
+
+  try {
+    if (action === 'get') {
+      const soapBody = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:GetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+    </u:GetVolume>
+  </s:Body>
+</s:Envelope>`;
+
+      console.log(`UPnP GetVolume from ${targetIp}:${targetPort}`);
+      const result = await sendUpnpCommand(targetIp, targetPort, 'GetVolume', soapBody);
+      console.log('UPnP raw response:', result.data);
+      
+      const volumeValue = parseVolumeFromResponse(result.data);
+      
+      if (volumeValue !== null) {
+        res.json({ volume: volumeValue, raw: result.data });
+      } else {
+        res.json({ volume: 50, raw: result.data, warning: 'Could not parse volume' });
+      }
+
+    } else if (action === 'set') {
+      // Determine volume value - use dB for dCS DACs
+      let volumeValue;
+      if (useDb) {
+        volumeValue = percentToDb(volume);
+      } else {
+        // For dCS, always convert to dB
+        volumeValue = percentToDb(volume);
+      }
+
+      const soapBody = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+      <DesiredVolume>${volumeValue}</DesiredVolume>
+    </u:SetVolume>
+  </s:Body>
+</s:Envelope>`;
+
+      console.log(`UPnP SetVolume to ${targetIp}:${targetPort}: ${volume}% (${volumeValue}dB)`);
+      const result = await sendUpnpCommand(targetIp, targetPort, 'SetVolume', soapBody);
+      console.log('UPnP SetVolume response:', result.status);
+      
+      res.json({ success: result.status === 200, volumePercent: volume, volumeDb: volumeValue });
+
+    } else if (action === 'mute') {
+      const muteValue = mute ? '1' : '0';
+      const soapBody = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetMute xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+      <DesiredMute>${muteValue}</DesiredMute>
+    </u:SetMute>
+  </s:Body>
+</s:Envelope>`;
+
+      console.log(`UPnP SetMute to ${targetIp}:${targetPort}: ${mute}`);
+      const result = await sendUpnpCommand(targetIp, targetPort, 'SetMute', soapBody);
+      
+      res.json({ success: result.status === 200 });
+
+    } else {
+      res.status(400).json({ error: 'Invalid action. Use: get, set, or mute' });
+    }
+
+  } catch (error) {
+    console.error('UPnP error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/chromecasts', (req, res) => {
   if (!mdns) {
     return res.status(503).json({ 

@@ -160,7 +160,6 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         setDacConfigState(config);
         if (config.enabled && config.ip) {
           upnpVolumeClient.setDevice(config.ip, config.port, config.name);
-          // Try to get initial volume from DAC
           try {
             const vol = await upnpVolumeClient.getVolume();
             setDacVolume(vol);
@@ -180,7 +179,6 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       await AsyncStorage.setItem(DAC_CONFIG_KEY, JSON.stringify(config));
       if (config.enabled && config.ip) {
         upnpVolumeClient.setDevice(config.ip, config.port, config.name);
-        // Get initial volume
         try {
           const vol = await upnpVolumeClient.getVolume();
           setDacVolume(vol);
