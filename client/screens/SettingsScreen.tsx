@@ -693,24 +693,6 @@ export default function SettingsScreen() {
                 />
               }
             />
-            <SettingRow
-              icon="volume-2"
-              iconColor={Colors.light.accentSecondary}
-              title="Hardware Volume Buttons"
-              subtitle="Use phone buttons to control player volume"
-              showChevron={false}
-              rightElement={
-                <Switch
-                  value={hardwareVolumeControl}
-                  onValueChange={setHardwareVolumeControl}
-                  trackColor={{
-                    false: Colors.light.backgroundTertiary,
-                    true: Colors.light.accent,
-                  }}
-                  thumbColor={Colors.light.text}
-                />
-              }
-            />
           </View>
         </View>
 
