@@ -107,7 +107,7 @@ export default function SettingsScreen() {
   const [urlCopied, setUrlCopied] = useState(false);
   
   const [localServerIp, setLocalServerIp] = useState("");
-  const [localServerPort, setLocalServerPort] = useState("5000");
+  const [localServerPort, setLocalServerPort] = useState("3000");
   const [isDiscoveringChromecasts, setIsDiscoveringChromecasts] = useState(false);
   const [discoveredChromecasts, setDiscoveredChromecasts] = useState<Array<{name: string; model: string; ip: string; port: number}>>([]);
   const [selectedChromecast, setSelectedChromecast] = useState<{name: string; ip: string} | null>(null);
