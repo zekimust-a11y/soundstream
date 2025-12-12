@@ -107,7 +107,7 @@ function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
         onPress={onSelect}
       >
         <View style={[styles.zoneIcon, zone.isActive && styles.zoneIconActive]}>
-          <Feather name="speaker" size={20} color={zone.isActive ? Colors.light.accent : Colors.light.textSecondary} />
+          <Feather name="speaker" size={20} color={zone.isActive ? "#000" : Colors.light.textSecondary} />
         </View>
         <View style={styles.zoneInfo}>
           <ThemedText style={[styles.zoneName, zone.isActive && styles.zoneNameActive]}>
@@ -137,9 +137,9 @@ function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
             maximumValue={1}
             value={zone.volume}
             onValueChange={onVolumeChange}
-            minimumTrackTintColor={Colors.light.accent}
+            minimumTrackTintColor="#000"
             maximumTrackTintColor={Colors.light.backgroundTertiary}
-            thumbTintColor={Colors.light.accent}
+            thumbTintColor="#000"
           />
           <ThemedText style={styles.zoneVolumeText}>{Math.round(zone.volume * 100)}%</ThemedText>
         </View>
@@ -373,7 +373,7 @@ export default function NowPlayingScreen() {
                 <Feather 
                   name="heart" 
                   size={20} 
-                  color={isFavorite ? Colors.light.accent : Colors.light.textSecondary}
+                  color={isFavorite ? "#000" : Colors.light.textSecondary}
                   style={{ opacity: isFavorite ? 1 : 0.6 }}
                 />
               </Pressable>
@@ -410,7 +410,7 @@ export default function NowPlayingScreen() {
                 <Feather
                   name="shuffle"
                   size={22}
-                  color={shuffle ? Colors.light.accent : Colors.light.textSecondary}
+                  color={shuffle ? "#000" : Colors.light.textSecondary}
                 />
               </Pressable>
 
@@ -450,7 +450,7 @@ export default function NowPlayingScreen() {
                 <Feather
                   name="repeat"
                   size={22}
-                  color={repeat !== "off" ? Colors.light.accent : Colors.light.textSecondary}
+                  color={repeat !== "off" ? "#000" : Colors.light.textSecondary}
                 />
                 {repeat === "one" ? (
                   <View style={styles.repeatBadge}>
@@ -469,9 +469,9 @@ export default function NowPlayingScreen() {
                   maximumValue={1}
                   value={volume}
                   onValueChange={setVolume}
-                  minimumTrackTintColor={Colors.light.accent}
+                  minimumTrackTintColor="#000"
                   maximumTrackTintColor={Colors.light.backgroundTertiary}
-                  thumbTintColor={Colors.light.accent}
+                  thumbTintColor="#000"
                 />
               </View>
               <Feather name="volume-2" size={18} color={Colors.light.textTertiary} />
@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
   },
   trackArtistLink: {
     fontSize: 15,
-    color: Colors.light.accent,
+    color: "#000",
   },
   trackSeparator: {
     fontSize: 15,
@@ -651,7 +651,7 @@ const styles = StyleSheet.create({
   },
   trackAlbumLink: {
     fontSize: 15,
-    color: Colors.light.accent,
+    color: "#000",
   },
   qualityDetails: {
     fontSize: 13,
@@ -701,7 +701,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: Colors.light.accent,
+    backgroundColor: "#000",
     borderRadius: 2,
   },
   progressThumb: {
@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: Colors.light.accent,
+    backgroundColor: "#000",
     marginLeft: -6,
   },
   timeLabels: {
@@ -745,7 +745,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: Colors.light.accent,
+    backgroundColor: "#000",
     justifyContent: "center",
     alignItems: "center",
     marginHorizontal: Spacing.md,
@@ -757,7 +757,7 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: Colors.light.accent,
+    backgroundColor: "#000",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -875,7 +875,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   zoneHeaderActive: {
-    backgroundColor: Colors.light.accent + "10",
+    backgroundColor: "rgba(0, 0, 0, 0.06)",
   },
   zoneIcon: {
     width: 40,
@@ -886,7 +886,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   zoneIconActive: {
-    backgroundColor: Colors.light.accent + "20",
+    backgroundColor: "rgba(0, 0, 0, 0.12)",
   },
   zoneInfo: {
     flex: 1,
@@ -898,7 +898,7 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
   },
   zoneNameActive: {
-    color: Colors.light.accent,
+    color: "#000",
   },
   zoneType: {
     fontSize: 12,
@@ -918,8 +918,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   checkboxActive: {
-    backgroundColor: Colors.light.accent,
-    borderColor: Colors.light.accent,
+    backgroundColor: "#000",
+    borderColor: "#000",
   },
   zoneVolume: {
     flexDirection: "row",
@@ -941,7 +941,7 @@ const styles = StyleSheet.create({
   doneButton: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.md,
-    backgroundColor: Colors.light.accent,
+    backgroundColor: "#000",
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
     alignItems: "center",
