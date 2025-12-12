@@ -99,8 +99,9 @@ export default function SettingsScreen() {
   const [crossfade, setCrossfade] = useState(false);
   const [normalization, setNormalization] = useState(false);
   const [hardwareVolumeControl, setHardwareVolumeControl] = useState(false);
-  const [streamingQuality, setStreamingQuality] = useState<"cd" | "hires">("cd");
+  const [streamingQuality, setStreamingQuality] = useState<"cd" | "hires" | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveredServers, setDiscoveredServers] = useState<Array<{host: string; port: number; name: string}>>([]);
@@ -129,10 +130,15 @@ export default function SettingsScreen() {
   }, []);
 
   useEffect(() => {
-    if (settingsLoaded) {
+    // Only save after initial load is complete and when values actually change
+    if (settingsLoaded && !isInitialLoad) {
       saveSettings();
     }
-  }, [gapless, crossfade, normalization, hardwareVolumeControl, streamingQuality, localServerIp, localServerPort, selectedChromecast, settingsLoaded]);
+    // Mark initial load as complete after first render with loaded settings
+    if (settingsLoaded && isInitialLoad) {
+      setIsInitialLoad(false);
+    }
+  }, [gapless, crossfade, normalization, hardwareVolumeControl, streamingQuality, localServerIp, localServerPort, selectedChromecast, settingsLoaded, isInitialLoad]);
 
   const loadSettings = async () => {
     try {
@@ -147,15 +153,22 @@ export default function SettingsScreen() {
         setLocalServerIp(settings.localServerIp ?? "");
         setLocalServerPort(settings.localServerPort ?? "3000");
         setSelectedChromecast(settings.selectedChromecast ?? null);
+      } else {
+        // No stored settings, use defaults
+        setStreamingQuality("cd");
       }
       setSettingsLoaded(true);
     } catch (e) {
       console.error("Failed to load settings:", e);
+      setStreamingQuality("cd"); // Set default on error
       setSettingsLoaded(true);
     }
   };
 
   const saveSettings = async () => {
+    // Don't save if streaming quality hasn't been set yet
+    if (streamingQuality === null) return;
+    
     try {
       await AsyncStorage.setItem(
         SETTINGS_KEY,

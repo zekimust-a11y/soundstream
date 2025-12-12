@@ -209,11 +209,27 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       
       setZones([...DEFAULT_ZONES, ...lmsZones]);
       
+      // Only auto-select first player if no player was ever stored
+      // Check storage to see if user had a previous selection
       if (!activePlayer && fetchedPlayers.length > 0) {
-        setActivePlayer(fetchedPlayers[0]);
+        const storedPlayer = await AsyncStorage.getItem(LMS_PLAYER_KEY);
+        if (!storedPlayer) {
+          // Only auto-select if user never chose a player before
+          setActivePlayer(fetchedPlayers[0]);
+        } else {
+          // Restore stored player if it's in the current list
+          const stored = JSON.parse(storedPlayer);
+          const matchingPlayer = fetchedPlayers.find(p => p.id === stored.id);
+          if (matchingPlayer) {
+            setActivePlayerState(matchingPlayer);
+            setActiveZoneId(matchingPlayer.id);
+          }
+          // If stored player not found, keep stored preference and don't auto-select
+        }
       }
     } catch (error) {
       debugLog.error('Failed to refresh players', error instanceof Error ? error.message : String(error));
+      // Don't clear activePlayer on error - keep the stored preference
     }
   }, [activePlayer]);
 

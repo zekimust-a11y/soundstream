@@ -134,6 +134,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [favorites, setFavorites] = useState<Favorites>(DEFAULT_FAVORITES);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -178,12 +179,17 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       if (playlistsData) {
         setPlaylists(JSON.parse(playlistsData));
       }
+      setDataLoaded(true);
     } catch (e) {
       console.error("Failed to load music data:", e);
+      setDataLoaded(true);
     }
   };
 
   const saveServers = async (newServers: Server[], activeId?: string) => {
+    // Don't save if data hasn't been loaded yet - prevents wiping stored data
+    if (!dataLoaded && newServers.length === 0) return;
+    
     try {
       await AsyncStorage.setItem(
         SERVERS_KEY,
