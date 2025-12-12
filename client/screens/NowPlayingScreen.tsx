@@ -14,7 +14,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from "react-native-reanimated";
 import { Image } from "expo-image";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialIcons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -418,7 +418,7 @@ export default function NowPlayingScreen() {
                 style={({ pressed }) => [styles.mainControl, { opacity: pressed ? 0.5 : 1 }]}
                 onPress={previous}
               >
-                <Feather name="skip-back" size={36} color="#000" />
+                <MaterialIcons name="skip-previous" size={36} color="#000" />
               </Pressable>
 
               <Pressable
@@ -428,11 +428,10 @@ export default function NowPlayingScreen() {
                 ]}
                 onPress={togglePlayPause}
               >
-                <Feather
-                  name={isPlaying ? "pause" : "play"}
+                <MaterialIcons
+                  name={isPlaying ? "pause" : "play-arrow"}
                   size={36}
                   color="#000"
-                  style={!isPlaying ? { marginLeft: 4 } : undefined}
                 />
               </Pressable>
 
@@ -440,7 +439,7 @@ export default function NowPlayingScreen() {
                 style={({ pressed }) => [styles.mainControl, { opacity: pressed ? 0.5 : 1 }]}
                 onPress={next}
               >
-                <Feather name="skip-forward" size={36} color="#000" />
+                <MaterialIcons name="skip-next" size={36} color="#000" />
               </Pressable>
 
               <Pressable
