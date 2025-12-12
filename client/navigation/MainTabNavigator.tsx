@@ -7,6 +7,7 @@ import BrowseStackNavigator from "@/navigation/BrowseStackNavigator";
 import PlaylistsStackNavigator from "@/navigation/PlaylistsStackNavigator";
 import AlbumsStackNavigator from "@/navigation/AlbumsStackNavigator";
 import ArtistsStackNavigator from "@/navigation/ArtistsStackNavigator";
+import RadioStackNavigator from "@/navigation/RadioStackNavigator";
 import SearchStackNavigator from "@/navigation/SearchStackNavigator";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 import MiniPlayer from "@/components/MiniPlayer";
@@ -18,6 +19,7 @@ export type MainTabParamList = {
   PlaylistsTab: undefined;
   AlbumsTab: undefined;
   ArtistsTab: undefined;
+  RadioTab: undefined;
   SearchTab: undefined;
   SettingsTab: undefined;
 };
@@ -94,6 +96,16 @@ export default function MainTabNavigator() {
             title: "Artists",
             tabBarIcon: ({ color, size }) => (
               <Feather name="users" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="RadioTab"
+          component={RadioStackNavigator}
+          options={{
+            title: "Radio",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="radio" size={size} color={color} />
             ),
           }}
         />

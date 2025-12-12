@@ -43,6 +43,13 @@ export interface LmsPlaylist {
   trackCount?: number;
 }
 
+export interface LmsRadioStation {
+  id: string;
+  name: string;
+  url?: string;
+  image?: string;
+}
+
 export interface LmsTrack {
   id: string;
   title: string;
@@ -679,6 +686,18 @@ class LmsClient {
     }
     
     return null;
+  }
+
+  async getFavoriteRadios(): Promise<LmsRadioStation[]> {
+    const result = await this.request('', ['favorites', 'items', '0', '500', 'want_url:1', 'tags:s']);
+    const favoritesLoop = (result.favorites_loop || []) as Array<Record<string, unknown>>;
+    
+    return favoritesLoop.map((f) => ({
+      id: String(f.id || f.favoriteid || ''),
+      name: String(f.name || 'Unknown Station'),
+      url: f.url ? String(f.url) : undefined,
+      image: f.image ? String(f.image) : undefined,
+    }));
   }
 
   async autoDiscoverServers(onProgress?: (found: number, scanning: number) => void): Promise<LmsServer[]> {

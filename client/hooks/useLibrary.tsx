@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { lmsClient, LmsAlbum, LmsArtist } from '@/lib/lmsClient';
+import { lmsClient, LmsAlbum, LmsArtist, LmsRadioStation } from '@/lib/lmsClient';
 import { useMusic } from './useMusic';
 
 const PAGE_SIZE = 50;
@@ -121,6 +121,20 @@ export function useInfiniteArtists() {
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
+    enabled: !!activeServer,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useFavoriteRadios() {
+  const { activeServer } = useMusic();
+  
+  return useQuery({
+    queryKey: ['radio', 'favorites', activeServer?.id],
+    queryFn: async () => {
+      if (!activeServer) return [];
+      return await lmsClient.getFavoriteRadios();
+    },
     enabled: !!activeServer,
     staleTime: 5 * 60 * 1000,
   });
