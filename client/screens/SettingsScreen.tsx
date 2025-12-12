@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -7,12 +7,9 @@ import {
   Switch,
   ActivityIndicator,
   Alert,
-  Platform,
   TextInput,
-  Linking,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Clipboard from "expo-clipboard";
 
 const SETTINGS_KEY = "@soundstream_settings";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -105,22 +102,6 @@ export default function SettingsScreen() {
   
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveredServers, setDiscoveredServers] = useState<Array<{host: string; port: number; name: string}>>([]);
-  const [urlCopied, setUrlCopied] = useState(false);
-  
-  const [localServerIp, setLocalServerIp] = useState("");
-  const [localServerPort, setLocalServerPort] = useState("3000");
-  const [isDiscoveringChromecasts, setIsDiscoveringChromecasts] = useState(false);
-  const [discoveredChromecasts, setDiscoveredChromecasts] = useState<Array<{name: string; model: string; ip: string; port: number}>>([]);
-  const [selectedChromecast, setSelectedChromecast] = useState<{name: string; ip: string} | null>(null);
-
-  const nowPlayingUrl = useMemo(() => {
-    if (!activeServer || !activePlayer) return null;
-    // Generate a local network URL using the LMS server's IP address
-    // This URL format is for when SoundStream is running on the local network
-    // Port 5000 is the default SoundStream server port
-    const baseUrl = `http://${activeServer.host}:5000`;
-    return `${baseUrl}/now-playing?host=${activeServer.host}&port=${activeServer.port}&player=${encodeURIComponent(activePlayer.id)}`;
-  }, [activeServer, activePlayer]);
 
   useEffect(() => {
     loadSettings();
@@ -138,7 +119,7 @@ export default function SettingsScreen() {
     if (settingsLoaded && isInitialLoad) {
       setIsInitialLoad(false);
     }
-  }, [gapless, crossfade, normalization, hardwareVolumeControl, streamingQuality, localServerIp, localServerPort, selectedChromecast, settingsLoaded, isInitialLoad]);
+  }, [gapless, crossfade, normalization, hardwareVolumeControl, streamingQuality, settingsLoaded, isInitialLoad]);
 
   const loadSettings = async () => {
     try {
@@ -150,9 +131,6 @@ export default function SettingsScreen() {
         setNormalization(settings.normalization ?? false);
         setHardwareVolumeControl(settings.hardwareVolumeControl ?? false);
         setStreamingQuality(settings.streamingQuality ?? "cd");
-        setLocalServerIp(settings.localServerIp ?? "");
-        setLocalServerPort(settings.localServerPort ?? "3000");
-        setSelectedChromecast(settings.selectedChromecast ?? null);
       } else {
         // No stored settings, use defaults
         setStreamingQuality("cd");
@@ -178,78 +156,10 @@ export default function SettingsScreen() {
           normalization, 
           hardwareVolumeControl, 
           streamingQuality,
-          localServerIp,
-          localServerPort,
-          selectedChromecast,
         })
       );
     } catch (e) {
       console.error("Failed to save settings:", e);
-    }
-  };
-
-  const handleDiscoverChromecasts = async () => {
-    if (!localServerIp.trim()) {
-      Alert.alert('Local Server Required', 'Please enter the IP address of the computer running the local display server.');
-      return;
-    }
-
-    setIsDiscoveringChromecasts(true);
-    setDiscoveredChromecasts([]);
-
-    try {
-      const port = localServerPort || '3000';
-      const response = await fetch(`http://${localServerIp.trim()}:${port}/api/chromecasts?timeout=5000`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to connect to local server');
-      }
-      
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      setDiscoveredChromecasts(data.devices || []);
-      
-      if (data.devices?.length === 0) {
-        Alert.alert('No Devices Found', 'No Chromecast devices were found on your network. Make sure your Chromecast is powered on and connected to the same network.');
-      }
-    } catch (error) {
-      console.error('Chromecast discovery error:', error);
-      Alert.alert(
-        'Discovery Failed', 
-        `Could not discover Chromecast devices. Make sure the local server is running at ${localServerIp}:${localServerPort}\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    } finally {
-      setIsDiscoveringChromecasts(false);
-    }
-  };
-
-  const handleSelectChromecast = async (device: {name: string; ip: string}) => {
-    setSelectedChromecast(device);
-    
-    const serverUrl = `http://${localServerIp}:${localServerPort}`;
-    
-    try {
-      const response = await fetch(`${serverUrl}/api/chromecast`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ip: device.ip, name: device.name }),
-      });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        Alert.alert('Chromecast Configured', `${device.name} is now set up for auto-casting. When music plays, the Now Playing screen will automatically appear on your TV.`);
-      } else {
-        Alert.alert('Chromecast Saved', `${device.name} has been saved. ${result.message}`);
-      }
-    } catch (error) {
-      Alert.alert('Chromecast Selected', `${device.name} has been selected locally, but could not configure the server. Make sure your local server is running.`);
     }
   };
 
@@ -275,6 +185,7 @@ export default function SettingsScreen() {
         });
         lmsClient.setServer(server.host, server.port);
         await refreshPlayers();
+        await refreshLibrary();
         setLmsHost("");
         Alert.alert('Connected', `Successfully connected to ${server.name}`);
       } else {
@@ -322,6 +233,7 @@ export default function SettingsScreen() {
         });
         lmsClient.setServer(server.host, server.port);
         await refreshPlayers();
+        await refreshLibrary();
         setDiscoveredServers([]);
         Alert.alert('Connected', `Successfully connected to ${server.name}`);
       }
@@ -338,28 +250,8 @@ export default function SettingsScreen() {
     setIsRefreshingPlayers(false);
   };
 
-  const handleSelectPlayer = async (player: typeof players[0]) => {
+  const handleSelectPlayer = (player: typeof players[0]) => {
     setActivePlayer(player);
-    
-    // Also sync player selection to local Chromecast display server if configured
-    if (localServerIp) {
-      try {
-        const serverUrl = `http://${localServerIp.trim()}:${localServerPort}`;
-        const response = await fetch(`${serverUrl}/api/player`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            playerId: player.id,
-            playerName: player.name
-          })
-        });
-        if (response.ok) {
-          console.log('Player synced to local server:', player.name);
-        }
-      } catch (e) {
-        console.log('Could not sync player to local server:', e);
-      }
-    }
   };
 
   const handleRemoveServer = (serverId: string) => {
@@ -757,198 +649,6 @@ export default function SettingsScreen() {
                 <View style={styles.radioEmpty} />
               )}
             </Pressable>
-          </View>
-        </View>
-
-        {nowPlayingUrl ? (
-          <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>TV Display</ThemedText>
-            <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
-              <View style={styles.tvDisplayContent}>
-                <View style={styles.tvDisplayHeader}>
-                  <View style={[styles.iconContainer, { backgroundColor: '#9C27B0' + '20' }]}>
-                    <Feather name="tv" size={18} color="#9C27B0" />
-                  </View>
-                  <View style={styles.settingContent}>
-                    <ThemedText style={styles.settingTitle}>Now Playing Display</ThemedText>
-                    <ThemedText style={styles.settingSubtitle}>
-                      Cast this page to your TV to show album artwork and track info
-                    </ThemedText>
-                  </View>
-                </View>
-                <View style={styles.urlContainer}>
-                  <ThemedText 
-                    style={[styles.urlText, { color: theme.textSecondary }]} 
-                    numberOfLines={2}
-                  >
-                    {nowPlayingUrl}
-                  </ThemedText>
-                </View>
-                <View style={styles.tvDisplayButtons}>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.tvDisplayButton,
-                      { 
-                        backgroundColor: theme.accent,
-                        opacity: pressed ? 0.7 : 1,
-                      },
-                    ]}
-                    onPress={async () => {
-                      await Clipboard.setStringAsync(nowPlayingUrl);
-                      setUrlCopied(true);
-                      setTimeout(() => setUrlCopied(false), 2000);
-                    }}
-                  >
-                    <Feather name={urlCopied ? "check" : "copy"} size={16} color={theme.buttonText} />
-                    <ThemedText style={[styles.tvDisplayButtonText, { color: theme.buttonText }]}>
-                      {urlCopied ? "Copied!" : "Copy URL"}
-                    </ThemedText>
-                  </Pressable>
-                  {Platform.OS === 'web' ? (
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.tvDisplayButton,
-                        styles.tvDisplayButtonSecondary,
-                        { 
-                          borderColor: theme.border,
-                          opacity: pressed ? 0.7 : 1,
-                        },
-                      ]}
-                      onPress={() => {
-                        window.open(nowPlayingUrl, '_blank');
-                      }}
-                    >
-                      <Feather name="external-link" size={16} color={theme.text} />
-                      <ThemedText style={[styles.tvDisplayButtonText, { color: theme.text }]}>
-                        Open
-                      </ThemedText>
-                    </Pressable>
-                  ) : null}
-                </View>
-                <ThemedText style={[styles.tvDisplayHint, { color: theme.textTertiary }]}>
-                  This URL requires SoundStream to be running on your local network at port 5000. Open the URL on a device connected to the same network as your LMS server.
-                </ThemedText>
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Display Server</ThemedText>
-          <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.tvDisplayContent}>
-              <View style={styles.tvDisplayHeader}>
-                <View style={[styles.iconContainer, { backgroundColor: '#4CAF50' + '20' }]}>
-                  <Feather name="cast" size={18} color="#4CAF50" />
-                </View>
-                <View style={styles.settingContent}>
-                  <ThemedText style={styles.settingTitle}>Chromecast Auto-Cast</ThemedText>
-                  <ThemedText style={styles.settingSubtitle}>
-                    Automatically display Now Playing on your TV when music plays
-                  </ThemedText>
-                </View>
-              </View>
-              
-              <ThemedText style={[styles.inputLabel, { color: theme.textSecondary, marginTop: Spacing.lg }]}>
-                Local Server Address
-              </ThemedText>
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={[styles.hostInput, { color: theme.text, borderColor: theme.border }]}
-                  placeholder="Server IP (e.g., 192.168.0.50)"
-                  placeholderTextColor={theme.textTertiary}
-                  value={localServerIp}
-                  onChangeText={setLocalServerIp}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="default"
-                />
-                <TextInput
-                  style={[styles.portInput, { color: theme.text, borderColor: theme.border }]}
-                  placeholder="Port"
-                  placeholderTextColor={theme.textTertiary}
-                  value={localServerPort}
-                  onChangeText={setLocalServerPort}
-                  keyboardType="number-pad"
-                />
-              </View>
-              
-              <Pressable
-                style={({ pressed }) => [
-                  styles.connectButton,
-                  { 
-                    backgroundColor: '#4CAF50',
-                    opacity: pressed || isDiscoveringChromecasts ? 0.7 : 1,
-                    marginTop: Spacing.md,
-                  },
-                ]}
-                onPress={handleDiscoverChromecasts}
-                disabled={isDiscoveringChromecasts}
-              >
-                {isDiscoveringChromecasts ? (
-                  <ActivityIndicator size="small" color={theme.buttonText} />
-                ) : (
-                  <Feather name="search" size={18} color={theme.buttonText} />
-                )}
-                <ThemedText style={[styles.connectButtonText, { color: theme.buttonText }]}>
-                  {isDiscoveringChromecasts ? "Scanning..." : "Find Chromecast Devices"}
-                </ThemedText>
-              </Pressable>
-
-              {selectedChromecast ? (
-                <View style={[styles.selectedDevice, { backgroundColor: '#4CAF50' + '15', marginTop: Spacing.md }]}>
-                  <Feather name="check-circle" size={18} color="#4CAF50" />
-                  <View style={{ marginLeft: Spacing.sm, flex: 1 }}>
-                    <ThemedText style={styles.selectedDeviceName}>{selectedChromecast.name}</ThemedText>
-                    <ThemedText style={[styles.selectedDeviceIp, { color: theme.textSecondary }]}>
-                      {selectedChromecast.ip}
-                    </ThemedText>
-                  </View>
-                  <Pressable
-                    onPress={() => setSelectedChromecast(null)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Feather name="x" size={18} color={theme.textSecondary} />
-                  </Pressable>
-                </View>
-              ) : null}
-
-              {discoveredChromecasts.length > 0 ? (
-                <View style={{ marginTop: Spacing.md }}>
-                  <ThemedText style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                    Found Devices
-                  </ThemedText>
-                  {discoveredChromecasts.map((device, index) => (
-                    <Pressable
-                      key={`${device.ip}-${index}`}
-                      style={({ pressed }) => [
-                        styles.deviceRow,
-                        { 
-                          backgroundColor: pressed ? theme.backgroundTertiary : theme.backgroundDefault,
-                          borderColor: theme.border,
-                        },
-                      ]}
-                      onPress={() => handleSelectChromecast({ name: device.name, ip: device.ip })}
-                    >
-                      <View style={[styles.iconContainer, { backgroundColor: '#4CAF50' + '20' }]}>
-                        <Feather name="tv" size={16} color="#4CAF50" />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: Spacing.sm }}>
-                        <ThemedText style={styles.deviceName}>{device.name}</ThemedText>
-                        <ThemedText style={[styles.deviceModel, { color: theme.textSecondary }]}>
-                          {device.model ? `${device.model} - ` : ''}{device.ip}
-                        </ThemedText>
-                      </View>
-                      <Feather name="plus-circle" size={20} color="#4CAF50" />
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-
-              <ThemedText style={[styles.tvDisplayHint, { color: theme.textTertiary, marginTop: Spacing.md }]}>
-                Requires the local display server running on a computer on your network. The server will scan for Chromecast devices.
-              </ThemedText>
-            </View>
           </View>
         </View>
 
