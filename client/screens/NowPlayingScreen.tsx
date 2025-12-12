@@ -18,6 +18,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { usePlayback, Zone } from "@/hooks/usePlayback";
+import { useMusic } from "@/hooks/useMusic";
 
 const { width, height } = Dimensions.get("window");
 // Make album art smaller on shorter screens to ensure volume slider is visible
@@ -102,11 +103,13 @@ function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
 export default function NowPlayingScreen() {
   const insets = useSafeAreaInsets();
   const [showZoneModal, setShowZoneModal] = useState(false);
+  const [showQueueModal, setShowQueueModal] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPosition, setSeekPosition] = useState(0);
   const sliderWidthRef = useRef(0);
   const sliderXRef = useRef(0);
   
+  const { isFavoriteTrack, toggleFavoriteTrack } = useMusic();
   const {
     currentTrack,
     isPlaying,
@@ -208,9 +211,22 @@ export default function NowPlayingScreen() {
         </View>
 
         <View style={styles.trackInfo}>
-          <ThemedText style={styles.trackTitle} numberOfLines={2}>
-            {currentTrack.title}
-          </ThemedText>
+          <View style={styles.trackTitleRow}>
+            <ThemedText style={styles.trackTitle} numberOfLines={2}>
+              {currentTrack.title}
+            </ThemedText>
+            <Pressable
+              style={({ pressed }) => [styles.favoriteButton, { opacity: pressed ? 0.6 : 1 }]}
+              onPress={() => currentTrack.id && toggleFavoriteTrack(currentTrack.id)}
+            >
+              <Feather 
+                name={currentTrack.id && isFavoriteTrack(currentTrack.id) ? "heart" : "heart"} 
+                size={22} 
+                color={currentTrack.id && isFavoriteTrack(currentTrack.id) ? Colors.light.accent : Colors.light.textSecondary} 
+                style={currentTrack.id && isFavoriteTrack(currentTrack.id) ? { opacity: 1 } : { opacity: 0.5 }}
+              />
+            </Pressable>
+          </View>
           <ThemedText style={styles.trackArtist} numberOfLines={1}>
             {currentTrack.artist}
           </ThemedText>
@@ -355,7 +371,13 @@ export default function NowPlayingScreen() {
 
         <View style={[styles.deviceSelector, { marginBottom: insets.bottom + Spacing.xl }]}>
           <Pressable
-            style={({ pressed }) => [styles.speakerButton, { opacity: pressed ? 0.6 : 1 }]}
+            style={({ pressed }) => [styles.bottomIconButton, { opacity: pressed ? 0.6 : 1 }]}
+            onPress={() => setShowQueueModal(true)}
+          >
+            <Feather name="list" size={20} color={Colors.light.accent} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.bottomIconButton, { opacity: pressed ? 0.6 : 1, marginLeft: Spacing.lg }]}
             onPress={() => setShowZoneModal(true)}
           >
             <Feather name="speaker" size={20} color={Colors.light.accent} />
@@ -465,11 +487,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.sm,
   },
+  trackTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingHorizontal: Spacing.xl,
+  },
   trackTitle: {
     ...Typography.title,
     fontSize: 20,
     color: Colors.light.text,
     textAlign: "center",
+    flex: 1,
+  },
+  favoriteButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: Spacing.sm,
   },
   trackArtist: {
     ...Typography.body,
@@ -589,9 +626,11 @@ const styles = StyleSheet.create({
     height: 50,
   },
   deviceSelector: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
   },
-  speakerButton: {
+  bottomIconButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
