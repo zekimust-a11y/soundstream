@@ -309,9 +309,55 @@ export default function NowPlayingScreen() {
               <ThemedText style={styles.trackTitle} numberOfLines={2}>
                 {currentTrack.title}
               </ThemedText>
-              <ThemedText style={styles.trackArtistAlbum} numberOfLines={1}>
-                {currentTrack.artist}{currentTrack.album ? ` \u2022 ${currentTrack.album}` : ""}
-              </ThemedText>
+              <View style={styles.trackMetaRow}>
+                <Pressable 
+                  onPress={() => {
+                    if (currentTrack.metadata) {
+                      try {
+                        const meta = JSON.parse(currentTrack.metadata);
+                        if (meta.artistId) {
+                          minimizePlayer();
+                          navigation.navigate("Browse", { 
+                            screen: "Artist", 
+                            params: { id: meta.artistId, name: currentTrack.artist } 
+                          });
+                        }
+                      } catch {}
+                    }
+                  }}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+                >
+                  <ThemedText style={styles.trackArtistLink} numberOfLines={1}>
+                    {currentTrack.artist}
+                  </ThemedText>
+                </Pressable>
+                {currentTrack.album ? (
+                  <>
+                    <ThemedText style={styles.trackSeparator}> • </ThemedText>
+                    <Pressable 
+                      onPress={() => {
+                        if (currentTrack.metadata) {
+                          try {
+                            const meta = JSON.parse(currentTrack.metadata);
+                            if (meta.albumId) {
+                              minimizePlayer();
+                              navigation.navigate("Browse", { 
+                                screen: "Album", 
+                                params: { id: meta.albumId, name: currentTrack.album, artistName: currentTrack.artist } 
+                              });
+                            }
+                          } catch {}
+                        }
+                      }}
+                      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+                    >
+                      <ThemedText style={styles.trackAlbumLink} numberOfLines={1}>
+                        {currentTrack.album}
+                      </ThemedText>
+                    </Pressable>
+                  </>
+                ) : null}
+              </View>
               {qualityInfo.details ? (
                 <ThemedText style={styles.qualityDetails}>
                   {qualityInfo.details}
@@ -590,6 +636,24 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.light.textSecondary,
     textAlign: "center",
+  },
+  trackMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
+  },
+  trackArtistLink: {
+    fontSize: 15,
+    color: Colors.light.accent,
+  },
+  trackSeparator: {
+    fontSize: 15,
+    color: Colors.light.textSecondary,
+  },
+  trackAlbumLink: {
+    fontSize: 15,
+    color: Colors.light.accent,
   },
   qualityDetails: {
     fontSize: 13,
