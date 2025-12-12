@@ -2,7 +2,7 @@ import React, { useCallback, memo } from "react";
 import {
   View,
   StyleSheet,
-  ScrollView,
+  FlatList,
   Pressable,
   RefreshControl,
   Dimensions,
@@ -21,11 +21,12 @@ import { HeaderTitle } from "@/components/HeaderTitle";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback } from "@/hooks/usePlayback";
-import { useAlbumsPreview, useArtistsPreview, Album, Artist } from "@/hooks/useLibrary";
+import { useInfiniteAlbums, useArtistsPreview, Album, Artist } from "@/hooks/useLibrary";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
 
 const { width } = Dimensions.get("window");
-const ALBUM_SIZE = (width - Spacing.lg * 3) / 2;
+const NUM_COLUMNS = 2;
+const ALBUM_SIZE = (width - Spacing.lg * 3) / NUM_COLUMNS;
 
 type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
 
@@ -91,12 +92,20 @@ export default function BrowseScreen() {
   const { recentlyPlayed, refreshLibrary } = useMusic();
   const { playTrack } = usePlayback();
   
-  const { data: albumsData, isLoading: albumsLoading, refetch: refetchAlbums } = useAlbumsPreview(20);
+  const { 
+    data: albumsData, 
+    isLoading: albumsLoading, 
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch: refetchAlbums 
+  } = useInfiniteAlbums();
+  
   const { data: artistsData, isLoading: artistsLoading, refetch: refetchArtists } = useArtistsPreview(20);
 
   const isLoading = albumsLoading || artistsLoading;
-  const albums = albumsData?.albums || [];
-  const albumsTotal = albumsData?.total || 0;
+  const albums = albumsData?.pages.flatMap(page => page.albums) || [];
+  const albumsTotal = albumsData?.pages[0]?.total || 0;
   const artists = artistsData?.artists || [];
   const artistsTotal = artistsData?.total || 0;
 
@@ -114,16 +123,24 @@ export default function BrowseScreen() {
     navigation.navigate("Album", { id: album.id, name: album.name, artistName: album.artist });
   }, [navigation]);
 
-  const handleViewAllAlbums = useCallback(() => {
-    navigation.navigate("AllAlbums");
-  }, [navigation]);
-
   const handleViewAllArtists = useCallback(() => {
     navigation.navigate("AllArtists");
   }, [navigation]);
 
-  return (
-    <ThemedView style={styles.container}>
+  const handleEndReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const renderAlbum = useCallback(({ item, index }: { item: Album; index: number }) => (
+    <AlbumCard album={item} onPress={() => handleAlbumPress(item)} />
+  ), [handleAlbumPress]);
+
+  const keyExtractor = useCallback((item: Album, index: number) => `album-${item.id}-${index}`, []);
+
+  const ListHeader = useCallback(() => (
+    <>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <HeaderTitle />
         <View style={styles.headerRight}>
@@ -135,13 +152,107 @@ export default function BrowseScreen() {
         </View>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
+      {recentlyPlayed.length > 0 ? (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ThemedText style={styles.sectionTitle}>Recently Played</ThemedText>
+          </View>
+          <FlatList
+            horizontal
+            data={recentlyPlayed.slice(0, 10)}
+            keyExtractor={(track) => `recent-${track.id}`}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
+            renderItem={({ item: track }) => (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.recentCard,
+                  { opacity: pressed ? 0.6 : 1 },
+                ]}
+                onPress={() => playTrack(track)}
+              >
+                <Image
+                  source={track.albumArt || require("../assets/images/placeholder-album.png")}
+                  style={styles.recentImage}
+                  contentFit="cover"
+                />
+                <ThemedText style={styles.recentTitle} numberOfLines={1}>
+                  {track.title}
+                </ThemedText>
+                <ThemedText style={styles.recentArtist} numberOfLines={1}>
+                  {track.artist}
+                </ThemedText>
+              </Pressable>
+            )}
+          />
+        </View>
+      ) : null}
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <ThemedText style={styles.sectionTitle}>Artists</ThemedText>
+          <Pressable 
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+            onPress={handleViewAllArtists}
+          >
+            <ThemedText style={styles.viewAll}>
+              View All ({artistsTotal.toLocaleString()})
+            </ThemedText>
+          </Pressable>
+        </View>
+        {artistsLoading ? (
+          <ActivityIndicator color={Colors.light.accent} style={styles.loader} />
+        ) : (
+          <FlatList
+            horizontal
+            data={artists}
+            keyExtractor={(artist) => `artist-${artist.id}`}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
+            renderItem={({ item: artist }) => (
+              <ArtistCard
+                artist={artist}
+                onPress={() => handleArtistPress(artist)}
+              />
+            )}
+          />
+        )}
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <ThemedText style={styles.sectionTitle}>Albums</ThemedText>
+        <ThemedText style={styles.viewAll}>
+          {albumsTotal.toLocaleString()} albums
+        </ThemedText>
+      </View>
+    </>
+  ), [insets.top, recentlyPlayed, playTrack, artistsLoading, artists, artistsTotal, albumsTotal, handleArtistPress, handleViewAllArtists]);
+
+  const ListFooter = useCallback(() => {
+    if (!isFetchingNextPage) return null;
+    return (
+      <View style={styles.footer}>
+        <ActivityIndicator color={Colors.light.accent} />
+      </View>
+    );
+  }, [isFetchingNextPage]);
+
+  return (
+    <ThemedView style={styles.container}>
+      <FlatList
+        data={albums}
+        renderItem={renderAlbum}
+        keyExtractor={keyExtractor}
+        numColumns={NUM_COLUMNS}
+        ListHeaderComponent={ListHeader}
+        ListFooterComponent={ListFooter}
         contentContainerStyle={[
           styles.content,
           { paddingBottom: tabBarHeight + Spacing["5xl"] },
         ]}
-        scrollIndicatorInsets={{ bottom: insets.bottom }}
+        columnWrapperStyle={styles.albumRow}
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.5}
         refreshControl={
           <RefreshControl
             refreshing={isLoading}
@@ -149,101 +260,11 @@ export default function BrowseScreen() {
             tintColor={Colors.light.accent}
           />
         }
-      >
-        {recentlyPlayed.length > 0 ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <ThemedText style={styles.sectionTitle}>Recently Played</ThemedText>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-            >
-              {recentlyPlayed.slice(0, 10).map((track) => (
-                <Pressable
-                  key={track.id}
-                  style={({ pressed }) => [
-                    styles.recentCard,
-                    { opacity: pressed ? 0.6 : 1 },
-                  ]}
-                  onPress={() => playTrack(track)}
-                >
-                  <Image
-                    source={track.albumArt || require("../assets/images/placeholder-album.png")}
-                    style={styles.recentImage}
-                    contentFit="cover"
-                  />
-                  <ThemedText style={styles.recentTitle} numberOfLines={1}>
-                    {track.title}
-                  </ThemedText>
-                  <ThemedText style={styles.recentArtist} numberOfLines={1}>
-                    {track.artist}
-                  </ThemedText>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <ThemedText style={styles.sectionTitle}>Artists</ThemedText>
-            <Pressable 
-              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-              onPress={handleViewAllArtists}
-            >
-              <ThemedText style={styles.viewAll}>
-                View All ({artistsTotal.toLocaleString()})
-              </ThemedText>
-            </Pressable>
-          </View>
-          {artistsLoading ? (
-            <ActivityIndicator color={Colors.light.accent} style={styles.loader} />
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-            >
-              {artists.map((artist) => (
-                <ArtistCard
-                  key={artist.id}
-                  artist={artist}
-                  onPress={() => handleArtistPress(artist)}
-                />
-              ))}
-            </ScrollView>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <ThemedText style={styles.sectionTitle}>Albums</ThemedText>
-            <Pressable 
-              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-              onPress={handleViewAllAlbums}
-            >
-              <ThemedText style={styles.viewAll}>
-                View All ({albumsTotal.toLocaleString()})
-              </ThemedText>
-            </Pressable>
-          </View>
-          {albumsLoading ? (
-            <ActivityIndicator color={Colors.light.accent} style={styles.loader} />
-          ) : (
-            <View style={styles.albumGrid}>
-              {albums.map((album) => (
-                <AlbumCard
-                  key={album.id}
-                  album={album}
-                  onPress={() => handleAlbumPress(album)}
-                />
-              ))}
-            </View>
-          )}
-        </View>
-      </ScrollView>
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        initialNumToRender={10}
+      />
     </ThemedView>
   );
 }
@@ -263,39 +284,39 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   filterButton: {
-    padding: Spacing.sm,
-  },
-  scrollView: {
-    flex: 1,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.light.backgroundSecondary,
+    justifyContent: "center",
+    alignItems: "center",
   },
   content: {
     paddingHorizontal: Spacing.lg,
   },
   section: {
-    marginBottom: Spacing["2xl"],
+    marginBottom: Spacing.xl,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   sectionTitle: {
     ...Typography.title,
     color: Colors.light.text,
   },
   viewAll: {
-    ...Typography.body,
+    ...Typography.caption,
     color: Colors.light.accent,
   },
   horizontalList: {
     gap: Spacing.md,
-  },
-  loader: {
-    padding: Spacing.xl,
+    paddingRight: Spacing.lg,
   },
   recentCard: {
     width: 120,
@@ -303,7 +324,7 @@ const styles = StyleSheet.create({
   recentImage: {
     width: 120,
     height: 120,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.sm,
     marginBottom: Spacing.sm,
   },
   recentTitle: {
@@ -344,12 +365,10 @@ const styles = StyleSheet.create({
   artistAlbums: {
     ...Typography.label,
     color: Colors.light.textSecondary,
-    textAlign: "center",
   },
-  albumGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  albumRow: {
     gap: Spacing.lg,
+    marginBottom: Spacing.lg,
   },
   albumCard: {
     width: ALBUM_SIZE,
@@ -357,20 +376,28 @@ const styles = StyleSheet.create({
   albumImage: {
     width: ALBUM_SIZE,
     height: ALBUM_SIZE,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.sm,
     marginBottom: Spacing.sm,
   },
   albumTitle: {
-    ...Typography.headline,
+    ...Typography.caption,
     color: Colors.light.text,
+    fontWeight: "500",
   },
   albumArtist: {
-    ...Typography.caption,
+    ...Typography.label,
     color: Colors.light.textSecondary,
   },
   albumYear: {
     ...Typography.label,
     color: Colors.light.textTertiary,
-    marginTop: Spacing.xs,
+    marginTop: 2,
+  },
+  loader: {
+    paddingVertical: Spacing.xl,
+  },
+  footer: {
+    padding: Spacing.xl,
+    alignItems: "center",
   },
 });
