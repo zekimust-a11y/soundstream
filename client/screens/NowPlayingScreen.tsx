@@ -258,6 +258,11 @@ export default function NowPlayingScreen() {
                 style={styles.albumArt}
                 contentFit="cover"
               />
+              {qualityLabel ? (
+                <View style={styles.qualityOverlay}>
+                  <ThemedText style={styles.qualityOverlayText}>{qualityLabel}</ThemedText>
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.trackInfo}>
@@ -273,11 +278,6 @@ export default function NowPlayingScreen() {
               <Pressable style={styles.metaButton}>
                 <Feather name="info" size={20} color={Colors.light.textSecondary} />
               </Pressable>
-              {qualityLabel ? (
-                <View style={styles.qualityBadge}>
-                  <ThemedText style={styles.qualityText}>{qualityLabel}</ThemedText>
-                </View>
-              ) : null}
               <Pressable
                 style={styles.metaButton}
                 onPress={() => currentTrack.id && toggleFavoriteTrack(currentTrack.id)}
@@ -497,6 +497,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
+  },
+  qualityOverlay: {
+    position: "absolute",
+    bottom: Spacing.sm,
+    right: Spacing.sm,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.xs,
+  },
+  qualityOverlayText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFD700",
+    letterSpacing: 0.5,
   },
   trackInfo: {
     alignItems: "center",
