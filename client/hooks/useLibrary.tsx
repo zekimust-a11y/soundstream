@@ -63,8 +63,23 @@ export function useArtistsPreview(limit: number = 20) {
     queryFn: async () => {
       if (!activeServer) return { artists: [], total: 0 };
       const result = await lmsClient.getArtistsPage(0, limit);
+      
+      const artistsWithImages = await Promise.all(
+        result.artists.map(async (lmsArtist) => {
+          const artist = convertLmsArtistToArtist(lmsArtist);
+          try {
+            const albumsResult = await lmsClient.getAlbumsPage(0, 1, lmsArtist.id);
+            if (albumsResult.albums.length > 0) {
+              artist.imageUrl = lmsClient.getArtworkUrl(albumsResult.albums[0]);
+            }
+          } catch (e) {
+          }
+          return artist;
+        })
+      );
+      
       return {
-        artists: result.artists.map(convertLmsArtistToArtist),
+        artists: artistsWithImages,
         total: result.total,
       };
     },

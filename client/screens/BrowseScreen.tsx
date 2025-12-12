@@ -63,9 +63,17 @@ const ArtistCard = memo(({ artist, onPress }: { artist: Artist; onPress: () => v
     onPress={onPress}
   >
     <View style={styles.artistImageContainer}>
-      <View style={styles.artistPlaceholder}>
-        <Feather name="user" size={32} color={Colors.light.textTertiary} />
-      </View>
+      {artist.imageUrl ? (
+        <Image
+          source={artist.imageUrl}
+          style={styles.artistImage}
+          contentFit="cover"
+        />
+      ) : (
+        <View style={styles.artistPlaceholder}>
+          <Feather name="user" size={32} color={Colors.light.textTertiary} />
+        </View>
+      )}
     </View>
     <ThemedText style={styles.artistName} numberOfLines={1}>
       {artist.name}
@@ -313,6 +321,11 @@ const styles = StyleSheet.create({
   },
   artistImageContainer: {
     marginBottom: Spacing.sm,
+  },
+  artistImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   artistPlaceholder: {
     width: 80,
