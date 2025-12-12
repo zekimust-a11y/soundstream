@@ -35,12 +35,14 @@ struct Result: Codable {
     let volume: Double?
     let muted: Bool?
     let error: String?
+    let message: String?
     
-    init(success: Bool, volume: Double? = nil, muted: Bool? = nil, error: String? = nil) {
+    init(success: Bool, volume: Double? = nil, muted: Bool? = nil, error: String? = nil, message: String? = nil) {
         self.success = success
         self.volume = volume
         self.muted = muted
         self.error = error
+        self.message = message
     }
 }
 
