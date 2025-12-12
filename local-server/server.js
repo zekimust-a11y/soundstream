@@ -9,9 +9,37 @@ const PORT = process.env.PORT || 3000;
 
 const LMS_HOST = process.env.LMS_HOST || '192.168.0.19';
 const LMS_PORT = process.env.LMS_PORT || '9000';
-const CHROMECAST_IP = process.env.CHROMECAST_IP || '';
 const PAUSE_TIMEOUT = parseInt(process.env.PAUSE_TIMEOUT || '5000', 10);
 const ENABLE_KEYBOARD = process.env.ENABLE_KEYBOARD !== 'false';
+
+const CONFIG_FILE = path.join(__dirname, 'config.json');
+let chromecastIp = process.env.CHROMECAST_IP || '';
+let chromecastName = '';
+
+function loadConfig() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      chromecastIp = data.chromecastIp || chromecastIp;
+      chromecastName = data.chromecastName || '';
+      console.log('Loaded config:', { chromecastIp, chromecastName });
+    }
+  } catch (e) {
+    console.log('No config file found, using defaults');
+  }
+}
+
+function saveConfig() {
+  try {
+    const data = { chromecastIp, chromecastName };
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2));
+    console.log('Config saved:', data);
+  } catch (e) {
+    console.error('Error saving config:', e.message);
+  }
+}
+
+loadConfig();
 
 let Client, Application, DefaultMediaReceiver;
 let castClient = null;
@@ -130,8 +158,8 @@ async function getPlayerStatus(playerId) {
 }
 
 function connectToChromecast() {
-  if (!Client || !CHROMECAST_IP) {
-    console.log('Chromecast not configured (set CHROMECAST_IP environment variable)');
+  if (!Client || !chromecastIp) {
+    console.log('Chromecast not configured');
     return Promise.resolve(false);
   }
 
@@ -144,8 +172,8 @@ function connectToChromecast() {
 
     castClient = new Client();
 
-    castClient.connect(CHROMECAST_IP, () => {
-      console.log('Connected to Chromecast at', CHROMECAST_IP);
+    castClient.connect(chromecastIp, () => {
+      console.log('Connected to Chromecast at', chromecastIp);
       resolve(true);
     });
 
@@ -238,7 +266,7 @@ async function pollLmsStatus() {
         pauseTimer = null;
       }
 
-      if (!isCasting && CHROMECAST_IP) {
+      if (!isCasting && chromecastIp) {
         console.log('Play detected, starting cast...');
         await startCasting();
       }
@@ -458,12 +486,82 @@ app.get('/api/status', async (req, res) => {
   res.json({
     lmsHost: LMS_HOST,
     lmsPort: LMS_PORT,
-    chromecastIp: CHROMECAST_IP,
+    chromecastIp: chromecastIp,
+    chromecastName: chromecastName,
     isCasting,
     currentPlayerId,
     lastMode,
     keyboardEnabled
   });
+});
+
+app.use(express.json());
+
+app.post('/api/chromecast', async (req, res) => {
+  const { ip, name } = req.body;
+  
+  if (!ip) {
+    return res.status(400).json({ error: 'IP address is required' });
+  }
+  
+  const oldIp = chromecastIp;
+  chromecastIp = ip;
+  chromecastName = name || '';
+  
+  saveConfig();
+  
+  if (isCasting) {
+    stopCasting();
+  }
+  if (castClient) {
+    castClient.close();
+    castClient = null;
+    dashCastSession = null;
+  }
+  
+  if (chromecastIp) {
+    const connected = await connectToChromecast();
+    if (connected) {
+      console.log(`Chromecast configured: ${chromecastName} (${chromecastIp})`);
+      res.json({ 
+        success: true, 
+        message: `Connected to ${chromecastName || chromecastIp}`,
+        chromecastIp,
+        chromecastName
+      });
+    } else {
+      res.json({ 
+        success: false, 
+        message: `Saved ${chromecastName || chromecastIp} but could not connect yet`,
+        chromecastIp,
+        chromecastName
+      });
+    }
+  } else {
+    res.json({ 
+      success: true, 
+      message: 'Chromecast disabled',
+      chromecastIp: '',
+      chromecastName: ''
+    });
+  }
+});
+
+app.delete('/api/chromecast', (req, res) => {
+  chromecastIp = '';
+  chromecastName = '';
+  saveConfig();
+  
+  if (isCasting) {
+    stopCasting();
+  }
+  if (castClient) {
+    castClient.close();
+    castClient = null;
+    dashCastSession = null;
+  }
+  
+  res.json({ success: true, message: 'Chromecast disabled' });
 });
 
 let mdns;

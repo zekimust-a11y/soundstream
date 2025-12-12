@@ -214,9 +214,30 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleSelectChromecast = (device: {name: string; ip: string}) => {
+  const handleSelectChromecast = async (device: {name: string; ip: string}) => {
     setSelectedChromecast(device);
-    Alert.alert('Chromecast Selected', `${device.name} has been selected.\n\nTo enable auto-casting, restart your local server with:\n\nCHROMECAST_IP=${device.ip} node server.js`);
+    
+    const serverUrl = `http://${localServerIp}:${localServerPort}`;
+    
+    try {
+      const response = await fetch(`${serverUrl}/api/chromecast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ip: device.ip, name: device.name }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        Alert.alert('Chromecast Configured', `${device.name} is now set up for auto-casting. When music plays, the Now Playing screen will automatically appear on your TV.`);
+      } else {
+        Alert.alert('Chromecast Saved', `${device.name} has been saved. ${result.message}`);
+      }
+    } catch (error) {
+      Alert.alert('Chromecast Selected', `${device.name} has been selected locally, but could not configure the server. Make sure your local server is running.`);
+    }
   };
 
   const handleConnectLms = async () => {
