@@ -258,11 +258,18 @@ export default function NowPlayingScreen() {
                 style={styles.albumArt}
                 contentFit="cover"
               />
-              {qualityLabel ? (
-                <View style={styles.qualityOverlay}>
-                  <ThemedText style={styles.qualityOverlayText}>{qualityLabel}</ThemedText>
-                </View>
-              ) : null}
+              <View style={styles.artworkBadges}>
+                {currentTrack.source === "qobuz" ? (
+                  <View style={styles.qobuzOverlay}>
+                    <ThemedText style={styles.qobuzOverlayText}>Q</ThemedText>
+                  </View>
+                ) : null}
+                {qualityLabel ? (
+                  <View style={styles.qualityOverlay}>
+                    <ThemedText style={styles.qualityOverlayText}>{qualityLabel}</ThemedText>
+                  </View>
+                ) : null}
+              </View>
             </View>
 
             <View style={styles.trackInfo}>
@@ -498,10 +505,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 24,
   },
-  qualityOverlay: {
+  artworkBadges: {
     position: "absolute",
     bottom: Spacing.sm,
+    left: Spacing.sm,
     right: Spacing.sm,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  qobuzOverlay: {
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.xs,
+  },
+  qobuzOverlayText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  qualityOverlay: {
     backgroundColor: "rgba(0, 0, 0, 0.75)",
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
