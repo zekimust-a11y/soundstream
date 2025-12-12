@@ -240,8 +240,8 @@ class LmsClient {
 
   async getAlbums(artistId?: string): Promise<LmsAlbum[]> {
     const command = artistId 
-      ? ['albums', '0', '100000', `artist_id:${artistId}`, 'tags:aajlyST']
-      : ['albums', '0', '100000', 'tags:aajlyST'];
+      ? ['albums', '0', '10000', `artist_id:${artistId}`, 'tags:aajlyST']
+      : ['albums', '0', '10000', 'tags:aajlyST'];
     
     const result = await this.request('', command);
     const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
@@ -259,7 +259,7 @@ class LmsClient {
   }
 
   async getArtists(): Promise<LmsArtist[]> {
-    const result = await this.request('', ['artists', '0', '100000', 'tags:s']);
+    const result = await this.request('', ['artists', '0', '10000', 'tags:s']);
     const artistsLoop = (result.artists_loop || []) as Array<Record<string, unknown>>;
     
     return artistsLoop.map((a) => ({
