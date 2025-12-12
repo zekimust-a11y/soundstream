@@ -15,7 +15,7 @@
       overflow: hidden;
     }
     
-    .background {
+    .background-layer {
       position: fixed;
       top: 0;
       left: 0;
@@ -24,11 +24,20 @@
       background-size: cover;
       background-position: center;
       opacity: 0;
-      transition: opacity 1.5s ease;
+      transition: opacity 2s ease-in-out;
+      z-index: 0;
     }
     
-    .background.active {
+    .background-layer.active {
       opacity: 1;
+    }
+    
+    .background-layer.behind {
+      z-index: 0;
+    }
+    
+    .background-layer.front {
+      z-index: 1;
     }
     
     .background-overlay {
@@ -215,6 +224,7 @@
     let currentArtist = '';
     let imageRotationTimer = null;
     let lastTrackId = '';
+    let activeBackgroundLayer = 0; // 0 or 1 for crossfade
     
     // TheAudioDB API (free tier)
     const AUDIODB_API_KEY = '2';
@@ -298,25 +308,43 @@
     function rotateBackgroundImage() {
       if (artistImages.length === 0) return;
       
-      const backgrounds = document.querySelectorAll('.background');
-      const activeIndex = currentImageIndex % artistImages.length;
+      const bg0 = document.getElementById('bg-layer-0');
+      const bg1 = document.getElementById('bg-layer-1');
       
-      backgrounds.forEach((bg, i) => {
-        if (i === 0) {
-          bg.style.backgroundImage = `url('${artistImages[activeIndex]}')`;
-          bg.classList.add('active');
+      if (!bg0 || !bg1) return;
+      
+      const nextImageIndex = currentImageIndex % artistImages.length;
+      const nextImageUrl = artistImages[nextImageIndex];
+      
+      // Preload the next image before transitioning
+      const preloadImg = new Image();
+      preloadImg.onload = () => {
+        // Crossfade: set new image on inactive layer, then swap active states
+        if (activeBackgroundLayer === 0) {
+          bg1.style.backgroundImage = `url('${nextImageUrl}')`;
+          bg1.classList.add('active', 'front');
+          bg1.classList.remove('behind');
+          bg0.classList.remove('active', 'front');
+          bg0.classList.add('behind');
+          activeBackgroundLayer = 1;
         } else {
-          bg.classList.remove('active');
+          bg0.style.backgroundImage = `url('${nextImageUrl}')`;
+          bg0.classList.add('active', 'front');
+          bg0.classList.remove('behind');
+          bg1.classList.remove('active', 'front');
+          bg1.classList.add('behind');
+          activeBackgroundLayer = 0;
         }
-      });
-      
-      currentImageIndex = (currentImageIndex + 1) % artistImages.length;
+        
+        currentImageIndex = (currentImageIndex + 1) % artistImages.length;
+      };
+      preloadImg.src = nextImageUrl;
     }
     
     function startImageRotation() {
       if (imageRotationTimer) clearInterval(imageRotationTimer);
       rotateBackgroundImage();
-      imageRotationTimer = setInterval(rotateBackgroundImage, 10000);
+      imageRotationTimer = setInterval(rotateBackgroundImage, 25000);
     }
     
     function formatTime(seconds) {
@@ -390,31 +418,51 @@
         startImageRotation();
       }
       
-      // Use album art as fallback if no artist images
-      const backgroundUrl = artistImages.length > 0 
-        ? artistImages[currentImageIndex % artistImages.length] 
-        : albumArtUrl;
-      
-      content.innerHTML = `
-        <div class="background active" style="background-image: url('${backgroundUrl}')"></div>
-        <div class="background-overlay"></div>
-        <div class="bottom-bar">
-          <img class="thumbnail" src="${thumbnailUrl || ''}" alt="Album" onerror="this.style.visibility='hidden'">
-          <div class="info">
-            <h1 class="title">${track.title || 'Unknown Track'}</h1>
-            <p class="artist">${track.artist || 'Unknown Artist'}</p>
-            <div class="progress-row">
-              <span class="time current">${formatTime(currentTime)}</span>
-              <div class="waveform-container">
-                <div class="waveform">
-                  ${createWaveformBars()}
+      // Check if we need to create the persistent structure
+      const existingBar = document.querySelector('.bottom-bar');
+      if (!existingBar) {
+        // Use album art as fallback if no artist images
+        const backgroundUrl = artistImages.length > 0 
+          ? artistImages[currentImageIndex % artistImages.length] 
+          : albumArtUrl;
+        
+        content.innerHTML = `
+          <div id="bg-layer-0" class="background-layer active front" style="background-image: url('${backgroundUrl}')"></div>
+          <div id="bg-layer-1" class="background-layer behind"></div>
+          <div class="background-overlay"></div>
+          <div class="bottom-bar">
+            <img class="thumbnail" src="${thumbnailUrl || ''}" alt="Album" onerror="this.style.visibility='hidden'">
+            <div class="info">
+              <h1 class="title">${track.title || 'Unknown Track'}</h1>
+              <p class="artist">${track.artist || 'Unknown Artist'}</p>
+              <div class="progress-row">
+                <span class="time current">${formatTime(currentTime)}</span>
+                <div class="waveform-container">
+                  <div class="waveform">
+                    ${createWaveformBars()}
+                  </div>
                 </div>
+                <span class="time duration">${formatTime(duration)}</span>
               </div>
-              <span class="time duration">${formatTime(duration)}</span>
             </div>
           </div>
-        </div>
-      `;
+        `;
+      } else {
+        // Update only the dynamic parts without recreating backgrounds
+        const titleEl = document.querySelector('.title');
+        const artistEl = document.querySelector('.artist');
+        const currentTimeEl = document.querySelector('.time.current');
+        const durationEl = document.querySelector('.time.duration');
+        const thumbnailEl = document.querySelector('.thumbnail');
+        
+        if (titleEl) titleEl.textContent = track.title || 'Unknown Track';
+        if (artistEl) artistEl.textContent = track.artist || 'Unknown Artist';
+        if (currentTimeEl) currentTimeEl.textContent = formatTime(currentTime);
+        if (durationEl) durationEl.textContent = formatTime(duration);
+        if (thumbnailEl && thumbnailEl.src !== thumbnailUrl) {
+          thumbnailEl.src = thumbnailUrl || '';
+        }
+      }
       
       updateWaveformProgress(progress);
     }
