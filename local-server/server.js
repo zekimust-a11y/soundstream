@@ -67,41 +67,7 @@ try {
   console.log('Chromecast support disabled (install castv2-client to enable)');
 }
 
-function createDashCastClass() {
-  if (!Application) return null;
-  
-  class DashCastApp extends Application {
-    static APP_ID = DASHCAST_APP_ID;
-    
-    constructor(client, session) {
-      super(client, session);
-      this.dashcast = this.createController('urn:x-cast:com.madmod.dashcast');
-    }
-
-    load(url, options, callback) {
-      if (typeof options === 'function') {
-        callback = options;
-        options = {};
-      }
-      
-      const message = { 
-        type: 'LOAD',
-        url: url,
-        force: options.force !== undefined ? options.force : false,
-        reload: options.reload || 0,
-        reloadTime: options.reloadTime || 0
-      };
-      
-      this.dashcast.send(message, (err, response) => {
-        if (callback) callback(err, response);
-      });
-    }
-  }
-  
-  return DashCastApp;
-}
-
-let DashCast = createDashCastClass();
+// Using DefaultMediaReceiver to cast the Now Playing webpage
 
 async function lmsRequest(playerId, command) {
   return new Promise((resolve, reject) => {
@@ -201,8 +167,8 @@ function connectToChromecast() {
 
 async function startCasting() {
   if (isCasting) return;
-  if (!DashCast) {
-    console.log('DashCast not available (castv2-client not loaded)');
+  if (!DefaultMediaReceiver) {
+    console.log('Chromecast not available (castv2-client not loaded)');
     return;
   }
   if (!castClient) {
@@ -214,20 +180,31 @@ async function startCasting() {
   
   console.log('Starting cast to:', nowPlayingUrl);
 
-  castClient.launch(DashCast, (err, dashCast) => {
+  castClient.launch(DefaultMediaReceiver, (err, player) => {
     if (err) {
-      console.error('Error launching DashCast:', err);
+      console.error('Error launching media receiver:', err);
       return;
     }
 
-    dashCastSession = dashCast;
+    dashCastSession = player;
     
-    dashCast.load(nowPlayingUrl, { force: true }, (err) => {
+    const media = {
+      contentId: nowPlayingUrl,
+      contentType: 'text/html',
+      streamType: 'LIVE',
+      metadata: {
+        type: 0,
+        metadataType: 0,
+        title: 'SoundStream Now Playing'
+      }
+    };
+    
+    player.load(media, { autoplay: true }, (err, status) => {
       if (err) {
         console.error('Error loading URL:', err);
         return;
       }
-      console.log('Cast started successfully - DashCast loaded');
+      console.log('Cast started successfully');
       isCasting = true;
     });
   });

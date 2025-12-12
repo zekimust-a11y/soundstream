@@ -1,0 +1,38 @@
+
+Starting LMS status polling...
+Using preferred player: OLADRAplayer
+Keymap loaded: 14 key mappings
+Keyboard/IR remote control enabled
+  Press keys to control playback (Ctrl+C to exit)
+Config saved: {
+  chromecastIp: '192.168.0.239',
+  chromecastName: 'Google chromecast',
+  preferredPlayerId: '00:30:18:0d:62:1b',
+  preferredPlayerName: 'OLADRAplayer'
+}
+Preferred player set: OLADRAplayer (00:30:18:0d:62:1b)
+Play detected, starting cast...
+Connected to Chromecast at 192.168.0.239
+Starting cast to: http://192.168.0.21:3000/now-playing?host=192.168.0.19&port=9000&player=00%3A30%3A18%3A0d%3A62%3A1b
+Play detected, starting cast...
+Starting cast to: http://192.168.0.21:3000/now-playing?host=192.168.0.19&port=9000&player=00%3A30%3A18%3A0d%3A62%3A1b
+Play detected, starting cast...
+Starting cast to: http://192.168.0.21:3000/now-playing?host=192.168.0.19&port=9000&player=00%3A30%3A18%3A0d%3A62%3A1b
+Play detected, starting cast...
+Starting cast to: http://192.168.0.21:3000/now-playing?host=192.168.0.19&port=9000&player=00%3A30%3A18%3A0d%3A62%3A1b
+/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/castv2-client/lib/senders/sender.js:29
+    return contructor.apply(this, args);
+                      ^
+
+TypeError: contructor.apply is not a function
+    at new fn (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/castv2-client/lib/senders/sender.js:29:23)
+    at construct (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/castv2-client/lib/senders/sender.js:32:10)
+    at Sender.createController (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/castv2-client/lib/senders/sender.js:24:10)
+    at new DashCastApp (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/server.js:78:28)
+    at PlatformSender.join (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/castv2-client/lib/senders/platform.js:88:18)
+    at /Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/castv2-client/lib/senders/platform.js:102:10
+    at /Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/castv2-client/lib/controllers/receiver.js:53:5
+    at fn.onmessage (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/castv2-client/lib/controllers/request-response.js:27:7)
+    at fn.emit (node:events:520:35)
+    at Channel.onmessage (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/castv2-client/lib/controllers/controller.js:16:10)
+
