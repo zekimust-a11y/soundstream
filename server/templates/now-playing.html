@@ -244,14 +244,14 @@
       }
       
       try {
-        const response = await fetch('/api/lms/proxy', {
+        // Try direct connection to LMS first (works when on same network)
+        const response = await fetch(`http://${lmsHost}:${lmsPort}/jsonrpc.js`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            host: lmsHost,
-            port: parseInt(lmsPort),
-            playerId: playerId,
-            command: ['status', '-', '1', 'tags:aAlKcd']
+            id: 1,
+            method: 'slim.request',
+            params: [playerId, ['status', '-', '1', 'tags:aAlKcd']]
           })
         });
         
@@ -264,7 +264,7 @@
         updateDisplay(data.result);
       } catch (error) {
         console.error('Fetch error:', error);
-        statusEl.textContent = 'Connection error';
+        statusEl.textContent = 'Connection error - open this page on a device on the same network as your LMS';
         statusEl.className = 'status error';
       }
     }
