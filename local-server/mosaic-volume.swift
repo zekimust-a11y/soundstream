@@ -343,13 +343,60 @@ func toggleMute(_ button: AXUIElement) -> Bool {
     return performAction(button, kAXPressAction as String)
 }
 
+// MARK: - Keyboard Simulation
+
+func sendKeyToMosaic(_ keyCode: CGKeyCode, app: NSRunningApplication) -> Bool {
+    app.activate(options: [])
+    usleep(100000)
+    
+    let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)
+    let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
+    
+    keyDown?.post(tap: .cghidEventTap)
+    usleep(50000)
+    keyUp?.post(tap: .cghidEventTap)
+    
+    return true
+}
+
+func sendArrowKeys(_ direction: String, count: Int, app: NSRunningApplication) -> Bool {
+    let keyCode: CGKeyCode
+    switch direction {
+    case "up":
+        keyCode = 126
+    case "down":
+        keyCode = 125
+    case "left":
+        keyCode = 123
+    case "right":
+        keyCode = 124
+    default:
+        return false
+    }
+    
+    app.activate(options: [])
+    usleep(200000)
+    
+    for _ in 0..<count {
+        let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)
+        let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
+        
+        keyDown?.post(tap: .cghidEventTap)
+        usleep(30000)
+        keyUp?.post(tap: .cghidEventTap)
+        usleep(50000)
+    }
+    
+    return true
+}
+
 // MARK: - Main
 
 func main() {
     let args = CommandLine.arguments
     
     if args.count < 2 {
-        exitWithError("Usage: mosaic-volume --get | --set <value> | --up [amount] | --down [amount] | --mute | --list")
+        exitWithError("Usage: mosaic-volume --get | --set <value> | --up [amount] | --down [amount] | --mute | --list | --arrow-up [count] | --arrow-down [count]")
     }
     
     if !checkAccessibilityPermission() {
@@ -365,6 +412,22 @@ func main() {
     let command = args[1]
     
     switch command {
+    case "--arrow-up":
+        let count = args.count >= 3 ? (Int(args[2]) ?? 1) : 1
+        if sendArrowKeys("up", count: count, app: mosaicApp) {
+            output(Result(success: true, message: "Sent \(count) up arrow key(s)"))
+        } else {
+            exitWithError("Failed to send arrow keys")
+        }
+        
+    case "--arrow-down":
+        let count = args.count >= 3 ? (Int(args[2]) ?? 1) : 1
+        if sendArrowKeys("down", count: count, app: mosaicApp) {
+            output(Result(success: true, message: "Sent \(count) down arrow key(s)"))
+        } else {
+            exitWithError("Failed to send arrow keys")
+        }
+        
     case "--list":
         let elements = getAllAdjustableElements(axApp)
         if let data = try? JSONSerialization.data(withJSONObject: ["success": true, "elements": elements, "count": elements.count], options: [.prettyPrinted]),
