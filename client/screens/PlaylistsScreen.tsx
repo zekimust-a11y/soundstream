@@ -14,39 +14,39 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { useLms } from "@/hooks/useLms";
+import { useMusic } from "@/hooks/useMusic";
 import { usePlayback } from "@/hooks/usePlayback";
 import { lmsClient, type LmsPlaylist } from "@/lib/lmsClient";
 
 export default function PlaylistsScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
-  const { server, activePlayer } = useLms();
-  const { playPlaylist } = usePlayback();
+  const { activeServer } = useMusic();
+  const { activePlayer, playPlaylist } = usePlayback();
   const [playlists, setPlaylists] = useState<LmsPlaylist[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const loadPlaylists = useCallback(async () => {
-    if (!server) return;
+    if (!activeServer) return;
     
     try {
-      lmsClient.setServer(server.host, server.port);
+      lmsClient.setServer(activeServer.host, activeServer.port);
       const fetchedPlaylists = await lmsClient.getPlaylists();
       setPlaylists(fetchedPlaylists);
     } catch (error) {
       console.error("Failed to load playlists:", error);
     }
-  }, [server]);
+  }, [activeServer]);
 
   useEffect(() => {
-    if (server) {
+    if (activeServer) {
       setIsLoading(true);
       loadPlaylists().finally(() => setIsLoading(false));
     } else {
       setPlaylists([]);
     }
-  }, [server, loadPlaylists]);
+  }, [activeServer, loadPlaylists]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -96,7 +96,7 @@ export default function PlaylistsScreen() {
       );
     }
 
-    if (!server) {
+    if (!activeServer) {
       return (
         <View style={styles.emptyState}>
           <Feather name="server" size={48} color={Colors.light.textTertiary} />
