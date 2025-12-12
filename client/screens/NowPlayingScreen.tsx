@@ -488,9 +488,6 @@ export default function NowPlayingScreen() {
                 </ThemedText>
                 <Feather name="chevron-down" size={16} color={Colors.light.textTertiary} />
               </Pressable>
-              <Pressable style={({ pressed }) => [styles.menuButton, { opacity: pressed ? 0.6 : 1 }]}>
-                <Feather name="more-vertical" size={20} color={Colors.light.textSecondary} />
-              </Pressable>
             </View>
           </View>
 
@@ -784,7 +781,7 @@ const styles = StyleSheet.create({
   bottomRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
   },
   bottomButton: {
     flexDirection: "row",
@@ -795,12 +792,6 @@ const styles = StyleSheet.create({
   bottomButtonText: {
     fontSize: 14,
     color: Colors.light.textSecondary,
-  },
-  menuButton: {
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
   },
   emptyState: {
     flex: 1,
