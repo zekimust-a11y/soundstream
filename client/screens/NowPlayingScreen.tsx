@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from "react-native-reanimated";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
 import { Image } from "expo-image";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
@@ -172,10 +172,13 @@ export default function NowPlayingScreen() {
     })
     .onEnd((event) => {
       if (event.translationY > 100) {
-        translateY.value = withSpring(height, { damping: 20 });
-        runOnJS(minimizePlayer)();
+        translateY.value = withTiming(height, { duration: 350 });
+        // Delay navigation to complete animation smoothly
+        runOnJS(() => {
+          setTimeout(minimizePlayer, 350);
+        })();
       } else {
-        translateY.value = withSpring(0, { damping: 20 });
+        translateY.value = withTiming(0, { duration: 300 });
       }
     });
   
