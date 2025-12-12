@@ -6,22 +6,32 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback } from "@/hooks/usePlayback";
-import { lmsClient, type LmsPlaylist } from "@/lib/lmsClient";
+import { lmsClient, type LmsPlaylist, type LmsTrack } from "@/lib/lmsClient";
 import type { PlaylistsStackParamList } from "@/navigation/PlaylistsStackNavigator";
 
+const { width } = Dimensions.get("window");
+const NUM_COLUMNS = 2;
+const GRID_ITEM_SIZE = (width - Spacing.lg * 3) / NUM_COLUMNS;
+
 type NavigationProp = NativeStackNavigationProp<PlaylistsStackParamList>;
+type ViewMode = "grid" | "list";
+
+const VIEW_MODE_KEY = "@playlists_view_mode";
 
 export default function PlaylistsScreen() {
   const insets = useSafeAreaInsets();
@@ -30,8 +40,37 @@ export default function PlaylistsScreen() {
   const { activeServer } = useMusic();
   const { activePlayer, playPlaylist } = usePlayback();
   const [playlists, setPlaylists] = useState<LmsPlaylist[]>([]);
+  const [playlistArtwork, setPlaylistArtwork] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+
+  useEffect(() => {
+    AsyncStorage.getItem(VIEW_MODE_KEY).then((mode) => {
+      if (mode === "list" || mode === "grid") {
+        setViewMode(mode);
+      }
+    });
+  }, []);
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    AsyncStorage.setItem(VIEW_MODE_KEY, mode);
+  };
+
+  const loadPlaylistArtwork = useCallback(async (playlist: LmsPlaylist) => {
+    try {
+      const tracks = await lmsClient.getPlaylistTracks(playlist.id);
+      if (tracks.length > 0 && tracks[0].artwork_url) {
+        setPlaylistArtwork(prev => ({
+          ...prev,
+          [playlist.id]: tracks[0].artwork_url!,
+        }));
+      }
+    } catch (error) {
+      // Silently fail for artwork loading
+    }
+  }, []);
 
   const loadPlaylists = useCallback(async () => {
     if (!activeServer) return;
@@ -40,10 +79,15 @@ export default function PlaylistsScreen() {
       lmsClient.setServer(activeServer.host, activeServer.port);
       const fetchedPlaylists = await lmsClient.getPlaylists();
       setPlaylists(fetchedPlaylists);
+      
+      // Load artwork for first 20 playlists
+      fetchedPlaylists.slice(0, 20).forEach(playlist => {
+        loadPlaylistArtwork(playlist);
+      });
     } catch (error) {
       console.error("Failed to load playlists:", error);
     }
-  }, [activeServer]);
+  }, [activeServer, loadPlaylistArtwork]);
 
   useEffect(() => {
     if (activeServer) {
@@ -51,6 +95,7 @@ export default function PlaylistsScreen() {
       loadPlaylists().finally(() => setIsLoading(false));
     } else {
       setPlaylists([]);
+      setPlaylistArtwork({});
     }
   }, [activeServer, loadPlaylists]);
 
@@ -75,34 +120,77 @@ export default function PlaylistsScreen() {
     navigation.navigate("PlaylistDetail", { playlist });
   };
 
-  const renderPlaylist = ({ item }: { item: LmsPlaylist }) => (
-    <View style={styles.playlistRow}>
+  const renderGridItem = ({ item }: { item: LmsPlaylist }) => {
+    const artwork = playlistArtwork[item.id];
+    const displayName = item.name.replace(/^Qobuz\s*:?\s*/i, '').trim();
+    const isQobuz = item.url?.includes('qobuz');
+    
+    return (
       <Pressable
         style={({ pressed }) => [
-          styles.playlistMainArea,
+          styles.gridItem,
           { opacity: pressed ? 0.6 : 1 },
         ]}
         onPress={() => handleOpenPlaylist(item)}
       >
-        <View style={styles.playlistInfo}>
-          <View style={styles.playlistNameRow}>
+        <View style={styles.gridImageContainer}>
+          {artwork ? (
+            <Image
+              source={artwork}
+              style={styles.gridImage}
+              contentFit="cover"
+            />
+          ) : (
+            <View style={[styles.gridImage, styles.gridPlaceholder]}>
+              <Feather name="music" size={40} color={Colors.light.textTertiary} />
+            </View>
+          )}
+          {isQobuz ? (
+            <View style={styles.gridQobuzBadge}>
+              <ThemedText style={styles.gridQobuzText}>Q</ThemedText>
+            </View>
+          ) : null}
+        </View>
+        <ThemedText style={styles.gridTitle} numberOfLines={2}>
+          {displayName}
+        </ThemedText>
+        {item.trackCount !== undefined ? (
+          <ThemedText style={styles.gridSubtitle}>
+            {item.trackCount} tracks
+          </ThemedText>
+        ) : null}
+      </Pressable>
+    );
+  };
+
+  const renderListItem = ({ item }: { item: LmsPlaylist }) => (
+    <View style={styles.listRow}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.listMainArea,
+          { opacity: pressed ? 0.6 : 1 },
+        ]}
+        onPress={() => handleOpenPlaylist(item)}
+      >
+        <View style={styles.listInfo}>
+          <View style={styles.listNameRow}>
             {item.url?.includes('qobuz') ? (
-              <View style={styles.qobuzBadge}>
-                <ThemedText style={styles.qobuzBadgeText}>Q</ThemedText>
+              <View style={styles.listQobuzBadge}>
+                <ThemedText style={styles.listQobuzText}>Q</ThemedText>
               </View>
             ) : null}
-            <ThemedText style={styles.playlistName} numberOfLines={1}>
+            <ThemedText style={styles.listName} numberOfLines={1}>
               {item.name.replace(/^Qobuz\s*:?\s*/i, '').trim()}
             </ThemedText>
           </View>
           {item.trackCount !== undefined ? (
-            <ThemedText style={styles.playlistTracks}>
+            <ThemedText style={styles.listTracks}>
               {item.trackCount} {item.trackCount === 1 ? "track" : "tracks"}
             </ThemedText>
           ) : null}
         </View>
       </Pressable>
-      <View style={styles.playlistActions}>
+      <View style={styles.listActions}>
         <Pressable
           style={({ pressed }) => [
             styles.actionButton,
@@ -164,26 +252,79 @@ export default function PlaylistsScreen() {
     <ThemedView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <ThemedText style={styles.headerTitle}>Playlists</ThemedText>
+        <View style={styles.viewToggle}>
+          <Pressable
+            style={[
+              styles.toggleButton,
+              viewMode === "grid" && styles.toggleButtonActive,
+            ]}
+            onPress={() => handleViewModeChange("grid")}
+          >
+            <Feather
+              name="grid"
+              size={18}
+              color={viewMode === "grid" ? Colors.light.accent : Colors.light.textSecondary}
+            />
+          </Pressable>
+          <Pressable
+            style={[
+              styles.toggleButton,
+              viewMode === "list" && styles.toggleButtonActive,
+            ]}
+            onPress={() => handleViewModeChange("list")}
+          >
+            <Feather
+              name="list"
+              size={18}
+              color={viewMode === "list" ? Colors.light.accent : Colors.light.textSecondary}
+            />
+          </Pressable>
+        </View>
       </View>
 
-      <FlatList
-        data={playlists}
-        renderItem={renderPlaylist}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: tabBarHeight + Spacing["5xl"] },
-          playlists.length === 0 && styles.emptyListContent,
-        ]}
-        ListEmptyComponent={renderEmptyState}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={Colors.light.accent}
-          />
-        }
-      />
+      {viewMode === "grid" ? (
+        <FlatList
+          key="grid"
+          data={playlists}
+          renderItem={renderGridItem}
+          keyExtractor={(item) => item.id}
+          numColumns={NUM_COLUMNS}
+          contentContainerStyle={[
+            styles.gridContent,
+            { paddingBottom: tabBarHeight + Spacing["5xl"] },
+            playlists.length === 0 && styles.emptyListContent,
+          ]}
+          columnWrapperStyle={styles.gridRow}
+          ListEmptyComponent={renderEmptyState}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={Colors.light.accent}
+            />
+          }
+        />
+      ) : (
+        <FlatList
+          key="list"
+          data={playlists}
+          renderItem={renderListItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: tabBarHeight + Spacing["5xl"] },
+            playlists.length === 0 && styles.emptyListContent,
+          ]}
+          ListEmptyComponent={renderEmptyState}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={Colors.light.accent}
+            />
+          }
+        />
+      )}
     </ThemedView>
   );
 }
@@ -204,6 +345,70 @@ const styles = StyleSheet.create({
     ...Typography.display,
     color: Colors.light.text,
   },
+  viewToggle: {
+    flexDirection: "row",
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: BorderRadius.sm,
+    padding: 2,
+  },
+  toggleButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.xs,
+  },
+  toggleButtonActive: {
+    backgroundColor: Colors.light.backgroundDefault,
+  },
+  gridContent: {
+    paddingHorizontal: Spacing.lg,
+  },
+  gridRow: {
+    gap: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  gridItem: {
+    width: GRID_ITEM_SIZE,
+  },
+  gridImageContainer: {
+    position: "relative",
+    marginBottom: Spacing.sm,
+  },
+  gridImage: {
+    width: GRID_ITEM_SIZE,
+    height: GRID_ITEM_SIZE,
+    borderRadius: BorderRadius.sm,
+  },
+  gridPlaceholder: {
+    backgroundColor: Colors.light.backgroundSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gridQobuzBadge: {
+    position: "absolute",
+    top: Spacing.sm,
+    left: Spacing.sm,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: "#000",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gridQobuzText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  gridTitle: {
+    ...Typography.body,
+    color: Colors.light.text,
+    fontWeight: "500",
+  },
+  gridSubtitle: {
+    ...Typography.caption,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
   listContent: {
     paddingHorizontal: Spacing.lg,
   },
@@ -211,32 +416,32 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
   },
-  playlistRow: {
+  listRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.light.border,
   },
-  playlistMainArea: {
+  listMainArea: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
   },
-  playlistInfo: {
+  listInfo: {
     flex: 1,
     marginRight: Spacing.sm,
   },
-  playlistNameRow: {
+  listNameRow: {
     flexDirection: "row",
     alignItems: "center",
   },
-  playlistName: {
+  listName: {
     ...Typography.body,
     color: Colors.light.text,
     flexShrink: 1,
   },
-  qobuzBadge: {
+  listQobuzBadge: {
     width: 20,
     height: 20,
     borderRadius: 4,
@@ -245,17 +450,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: Spacing.sm,
   },
-  qobuzBadgeText: {
+  listQobuzText: {
     fontSize: 12,
     fontWeight: "700",
     color: "#fff",
   },
-  playlistTracks: {
+  listTracks: {
     ...Typography.caption,
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
-  playlistActions: {
+  listActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,

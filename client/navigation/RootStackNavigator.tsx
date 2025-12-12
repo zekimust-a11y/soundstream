@@ -1,6 +1,7 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
+import NowPlayingScreen from "@/screens/NowPlayingScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { PlaybackProvider } from "@/hooks/usePlayback";
 import { MusicProvider } from "@/hooks/useMusic";
@@ -8,6 +9,7 @@ import { SettingsProvider } from "@/hooks/useSettings";
 
 export type RootStackParamList = {
   Main: undefined;
+  NowPlaying: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -20,11 +22,19 @@ export default function RootStackNavigator() {
       <MusicProvider>
         <PlaybackProvider>
           <Stack.Navigator screenOptions={screenOptions}>
-          <Stack.Screen
-            name="Main"
-            component={MainTabNavigator}
-            options={{ headerShown: false }}
-          />
+            <Stack.Screen
+              name="Main"
+              component={MainTabNavigator}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="NowPlaying"
+              component={NowPlayingScreen}
+              options={{ 
+                headerShown: false,
+                presentation: "modal",
+              }}
+            />
           </Stack.Navigator>
         </PlaybackProvider>
       </MusicProvider>

@@ -16,10 +16,7 @@ export default function MiniPlayer() {
   const handlePress = () => {
     navigation.dispatch(
       CommonActions.navigate({
-        name: "BrowseTab",
-        params: {
-          screen: "NowPlaying",
-        },
+        name: "NowPlaying",
       })
     );
   };
