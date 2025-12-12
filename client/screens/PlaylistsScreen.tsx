@@ -33,6 +33,7 @@ type NavigationProp = NativeStackNavigationProp<PlaylistsStackParamList>;
 type ViewMode = "grid" | "list";
 
 const VIEW_MODE_KEY = "@playlists_view_mode";
+const ARTWORK_CACHE_KEY = "@playlists_artworks";
 
 const PlaylistMosaic = memo(({ artworks, size }: { artworks: string[]; size: number }) => {
   const tileSize = size / 2;
@@ -119,6 +120,17 @@ export default function PlaylistsScreen() {
         setViewMode(mode);
       }
     });
+    // Load cached artworks immediately
+    AsyncStorage.getItem(ARTWORK_CACHE_KEY).then((cached) => {
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setPlaylistArtworks(parsed);
+        } catch (e) {
+          // ignore parse errors
+        }
+      }
+    });
   }, []);
 
   const handleViewModeChange = (mode: ViewMode) => {
@@ -140,10 +152,12 @@ export default function PlaylistsScreen() {
         }
       }
       
-      setPlaylistArtworks(prev => ({
-        ...prev,
-        [playlist.id]: uniqueArtworks,
-      }));
+      setPlaylistArtworks(prev => {
+        const updated = { ...prev, [playlist.id]: uniqueArtworks };
+        // Cache to AsyncStorage for instant load next time
+        AsyncStorage.setItem(ARTWORK_CACHE_KEY, JSON.stringify(updated)).catch(() => {});
+        return updated;
+      });
     } catch (error) {
       setPlaylistArtworks(prev => ({
         ...prev,
