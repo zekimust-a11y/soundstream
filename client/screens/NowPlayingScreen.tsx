@@ -172,9 +172,11 @@ export default function NowPlayingScreen() {
     })
     .onEnd((event) => {
       if (event.translationY > 100) {
+        translateY.value = withSpring(height, { damping: 20 });
         runOnJS(minimizePlayer)();
+      } else {
+        translateY.value = withSpring(0, { damping: 20 });
       }
-      translateY.value = withSpring(0, { damping: 20 });
     });
   
   const animatedStyle = useAnimatedStyle(() => ({
