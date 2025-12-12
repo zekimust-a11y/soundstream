@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -9,10 +9,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -25,6 +26,9 @@ type NavigationProp = NativeStackNavigationProp<SearchStackParamList>;
 type FilterTab = "all" | "artists" | "albums" | "tracks";
 type SourceFilter = "all" | "local" | "qobuz";
 
+const RECENT_SEARCHES_KEY = "@soundstream_recent_searches";
+const MAX_RECENT_SEARCHES = 10;
+
 interface SearchResult {
   type: "artist" | "album" | "track";
   data: Artist | Album | Track;
@@ -34,6 +38,7 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
+  const searchInputRef = useRef<TextInput>(null);
   const { searchMusic, addToRecentlyPlayed, isFavoriteTrack, toggleFavoriteTrack } = useMusic();
   const { playTrack } = usePlayback();
 
@@ -46,6 +51,61 @@ export default function SearchScreen() {
     tracks: Track[];
   }>({ artists: [], albums: [], tracks: [] });
   const [isSearching, setIsSearching] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  useEffect(() => {
+    loadRecentSearches();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }, [])
+  );
+
+  const loadRecentSearches = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
+      if (stored) {
+        setRecentSearches(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Failed to load recent searches:', error);
+    }
+  };
+
+  const saveRecentSearch = async (searchQuery: string) => {
+    if (searchQuery.length < 2) return;
+    try {
+      const updated = [searchQuery, ...recentSearches.filter(s => s !== searchQuery)].slice(0, MAX_RECENT_SEARCHES);
+      setRecentSearches(updated);
+      await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+    } catch (error) {
+      console.error('Failed to save recent search:', error);
+    }
+  };
+
+  const clearRecentSearches = async () => {
+    try {
+      setRecentSearches([]);
+      await AsyncStorage.removeItem(RECENT_SEARCHES_KEY);
+    } catch (error) {
+      console.error('Failed to clear recent searches:', error);
+    }
+  };
+
+  const removeRecentSearch = async (searchQuery: string) => {
+    try {
+      const updated = recentSearches.filter(s => s !== searchQuery);
+      setRecentSearches(updated);
+      await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+    } catch (error) {
+      console.error('Failed to remove recent search:', error);
+    }
+  };
 
   const performSearch = useCallback(async (text: string, source: SourceFilter, type: FilterTab) => {
     if (text.length < 2) {
@@ -56,12 +116,18 @@ export default function SearchScreen() {
     const searchResults = await searchMusic(text, { source, type });
     setResults(searchResults);
     setIsSearching(false);
-  }, [searchMusic]);
+    saveRecentSearch(text);
+  }, [searchMusic, recentSearches]);
 
   const handleSearch = useCallback(async (text: string) => {
     setQuery(text);
     performSearch(text, sourceFilter, activeTab);
   }, [performSearch, sourceFilter, activeTab]);
+
+  const handleRecentSearchPress = (searchText: string) => {
+    setQuery(searchText);
+    performSearch(searchText, sourceFilter, activeTab);
+  };
 
   useEffect(() => {
     if (query.length >= 2) {
@@ -200,12 +266,59 @@ export default function SearchScreen() {
 
   const filteredResults = getFilteredResults();
 
+  const renderRecentSearches = () => {
+    if (recentSearches.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <Feather name="search" size={48} color={Colors.light.textTertiary} />
+          <ThemedText style={styles.emptyTitle}>Search your library</ThemedText>
+          <ThemedText style={styles.emptySubtitle}>
+            Find artists, albums, and tracks
+          </ThemedText>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.recentContainer}>
+        <View style={styles.recentHeader}>
+          <ThemedText style={styles.recentTitle}>Recent Searches</ThemedText>
+          <Pressable
+            style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+            onPress={clearRecentSearches}
+          >
+            <ThemedText style={styles.clearText}>Clear</ThemedText>
+          </Pressable>
+        </View>
+        {recentSearches.map((search, index) => (
+          <Pressable
+            key={`${search}-${index}`}
+            style={({ pressed }) => [styles.recentItem, { opacity: pressed ? 0.6 : 1 }]}
+            onPress={() => handleRecentSearchPress(search)}
+          >
+            <Feather name="clock" size={16} color={Colors.light.textTertiary} />
+            <ThemedText style={styles.recentText} numberOfLines={1}>
+              {search}
+            </ThemedText>
+            <Pressable
+              style={({ pressed }) => [styles.removeButton, { opacity: pressed ? 0.6 : 1 }]}
+              onPress={() => removeRecentSearch(search)}
+            >
+              <Feather name="x" size={16} color={Colors.light.textTertiary} />
+            </Pressable>
+          </Pressable>
+        ))}
+      </View>
+    );
+  };
+
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <View style={styles.searchContainer}>
           <Feather name="search" size={18} color={Colors.light.textSecondary} style={styles.searchIcon} />
           <TextInput
+            ref={searchInputRef}
             style={styles.searchInput}
             placeholder="Search music..."
             placeholderTextColor={Colors.light.textTertiary}
@@ -213,6 +326,7 @@ export default function SearchScreen() {
             onChangeText={handleSearch}
             autoCapitalize="none"
             autoCorrect={false}
+            returnKeyType="search"
           />
           {query.length > 0 ? (
             <Pressable
@@ -296,35 +410,33 @@ export default function SearchScreen() {
         ) : null}
       </View>
 
-      <FlatList
-        data={filteredResults}
-        renderItem={renderResult}
-        keyExtractor={(item) => `${item.type}-${(item.data as any).id}`}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: tabBarHeight + Spacing["5xl"] },
-          filteredResults.length === 0 && styles.emptyListContent,
-        ]}
-        ListEmptyComponent={
-          query.length > 0 && !isSearching ? (
-            <View style={styles.emptyState}>
-              <Feather name="search" size={48} color={Colors.light.textTertiary} />
-              <ThemedText style={styles.emptyTitle}>No results found</ThemedText>
-              <ThemedText style={styles.emptySubtitle}>
-                Try a different search term
-              </ThemedText>
-            </View>
-          ) : query.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Feather name="search" size={48} color={Colors.light.textTertiary} />
-              <ThemedText style={styles.emptyTitle}>Search your library</ThemedText>
-              <ThemedText style={styles.emptySubtitle}>
-                Find artists, albums, and tracks
-              </ThemedText>
-            </View>
-          ) : null
-        }
-      />
+      {query.length === 0 ? (
+        <View style={[styles.recentWrapper, { paddingBottom: tabBarHeight + Spacing["5xl"] }]}>
+          {renderRecentSearches()}
+        </View>
+      ) : (
+        <FlatList
+          data={filteredResults}
+          renderItem={renderResult}
+          keyExtractor={(item) => `${item.type}-${(item.data as any).id}`}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: tabBarHeight + Spacing["5xl"] },
+            filteredResults.length === 0 && styles.emptyListContent,
+          ]}
+          ListEmptyComponent={
+            !isSearching ? (
+              <View style={styles.emptyState}>
+                <Feather name="search" size={48} color={Colors.light.textTertiary} />
+                <ThemedText style={styles.emptyTitle}>No results found</ThemedText>
+                <ThemedText style={styles.emptySubtitle}>
+                  Try a different search term
+                </ThemedText>
+              </View>
+            ) : null
+          }
+        />
+      )}
     </ThemedView>
   );
 }
@@ -423,6 +535,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: Spacing["2xl"],
+    paddingTop: Spacing["3xl"],
   },
   emptyTitle: {
     ...Typography.title,
@@ -489,5 +602,43 @@ const styles = StyleSheet.create({
   favoriteButton: {
     padding: Spacing.sm,
     marginRight: Spacing.xs,
+  },
+  recentWrapper: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+  },
+  recentContainer: {
+    flex: 1,
+    paddingTop: Spacing.md,
+  },
+  recentHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  recentTitle: {
+    ...Typography.headline,
+    color: Colors.light.text,
+  },
+  clearText: {
+    ...Typography.caption,
+    color: Colors.light.accent,
+  },
+  recentItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.border,
+    gap: Spacing.md,
+  },
+  recentText: {
+    flex: 1,
+    ...Typography.body,
+    color: Colors.light.text,
+  },
+  removeButton: {
+    padding: Spacing.xs,
   },
 });

@@ -376,55 +376,108 @@ class LmsClient {
 
   async searchQobuz(query: string): Promise<{ artists: LmsArtist[]; albums: LmsAlbum[]; tracks: LmsTrack[] }> {
     try {
-      const result = await this.request('', [
-        'qobuz', 'items', '0', '100',
-        `search:${query}`,
-        'menu:qobuz',
-        'want_url:1'
-      ]);
-
-      const items = (result.item_loop || []) as Array<Record<string, unknown>>;
       const artists: LmsArtist[] = [];
       const albums: LmsAlbum[] = [];
       const tracks: LmsTrack[] = [];
 
-      for (const item of items) {
-        const type = String(item.type || '');
-        const name = String(item.name || item.text || '');
-        const id = String(item.id || item.url || `qobuz_${Date.now()}_${Math.random()}`);
+      const [artistsResult, albumsResult, tracksResult] = await Promise.all([
+        this.request('', ['qobuz', 'items', '0', '50', `search:${query}`, 'type:artists', 'want_url:1']).catch(() => ({})),
+        this.request('', ['qobuz', 'items', '0', '50', `search:${query}`, 'type:albums', 'want_url:1']).catch(() => ({})),
+        this.request('', ['qobuz', 'items', '0', '50', `search:${query}`, 'type:tracks', 'want_url:1']).catch(() => ({})),
+      ]);
 
-        if (type === 'artist' || (item.hasArtwork === undefined && !item.url && name)) {
-          if (item.artist_id || type === 'artist') {
-            artists.push({
-              id: String(item.artist_id || id),
-              name: String(item.artist || name),
-            });
-          }
-        } else if (type === 'album' || item.album_id) {
+      const artistItems = (artistsResult.item_loop || []) as Array<Record<string, unknown>>;
+      for (const item of artistItems) {
+        const name = String(item.name || item.text || item.artist || '');
+        if (name) {
+          artists.push({
+            id: String(item.id || item.artist_id || `qobuz_artist_${name}`),
+            name: name,
+          });
+        }
+      }
+
+      const albumItems = (albumsResult.item_loop || []) as Array<Record<string, unknown>>;
+      for (const item of albumItems) {
+        const title = String(item.album || item.title || item.name || item.text || '');
+        if (title) {
           const artworkUrl = item.image ? String(item.image) : 
             (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
           albums.push({
-            id: String(item.album_id || id),
-            title: String(item.album || item.title || name),
+            id: String(item.album_id || item.id || `qobuz_album_${title}`),
+            title: title,
             artist: String(item.artist || item.albumartist || 'Unknown Artist'),
             artwork_url: artworkUrl,
             year: item.year ? Number(item.year) : undefined,
           });
-        } else if (type === 'audio' || item.url || item.duration) {
+        }
+      }
+
+      const trackItems = (tracksResult.item_loop || []) as Array<Record<string, unknown>>;
+      for (const item of trackItems) {
+        const title = String(item.title || item.name || item.text || '');
+        if (title) {
           const artworkUrl = item.image ? String(item.image) : 
             (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
           tracks.push({
-            id: id,
-            title: String(item.title || item.name || name),
+            id: String(item.id || item.url || `qobuz_track_${title}`),
+            title: title,
             artist: String(item.artist || 'Unknown Artist'),
             album: String(item.album || ''),
             duration: Number(item.duration || 0),
             artwork_url: artworkUrl,
             url: item.url ? String(item.url) : undefined,
-            format: item.type ? String(item.type).toUpperCase() : 'FLAC',
+            format: 'FLAC',
             sampleRate: item.samplerate ? String(item.samplerate) : undefined,
             bitDepth: item.bits_per_sample ? String(item.bits_per_sample) : undefined,
           });
+        }
+      }
+
+      if (artists.length === 0 && albums.length === 0 && tracks.length === 0) {
+        const fallbackResult = await this.request('', [
+          'qobuz', 'items', '0', '100',
+          `search:${query}`,
+          'want_url:1'
+        ]);
+
+        const items = (fallbackResult.item_loop || []) as Array<Record<string, unknown>>;
+        for (const item of items) {
+          const type = String(item.type || '');
+          const name = String(item.name || item.text || '');
+          const id = String(item.id || item.url || `qobuz_${Date.now()}_${Math.random()}`);
+
+          if (type === 'artist' || item.artist_id) {
+            artists.push({
+              id: String(item.artist_id || id),
+              name: String(item.artist || name),
+            });
+          } else if (type === 'album' || item.album_id) {
+            const artworkUrl = item.image ? String(item.image) : 
+              (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
+            albums.push({
+              id: String(item.album_id || id),
+              title: String(item.album || item.title || name),
+              artist: String(item.artist || item.albumartist || 'Unknown Artist'),
+              artwork_url: artworkUrl,
+              year: item.year ? Number(item.year) : undefined,
+            });
+          } else if (type === 'audio' || item.url || item.duration) {
+            const artworkUrl = item.image ? String(item.image) : 
+              (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
+            tracks.push({
+              id: id,
+              title: String(item.title || item.name || name),
+              artist: String(item.artist || 'Unknown Artist'),
+              album: String(item.album || ''),
+              duration: Number(item.duration || 0),
+              artwork_url: artworkUrl,
+              url: item.url ? String(item.url) : undefined,
+              format: 'FLAC',
+              sampleRate: item.samplerate ? String(item.samplerate) : undefined,
+              bitDepth: item.bits_per_sample ? String(item.bits_per_sample) : undefined,
+            });
+          }
         }
       }
 
