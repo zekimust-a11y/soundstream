@@ -519,8 +519,6 @@ app.get('/api/status', async (req, res) => {
   });
 });
 
-app.use(express.json());
-
 app.post('/api/chromecast', async (req, res) => {
   const { ip, name } = req.body;
   
