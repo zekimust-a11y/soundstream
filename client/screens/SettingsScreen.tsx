@@ -88,7 +88,15 @@ export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer, playlists } = useMusic();
   const { theme } = useTheme();
-  const { chromecastIp, setChromecastIp } = useSettings();
+  const { 
+    chromecastIp, setChromecastIp,
+    gapless, setGapless,
+    crossfade, setCrossfade,
+    normalization, setNormalization,
+    hardwareVolumeControl, setHardwareVolumeControl,
+    streamingQuality, setStreamingQuality,
+    isLoaded: settingsLoaded,
+  } = useSettings();
   const { players, activePlayer, setActivePlayer, refreshPlayers } = usePlayback();
   
   const [isConnecting, setIsConnecting] = useState(false);
@@ -96,21 +104,12 @@ export default function SettingsScreen() {
   const [lmsPort, setLmsPort] = useState("9000");
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [isRefreshingPlayers, setIsRefreshingPlayers] = useState(false);
-
-  const [gapless, setGapless] = useState(true);
-  const [crossfade, setCrossfade] = useState(false);
-  const [normalization, setNormalization] = useState(false);
-  const [hardwareVolumeControl, setHardwareVolumeControl] = useState(false);
-  const [streamingQuality, setStreamingQuality] = useState<"cd" | "hires" | null>(null);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveredServers, setDiscoveredServers] = useState<Array<{host: string; port: number; name: string}>>([]);
   const [libraryStats, setLibraryStats] = useState<{ albums: number; artists: number; tracks: number } | null>(null);
 
   useEffect(() => {
-    loadSettings();
     if (activeServer) {
       refreshPlayers();
       loadLibraryStats();
@@ -131,59 +130,6 @@ export default function SettingsScreen() {
       setLibraryStats(stats);
     } catch (e) {
       console.error("Failed to load library stats:", e);
-    }
-  };
-
-  useEffect(() => {
-    // Only save after initial load is complete and when values actually change
-    if (settingsLoaded && !isInitialLoad) {
-      saveSettings();
-    }
-    // Mark initial load as complete after first render with loaded settings
-    if (settingsLoaded && isInitialLoad) {
-      setIsInitialLoad(false);
-    }
-  }, [gapless, crossfade, normalization, hardwareVolumeControl, streamingQuality, settingsLoaded, isInitialLoad]);
-
-  const loadSettings = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(SETTINGS_KEY);
-      if (stored) {
-        const settings = JSON.parse(stored);
-        setGapless(settings.gapless ?? true);
-        setCrossfade(settings.crossfade ?? false);
-        setNormalization(settings.normalization ?? false);
-        setHardwareVolumeControl(settings.hardwareVolumeControl ?? false);
-        setStreamingQuality(settings.streamingQuality ?? "cd");
-      } else {
-        // No stored settings, use defaults
-        setStreamingQuality("cd");
-      }
-      setSettingsLoaded(true);
-    } catch (e) {
-      console.error("Failed to load settings:", e);
-      setStreamingQuality("cd"); // Set default on error
-      setSettingsLoaded(true);
-    }
-  };
-
-  const saveSettings = async () => {
-    // Don't save if streaming quality hasn't been set yet
-    if (streamingQuality === null) return;
-    
-    try {
-      await AsyncStorage.setItem(
-        SETTINGS_KEY,
-        JSON.stringify({ 
-          gapless, 
-          crossfade, 
-          normalization, 
-          hardwareVolumeControl, 
-          streamingQuality,
-        })
-      );
-    } catch (e) {
-      console.error("Failed to save settings:", e);
     }
   };
 

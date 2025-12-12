@@ -27,7 +27,7 @@ const defaultSettings: Settings = {
   crossfade: false,
   normalization: false,
   hardwareVolumeControl: false,
-  streamingQuality: "cd",
+  streamingQuality: "hires",
   chromecastIp: "",
 };
 

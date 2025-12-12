@@ -23,7 +23,7 @@ import { usePlayback, Zone } from "@/hooks/usePlayback";
 import { useMusic } from "@/hooks/useMusic";
 
 const { width, height } = Dimensions.get("window");
-const ALBUM_ART_SIZE = Math.min(width - Spacing.xl * 2, height * 0.32);
+const ALBUM_ART_SIZE = Math.min(width - Spacing.xl * 2, height * 0.28);
 
 function formatTime(seconds: number): string {
   if (!seconds || !isFinite(seconds) || seconds < 0) return "0:00";
@@ -279,11 +279,8 @@ export default function NowPlayingScreen() {
             <View style={styles.headerSpacer} />
           </View>
 
-          <ScrollView 
-            style={styles.content} 
-            contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom + Spacing.lg }]}
-            showsVerticalScrollIndicator={false}
-            bounces={false}
+          <View 
+            style={[styles.content, styles.contentContainer, { paddingBottom: insets.bottom + Spacing.sm }]}
           >
             <View style={styles.albumArtContainer}>
               <Image
@@ -495,7 +492,7 @@ export default function NowPlayingScreen() {
                 <Feather name="more-vertical" size={20} color={Colors.light.textSecondary} />
               </Pressable>
             </View>
-          </ScrollView>
+          </View>
 
           <Modal
             visible={showZoneModal}
@@ -572,13 +569,14 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    justifyContent: "space-between",
   },
   contentContainer: {
     paddingHorizontal: Spacing.xl,
   },
   albumArtContainer: {
     alignItems: "center",
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   albumArt: {
     width: ALBUM_ART_SIZE,
@@ -623,7 +621,7 @@ const styles = StyleSheet.create({
   },
   trackInfo: {
     alignItems: "center",
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   trackTitle: {
     fontSize: 22,
@@ -665,7 +663,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
     gap: Spacing.lg,
   },
   metaButton: {
@@ -689,7 +687,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   progressContainer: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   progressTapArea: {
     height: 24,
@@ -728,7 +726,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
     gap: Spacing.md,
   },
   sideControl: {
@@ -771,7 +769,7 @@ const styles = StyleSheet.create({
   volumeRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
     gap: Spacing.sm,
   },
   volumeSliderWrapper: {
