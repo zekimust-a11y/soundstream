@@ -532,6 +532,40 @@ export default function SettingsScreen() {
           </View>
         ) : null}
 
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Library</ThemedText>
+          <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
+            <ThemedText style={[styles.libraryStatus, { color: theme.textSecondary }]}>
+              {activeServer ? `Connected to ${activeServer.name}` : "No server connected"}
+            </ThemedText>
+            <Pressable
+              style={({ pressed }) => [
+                styles.refreshButton,
+                { 
+                  backgroundColor: theme.accent,
+                  opacity: pressed || isLoading ? 0.7 : 1,
+                },
+              ]}
+              onPress={refreshLibrary}
+              disabled={isLoading || servers.length === 0}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color={theme.buttonText} />
+              ) : (
+                <Feather name="refresh-cw" size={18} color={theme.buttonText} />
+              )}
+              <ThemedText style={[styles.refreshButtonText, { color: theme.buttonText }]}>
+                {isLoading ? "Refreshing..." : "Refresh Library"}
+              </ThemedText>
+            </Pressable>
+            {servers.length === 0 ? (
+              <ThemedText style={[styles.refreshHint, { color: theme.textTertiary }]}>
+                Connect to an LMS server to load music
+              </ThemedText>
+            ) : null}
+          </View>
+        </View>
+
         {players.length > 0 ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -612,40 +646,6 @@ export default function SettingsScreen() {
                 ) : null
               }
             />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Library</ThemedText>
-          <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
-            <ThemedText style={[styles.libraryStatus, { color: theme.textSecondary }]}>
-              {activeServer ? `Connected to ${activeServer.name}` : "No server connected"}
-            </ThemedText>
-            <Pressable
-              style={({ pressed }) => [
-                styles.refreshButton,
-                { 
-                  backgroundColor: theme.accent,
-                  opacity: pressed || isLoading ? 0.7 : 1,
-                },
-              ]}
-              onPress={refreshLibrary}
-              disabled={isLoading || servers.length === 0}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color={theme.buttonText} />
-              ) : (
-                <Feather name="refresh-cw" size={18} color={theme.buttonText} />
-              )}
-              <ThemedText style={[styles.refreshButtonText, { color: theme.buttonText }]}>
-                {isLoading ? "Refreshing..." : "Refresh Library"}
-              </ThemedText>
-            </Pressable>
-            {servers.length === 0 ? (
-              <ThemedText style={[styles.refreshHint, { color: theme.textTertiary }]}>
-                Connect to an LMS server to load music
-              </ThemedText>
-            ) : null}
           </View>
         </View>
 
