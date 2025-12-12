@@ -1251,20 +1251,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: Spacing.sm,
   },
-  selectedDevice: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.sm,
-  },
-  selectedDeviceName: {
-    ...Typography.body,
-    fontWeight: "500",
-  },
-  selectedDeviceIp: {
-    ...Typography.caption,
-    marginTop: 2,
-  },
   deviceRow: {
     flexDirection: "row",
     alignItems: "center",
