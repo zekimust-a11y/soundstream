@@ -1,0 +1,64 @@
+Last login: Fri Dec 12 11:20:33 on ttys001
+zeki@ButtercupMiniM2 ~ % cd "/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server" && npm start
+
+> soundstream-display@2.0.0 start
+> node server.js
+
+Loaded config: {
+  chromecastIp: '192.168.0.239',
+  chromecastName: 'Google chromecast',
+  preferredPlayerId: '00:30:18:0d:62:1b',
+  preferredPlayerName: 'OLADRAplayer'
+}
+mDNS discovery available
+
+===========================================
+  SoundStream Display Server
+===========================================
+
+  Server running on port 3000
+  Local IP: 192.168.0.21
+
+  Configuration:
+    LMS Host: 192.168.0.19
+    LMS Port: 9000
+    Chromecast: Google chromecast (192.168.0.239)
+    Pause Timeout: 5 seconds
+
+  Environment Variables:
+    LMS_HOST=<ip>        - LMS server IP
+    LMS_PORT=<port>      - LMS port (default: 9000)
+    CHROMECAST_IP=<ip>   - Initial Chromecast IP (can be set via app)
+    PAUSE_TIMEOUT=<ms>   - Pause timeout (default: 5000)
+    ENABLE_KEYBOARD=true - Enable keyboard/IR control
+
+  Now Playing URL:
+    http://192.168.0.21:3000/now-playing
+
+===========================================
+
+Starting LMS status polling...
+Using preferred player: OLADRAplayer
+
+Install catt for Chromecast auto-casting:
+  pip3 install catt
+Keymap loaded: 14 key mappings
+Keyboard/IR remote control enabled
+  Press keys to control playback (Ctrl+C to exit)
+Chromecast support enabled (using catt)
+Play detected, starting cast...
+Starting cast to: http://192.168.0.21:3000/now-playing?host=192.168.0.19&port=9000&player=00%3A30%3A18%3A0d%3A62%3A1b
+Play detected, starting cast...
+Starting cast to: http://192.168.0.21:3000/now-playing?host=192.168.0.19&port=9000&player=00%3A30%3A18%3A0d%3A62%3A1b
+Play detected, starting cast...
+Starting cast to: http://192.168.0.21:3000/now-playing?host=192.168.0.19&port=9000&player=00%3A30%3A18%3A0d%3A62%3A1b
+Play detected, starting cast...
+Starting cast to: http://192.168.0.21:3000/now-playing?host=192.168.0.19&port=9000&player=00%3A30%3A18%3A0d%3A62%3A1b
+Play detected, starting cast...
+Starting cast to: http://192.168.0.21:3000/now-playing?host=192.168.0.19&port=9000&player=00%3A30%3A18%3A0d%3A62%3A1b
+Cast started successfully
+Cast started successfully
+Cast started successfully
+Cast started successfully
+Cast started successfully
+

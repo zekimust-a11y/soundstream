@@ -23,7 +23,12 @@
       height: 100%;
       background-size: cover;
       background-position: center;
-      transition: background-image 0.8s ease;
+      opacity: 0;
+      transition: opacity 1.5s ease;
+    }
+    
+    .background.active {
+      opacity: 1;
     }
     
     .background-overlay {
@@ -33,10 +38,10 @@
       width: 100%;
       height: 100%;
       background: linear-gradient(to bottom, 
-        transparent 0%, 
-        transparent 50%, 
+        rgba(0,0,0,0.2) 0%, 
+        rgba(0,0,0,0.1) 30%,
         rgba(0,0,0,0.3) 70%,
-        rgba(0,0,0,0.7) 100%
+        rgba(0,0,0,0.8) 100%
       );
     }
     
@@ -138,21 +143,6 @@
       background: #333;
     }
     
-    .status-icon {
-      width: 48px;
-      height: 48px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    
-    .status-icon svg {
-      width: 32px;
-      height: 32px;
-      fill: #333;
-    }
-    
     .not-playing-container {
       position: fixed;
       top: 0;
@@ -218,8 +208,16 @@
     
     // Use proxy endpoint to avoid CORS issues
     const proxyUrl = '/api/lms';
-    let currentArtwork = '';
-    let waveformBars = [];
+    
+    // Artist image cycling
+    let artistImages = [];
+    let currentImageIndex = 0;
+    let currentArtist = '';
+    let imageRotationTimer = null;
+    let lastTrackId = '';
+    
+    // TheAudioDB API (free tier)
+    const AUDIODB_API_KEY = '2';
     
     function generateWaveformHeights(count) {
       const heights = [];
@@ -265,6 +263,62 @@
       }
     }
     
+    async function fetchArtistImages(artistName) {
+      if (!artistName || artistName === currentArtist) return;
+      
+      currentArtist = artistName;
+      artistImages = [];
+      currentImageIndex = 0;
+      
+      try {
+        const response = await fetch(`https://www.theaudiodb.com/api/v1/json/${AUDIODB_API_KEY}/search.php?s=${encodeURIComponent(artistName)}`);
+        const data = await response.json();
+        
+        if (data.artists && data.artists.length > 0) {
+          const artist = data.artists[0];
+          const images = [];
+          
+          // Collect all available artist images
+          if (artist.strArtistFanart) images.push(artist.strArtistFanart);
+          if (artist.strArtistFanart2) images.push(artist.strArtistFanart2);
+          if (artist.strArtistFanart3) images.push(artist.strArtistFanart3);
+          if (artist.strArtistFanart4) images.push(artist.strArtistFanart4);
+          if (artist.strArtistThumb) images.push(artist.strArtistThumb);
+          if (artist.strArtistWideThumb) images.push(artist.strArtistWideThumb);
+          if (artist.strArtistCutout) images.push(artist.strArtistCutout);
+          
+          artistImages = images.filter(url => url && url.length > 0);
+          console.log(`Found ${artistImages.length} images for ${artistName}`);
+        }
+      } catch (e) {
+        console.error('Failed to fetch artist images:', e);
+      }
+    }
+    
+    function rotateBackgroundImage() {
+      if (artistImages.length === 0) return;
+      
+      const backgrounds = document.querySelectorAll('.background');
+      const activeIndex = currentImageIndex % artistImages.length;
+      
+      backgrounds.forEach((bg, i) => {
+        if (i === 0) {
+          bg.style.backgroundImage = `url('${artistImages[activeIndex]}')`;
+          bg.classList.add('active');
+        } else {
+          bg.classList.remove('active');
+        }
+      });
+      
+      currentImageIndex = (currentImageIndex + 1) % artistImages.length;
+    }
+    
+    function startImageRotation() {
+      if (imageRotationTimer) clearInterval(imageRotationTimer);
+      rotateBackgroundImage();
+      imageRotationTimer = setInterval(rotateBackgroundImage, 10000);
+    }
+    
     function formatTime(seconds) {
       if (!seconds || isNaN(seconds)) return '0:00';
       const mins = Math.floor(seconds / 60);
@@ -305,7 +359,7 @@
       });
     }
     
-    function updateDisplay(status) {
+    async function updateDisplay(status) {
       const content = document.getElementById('content');
       
       if (!status || !status.playlist_loop || status.playlist_loop.length === 0) {
@@ -321,19 +375,28 @@
       }
       
       const track = status.playlist_loop[0];
-      const isPlaying = status.mode === 'play';
+      const trackId = track.id || track.title;
       const currentTime = status.time || 0;
       const duration = track.duration || status.duration || 0;
       const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
       
-      const artworkUrl = getArtworkUrl(track);
       const thumbnailUrl = getArtworkUrl(track, 300);
+      const albumArtUrl = getArtworkUrl(track);
       
-      const playIcon = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
-      const pauseIcon = `<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+      // Fetch artist images when track changes
+      if (trackId !== lastTrackId) {
+        lastTrackId = trackId;
+        await fetchArtistImages(track.artist);
+        startImageRotation();
+      }
+      
+      // Use album art as fallback if no artist images
+      const backgroundUrl = artistImages.length > 0 
+        ? artistImages[currentImageIndex % artistImages.length] 
+        : albumArtUrl;
       
       content.innerHTML = `
-        <div class="background" style="background-image: url('${artworkUrl}')"></div>
+        <div class="background active" style="background-image: url('${backgroundUrl}')"></div>
         <div class="background-overlay"></div>
         <div class="bottom-bar">
           <img class="thumbnail" src="${thumbnailUrl || ''}" alt="Album" onerror="this.style.visibility='hidden'">
@@ -349,9 +412,6 @@
               </div>
               <span class="time duration">${formatTime(duration)}</span>
             </div>
-          </div>
-          <div class="status-icon">
-            ${isPlaying ? pauseIcon : playIcon}
           </div>
         </div>
       `;
@@ -390,7 +450,7 @@
         async function poll() {
           try {
             const status = await getPlayerStatus(playerId);
-            updateDisplay(status);
+            await updateDisplay(status);
           } catch (e) {
             console.error('Poll error:', e);
           }
