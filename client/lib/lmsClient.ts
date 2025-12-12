@@ -220,6 +220,16 @@ class LmsClient {
       bitDepth = `${data.samplesize}-bit`;
     }
 
+    let artworkUrl: string | undefined;
+    if (data.artwork_url) {
+      const rawUrl = String(data.artwork_url);
+      artworkUrl = rawUrl.startsWith('http') ? rawUrl : `${this.baseUrl}${rawUrl}`;
+    } else if (data.artwork_track_id) {
+      artworkUrl = `${this.baseUrl}/music/${data.artwork_track_id}/cover.jpg`;
+    } else if (data.coverid) {
+      artworkUrl = `${this.baseUrl}/music/${data.coverid}/cover.jpg`;
+    }
+
     return {
       id: String(data.id || data.track_id || `${playlistIndex}`),
       title: String(data.title || 'Unknown'),
@@ -229,7 +239,7 @@ class LmsClient {
       artistId: data.artist_id ? String(data.artist_id) : undefined,
       duration: durationSec,
       trackNumber: data.tracknum ? Number(data.tracknum) : undefined,
-      artwork_url: data.artwork_url ? String(data.artwork_url) : undefined,
+      artwork_url: artworkUrl,
       url: data.url ? String(data.url) : undefined,
       format,
       bitrate,
@@ -253,7 +263,8 @@ class LmsClient {
       title: String(a.album || a.title || ''),
       artist: String(a.artist || ''),
       artistId: a.artist_id ? String(a.artist_id) : undefined,
-      artwork_url: a.artwork_track_id ? `/music/${a.artwork_track_id}/cover.jpg` : undefined,
+      artwork_url: a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` : 
+        (a.artwork_url ? (String(a.artwork_url).startsWith('http') ? String(a.artwork_url) : `${this.baseUrl}${a.artwork_url}`) : undefined),
       year: a.year ? Number(a.year) : undefined,
       trackCount: a.track_count ? Number(a.track_count) : undefined,
     }));

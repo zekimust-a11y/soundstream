@@ -11,10 +11,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from "react-native-reanimated";
-import { MainTabParamList } from "@/navigation/MainTabNavigator";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
@@ -117,11 +115,9 @@ function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
   );
 }
 
-type TabNavigationProp = BottomTabNavigationProp<MainTabParamList>;
-
 export default function NowPlayingScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<TabNavigationProp>();
+  const navigation = useNavigation();
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPosition, setSeekPosition] = useState(0);
@@ -130,7 +126,9 @@ export default function NowPlayingScreen() {
   const translateY = useSharedValue(0);
   
   const minimizePlayer = useCallback(() => {
-    navigation.navigate("BrowseTab");
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
   }, [navigation]);
   
   const panGesture = Gesture.Pan()

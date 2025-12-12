@@ -5,7 +5,7 @@ import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View } from "react-native";
 import BrowseStackNavigator from "@/navigation/BrowseStackNavigator";
 import PlaylistsStackNavigator from "@/navigation/PlaylistsStackNavigator";
-import QueueStackNavigator from "@/navigation/QueueStackNavigator";
+import AlbumsStackNavigator from "@/navigation/AlbumsStackNavigator";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 import MiniPlayer from "@/components/MiniPlayer";
 import { useTheme } from "@/hooks/useTheme";
@@ -14,7 +14,7 @@ import { Colors } from "@/constants/theme";
 export type MainTabParamList = {
   BrowseTab: undefined;
   PlaylistsTab: undefined;
-  QueueTab: undefined;
+  AlbumsTab: undefined;
   SettingsTab: undefined;
 };
 
@@ -59,7 +59,7 @@ export default function MainTabNavigator() {
           options={{
             title: "Browse",
             tabBarIcon: ({ color, size }) => (
-              <Feather name="disc" size={size} color={color} />
+              <Feather name="home" size={size} color={color} />
             ),
           }}
         />
@@ -74,12 +74,12 @@ export default function MainTabNavigator() {
           }}
         />
         <Tab.Screen
-          name="QueueTab"
-          component={QueueStackNavigator}
+          name="AlbumsTab"
+          component={AlbumsStackNavigator}
           options={{
-            title: "Queue",
+            title: "Albums",
             tabBarIcon: ({ color, size }) => (
-              <Feather name="play-circle" size={size} color={color} />
+              <Feather name="disc" size={size} color={color} />
             ),
           }}
         />

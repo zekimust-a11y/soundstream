@@ -5,6 +5,7 @@ import ArtistScreen from "@/screens/ArtistScreen";
 import AlbumScreen from "@/screens/AlbumScreen";
 import AllAlbumsScreen from "@/screens/AllAlbumsScreen";
 import AllArtistsScreen from "@/screens/AllArtistsScreen";
+import NowPlayingScreen from "@/screens/NowPlayingScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type BrowseStackParamList = {
@@ -13,6 +14,7 @@ export type BrowseStackParamList = {
   Album: { id: string; name: string; artistName: string };
   AllAlbums: undefined;
   AllArtists: undefined;
+  NowPlaying: undefined;
 };
 
 const Stack = createNativeStackNavigator<BrowseStackParamList>();
@@ -50,6 +52,14 @@ export default function BrowseStackNavigator() {
         name="AllArtists"
         component={AllArtistsScreen}
         options={{ headerTitle: "All Artists" }}
+      />
+      <Stack.Screen
+        name="NowPlaying"
+        component={NowPlayingScreen}
+        options={{ 
+          headerShown: false,
+          presentation: "modal",
+        }}
       />
     </Stack.Navigator>
   );
