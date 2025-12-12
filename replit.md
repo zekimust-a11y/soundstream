@@ -1,69 +1,40 @@
 # SoundStream - Music Player App
 
 ## Overview
-SoundStream is a Roon-inspired mobile music player app built with Expo/React Native. It acts as a **UPNP Control Point** to browse music from MinimServer and control playback on network renderers like the dCS Varese. Audio streams directly from server to DAC for bit-perfect playback.
+SoundStream is a mobile music player app built with Expo/React Native. It connects to **Logitech Media Server (LMS)** to browse music libraries and control playback on LMS-connected players (Squeezebox devices, piCorePlayer, etc.). Audio streams directly from server to player for bit-perfect playback.
 
 ## Current State
 - **Version**: 1.0.0
-- **Status**: ✅ Library browsing + playback + volume control fully working
-- **Last Updated**: December 11, 2024
+- **Status**: LMS integration complete
+- **Last Updated**: December 12, 2024
 - **Theme**: Light theme (default)
-- **Build Type**: Works in Expo Go for browsing; development build needed for SSDP discovery
-- **Latest Fix**: Fixed playback by switching from standard AVTransport to OpenHome Transport service. Both volume control (OpenHome Volume) and playback (OpenHome Transport) now use correct dCS protocols matching Mosaic app
-
-## Working Configuration (December 2024)
-
-### Network Devices
-- **MinimServer**: 192.168.0.19:9791
-  - ContentDirectory: `http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control`
-  
-- **dCS Varese Core**: 192.168.0.42:16500 (friendly name: "Living room")
-  - AVTransport: `http://192.168.0.42:16500/Control/LibRygelRenderer/RygelAVTransport`
-  - RenderingControl: `http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl`
-  - Note: Varese may also respond on 192.168.0.17 (dual network interfaces)
-  - Uses Rygel-based UPnP services
-
-### What Works
-- Library browsing from MinimServer via ContentDirectory
-- Playback control to dCS Varese via OpenHome Transport service
-- Volume control via OpenHome Volume service
-- Queue management in the app
-- Bit-perfect audio streaming directly from MinimServer to Varese
-
-### SSDP Bridge (Required for Playback)
-The SSDP Bridge is **required** for playback control because Expo Go cannot reliably reach local network devices. The bridge proxies UPnP commands from your iPhone through your Mac to the Varese.
-
-Run the SSDP Bridge on your Mac:
-```bash
-npx tsx server/ssdp-bridge.ts
-```
-See `SSDP_BRIDGE_GUIDE.md` for setup instructions.
-
-When the bridge is running and detected by the app:
-- All UPnP requests are automatically routed through the bridge's /proxy endpoint
-- Playback, volume, and transport controls work reliably
+- **Build Type**: Works in Expo Go
+- **Latest Update**: Replaced UPnP/SSDP with LMS JSON-RPC API for simpler, more reliable server connectivity
 
 ## Architecture
 
 ### Control Point Design
 ```
-MinimServer ──── Audio Stream (bit-perfect) ────> dCS Varese
-     ↑                                                ↑
-     └─────── SoundStream App (Control Point) ───────┘
-              discovers both via SSDP,
-              browses library, sends playback commands
+LMS Server ──── Audio Stream ────> Squeezebox Player
+     ↑                                    ↑
+     └───── SoundStream App ──────────────┘
+            browses library via JSON-RPC,
+            sends playback commands to players
 ```
 
-The app is a **UPNP Control Point** - it discovers devices, browses the music library, and tells the renderer (Varese) to play tracks from the server (MinimServer). Audio never passes through the phone for maximum quality.
+The app connects to Logitech Media Server's JSON-RPC API to:
+- Browse the music library (artists, albums, tracks)
+- Discover connected players
+- Control playback on any player
+- Manage queues and playlists
 
 ### Tech Stack
 - **Frontend**: Expo SDK 54 + React Native
 - **Navigation**: React Navigation 7 (bottom tabs + stack navigators)
 - **State Management**: React Context + React Query
 - **Storage**: AsyncStorage for persistence
-- **UI**: Custom Roon-inspired light theme with liquid glass aesthetics
-- **Server Protocol**: UPNP/DLNA (SSDP discovery, SOAP control, DIDL-Lite metadata)
-- **Native Modules**: react-native-udp for SSDP multicast discovery
+- **UI**: Roon-inspired light theme with liquid glass aesthetics
+- **Server Protocol**: LMS JSON-RPC API (http://server:9000/jsonrpc.js)
 
 ### Directory Structure
 ```
@@ -71,99 +42,77 @@ client/
 ├── components/       # Reusable UI components
 ├── constants/        # Theme and design tokens
 ├── hooks/           # Custom hooks
-│   ├── usePlayback.tsx    # Playback state and renderer control
-│   ├── useMusic.tsx       # Library data and server browsing
-│   └── useSsdpDiscovery.tsx  # Native SSDP device discovery
+│   ├── usePlayback.tsx    # Playback state and LMS player control
+│   ├── useMusic.tsx       # Library data and LMS browsing
+│   └── useLms.tsx         # LMS server discovery and connection
 ├── lib/
-│   └── upnpClient.ts  # UPNP SOAP client for ContentDirectory & AVTransport
+│   ├── lmsClient.ts       # LMS JSON-RPC client
+│   └── debugLog.ts        # Debug logging utility
 ├── navigation/      # Navigation structure
 ├── screens/         # App screens
 └── assets/          # Local assets
 ```
 
 ### Key Features
-1. **SSDP Discovery**: Auto-discover MinimServer and dCS Varese on local network
-2. **Browse Tab**: Library browsing with artists, albums, and recently played
-3. **Queue Tab**: Playback queue management with drag-to-reorder
-4. **Search Tab**: Global search across all music sources
-5. **Settings Tab**: Network discovery, server management, Qobuz integration
-6. **Now Playing**: Full-screen modal with renderer playback controls
-7. **Renderer Control**: Send play/pause/seek commands to dCS Varese
+1. **LMS Connection**: Connect to LMS server by IP address
+2. **Player Selection**: Discover and select from available players
+3. **Browse Tab**: Library browsing with artists, albums, and recently played
+4. **Queue Tab**: Playback queue management with drag-to-reorder
+5. **Search Tab**: Search music library
+6. **Settings Tab**: Server management, player selection, playback settings
+7. **Now Playing**: Full-screen modal with player controls
 
-### UPNP/DLNA Services Used
-- **ContentDirectory** (MinimServer): Browse and search music library
-- **AVTransport** (dCS Varese): SetAVTransportURI, Play, Pause, Stop, Seek, GetPositionInfo
+### LMS JSON-RPC API
+The app uses LMS's JSON-RPC API at `http://<server>:9000/jsonrpc.js`:
+- **Server status**: Get server info and player count
+- **Player discovery**: List all connected players
+- **Library browsing**: Artists, albums, tracks, search
+- **Playback control**: Play, pause, next, previous, seek, volume
+- **Queue management**: Add/remove/reorder tracks
 
 ## User Preferences
 - Light theme as default throughout app
 - No placeholder/demo data - real server connections only
-- Maximum sound quality - audio streams directly to DAC
+- Maximum sound quality - audio streams directly to players
 - Manual refresh button in Settings for library updates
 - Focus on album artwork and typography
 - Liquid glass UI effects where supported
 
-## Building the App
+## Getting Started
 
-### Why Development Build?
-Expo Go cannot do SSDP discovery (requires UDP multicast). A development build includes native modules for:
-- UDP sockets (SSDP multicast)
-- Proper HTTP header control
-- Local network permission handling
+### Prerequisites
+- Logitech Media Server running on your network (default port: 9000)
+- At least one Squeezebox-compatible player connected to LMS
 
-### Build Steps
-See `BUILD_INSTRUCTIONS.md` for complete instructions. Quick summary:
+### Setup
+1. Open the app
+2. Go to Settings tab
+3. Enter your LMS server IP address (e.g., 192.168.0.100)
+4. Tap "Connect to LMS"
+5. Select a player from the Players section
+6. Tap "Refresh Library" to load your music
 
+## Running the App
+
+The app runs on port 5000 (web) and 8081 (Expo dev server):
 ```bash
-# Generate native folders
-npx expo prebuild
-
-# Install iOS dependencies
-cd ios && pod install && cd ..
-
-# Build and run on device
-npx expo run:ios --device
+npm run all:dev
 ```
 
-## Running in Development
+For mobile testing:
+- Scan the QR code with Expo Go (Android) or Camera (iOS)
 
-```bash
-npm run dev
-```
-- Expo dev server runs on port 8081
-- Express backend runs on port 5000
+## Recent Changes (December 2024)
 
-**Note**: Network discovery only works in a development build. In Expo Go, you can manually add servers via Settings > Music Servers.
+### LMS Integration
+- Replaced UPnP/SSDP discovery with LMS JSON-RPC API
+- Added lmsClient.ts for all LMS communication
+- Updated usePlayback to control LMS players instead of UPnP renderers
+- Updated useMusic to fetch library from LMS
+- Updated SettingsScreen with LMS connection UI
+- Updated DebugScreen with LMS testing tools
 
-### Connecting to MinimServer & dCS Varese
-1. Build and install the development build on your iPhone
-2. Ensure your iPhone is on the same WiFi network
-3. Go to Settings > Network Discovery > Discover Devices
-4. MinimServer and dCS Varese should appear
-5. Tap MinimServer to add it as a music source
-6. Tap Refresh Library to load your music
-
-## Hooks API Summary
-- `usePlayback`: currentTrack, isPlaying, queue, zones, volume, playTrack(), togglePlayPause(), next(), previous(), seek()
-- `useMusic`: artists, albums, servers, refreshLibrary(), searchMusic(), addServer()
-- `useSsdpDiscovery`: devices, isDiscovering, startDiscovery(), getMediaServers(), getMediaRenderers(), getContentDirectoryUrl()
-
-## Key Files
-- `client/hooks/useSsdpDiscovery.tsx` - Native SSDP discovery via UDP multicast
-- `client/lib/upnpClient.ts` - UPNP SOAP client for ContentDirectory and AVTransport
-- `client/hooks/useMusic.tsx` - Music library state and server management
-- `client/screens/SettingsScreen.tsx` - Network discovery UI
-- `app.json` - iOS permissions for local network access
-
-## Technical Notes
-- iOS 14+ requires NSLocalNetworkUsageDescription permission
-- SSDP uses multicast UDP to 239.255.255.250:1900
-- Device descriptions are fetched via HTTP to discover service control URLs
-- SOAP requests use uppercase SOAPACTION header (critical for OhNet compatibility)
-
-## Future Enhancements
-- Renderer selection (switch between multiple DACs/streamers)
-- Qobuz API integration for streaming
-- Gapless playback with queue lookahead
-- DSD native streaming support
-- Audio format display (sample rate, bit depth)
-- Album art caching
+### Removed
+- UPnP client (upnpClient.ts)
+- SSDP discovery (useSsdpDiscovery.tsx)
+- SSDP bridge server (ssdp-bridge.ts)

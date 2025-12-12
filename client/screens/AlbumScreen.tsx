@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
   ScrollView,
   Pressable,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -18,7 +19,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
-import { usePlayback } from "@/hooks/usePlayback";
+import { usePlayback, type Track } from "@/hooks/usePlayback";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
 
 const { width } = Dimensions.get("window");
@@ -26,8 +27,8 @@ const ALBUM_ART_SIZE = width * 0.6;
 
 type RouteProps = RouteProp<BrowseStackParamList, "Album">;
 
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.round(ms / 1000);
+function formatDuration(duration: number): string {
+  const totalSeconds = Math.round(duration);
   const mins = Math.floor(totalSeconds / 60);
   const secs = totalSeconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
@@ -40,8 +41,25 @@ export default function AlbumScreen() {
   const { getAlbumTracks, albums, addToRecentlyPlayed } = useMusic();
   const { playTrack, addToQueue, currentTrack, isPlaying } = usePlayback();
 
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const album = albums.find((a) => a.id === route.params.id);
-  const tracks = getAlbumTracks(route.params.id);
+
+  useEffect(() => {
+    async function loadTracks() {
+      setIsLoading(true);
+      try {
+        const albumTracks = await getAlbumTracks(route.params.id);
+        setTracks(albumTracks);
+      } catch (error) {
+        console.error("Failed to load album tracks:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadTracks();
+  }, [route.params.id, getAlbumTracks]);
 
   const handlePlayAll = () => {
     if (tracks.length > 0) {
@@ -50,7 +68,7 @@ export default function AlbumScreen() {
     }
   };
 
-  const handleTrackPress = (track: typeof tracks[0]) => {
+  const handleTrackPress = (track: Track) => {
     playTrack(track, tracks);
     addToRecentlyPlayed(track);
   };
@@ -74,13 +92,13 @@ export default function AlbumScreen() {
           <ThemedText style={styles.albumArtist}>{route.params.artistName}</ThemedText>
           {album?.year ? (
             <ThemedText style={styles.albumMeta}>
-              {album.year} • {tracks.length} tracks
+              {album.year} {tracks.length > 0 ? `• ${tracks.length} tracks` : ''}
             </ThemedText>
           ) : null}
         </View>
 
         <View style={styles.actions}>
-          <Button title="Play All" onPress={handlePlayAll} style={styles.playButton}>
+          <Button title="Play All" onPress={handlePlayAll} style={styles.playButton} disabled={tracks.length === 0}>
             <Feather name="play" size={18} color={Colors.light.buttonText} style={styles.playIcon} />
           </Button>
           <Pressable
@@ -91,13 +109,19 @@ export default function AlbumScreen() {
                 playTrack(tracks[randomIndex], tracks);
               }
             }}
+            disabled={tracks.length === 0}
           >
             <Feather name="shuffle" size={20} color={Colors.light.accent} />
           </Pressable>
         </View>
 
         <View style={styles.trackList}>
-          {tracks.length === 0 ? (
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={Colors.light.accent} />
+              <ThemedText style={styles.loadingText}>Loading tracks...</ThemedText>
+            </View>
+          ) : tracks.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Feather name="music" size={48} color={Colors.light.textTertiary} />
               <ThemedText style={styles.emptyText}>No tracks found</ThemedText>
@@ -214,6 +238,16 @@ const styles = StyleSheet.create({
   },
   trackList: {
     marginBottom: Spacing.xl,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing["3xl"],
+  },
+  loadingText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    marginTop: Spacing.md,
   },
   trackRow: {
     flexDirection: "row",

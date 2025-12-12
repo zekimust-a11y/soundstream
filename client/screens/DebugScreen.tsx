@@ -11,8 +11,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { debugLog } from '@/lib/debugLog';
-import { browseContentDirectory, getTransportInfo, fetchDeviceServices } from '@/lib/upnpClient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { lmsClient } from '@/lib/lmsClient';
+import { useMusic } from '@/hooks/useMusic';
+import { usePlayback } from '@/hooks/usePlayback';
 
 type LogEntry = {
   timestamp: Date;
@@ -24,10 +25,12 @@ type LogEntry = {
 export default function DebugScreen() {
   const insets = useSafeAreaInsets();
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [bridgeStatus, setBridgeStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
-  const [bridgeUrl, setBridgeUrl] = useState<string>('');
+  const [serverStatus, setServerStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedLog, setExpandedLog] = useState<number | null>(null);
+  
+  const { activeServer, servers } = useMusic();
+  const { players, activePlayer } = usePlayback();
 
   useEffect(() => {
     setLogs(debugLog.getLogs());
@@ -36,115 +39,103 @@ export default function DebugScreen() {
   }, []);
 
   useEffect(() => {
-    checkBridgeStatus();
-  }, []);
+    checkServerStatus();
+  }, [activeServer]);
 
-  const checkBridgeStatus = async () => {
-    setBridgeStatus('checking');
-    try {
-      const storedUrl = await AsyncStorage.getItem('@soundstream_bridge_url');
-      setBridgeUrl(storedUrl || 'Not configured');
-      
-      if (storedUrl) {
-        const response = await fetch(`${storedUrl}/health`, {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' },
-        });
-        if (response.ok) {
-          setBridgeStatus('connected');
-          debugLog.info('Bridge health check passed', storedUrl);
-        } else {
-          setBridgeStatus('disconnected');
-          debugLog.error('Bridge health check failed', `Status: ${response.status}`);
-        }
-      } else {
-        setBridgeStatus('disconnected');
-      }
-    } catch (error) {
-      setBridgeStatus('disconnected');
-      debugLog.error('Bridge unreachable', String(error));
-    }
-  };
-
-  const testMinimServer = async () => {
-    debugLog.info('Testing MinimServer connection...');
-    try {
-      const url = 'http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control';
-      const result = await browseContentDirectory(url, '0', 'BrowseDirectChildren', 0, 10);
-      debugLog.response('MinimServer responded', `Found ${result.items?.length || 0} items`);
-    } catch (error) {
-      debugLog.error('MinimServer test failed', String(error));
-    }
-  };
-
-  const testVarese = async () => {
-    debugLog.info('Testing Varese connection...');
-    
-    // Step 1: Raw HTTP test (no SOAP, no queue)
-    try {
-      debugLog.info('Step 1: Raw HTTP GET to Varese...');
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      const rawResponse = await fetch('http://192.168.0.42:16500/', {
-        method: 'GET',
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      
-      debugLog.response('Raw HTTP OK', `Status: ${rawResponse.status}`);
-    } catch (rawError) {
-      debugLog.error('Raw HTTP failed', String(rawError));
-      debugLog.info('Varese not reachable at HTTP level - check WiFi/network');
+  const checkServerStatus = async () => {
+    if (!activeServer) {
+      setServerStatus('disconnected');
       return;
     }
     
-    // Step 2: Discover services from device description
+    setServerStatus('checking');
     try {
-      debugLog.info('Step 2: Fetching device description...');
-      const descUrls = [
-        'http://192.168.0.42:16500/dcs.xml',
-        'http://192.168.0.42:16500/description.xml',
-        'http://192.168.0.42:16500/DeviceDescription.xml',
-      ];
-      
-      for (const descUrl of descUrls) {
-        try {
-          debugLog.info(`Trying ${descUrl}...`);
-          const services = await fetchDeviceServices(descUrl);
-          if (services.transportControlURL || services.avTransportControlURL) {
-            debugLog.response('Found services!', JSON.stringify(services, null, 2));
-            return;
-          }
-        } catch (e) {
-          debugLog.info(`${descUrl} failed`);
-        }
+      const status = await lmsClient.getServerStatus();
+      if (status) {
+        setServerStatus('connected');
+        debugLog.info('LMS server connected', `${status.info} - ${status.playerCount} players`);
+      } else {
+        setServerStatus('disconnected');
       }
-      
-      // Try getting raw XML from root
-      debugLog.info('Fetching root for links...');
-      const rootResponse = await fetch('http://192.168.0.42:16500/');
-      const rootText = await rootResponse.text();
-      debugLog.response('Root response', rootText.substring(0, 500));
-      
     } catch (error) {
-      debugLog.error('Device discovery failed', String(error));
+      setServerStatus('disconnected');
+      debugLog.error('LMS connection failed', String(error));
+    }
+  };
+
+  const testLmsConnection = async () => {
+    if (!activeServer) {
+      debugLog.error('No server configured', 'Please add an LMS server in Settings');
+      return;
     }
     
-    // Step 3: SOAP test via queue
+    debugLog.info('Testing LMS connection...', `${activeServer.host}:${activeServer.port}`);
+    
     try {
-      debugLog.info('Step 3: SOAP GetTransportInfo...');
-      const url = 'http://192.168.0.42:16500/Control/LibRygelRenderer/RygelAVTransport';
-      const result = await getTransportInfo(url, 0);
-      debugLog.response('Varese responded', `State: ${result.currentTransportState}`);
+      const status = await lmsClient.getServerStatus();
+      debugLog.response('LMS Server Status', JSON.stringify(status, null, 2));
     } catch (error) {
-      debugLog.error('Varese SOAP test failed', String(error));
+      debugLog.error('LMS test failed', String(error));
+    }
+  };
+
+  const testGetPlayers = async () => {
+    debugLog.info('Fetching LMS players...');
+    
+    try {
+      const fetchedPlayers = await lmsClient.getPlayers();
+      debugLog.response('Found players', `${fetchedPlayers.length} players:\n${fetchedPlayers.map(p => `- ${p.name} (${p.model})`).join('\n')}`);
+    } catch (error) {
+      debugLog.error('Get players failed', String(error));
+    }
+  };
+
+  const testGetArtists = async () => {
+    debugLog.info('Fetching artists from LMS...');
+    
+    try {
+      const artists = await lmsClient.getArtists(0, 20);
+      debugLog.response('Found artists', `${artists.length} artists:\n${artists.slice(0, 10).map(a => `- ${a.name}`).join('\n')}`);
+    } catch (error) {
+      debugLog.error('Get artists failed', String(error));
+    }
+  };
+
+  const testGetAlbums = async () => {
+    debugLog.info('Fetching albums from LMS...');
+    
+    try {
+      const albums = await lmsClient.getAlbums(undefined, 0, 20);
+      debugLog.response('Found albums', `${albums.length} albums:\n${albums.slice(0, 10).map(a => `- ${a.title} by ${a.artist}`).join('\n')}`);
+    } catch (error) {
+      debugLog.error('Get albums failed', String(error));
+    }
+  };
+
+  const testPlayerStatus = async () => {
+    if (!activePlayer) {
+      debugLog.error('No player selected', 'Please select a player in Settings');
+      return;
+    }
+    
+    debugLog.info('Getting player status...', activePlayer.name);
+    
+    try {
+      const status = await lmsClient.getPlayerStatus(activePlayer.id);
+      debugLog.response('Player status', JSON.stringify({
+        mode: status.mode,
+        volume: status.volume,
+        currentTrack: status.currentTrack?.title,
+        playlistLength: status.playlist.length,
+      }, null, 2));
+    } catch (error) {
+      debugLog.error('Get player status failed', String(error));
     }
   };
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await checkBridgeStatus();
+    await checkServerStatus();
     setIsRefreshing(false);
   }, []);
 
@@ -157,7 +148,7 @@ export default function DebugScreen() {
     }
   };
 
-  const getLogIcon = (type: LogEntry['type']) => {
+  const getLogIcon = (type: LogEntry['type']): React.ComponentProps<typeof Feather>['name'] => {
     switch (type) {
       case 'error': return 'alert-circle';
       case 'request': return 'arrow-up-circle';
@@ -185,28 +176,50 @@ export default function DebugScreen() {
       </View>
 
       <View style={styles.statusCard}>
-        <Text style={styles.statusLabel}>SSDP Bridge Status</Text>
+        <Text style={styles.statusLabel}>LMS Server Status</Text>
         <View style={styles.statusRow}>
           <View style={[
             styles.statusDot,
-            bridgeStatus === 'connected' && styles.statusConnected,
-            bridgeStatus === 'disconnected' && styles.statusDisconnected,
-            bridgeStatus === 'checking' && styles.statusChecking,
+            serverStatus === 'connected' && styles.statusConnected,
+            serverStatus === 'disconnected' && styles.statusDisconnected,
+            serverStatus === 'checking' && styles.statusChecking,
           ]} />
           <Text style={styles.statusText}>
-            {bridgeStatus === 'checking' ? 'Checking...' : 
-             bridgeStatus === 'connected' ? 'Connected' : 'Disconnected'}
+            {serverStatus === 'checking' ? 'Checking...' : 
+             serverStatus === 'connected' ? 'Connected' : 'Disconnected'}
           </Text>
         </View>
-        <Text style={styles.bridgeUrl} numberOfLines={1}>{bridgeUrl}</Text>
+        <Text style={styles.serverInfo} numberOfLines={1}>
+          {activeServer ? `${activeServer.host}:${activeServer.port}` : 'No server configured'}
+        </Text>
+        {activePlayer ? (
+          <Text style={styles.playerInfo} numberOfLines={1}>
+            Player: {activePlayer.name}
+          </Text>
+        ) : null}
         
-        <View style={styles.testButtons}>
-          <Pressable style={styles.testButton} onPress={testMinimServer}>
-            <Text style={styles.testButtonText}>Test MinimServer</Text>
-          </Pressable>
-          <Pressable style={styles.testButton} onPress={testVarese}>
-            <Text style={styles.testButtonText}>Test Varese</Text>
-          </Pressable>
+        <View style={styles.testButtonsGrid}>
+          <View style={styles.testButtonsRow}>
+            <Pressable style={styles.testButton} onPress={testLmsConnection}>
+              <Text style={styles.testButtonText}>Test Server</Text>
+            </Pressable>
+            <Pressable style={styles.testButton} onPress={testGetPlayers}>
+              <Text style={styles.testButtonText}>Get Players</Text>
+            </Pressable>
+          </View>
+          <View style={styles.testButtonsRow}>
+            <Pressable style={styles.testButton} onPress={testGetArtists}>
+              <Text style={styles.testButtonText}>Get Artists</Text>
+            </Pressable>
+            <Pressable style={styles.testButton} onPress={testGetAlbums}>
+              <Text style={styles.testButtonText}>Get Albums</Text>
+            </Pressable>
+          </View>
+          <View style={styles.testButtonsRow}>
+            <Pressable style={styles.testButton} onPress={testPlayerStatus}>
+              <Text style={styles.testButtonText}>Player Status</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -227,21 +240,15 @@ export default function DebugScreen() {
               onPress={() => setExpandedLog(expandedLog === index ? null : index)}
             >
               <View style={styles.logHeader}>
-                <Feather 
-                  name={getLogIcon(log.type) as any} 
-                  size={16} 
-                  color={getLogColor(log.type)} 
-                />
-                <Text style={[styles.logTime, { color: getLogColor(log.type) }]}>
-                  {formatTime(log.timestamp)}
-                </Text>
-                <Text style={styles.logMessage} numberOfLines={expandedLog === index ? undefined : 1}>
+                <Feather name={getLogIcon(log.type)} size={16} color={getLogColor(log.type)} />
+                <Text style={styles.logTime}>{formatTime(log.timestamp)}</Text>
+                <Text style={[styles.logMessage, { color: getLogColor(log.type) }]} numberOfLines={expandedLog === index ? undefined : 1}>
                   {log.message}
                 </Text>
               </View>
-              {expandedLog === index && log.details && (
+              {log.details && expandedLog === index ? (
                 <Text style={styles.logDetails}>{log.details}</Text>
-              )}
+              ) : null}
             </Pressable>
           ))
         )}
@@ -261,6 +268,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.border,
   },
   title: {
     ...Typography.title,
@@ -270,16 +279,15 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
   },
   statusCard: {
-    backgroundColor: Colors.light.backgroundDefault,
-    marginHorizontal: Spacing.lg,
-    borderRadius: 12,
+    margin: Spacing.lg,
     padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 12,
   },
   statusLabel: {
     ...Typography.caption,
     color: Colors.light.textSecondary,
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
   statusRow: {
     flexDirection: 'row',
@@ -291,6 +299,7 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     marginRight: Spacing.sm,
+    backgroundColor: Colors.light.textTertiary,
   },
   statusConnected: {
     backgroundColor: '#43A047',
@@ -305,64 +314,71 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.light.text,
   },
-  bridgeUrl: {
+  serverInfo: {
     ...Typography.caption,
     color: Colors.light.textSecondary,
-    marginBottom: Spacing.md,
+    marginTop: Spacing.xs,
   },
-  testButtons: {
+  playerInfo: {
+    ...Typography.caption,
+    color: Colors.light.accent,
+    marginTop: Spacing.xs,
+  },
+  testButtonsGrid: {
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  testButtonsRow: {
     flexDirection: 'row',
     gap: Spacing.sm,
   },
   testButton: {
     flex: 1,
-    backgroundColor: Colors.light.accent,
     paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.light.accent,
     borderRadius: 8,
     alignItems: 'center',
   },
   testButtonText: {
     ...Typography.caption,
-    color: '#fff',
+    color: Colors.light.buttonText,
     fontWeight: '600',
   },
   logList: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
   },
-  emptyText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    textAlign: 'center',
-    marginTop: Spacing.xl,
-  },
   logEntry: {
-    backgroundColor: Colors.light.backgroundDefault,
-    borderRadius: 8,
-    padding: Spacing.sm,
-    marginBottom: Spacing.xs,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.border,
   },
   logHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: Spacing.sm,
   },
   logTime: {
-    ...Typography.caption,
-    fontFamily: 'monospace',
-    minWidth: 70,
+    ...Typography.label,
+    color: Colors.light.textTertiary,
+    minWidth: 60,
   },
   logMessage: {
     ...Typography.caption,
-    color: Colors.light.text,
     flex: 1,
   },
   logDetails: {
-    ...Typography.caption,
+    ...Typography.label,
     color: Colors.light.textSecondary,
+    marginTop: Spacing.sm,
+    marginLeft: 24 + Spacing.sm + 60,
     fontFamily: 'monospace',
-    marginTop: Spacing.xs,
-    paddingLeft: Spacing.lg,
-    fontSize: 11,
+  },
+  emptyText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    marginTop: Spacing["2xl"],
   },
 });

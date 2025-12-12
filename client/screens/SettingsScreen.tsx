@@ -24,9 +24,8 @@ import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { useTheme } from "@/hooks/useTheme";
-import { useSsdpDiscovery } from "@/hooks/useSsdpDiscovery";
 import { usePlayback } from "@/hooks/usePlayback";
-import * as upnpClient from "@/lib/upnpClient";
+import { lmsClient } from "@/lib/lmsClient";
 import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SettingsStackParamList>;
@@ -84,16 +83,15 @@ function SettingRow({
 export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, artists, albums, addServer } = useMusic();
+  const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, artists, albums, addServer, activeServer, removeServer } = useMusic();
   const { theme } = useTheme();
-  const { devices, isDiscovering, error: discoveryError, timeRemaining, startDiscovery, getMediaServers, getMediaRenderers, getContentDirectoryUrl, getAVTransportUrl } = useSsdpDiscovery();
-  const { runOpenHomeDiagnostic, bridgeUrl, bridgeConnected, discoveredRenderers, setBridgeUrl, refreshBridgeDevices } = usePlayback();
-  const [isDiagnosing, setIsDiagnosing] = useState(false);
-  const [isDiscoveringDevice, setIsDiscoveringDevice] = useState(false);
-  const [discoveryResult, setDiscoveryResult] = useState<upnpClient.DeviceDiscoveryResult | null>(null);
-  const [isRefreshingBridge, setIsRefreshingBridge] = useState(false);
-  const [showBridgeUrlInput, setShowBridgeUrlInput] = useState(false);
-  const [tempBridgeUrl, setTempBridgeUrl] = useState(bridgeUrl);
+  const { players, activePlayer, setActivePlayer, refreshPlayers } = usePlayback();
+  
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [lmsHost, setLmsHost] = useState("");
+  const [lmsPort, setLmsPort] = useState("9000");
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isRefreshingPlayers, setIsRefreshingPlayers] = useState(false);
 
   const [gapless, setGapless] = useState(true);
   const [crossfade, setCrossfade] = useState(false);
@@ -103,6 +101,9 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     loadSettings();
+    if (activeServer) {
+      refreshPlayers();
+    }
   }, []);
 
   useEffect(() => {
@@ -139,28 +140,54 @@ export default function SettingsScreen() {
     }
   };
 
-  const mediaServers = getMediaServers();
-  const mediaRenderers = getMediaRenderers();
-
-  const handleAddDiscoveredServer = (device: typeof devices[0]) => {
-    const contentDirectoryUrl = getContentDirectoryUrl(device);
-    console.log('Adding server with ContentDirectory URL:', contentDirectoryUrl);
-    addServer({
-      name: device.name,
-      host: device.host,
-      port: device.port,
-      type: 'upnp',
-      contentDirectoryUrl: contentDirectoryUrl || undefined,
-    });
-    Alert.alert('Server Added', `${device.name} has been added.\n\nContentDirectory URL:\n${contentDirectoryUrl || 'Not found'}`);
+  const handleConnectLms = async () => {
+    if (!lmsHost.trim()) {
+      setConnectionError("Please enter a server address");
+      return;
+    }
+    
+    setIsConnecting(true);
+    setConnectionError(null);
+    
+    try {
+      const port = parseInt(lmsPort) || 9000;
+      const server = await lmsClient.discoverServer(lmsHost.trim(), port);
+      
+      if (server) {
+        addServer({
+          name: server.name,
+          host: server.host,
+          port: server.port,
+          type: 'lms',
+        });
+        lmsClient.setServer(server.host, server.port);
+        await refreshPlayers();
+        setLmsHost("");
+        Alert.alert('Connected', `Successfully connected to ${server.name}`);
+      } else {
+        setConnectionError("Could not connect to LMS server. Make sure it is running.");
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : "Connection failed");
+    } finally {
+      setIsConnecting(false);
+    }
   };
 
-  const handleAddDiscoveredRenderer = (device: typeof devices[0]) => {
-    const avTransportUrl = getAVTransportUrl(device);
-    console.log('Adding renderer with AVTransport URL:', avTransportUrl);
+  const handleRefreshPlayers = async () => {
+    setIsRefreshingPlayers(true);
+    await refreshPlayers();
+    setIsRefreshingPlayers(false);
+  };
+
+  const handleRemoveServer = (serverId: string) => {
     Alert.alert(
-      'Renderer Found',
-      `${device.name}\n\nAVTransport URL:\n${avTransportUrl || 'Not found'}\n\nRenderer will be used for playback.`
+      "Remove Server",
+      "Are you sure you want to remove this server?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Remove", style: "destructive", onPress: () => removeServer(serverId) },
+      ]
     );
   };
 
@@ -174,153 +201,152 @@ export default function SettingsScreen() {
         ]}
       >
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Network Discovery</ThemedText>
+          <ThemedText style={styles.sectionTitle}>LMS Connection</ThemedText>
           <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={[styles.hostInput, { color: theme.text, borderColor: theme.border }]}
+                placeholder="LMS Server IP (e.g., 192.168.0.100)"
+                placeholderTextColor={theme.textTertiary}
+                value={lmsHost}
+                onChangeText={setLmsHost}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="default"
+              />
+              <TextInput
+                style={[styles.portInput, { color: theme.text, borderColor: theme.border }]}
+                placeholder="Port"
+                placeholderTextColor={theme.textTertiary}
+                value={lmsPort}
+                onChangeText={setLmsPort}
+                keyboardType="number-pad"
+              />
+            </View>
+            
             <Pressable
               style={({ pressed }) => [
-                styles.discoveryButton,
+                styles.connectButton,
                 { 
                   backgroundColor: theme.accent,
-                  opacity: pressed || isDiscovering ? 0.7 : 1,
+                  opacity: pressed || isConnecting ? 0.7 : 1,
                 },
               ]}
-              onPress={startDiscovery}
-              disabled={isDiscovering}
+              onPress={handleConnectLms}
+              disabled={isConnecting}
             >
-              {isDiscovering ? (
+              {isConnecting ? (
                 <ActivityIndicator size="small" color={theme.buttonText} />
               ) : (
                 <Feather name="wifi" size={18} color={theme.buttonText} />
               )}
-              <ThemedText style={[styles.discoveryButtonText, { color: theme.buttonText }]}>
-                {isDiscovering ? `Scanning... ${timeRemaining}s` : "Discover Devices"}
+              <ThemedText style={[styles.connectButtonText, { color: theme.buttonText }]}>
+                {isConnecting ? "Connecting..." : "Connect to LMS"}
               </ThemedText>
             </Pressable>
             
-            {Platform.OS === 'web' ? (
-              <ThemedText style={[styles.discoveryHint, { color: theme.warning }]}>
-                Network discovery requires running on a mobile device via Expo Go or a development build.
+            {connectionError ? (
+              <ThemedText style={[styles.errorText, { color: theme.error }]}>
+                {connectionError}
               </ThemedText>
             ) : null}
             
-            {discoveryError ? (
-              <ThemedText style={[styles.discoveryHint, { color: theme.error }]}>
-                {discoveryError}
-              </ThemedText>
-            ) : null}
-            
-            {mediaServers.length > 0 ? (
-              <View style={styles.discoveredSection}>
-                <ThemedText style={[styles.discoveredLabel, { color: theme.textSecondary }]}>
-                  Media Servers ({mediaServers.length})
-                </ThemedText>
-                {mediaServers.map((server) => (
-                  <Pressable
-                    key={server.id}
-                    style={({ pressed }) => [
-                      styles.discoveredDevice,
-                      { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
-                    ]}
-                    onPress={() => handleAddDiscoveredServer(server)}
-                  >
-                    <View style={[styles.deviceIcon, { backgroundColor: theme.accent + '20' }]}>
-                      <Feather name="server" size={16} color={theme.accent} />
-                    </View>
-                    <View style={styles.deviceInfo}>
-                      <ThemedText style={[styles.deviceName, { color: theme.text }]}>
-                        {server.name}
-                      </ThemedText>
-                      <ThemedText style={[styles.deviceAddress, { color: theme.textSecondary }]}>
-                        {server.host}:{server.port}
-                      </ThemedText>
-                    </View>
-                    <Feather name="plus-circle" size={20} color={theme.accent} />
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-            
-            {mediaRenderers.length > 0 ? (
-              <View style={styles.discoveredSection}>
-                <ThemedText style={[styles.discoveredLabel, { color: theme.textSecondary }]}>
-                  Audio Renderers ({mediaRenderers.length})
-                </ThemedText>
-                {mediaRenderers.map((renderer) => (
-                  <Pressable
-                    key={renderer.id}
-                    style={({ pressed }) => [
-                      styles.discoveredDevice,
-                      { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
-                    ]}
-                    onPress={() => handleAddDiscoveredRenderer(renderer)}
-                  >
-                    <View style={[styles.deviceIcon, { backgroundColor: theme.success + '20' }]}>
-                      <Feather name="speaker" size={16} color={theme.success} />
-                    </View>
-                    <View style={styles.deviceInfo}>
-                      <ThemedText style={[styles.deviceName, { color: theme.text }]}>
-                        {renderer.name}
-                      </ThemedText>
-                      <ThemedText style={[styles.deviceAddress, { color: theme.textSecondary }]}>
-                        {renderer.host}:{renderer.port}
-                      </ThemedText>
-                    </View>
-                    <Feather name="check-circle" size={20} color={theme.success} />
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-            
-            {devices.length === 0 && !isDiscovering ? (
-              <ThemedText style={[styles.discoveryHint, { color: theme.textTertiary }]}>
-                Tap "Discover Devices" to find music servers and audio devices on your network.
-              </ThemedText>
-            ) : null}
-            
-            <Pressable
-              style={({ pressed }) => [
-                styles.manualAddButton,
-                { 
-                  borderColor: theme.border,
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
-              onPress={() => {
-                Alert.prompt(
-                  "Add Server Manually",
-                  "Enter the server IP address (e.g., 192.168.0.19)",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Add",
-                      onPress: (ip: string | undefined) => {
-                        if (ip && ip.trim()) {
-                          const port = 9790;
-                          addServer({
-                            name: `MinimServer (${ip.trim()})`,
-                            host: ip.trim(),
-                            port,
-                            type: 'upnp',
-                            contentDirectoryUrl: `http://${ip.trim()}:${port}/dev/srv0/ctl/ContentDirectory`,
-                          });
-                          Alert.alert('Server Added', `Server at ${ip.trim()}:${port} has been added.`);
-                        }
-                      },
-                    },
-                  ],
-                  "plain-text",
-                  "",
-                  "default"
-                );
-              }}
-            >
-              <Feather name="plus" size={18} color={theme.textSecondary} />
-              <ThemedText style={[styles.manualAddText, { color: theme.textSecondary }]}>
-                Add Server Manually
-              </ThemedText>
-            </Pressable>
+            <ThemedText style={[styles.hintText, { color: theme.textTertiary }]}>
+              Enter the IP address of your Logitech Media Server. Default port is 9000.
+            </ThemedText>
           </View>
         </View>
+
+        {servers.length > 0 ? (
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Connected Servers</ThemedText>
+            <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
+              {servers.map((server) => (
+                <Pressable
+                  key={server.id}
+                  style={({ pressed }) => [
+                    styles.serverRow,
+                    { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
+                    activeServer?.id === server.id ? styles.serverRowActive : null,
+                  ]}
+                  onLongPress={() => handleRemoveServer(server.id)}
+                >
+                  <View style={[styles.serverIcon, { backgroundColor: theme.accent + '20' }]}>
+                    <Feather name="server" size={16} color={theme.accent} />
+                  </View>
+                  <View style={styles.serverInfo}>
+                    <ThemedText style={[styles.serverName, { color: theme.text }]}>
+                      {server.name}
+                    </ThemedText>
+                    <ThemedText style={[styles.serverAddress, { color: theme.textSecondary }]}>
+                      {server.host}:{server.port}
+                    </ThemedText>
+                  </View>
+                  {activeServer?.id === server.id ? (
+                    <View style={styles.activeBadge}>
+                      <Feather name="check" size={14} color={theme.success} />
+                    </View>
+                  ) : null}
+                </Pressable>
+              ))}
+              <ThemedText style={[styles.hintText, { color: theme.textTertiary }]}>
+                Long press a server to remove it.
+              </ThemedText>
+            </View>
+          </View>
+        ) : null}
+
+        {players.length > 0 ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <ThemedText style={styles.sectionTitle}>Players</ThemedText>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.refreshPlayersButton,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+                onPress={handleRefreshPlayers}
+                disabled={isRefreshingPlayers}
+              >
+                {isRefreshingPlayers ? (
+                  <ActivityIndicator size="small" color={theme.accent} />
+                ) : (
+                  <Feather name="refresh-cw" size={16} color={theme.accent} />
+                )}
+              </Pressable>
+            </View>
+            <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
+              {players.map((player) => (
+                <Pressable
+                  key={player.id}
+                  style={({ pressed }) => [
+                    styles.playerRow,
+                    { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
+                    activePlayer?.id === player.id ? styles.playerRowActive : null,
+                  ]}
+                  onPress={() => setActivePlayer(player)}
+                >
+                  <View style={[styles.playerIcon, { backgroundColor: player.power ? theme.success + '20' : theme.textTertiary + '20' }]}>
+                    <Feather name="speaker" size={16} color={player.power ? theme.success : theme.textTertiary} />
+                  </View>
+                  <View style={styles.playerInfo}>
+                    <ThemedText style={[styles.playerName, { color: theme.text }]}>
+                      {player.name}
+                    </ThemedText>
+                    <ThemedText style={[styles.playerModel, { color: theme.textSecondary }]}>
+                      {player.model} {player.power ? '• On' : '• Off'}
+                    </ThemedText>
+                  </View>
+                  {activePlayer?.id === player.id ? (
+                    <Feather name="check-circle" size={20} color={theme.accent} />
+                  ) : (
+                    <View style={styles.radioEmpty} />
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Sources</ThemedText>
@@ -397,7 +423,7 @@ export default function SettingsScreen() {
             </Pressable>
             {servers.length === 0 ? (
               <ThemedText style={[styles.refreshHint, { color: theme.textTertiary }]}>
-                Add a server to load music
+                Connect to an LMS server to load music
               </ThemedText>
             ) : null}
           </View>
@@ -571,167 +597,6 @@ export default function SettingsScreen() {
             />
           </View>
         </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>SSDP Bridge</ThemedText>
-          <View style={styles.sectionContent}>
-            <SettingRow
-              icon="server"
-              iconColor={bridgeConnected ? Colors.light.success : Colors.light.textSecondary}
-              title="Bridge Status"
-              subtitle={bridgeConnected ? `Connected - ${discoveredRenderers.length} renderer(s) found` : "Not connected (run bridge on your Mac)"}
-              rightElement={
-                bridgeConnected ? (
-                  <View style={styles.connectedBadge}>
-                    <Feather name="check" size={12} color={Colors.light.success} />
-                  </View>
-                ) : null
-              }
-              showChevron={false}
-            />
-            <SettingRow
-              icon="refresh-cw"
-              iconColor="#2196F3"
-              title="Refresh Bridge Devices"
-              subtitle="Fetch discovered devices from bridge"
-              onPress={async () => {
-                setIsRefreshingBridge(true);
-                try {
-                  await refreshBridgeDevices();
-                  if (bridgeConnected) {
-                    Alert.alert("Bridge Connected", `Found ${discoveredRenderers.length} renderer(s)`);
-                  } else {
-                    Alert.alert(
-                      "Bridge Not Available",
-                      "Make sure the SSDP Bridge is running on your Mac. Run: npx tsx server/ssdp-bridge.ts"
-                    );
-                  }
-                } catch (error) {
-                  Alert.alert("Error", String(error));
-                } finally {
-                  setIsRefreshingBridge(false);
-                }
-              }}
-              rightElement={isRefreshingBridge ? <ActivityIndicator size="small" /> : null}
-            />
-            <SettingRow
-              icon="edit-2"
-              iconColor={Colors.light.textSecondary}
-              title="Bridge URL"
-              subtitle={showBridgeUrlInput ? "Enter your Mac's IP address" : bridgeUrl}
-              onPress={() => {
-                setTempBridgeUrl(bridgeUrl);
-                setShowBridgeUrlInput(!showBridgeUrlInput);
-              }}
-            />
-            {showBridgeUrlInput ? (
-              <View style={styles.bridgeUrlInputContainer}>
-                <TextInput
-                  style={styles.bridgeUrlInput}
-                  value={tempBridgeUrl}
-                  onChangeText={setTempBridgeUrl}
-                  placeholder="http://192.168.0.42:3847"
-                  placeholderTextColor={Colors.light.textTertiary}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                />
-                <Pressable
-                  style={styles.bridgeUrlSaveButton}
-                  onPress={async () => {
-                    await setBridgeUrl(tempBridgeUrl);
-                    setShowBridgeUrlInput(false);
-                    Alert.alert("Saved", "Bridge URL updated. Tap 'Refresh Bridge Devices' to connect.");
-                  }}
-                >
-                  <ThemedText style={styles.bridgeUrlSaveText}>Save</ThemedText>
-                </Pressable>
-              </View>
-            ) : null}
-            {discoveredRenderers.length > 0 ? (
-              discoveredRenderers.map((renderer, index) => (
-                <SettingRow
-                  key={index}
-                  icon="speaker"
-                  iconColor="#FF5722"
-                  title={renderer.name}
-                  subtitle={`${renderer.manufacturer || ''} ${renderer.model || ''}\n${renderer.avTransportUrl ? 'AVTransport available' : 'No AVTransport'}`}
-                  showChevron={false}
-                />
-              ))
-            ) : null}
-          </View>
-          <ThemedText style={styles.refreshHint}>
-            The SSDP Bridge runs on your Mac and discovers UPnP devices on your network. Change the URL to your Mac's IP if connecting from your iPhone.
-          </ThemedText>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Developer</ThemedText>
-          <View style={styles.sectionContent}>
-            <SettingRow
-              icon="search"
-              iconColor="#2196F3"
-              title="Discover Varese Services (JRiver-style)"
-              subtitle="Find device description and UPnP service URLs"
-              onPress={async () => {
-                setIsDiscoveringDevice(true);
-                setDiscoveryResult(null);
-                try {
-                  const result = await upnpClient.discoverDeviceServices('http://192.168.0.42:16500');
-                  setDiscoveryResult(result);
-                  
-                  if (result.success) {
-                    const serviceList = result.services.map(s => `- ${s.name}`).join('\n');
-                    Alert.alert(
-                      "Device Found",
-                      `${result.friendlyName || 'Unknown'}\n${result.manufacturer || ''} ${result.modelName || ''}\n\nServices:\n${serviceList}\n\nAVTransport: ${result.avTransportUrl ? 'Found' : 'Not found'}\n\nTest: ${result.testResult?.success ? 'SUCCESS' : result.testResult?.error || 'Not tested'}`
-                    );
-                  } else {
-                    Alert.alert(
-                      "Discovery Failed",
-                      result.error || "Could not find device description.\n\nThis is expected when running from Replit. Try running the app on your iPhone via Expo Go while on the same WiFi network as your Varese."
-                    );
-                  }
-                } catch (error) {
-                  Alert.alert("Error", String(error));
-                } finally {
-                  setIsDiscoveringDevice(false);
-                }
-              }}
-              rightElement={isDiscoveringDevice ? <ActivityIndicator size="small" /> : null}
-            />
-            <SettingRow
-              icon="activity"
-              iconColor="#9C27B0"
-              title="Run OpenHome Diagnostic"
-              subtitle="Probe Varese for available OpenHome services"
-              onPress={async () => {
-                setIsDiagnosing(true);
-                try {
-                  await runOpenHomeDiagnostic();
-                  Alert.alert(
-                    "Diagnostic Complete",
-                    "Check the console logs for results. Look for SUCCESS entries to see which services work."
-                  );
-                } catch (error) {
-                  Alert.alert("Error", String(error));
-                } finally {
-                  setIsDiagnosing(false);
-                }
-              }}
-              rightElement={isDiagnosing ? <ActivityIndicator size="small" /> : null}
-            />
-          </View>
-          {discoveryResult ? (
-            <ThemedText style={styles.refreshHint}>
-              Last discovery: {discoveryResult.success ? `Found ${discoveryResult.friendlyName || 'device'} with ${discoveryResult.services.length} services` : discoveryResult.error}
-            </ThemedText>
-          ) : null}
-          <ThemedText style={styles.refreshHint}>
-            JRiver successfully controls the Varese via standard UPnP. Run "Discover Varese Services" from your iPhone (on the same WiFi) to find the correct AVTransport URL. The OpenHome diagnostic tests specific service actions.
-          </ThemedText>
-        </View>
       </ScrollView>
     </ThemedView>
   );
@@ -746,36 +611,167 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
   },
   section: {
     marginBottom: Spacing["2xl"],
   },
-  sectionTitle: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    paddingHorizontal: Spacing.lg,
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    ...Typography.headline,
+    color: Colors.light.textSecondary,
+    marginBottom: Spacing.md,
+    marginLeft: Spacing.xs,
   },
   sectionContent: {
     backgroundColor: Colors.light.backgroundDefault,
-    marginHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.md,
     overflow: "hidden",
+  },
+  inputRow: {
+    flexDirection: "row",
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    gap: Spacing.md,
+  },
+  hostInput: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    ...Typography.body,
+  },
+  portInput: {
+    width: 80,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    textAlign: "center",
+    ...Typography.body,
+  },
+  connectButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.sm,
+  },
+  connectButtonText: {
+    ...Typography.body,
+    fontWeight: "600",
+  },
+  errorText: {
+    ...Typography.caption,
+    textAlign: "center",
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  hintText: {
+    ...Typography.caption,
+    textAlign: "center",
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+  },
+  serverRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  serverRowActive: {
+    backgroundColor: Colors.light.accent + '10',
+  },
+  serverIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  serverInfo: {
+    flex: 1,
+  },
+  serverName: {
+    ...Typography.body,
+    fontWeight: "500",
+  },
+  serverAddress: {
+    ...Typography.caption,
+    marginTop: 2,
+  },
+  activeBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.light.success + '20',
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  refreshPlayersButton: {
+    padding: Spacing.sm,
+  },
+  playerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  playerRowActive: {
+    backgroundColor: Colors.light.accent + '10',
+  },
+  playerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  playerInfo: {
+    flex: 1,
+  },
+  playerName: {
+    ...Typography.body,
+    fontWeight: "500",
+  },
+  playerModel: {
+    ...Typography.caption,
+    marginTop: 2,
+  },
+  radioEmpty: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: Colors.light.border,
   },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.md,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.light.border,
   },
   iconContainer: {
     width: 32,
     height: 32,
-    borderRadius: 8,
+    borderRadius: BorderRadius.sm,
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.md,
@@ -801,63 +797,18 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: Colors.light.success + "30",
+    backgroundColor: Colors.light.success + "20",
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.sm,
   },
-  qualityOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.light.border,
-  },
-  qualityOptionActive: {
-    backgroundColor: Colors.light.backgroundSecondary,
-  },
-  qualityInfo: {
-    flex: 1,
-  },
-  qualityTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  qualityTitle: {
-    ...Typography.body,
-    color: Colors.light.text,
-  },
-  qualitySubtitle: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    marginTop: 2,
-  },
-  radioEmpty: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: Colors.light.textTertiary,
-  },
-  hiResBadge: {
-    backgroundColor: Colors.light.warning + "30",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.xs,
-  },
-  hiResBadgeText: {
-    ...Typography.label,
-    color: Colors.light.warning,
-  },
   libraryStats: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.lg,
-    gap: Spacing.xl,
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
   },
   libraryStat: {
+    flex: 1,
     alignItems: "center",
   },
   libraryStatNumber: {
@@ -866,21 +817,22 @@ const styles = StyleSheet.create({
   },
   libraryStatLabel: {
     ...Typography.caption,
-    marginTop: 2,
+    marginTop: Spacing.xs,
   },
   libraryStatDivider: {
     width: 1,
-    height: 40,
+    height: "100%",
+    marginHorizontal: Spacing.lg,
   },
   refreshButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.sm,
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.sm,
   },
   refreshButtonText: {
     ...Typography.body,
@@ -889,109 +841,45 @@ const styles = StyleSheet.create({
   refreshHint: {
     ...Typography.caption,
     textAlign: "center",
-    paddingBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  discoveryButton: {
+  qualityOption: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    marginHorizontal: Spacing.md,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
-  },
-  discoveryButtonText: {
-    ...Typography.body,
-    fontWeight: "600",
-  },
-  discoveryHint: {
-    ...Typography.caption,
-    textAlign: "center",
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  discoveredSection: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  discoveredLabel: {
-    ...Typography.caption,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  discoveredDevice: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.sm,
-  },
-  deviceIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: Spacing.md,
-  },
-  deviceInfo: {
-    flex: 1,
-  },
-  deviceName: {
-    ...Typography.body,
-    fontWeight: "500",
-  },
-  deviceAddress: {
-    ...Typography.caption,
-    marginTop: 2,
-  },
-  manualAddButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    marginHorizontal: Spacing.md,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderStyle: "dashed",
-  },
-  manualAddText: {
-    ...Typography.body,
-  },
-  bridgeUrlInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.light.border,
-    gap: Spacing.sm,
   },
-  bridgeUrlInput: {
+  qualityOptionActive: {
+    backgroundColor: Colors.light.accent + "08",
+  },
+  qualityInfo: {
     flex: 1,
+  },
+  qualityTitle: {
     ...Typography.body,
     color: Colors.light.text,
-    backgroundColor: Colors.light.backgroundSecondary,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.xs,
   },
-  bridgeUrlSaveButton: {
-    backgroundColor: Colors.light.link,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.xs,
+  qualityTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
-  bridgeUrlSaveText: {
-    ...Typography.body,
-    color: "#FFFFFF",
+  qualitySubtitle: {
+    ...Typography.caption,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  hiResBadge: {
+    backgroundColor: Colors.light.accent,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+    marginLeft: Spacing.sm,
+  },
+  hiResBadgeText: {
+    ...Typography.label,
+    color: Colors.light.buttonText,
     fontWeight: "600",
   },
 });
