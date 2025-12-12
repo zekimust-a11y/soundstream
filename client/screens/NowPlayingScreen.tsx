@@ -10,6 +10,11 @@ import {
   LayoutChangeEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from "react-native-reanimated";
+import { MainTabParamList } from "@/navigation/MainTabNavigator";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
@@ -100,14 +105,40 @@ function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
   );
 }
 
+type TabNavigationProp = BottomTabNavigationProp<MainTabParamList>;
+
 export default function NowPlayingScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<TabNavigationProp>();
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [showQueueModal, setShowQueueModal] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPosition, setSeekPosition] = useState(0);
   const sliderWidthRef = useRef(0);
   const sliderXRef = useRef(0);
+  
+  const translateY = useSharedValue(0);
+  
+  const minimizePlayer = useCallback(() => {
+    navigation.navigate("BrowseTab");
+  }, [navigation]);
+  
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      if (event.translationY > 0) {
+        translateY.value = event.translationY * 0.3;
+      }
+    })
+    .onEnd((event) => {
+      if (event.translationY > 100) {
+        runOnJS(minimizePlayer)();
+      }
+      translateY.value = withSpring(0, { damping: 20 });
+    });
+  
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
   
   const { isFavoriteTrack, toggleFavoriteTrack } = useMusic();
   const {
@@ -166,42 +197,43 @@ export default function NowPlayingScreen() {
 
   if (!currentTrack) {
     return (
-      <ThemedView style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top }]}>
-          <ThemedText style={styles.headerTitle}>Now Playing</ThemedText>
-        </View>
-        <View style={styles.emptyState}>
-          <Image
-            source={require("../assets/images/empty-queue.png")}
-            style={styles.emptyImage}
-            contentFit="contain"
-          />
-          <ThemedText style={styles.emptyTitle}>Nothing playing</ThemedText>
-          <ThemedText style={styles.emptySubtitle}>
-            Select a track to start listening
-          </ThemedText>
-        </View>
-      </ThemedView>
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={[styles.container, animatedStyle]}>
+          <ThemedView style={styles.container}>
+            <View style={[styles.header, { paddingTop: insets.top }]}>
+              <View style={styles.dragIndicator} />
+            </View>
+            <View style={styles.emptyState}>
+              <Image
+                source={require("../assets/images/empty-queue.png")}
+                style={styles.emptyImage}
+                contentFit="contain"
+              />
+              <ThemedText style={styles.emptyTitle}>Nothing playing</ThemedText>
+              <ThemedText style={styles.emptySubtitle}>
+                Select a track to start listening
+              </ThemedText>
+            </View>
+          </ThemedView>
+        </Animated.View>
+      </GestureDetector>
     );
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <ThemedText style={styles.headerTitle}>Now Playing</ThemedText>
-        <Pressable
-          style={({ pressed }) => [styles.menuButton, { opacity: pressed ? 0.6 : 1 }]}
-        >
-          <Feather name="more-horizontal" size={24} color={Colors.light.text} />
-        </Pressable>
-      </View>
+    <GestureDetector gesture={panGesture}>
+      <Animated.View style={[styles.container, animatedStyle]}>
+        <ThemedView style={styles.container}>
+          <View style={[styles.header, { paddingTop: insets.top }]}>
+            <View style={styles.dragIndicator} />
+          </View>
 
-      <ScrollView 
-        style={styles.content} 
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-        bounces={true}
-      >
+          <ScrollView 
+            style={styles.content} 
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={false}
+            bounces={true}
+          >
         <View style={styles.albumArtContainer}>
           <Image
             source={currentTrack.albumArt || require("../assets/images/placeholder-album.png")}
@@ -435,7 +467,9 @@ export default function NowPlayingScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </ThemedView>
+        </ThemedView>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -445,25 +479,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundRoot,
   },
   header: {
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xs,
-    minHeight: 44,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: "600",
-    color: Colors.light.text,
-    marginLeft: Spacing.md,
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
     justifyContent: "center",
-    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    minHeight: 32,
+  },
+  dragIndicator: {
+    width: 36,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: Colors.light.backgroundTertiary,
   },
   content: {
     flex: 1,
