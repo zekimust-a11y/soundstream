@@ -350,7 +350,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }
   }, [activeServer]);
 
-  const refreshLibrary = useCallback(() => {
+  const refreshLibrary = useCallback(async () => {
     if (!activeServer) {
       debugLog.info('No active server to refresh');
       return;
@@ -359,6 +359,24 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     debugLog.info('Invalidating library cache');
     queryClient.invalidateQueries({ queryKey: ['albums'] });
     queryClient.invalidateQueries({ queryKey: ['artists'] });
+    
+    // Also refresh playlist count from LMS
+    try {
+      lmsClient.setServer(activeServer.host, activeServer.port);
+      const lmsPlaylists = await lmsClient.getPlaylists();
+      // Convert to internal playlist format for count
+      const playlistData: Playlist[] = lmsPlaylists.map(p => ({
+        id: p.id,
+        name: p.name,
+        tracks: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }));
+      setPlaylists(playlistData);
+      await AsyncStorage.setItem(PLAYLISTS_KEY, JSON.stringify(playlistData));
+    } catch (e) {
+      debugLog.error('Failed to refresh playlists', e instanceof Error ? e.message : String(e));
+    }
   }, [activeServer, queryClient]);
 
   const clearAllData = useCallback(async () => {
