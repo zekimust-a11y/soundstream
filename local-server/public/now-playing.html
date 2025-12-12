@@ -410,24 +410,14 @@
       
       const thumbnailUrl = getArtworkUrl(track, 300);
       const albumArtUrl = getArtworkUrl(track);
+      const isTrackChange = trackId !== lastTrackId;
       
-      // Fetch artist images when track changes
-      if (trackId !== lastTrackId) {
-        lastTrackId = trackId;
-        await fetchArtistImages(track.artist);
-        startImageRotation();
-      }
-      
-      // Check if we need to create the persistent structure
+      // Check if we need to create the persistent structure FIRST
       const existingBar = document.querySelector('.bottom-bar');
       if (!existingBar) {
-        // Use album art as fallback if no artist images
-        const backgroundUrl = artistImages.length > 0 
-          ? artistImages[currentImageIndex % artistImages.length] 
-          : albumArtUrl;
-        
+        // Use album art as initial background
         content.innerHTML = `
-          <div id="bg-layer-0" class="background-layer active front" style="background-image: url('${backgroundUrl}')"></div>
+          <div id="bg-layer-0" class="background-layer active front" style="background-image: url('${albumArtUrl}')"></div>
           <div id="bg-layer-1" class="background-layer behind"></div>
           <div class="background-overlay"></div>
           <div class="bottom-bar">
@@ -462,6 +452,18 @@
         if (thumbnailEl && thumbnailEl.src !== thumbnailUrl) {
           thumbnailEl.src = thumbnailUrl || '';
         }
+      }
+      
+      // Handle track changes - fetch new artist images and update background immediately
+      if (isTrackChange) {
+        lastTrackId = trackId;
+        await fetchArtistImages(track.artist);
+        // Immediately show first artist image (or album art if none)
+        if (artistImages.length > 0) {
+          currentImageIndex = 0;
+          rotateBackgroundImage();
+        }
+        startImageRotation();
       }
       
       updateWaveformProgress(progress);
