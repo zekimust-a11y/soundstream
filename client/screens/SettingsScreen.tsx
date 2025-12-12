@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const SETTINGS_KEY = "@soundstream_settings";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
@@ -82,6 +83,7 @@ function SettingRow({
 
 export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
+  const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
   const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer, playlists } = useMusic();
   const { theme } = useTheme();
@@ -294,44 +296,50 @@ export default function SettingsScreen() {
           { paddingBottom: tabBarHeight + Spacing["5xl"] },
         ]}
       >
-        {servers.length > 0 ? (
-          <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>Connected Servers</ThemedText>
-            <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
-              {servers.map((server) => (
-                <Pressable
-                  key={server.id}
-                  style={({ pressed }) => [
-                    styles.serverRow,
-                    { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
-                    activeServer?.id === server.id ? styles.serverRowActive : null,
-                  ]}
-                  onLongPress={() => handleRemoveServer(server.id)}
-                >
-                  <View style={[styles.serverIcon, { backgroundColor: theme.accent + '20' }]}>
-                    <Feather name="server" size={16} color={theme.accent} />
-                  </View>
-                  <View style={styles.serverInfo}>
-                    <ThemedText style={[styles.serverName, { color: theme.text }]}>
-                      {server.name}
-                    </ThemedText>
-                    <ThemedText style={[styles.serverAddress, { color: theme.textSecondary }]}>
-                      {server.host}:{server.port}
-                    </ThemedText>
-                  </View>
-                  {activeServer?.id === server.id ? (
-                    <View style={styles.activeBadge}>
-                      <Feather name="check" size={14} color={theme.success} />
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Connected Servers</ThemedText>
+          <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
+            {servers.length > 0 ? (
+              <>
+                {servers.map((server) => (
+                  <Pressable
+                    key={server.id}
+                    style={({ pressed }) => [
+                      styles.serverRow,
+                      { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
+                      activeServer?.id === server.id ? styles.serverRowActive : null,
+                    ]}
+                    onLongPress={() => handleRemoveServer(server.id)}
+                  >
+                    <View style={[styles.serverIcon, { backgroundColor: theme.accent + '20' }]}>
+                      <Feather name="server" size={16} color={theme.accent} />
                     </View>
-                  ) : null}
-                </Pressable>
-              ))}
+                    <View style={styles.serverInfo}>
+                      <ThemedText style={[styles.serverName, { color: theme.text }]}>
+                        {server.name}
+                      </ThemedText>
+                      <ThemedText style={[styles.serverAddress, { color: theme.textSecondary }]}>
+                        {server.host}:{server.port}
+                      </ThemedText>
+                    </View>
+                    {activeServer?.id === server.id ? (
+                      <View style={styles.activeBadge}>
+                        <Feather name="check" size={14} color={theme.success} />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                ))}
+                <ThemedText style={[styles.hintText, { color: theme.textTertiary }]}>
+                  Long press a server to remove it.
+                </ThemedText>
+              </>
+            ) : (
               <ThemedText style={[styles.hintText, { color: theme.textTertiary }]}>
-                Long press a server to remove it.
+                No servers connected. Add one below.
               </ThemedText>
-            </View>
+            )}
           </View>
-        ) : null}
+        </View>
 
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>New LMS Connection</ThemedText>
@@ -770,7 +778,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
+    paddingTop: Spacing.xl,
   },
   section: {
     marginBottom: Spacing["2xl"],
