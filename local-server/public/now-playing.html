@@ -11,133 +11,158 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #000;
       color: white;
-      min-height: 100vh;
+      height: 100vh;
       overflow: hidden;
     }
     
     .background {
       position: fixed;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       background-size: cover;
       background-position: center;
-      filter: blur(80px) saturate(1.5);
-      opacity: 0.4;
-      transition: background-image 1s ease;
+      transition: background-image 0.8s ease;
     }
     
-    .container {
-      position: relative;
-      z-index: 1;
-      min-height: 100vh;
+    .background-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, 
+        transparent 0%, 
+        transparent 50%, 
+        rgba(0,0,0,0.3) 70%,
+        rgba(0,0,0,0.7) 100%
+      );
+    }
+    
+    .bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 24px 40px;
       display: flex;
       align-items: center;
-      justify-content: center;
-      padding: 60px;
+      gap: 28px;
+      z-index: 10;
     }
     
-    .content {
-      display: flex;
-      align-items: center;
-      gap: 80px;
-      max-width: 1400px;
-    }
-    
-    .artwork-container {
-      flex-shrink: 0;
-    }
-    
-    .artwork {
-      width: 500px;
-      height: 500px;
-      border-radius: 12px;
-      box-shadow: 0 40px 100px rgba(0,0,0,0.5);
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    .thumbnail {
+      width: 120px;
+      height: 120px;
+      border-radius: 4px;
       object-fit: cover;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     
     .info {
       flex: 1;
       min-width: 0;
+      color: #1a1a1a;
     }
     
     .title {
-      font-size: 4rem;
-      font-weight: 700;
-      line-height: 1.1;
-      margin-bottom: 16px;
-      text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      font-size: 2rem;
+      font-weight: 600;
+      line-height: 1.2;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     
     .artist {
-      font-size: 2.5rem;
+      font-size: 1.4rem;
       font-weight: 400;
-      color: rgba(255,255,255,0.8);
-      margin-bottom: 8px;
-    }
-    
-    .album {
-      font-size: 1.5rem;
-      font-weight: 300;
-      color: rgba(255,255,255,0.5);
-      margin-bottom: 40px;
-    }
-    
-    .progress-container {
-      margin-top: 40px;
-    }
-    
-    .progress-bar {
-      height: 6px;
-      background: rgba(255,255,255,0.2);
-      border-radius: 3px;
+      color: #666;
+      margin-bottom: 16px;
+      white-space: nowrap;
       overflow: hidden;
-      margin-bottom: 12px;
+      text-overflow: ellipsis;
     }
     
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-      border-radius: 3px;
-      transition: width 1s linear;
+    .progress-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
     }
     
     .time {
+      font-size: 1rem;
+      color: #888;
+      font-variant-numeric: tabular-nums;
+      min-width: 50px;
+    }
+    
+    .time.current {
+      text-align: right;
+    }
+    
+    .time.duration {
+      text-align: left;
+    }
+    
+    .waveform-container {
+      flex: 1;
+      height: 40px;
+      position: relative;
       display: flex;
-      justify-content: space-between;
-      font-size: 1.25rem;
-      color: rgba(255,255,255,0.5);
-    }
-    
-    .status {
-      display: inline-flex;
       align-items: center;
-      gap: 12px;
-      padding: 12px 24px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 100px;
-      font-size: 1.25rem;
-      margin-bottom: 24px;
     }
     
-    .status-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: #22c55e;
-      animation: pulse 2s infinite;
+    .waveform {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 2px;
     }
     
-    .status-dot.paused {
-      background: #f59e0b;
-      animation: none;
+    .waveform-bar {
+      flex: 1;
+      background: #ddd;
+      border-radius: 2px;
+      transition: background-color 0.3s;
     }
     
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+    .waveform-bar.played {
+      background: #333;
+    }
+    
+    .status-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    
+    .status-icon svg {
+      width: 32px;
+      height: 32px;
+      fill: #333;
+    }
+    
+    .not-playing-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     }
     
     .not-playing {
@@ -147,58 +172,38 @@
     .not-playing h2 {
       font-size: 3rem;
       font-weight: 300;
-      color: rgba(255,255,255,0.5);
+      color: rgba(255,255,255,0.7);
       margin-bottom: 16px;
     }
     
     .not-playing p {
       font-size: 1.25rem;
-      color: rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.4);
     }
     
     .error {
       background: rgba(239, 68, 68, 0.2);
       border: 1px solid rgba(239, 68, 68, 0.5);
-      padding: 20px 30px;
-      border-radius: 12px;
+      padding: 30px 50px;
+      border-radius: 16px;
       text-align: center;
     }
     
     .error h3 {
       color: #ef4444;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
+      font-size: 1.5rem;
     }
     
-    .quality {
-      display: flex;
-      gap: 16px;
-      margin-top: 24px;
-    }
-    
-    .quality-badge {
-      padding: 8px 16px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 8px;
-      font-size: 0.875rem;
+    .error p {
       color: rgba(255,255,255,0.7);
-    }
-    
-    @media (max-width: 1200px) {
-      .content { flex-direction: column; gap: 40px; text-align: center; }
-      .artwork { width: 400px; height: 400px; }
-      .title { font-size: 3rem; }
-      .artist { font-size: 2rem; }
-      .album { font-size: 1.25rem; }
-      .quality { justify-content: center; }
     }
   </style>
 </head>
 <body>
-  <div class="background" id="background"></div>
-  
-  <div class="container">
-    <div class="content" id="content">
-      <div class="not-playing" id="notPlaying">
+  <div id="content">
+    <div class="not-playing-container">
+      <div class="not-playing">
         <h2>Connecting to LMS...</h2>
         <p>Please wait</p>
       </div>
@@ -213,6 +218,18 @@
     
     const lmsUrl = `http://${host}:${port}/jsonrpc.js`;
     let currentArtwork = '';
+    let waveformBars = [];
+    
+    function generateWaveformHeights(count) {
+      const heights = [];
+      for (let i = 0; i < count; i++) {
+        const baseHeight = 20 + Math.random() * 60;
+        heights.push(baseHeight);
+      }
+      return heights;
+    }
+    
+    const waveformHeights = generateWaveformHeights(80);
     
     async function lmsRequest(playerId, command) {
       const response = await fetch(lmsUrl, {
@@ -254,32 +271,51 @@
       return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
     
-    function getArtworkUrl(track) {
+    function getArtworkUrl(track, size) {
+      const sizeParam = size ? `_${size}x${size}` : '';
       if (track.artwork_url) {
         if (track.artwork_url.startsWith('http')) return track.artwork_url;
         return `http://${host}:${port}${track.artwork_url}`;
       }
       if (track.coverid) {
-        return `http://${host}:${port}/music/${track.coverid}/cover.jpg`;
+        return `http://${host}:${port}/music/${track.coverid}/cover${sizeParam}.jpg`;
       }
       if (track.id) {
-        return `http://${host}:${port}/music/${track.id}/cover.jpg`;
+        return `http://${host}:${port}/music/${track.id}/cover${sizeParam}.jpg`;
       }
       return '';
     }
     
+    function createWaveformBars() {
+      return waveformHeights.map(h => 
+        `<div class="waveform-bar" style="height: ${h}%"></div>`
+      ).join('');
+    }
+    
+    function updateWaveformProgress(progress) {
+      const bars = document.querySelectorAll('.waveform-bar');
+      const playedCount = Math.floor((progress / 100) * bars.length);
+      bars.forEach((bar, i) => {
+        if (i < playedCount) {
+          bar.classList.add('played');
+        } else {
+          bar.classList.remove('played');
+        }
+      });
+    }
+    
     function updateDisplay(status) {
       const content = document.getElementById('content');
-      const background = document.getElementById('background');
       
       if (!status || !status.playlist_loop || status.playlist_loop.length === 0) {
         content.innerHTML = `
-          <div class="not-playing">
-            <h2>Nothing Playing</h2>
-            <p>Start playing music on your Squeezebox player</p>
+          <div class="not-playing-container">
+            <div class="not-playing">
+              <h2>Nothing Playing</h2>
+              <p>Start playing music on your Squeezebox player</p>
+            </div>
           </div>
         `;
-        background.style.backgroundImage = '';
         return;
       }
       
@@ -290,66 +326,49 @@
       const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
       
       const artworkUrl = getArtworkUrl(track);
+      const thumbnailUrl = getArtworkUrl(track, 300);
       
-      if (artworkUrl && artworkUrl !== currentArtwork) {
-        currentArtwork = artworkUrl;
-        background.style.backgroundImage = `url(${artworkUrl})`;
-      }
-      
-      let qualityHtml = '';
-      if (track.samplerate || track.bitrate || track.type) {
-        qualityHtml = '<div class="quality">';
-        if (track.type) {
-          qualityHtml += `<span class="quality-badge">${track.type.toUpperCase()}</span>`;
-        }
-        if (track.samplerate) {
-          const sr = track.samplerate >= 1000 ? `${(track.samplerate/1000).toFixed(1)}kHz` : `${track.samplerate}Hz`;
-          qualityHtml += `<span class="quality-badge">${sr}</span>`;
-        }
-        if (track.bitrate) {
-          qualityHtml += `<span class="quality-badge">${track.bitrate}kbps</span>`;
-        }
-        if (track.samplesize) {
-          qualityHtml += `<span class="quality-badge">${track.samplesize}-bit</span>`;
-        }
-        qualityHtml += '</div>';
-      }
+      const playIcon = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+      const pauseIcon = `<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
       
       content.innerHTML = `
-        <div class="artwork-container">
-          <img class="artwork" src="${artworkUrl || ''}" alt="Album Art" onerror="this.style.display='none'">
-        </div>
-        <div class="info">
-          <div class="status">
-            <span class="status-dot ${isPlaying ? '' : 'paused'}"></span>
-            ${isPlaying ? 'Now Playing' : 'Paused'}
+        <div class="background" style="background-image: url('${artworkUrl}')"></div>
+        <div class="background-overlay"></div>
+        <div class="bottom-bar">
+          <img class="thumbnail" src="${thumbnailUrl || ''}" alt="Album" onerror="this.style.visibility='hidden'">
+          <div class="info">
+            <h1 class="title">${track.title || 'Unknown Track'}</h1>
+            <p class="artist">${track.artist || 'Unknown Artist'}</p>
+            <div class="progress-row">
+              <span class="time current">${formatTime(currentTime)}</span>
+              <div class="waveform-container">
+                <div class="waveform">
+                  ${createWaveformBars()}
+                </div>
+              </div>
+              <span class="time duration">${formatTime(duration)}</span>
+            </div>
           </div>
-          <h1 class="title">${track.title || 'Unknown Track'}</h1>
-          <p class="artist">${track.artist || 'Unknown Artist'}</p>
-          <p class="album">${track.album || ''}</p>
-          ${qualityHtml}
-          <div class="progress-container">
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: ${progress}%"></div>
-            </div>
-            <div class="time">
-              <span>${formatTime(currentTime)}</span>
-              <span>${formatTime(duration)}</span>
-            </div>
+          <div class="status-icon">
+            ${isPlaying ? pauseIcon : playIcon}
           </div>
         </div>
       `;
+      
+      updateWaveformProgress(progress);
     }
     
     function showError(message) {
       const content = document.getElementById('content');
       content.innerHTML = `
-        <div class="error">
-          <h3>Connection Error</h3>
-          <p>${message}</p>
-          <p style="margin-top: 16px; font-size: 0.875rem;">
-            Make sure LMS is running at http://${host}:${port}
-          </p>
+        <div class="not-playing-container">
+          <div class="error">
+            <h3>Connection Error</h3>
+            <p>${message}</p>
+            <p style="margin-top: 16px; font-size: 0.875rem; opacity: 0.7;">
+              Make sure LMS is running at http://${host}:${port}
+            </p>
+          </div>
         </div>
       `;
     }
