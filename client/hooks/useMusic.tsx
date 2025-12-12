@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Track } from "@/hooks/usePlayback";
 import { lmsClient, LmsAlbum, LmsArtist, LmsTrack } from "@/lib/lmsClient";
 import { debugLog } from "@/lib/debugLog";
+import { useQueryClient } from "@tanstack/react-query";
 
 export interface Artist {
   id: string;
@@ -52,8 +53,6 @@ interface SearchFilters {
 interface MusicContextType {
   servers: Server[];
   activeServer: Server | null;
-  artists: Artist[];
-  albums: Album[];
   recentlyPlayed: Track[];
   qobuzConnected: boolean;
   isLoading: boolean;
@@ -67,7 +66,7 @@ interface MusicContextType {
   searchMusic: (query: string, filters?: SearchFilters) => Promise<{ artists: Artist[]; albums: Album[]; tracks: Track[] }>;
   getArtistAlbums: (artistId: string) => Promise<Album[]>;
   getAlbumTracks: (albumId: string) => Promise<Track[]>;
-  refreshLibrary: () => Promise<void>;
+  refreshLibrary: () => void;
   clearAllData: () => Promise<void>;
   addToRecentlyPlayed: (track: Track) => void;
   toggleFavoriteArtist: (artistId: string) => void;
@@ -91,7 +90,6 @@ const QOBUZ_KEY = "@soundstream_qobuz";
 const RECENT_KEY = "@soundstream_recent";
 const FAVORITES_KEY = "@soundstream_favorites";
 const PLAYLISTS_KEY = "@soundstream_playlists";
-const LIBRARY_KEY = "@soundstream_library";
 
 const DEFAULT_FAVORITES: Favorites = { artists: [], albums: [], tracks: [] };
 
@@ -128,18 +126,14 @@ const convertLmsTrackToTrack = (lmsTrack: LmsTrack, serverId: string): Track => 
 });
 
 export function MusicProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [servers, setServers] = useState<Server[]>([]);
   const [activeServer, setActiveServerState] = useState<Server | null>(null);
-  const [artists, setArtists] = useState<Artist[]>([]);
-  const [albums, setAlbums] = useState<Album[]>([]);
-  const [tracks, setTracks] = useState<Track[]>([]);
   const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
   const [qobuzConnected, setQobuzConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [favorites, setFavorites] = useState<Favorites>(DEFAULT_FAVORITES);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const isInitialLoad = useRef(true);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadData();
@@ -147,13 +141,12 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const loadData = async () => {
     try {
-      const [serversData, qobuzData, recentData, favoritesData, playlistsData, libraryData] = await Promise.all([
+      const [serversData, qobuzData, recentData, favoritesData, playlistsData] = await Promise.all([
         AsyncStorage.getItem(SERVERS_KEY),
         AsyncStorage.getItem(QOBUZ_KEY),
         AsyncStorage.getItem(RECENT_KEY),
         AsyncStorage.getItem(FAVORITES_KEY),
         AsyncStorage.getItem(PLAYLISTS_KEY),
-        AsyncStorage.getItem(LIBRARY_KEY),
       ]);
 
       if (serversData) {
@@ -185,29 +178,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       if (playlistsData) {
         setPlaylists(JSON.parse(playlistsData));
       }
-
-      if (libraryData) {
-        const library = JSON.parse(libraryData);
-        const uniqueArtists = (library.artists || []).filter((a: Artist, i: number, arr: Artist[]) => 
-          arr.findIndex((x: Artist) => x.id === a.id) === i
-        );
-        const uniqueAlbums = (library.albums || []).filter((a: Album, i: number, arr: Album[]) => 
-          arr.findIndex((x: Album) => x.id === a.id) === i
-        );
-        const uniqueTracks = (library.tracks || []).filter((t: Track, i: number, arr: Track[]) => 
-          arr.findIndex((x: Track) => x.id === t.id) === i
-        );
-        setArtists(uniqueArtists);
-        setAlbums(uniqueAlbums);
-        setTracks(uniqueTracks);
-      }
-      
-      setTimeout(() => {
-        isInitialLoad.current = false;
-      }, 1000);
     } catch (e) {
       console.error("Failed to load music data:", e);
-      isInitialLoad.current = false;
     }
   };
 
@@ -237,64 +209,6 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       console.error("Failed to save playlists:", e);
     }
   };
-
-  const saveLibrary = async (newArtists: Artist[], newAlbums: Album[], newTracks: Track[]) => {
-    try {
-      await AsyncStorage.setItem(LIBRARY_KEY, JSON.stringify({
-        artists: newArtists,
-        albums: newAlbums,
-        tracks: newTracks,
-      }));
-    } catch (e) {
-      console.error("Failed to save library:", e);
-    }
-  };
-
-  const fetchLmsLibrary = async (server: Server): Promise<{ artists: Artist[], albums: Album[], tracks: Track[] }> => {
-    debugLog.info('Fetching LMS library', `${server.host}:${server.port}`);
-    
-    lmsClient.setServer(server.host, server.port);
-    
-    try {
-      const [lmsArtists, lmsAlbums] = await Promise.all([
-        lmsClient.getArtists(),
-        lmsClient.getAlbums(),
-      ]);
-      
-      const convertedArtists = lmsArtists.map(convertLmsArtistToArtist);
-      const convertedAlbums = lmsAlbums.map(convertLmsAlbumToAlbum);
-      
-      debugLog.info('LMS library loaded', `${convertedArtists.length} artists, ${convertedAlbums.length} albums`);
-      
-      return {
-        artists: convertedArtists,
-        albums: convertedAlbums,
-        tracks: [],
-      };
-    } catch (error) {
-      debugLog.error('Failed to fetch LMS library', error instanceof Error ? error.message : String(error));
-      return { artists: [], albums: [], tracks: [] };
-    }
-  };
-
-  useEffect(() => {
-    if (isInitialLoad.current) {
-      return;
-    }
-    if (artists.length > 0 || albums.length > 0 || tracks.length > 0) {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      saveTimeoutRef.current = setTimeout(() => {
-        saveLibrary(artists, albums, tracks);
-      }, 2000);
-    }
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [artists, albums, tracks]);
 
   const addServer = useCallback((server: Omit<Server, "id" | "connected">) => {
     const newServer: Server = {
@@ -381,9 +295,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       return lmsAlbums.map(convertLmsAlbumToAlbum);
     } catch (error) {
       debugLog.error('Failed to get artist albums', error instanceof Error ? error.message : String(error));
-      return albums.filter((a) => a.artistId === artistId);
+      return [];
     }
-  }, [albums]);
+  }, []);
 
   const getAlbumTracks = useCallback(async (albumId: string): Promise<Track[]> => {
     if (!activeServer) {
@@ -399,26 +313,16 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }
   }, [activeServer]);
 
-  const refreshLibrary = useCallback(async () => {
+  const refreshLibrary = useCallback(() => {
     if (!activeServer) {
       debugLog.info('No active server to refresh');
       return;
     }
     
-    setIsLoading(true);
-    
-    try {
-      const library = await fetchLmsLibrary(activeServer);
-      
-      setArtists(library.artists);
-      setAlbums(library.albums);
-      setTracks(library.tracks);
-    } catch (error) {
-      debugLog.error('Failed to refresh library', error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeServer]);
+    debugLog.info('Invalidating library cache');
+    queryClient.invalidateQueries({ queryKey: ['albums'] });
+    queryClient.invalidateQueries({ queryKey: ['artists'] });
+  }, [activeServer, queryClient]);
 
   const clearAllData = useCallback(async () => {
     try {
@@ -428,21 +332,18 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         AsyncStorage.removeItem(RECENT_KEY),
         AsyncStorage.removeItem(FAVORITES_KEY),
         AsyncStorage.removeItem(PLAYLISTS_KEY),
-        AsyncStorage.removeItem(LIBRARY_KEY),
       ]);
       setServers([]);
       setActiveServerState(null);
-      setArtists([]);
-      setAlbums([]);
-      setTracks([]);
       setRecentlyPlayed([]);
       setQobuzConnected(false);
       setFavorites(DEFAULT_FAVORITES);
       setPlaylists([]);
+      queryClient.clear();
     } catch (e) {
       console.error("Failed to clear all data:", e);
     }
-  }, []);
+  }, [queryClient]);
 
   const addToRecentlyPlayed = useCallback(async (track: Track) => {
     setRecentlyPlayed((prev) => {
@@ -595,8 +496,6 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       value={{
         servers,
         activeServer,
-        artists,
-        albums,
         recentlyPlayed,
         qobuzConnected,
         isLoading,

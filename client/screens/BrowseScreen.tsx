@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, memo } from "react";
 import {
   View,
   StyleSheet,
@@ -6,6 +6,7 @@ import {
   Pressable,
   RefreshControl,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -20,6 +21,7 @@ import { HeaderTitle } from "@/components/HeaderTitle";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback } from "@/hooks/usePlayback";
+import { useAlbumsPreview, useArtistsPreview, Album, Artist } from "@/hooks/useLibrary";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
 
 const { width } = Dimensions.get("window");
@@ -27,19 +29,89 @@ const ALBUM_SIZE = (width - Spacing.lg * 3) / 2;
 
 type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
 
+const AlbumCard = memo(({ album, onPress }: { album: Album; onPress: () => void }) => (
+  <Pressable
+    style={({ pressed }) => [
+      styles.albumCard,
+      { opacity: pressed ? 0.6 : 1 },
+    ]}
+    onPress={onPress}
+  >
+    <Image
+      source={album.imageUrl || require("../assets/images/placeholder-album.png")}
+      style={styles.albumImage}
+      contentFit="cover"
+    />
+    <ThemedText style={styles.albumTitle} numberOfLines={1}>
+      {album.name}
+    </ThemedText>
+    <ThemedText style={styles.albumArtist} numberOfLines={1}>
+      {album.artist}
+    </ThemedText>
+    {album.year ? (
+      <ThemedText style={styles.albumYear}>{album.year}</ThemedText>
+    ) : null}
+  </Pressable>
+));
+
+const ArtistCard = memo(({ artist, onPress }: { artist: Artist; onPress: () => void }) => (
+  <Pressable
+    style={({ pressed }) => [
+      styles.artistCard,
+      { opacity: pressed ? 0.6 : 1 },
+    ]}
+    onPress={onPress}
+  >
+    <View style={styles.artistImageContainer}>
+      <View style={styles.artistPlaceholder}>
+        <Feather name="user" size={32} color={Colors.light.textTertiary} />
+      </View>
+    </View>
+    <ThemedText style={styles.artistName} numberOfLines={1}>
+      {artist.name}
+    </ThemedText>
+    <ThemedText style={styles.artistAlbums}>
+      {artist.albumCount || 0} albums
+    </ThemedText>
+  </Pressable>
+));
+
 export default function BrowseScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { artists, albums, recentlyPlayed, isLoading, refreshLibrary, activeServer } = useMusic();
+  const { recentlyPlayed, activeServer, refreshLibrary } = useMusic();
   const { playTrack } = usePlayback();
+  
+  const { data: albumsData, isLoading: albumsLoading, refetch: refetchAlbums } = useAlbumsPreview(20);
+  const { data: artistsData, isLoading: artistsLoading, refetch: refetchArtists } = useArtistsPreview(20);
 
-  const handleArtistPress = useCallback((artist: { id: string; name: string }) => {
+  const isLoading = albumsLoading || artistsLoading;
+  const albums = albumsData?.albums || [];
+  const albumsTotal = albumsData?.total || 0;
+  const artists = artistsData?.artists || [];
+  const artistsTotal = artistsData?.total || 0;
+
+  const handleRefresh = useCallback(() => {
+    refetchAlbums();
+    refetchArtists();
+    refreshLibrary();
+  }, [refetchAlbums, refetchArtists, refreshLibrary]);
+
+  const handleArtistPress = useCallback((artist: Artist) => {
     navigation.navigate("Artist", { id: artist.id, name: artist.name });
   }, [navigation]);
 
-  const handleAlbumPress = useCallback((album: { id: string; name: string; artist: string }) => {
+  const handleAlbumPress = useCallback((album: Album) => {
     navigation.navigate("Album", { id: album.id, name: album.name, artistName: album.artist });
+  }, [navigation]);
+
+  const handleViewAllAlbums = useCallback(() => {
+    navigation.navigate("AllAlbums");
+  }, [navigation]);
+
+  const handleViewAllArtists = useCallback(() => {
+    navigation.navigate("AllArtists");
   }, [navigation]);
 
   return (
@@ -71,7 +143,7 @@ export default function BrowseScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isLoading}
-            onRefresh={refreshLibrary}
+            onRefresh={handleRefresh}
             tintColor={Colors.light.accent}
           />
         }
@@ -115,74 +187,59 @@ export default function BrowseScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <ThemedText style={styles.sectionTitle}>Artists</ThemedText>
-            <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
-              <ThemedText style={styles.viewAll}>View All</ThemedText>
+            <Pressable 
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+              onPress={handleViewAllArtists}
+            >
+              <ThemedText style={styles.viewAll}>
+                View All ({artistsTotal.toLocaleString()})
+              </ThemedText>
             </Pressable>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-          >
-            {artists.map((artist) => (
-              <Pressable
-                key={artist.id}
-                style={({ pressed }) => [
-                  styles.artistCard,
-                  { opacity: pressed ? 0.6 : 1 },
-                ]}
-                onPress={() => handleArtistPress(artist)}
-              >
-                <View style={styles.artistImageContainer}>
-                  <View style={styles.artistPlaceholder}>
-                    <Feather name="user" size={32} color={Colors.light.textTertiary} />
-                  </View>
-                </View>
-                <ThemedText style={styles.artistName} numberOfLines={1}>
-                  {artist.name}
-                </ThemedText>
-                <ThemedText style={styles.artistAlbums}>
-                  {artist.albumCount} albums
-                </ThemedText>
-              </Pressable>
-            ))}
-          </ScrollView>
+          {artistsLoading ? (
+            <ActivityIndicator color={Colors.light.accent} style={styles.loader} />
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+            >
+              {artists.map((artist) => (
+                <ArtistCard
+                  key={artist.id}
+                  artist={artist}
+                  onPress={() => handleArtistPress(artist)}
+                />
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <ThemedText style={styles.sectionTitle}>Albums</ThemedText>
-            <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
-              <ThemedText style={styles.viewAll}>View All</ThemedText>
+            <Pressable 
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+              onPress={handleViewAllAlbums}
+            >
+              <ThemedText style={styles.viewAll}>
+                View All ({albumsTotal.toLocaleString()})
+              </ThemedText>
             </Pressable>
           </View>
-          <View style={styles.albumGrid}>
-            {albums.map((album) => (
-              <Pressable
-                key={album.id}
-                style={({ pressed }) => [
-                  styles.albumCard,
-                  { opacity: pressed ? 0.6 : 1 },
-                ]}
-                onPress={() => handleAlbumPress(album)}
-              >
-                <Image
-                  source={album.imageUrl || require("../assets/images/placeholder-album.png")}
-                  style={styles.albumImage}
-                  contentFit="cover"
+          {albumsLoading ? (
+            <ActivityIndicator color={Colors.light.accent} style={styles.loader} />
+          ) : (
+            <View style={styles.albumGrid}>
+              {albums.map((album) => (
+                <AlbumCard
+                  key={album.id}
+                  album={album}
+                  onPress={() => handleAlbumPress(album)}
                 />
-                <ThemedText style={styles.albumTitle} numberOfLines={1}>
-                  {album.name}
-                </ThemedText>
-                <ThemedText style={styles.albumArtist} numberOfLines={1}>
-                  {album.artist}
-                </ThemedText>
-                {album.year ? (
-                  <ThemedText style={styles.albumYear}>{album.year}</ThemedText>
-                ) : null}
-              </Pressable>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
     </ThemedView>
@@ -253,6 +310,9 @@ const styles = StyleSheet.create({
   },
   horizontalList: {
     gap: Spacing.md,
+  },
+  loader: {
+    padding: Spacing.xl,
   },
   recentCard: {
     width: 120,
