@@ -40,8 +40,15 @@ const PlaylistMosaic = memo(({ artworks, size }: { artworks: string[]; size: num
   if (artworks.length === 0) {
     return (
       <View style={[styles.mosaicContainer, { width: size, height: size }]}>
-        <View style={[styles.mosaicPlaceholder, { width: size, height: size }]}>
-          <Feather name="music" size={40} color={Colors.light.textTertiary} />
+        <View style={[
+          styles.mosaicPlaceholder, 
+          { 
+            width: size, 
+            height: size,
+            backgroundColor: Colors.light.backgroundTertiary,
+          }
+        ]}>
+          <Feather name="music" size={size * 0.3} color={Colors.light.textTertiary} />
         </View>
       </View>
     );
