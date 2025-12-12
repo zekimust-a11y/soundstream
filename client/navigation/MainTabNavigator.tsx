@@ -9,7 +9,6 @@ import AlbumsStackNavigator from "@/navigation/AlbumsStackNavigator";
 import ArtistsStackNavigator from "@/navigation/ArtistsStackNavigator";
 import RadioStackNavigator from "@/navigation/RadioStackNavigator";
 import SearchStackNavigator from "@/navigation/SearchStackNavigator";
-import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 import MiniPlayer from "@/components/MiniPlayer";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors } from "@/constants/theme";
@@ -21,7 +20,6 @@ export type MainTabParamList = {
   ArtistsTab: undefined;
   RadioTab: undefined;
   SearchTab: undefined;
-  SettingsTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -116,16 +114,6 @@ export default function MainTabNavigator() {
             title: "Search",
             tabBarIcon: ({ color, size }) => (
               <Feather name="search" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="SettingsTab"
-          component={SettingsStackNavigator}
-          options={{
-            title: "Settings",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="settings" size={size} color={color} />
             ),
           }}
         />
