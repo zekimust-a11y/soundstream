@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View } from "react-native";
 import BrowseStackNavigator from "@/navigation/BrowseStackNavigator";
-import PlaylistsScreen from "@/screens/PlaylistsScreen";
+import PlaylistsStackNavigator from "@/navigation/PlaylistsStackNavigator";
 import SearchStackNavigator from "@/navigation/SearchStackNavigator";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 import MiniPlayer from "@/components/MiniPlayer";
@@ -65,7 +65,7 @@ export default function MainTabNavigator() {
         />
         <Tab.Screen
           name="PlaylistsTab"
-          component={PlaylistsScreen}
+          component={PlaylistsStackNavigator}
           options={{
             title: "Playlists",
             tabBarIcon: ({ color, size }) => (

@@ -20,7 +20,7 @@ export default function PlaylistsStackNavigator() {
       <Stack.Screen
         name="Playlists"
         component={PlaylistsScreen}
-        options={{ headerTitle: "Playlists" }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="PlaylistDetail"
