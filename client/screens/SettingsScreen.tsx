@@ -83,7 +83,7 @@ function SettingRow({
 export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer } = useMusic();
+  const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer, playlists } = useMusic();
   const { theme } = useTheme();
   const { players, activePlayer, setActivePlayer, refreshPlayers } = usePlayback();
   
@@ -275,8 +275,47 @@ export default function SettingsScreen() {
           { paddingBottom: tabBarHeight + Spacing["5xl"] },
         ]}
       >
+        {servers.length > 0 ? (
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Connected Servers</ThemedText>
+            <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
+              {servers.map((server) => (
+                <Pressable
+                  key={server.id}
+                  style={({ pressed }) => [
+                    styles.serverRow,
+                    { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
+                    activeServer?.id === server.id ? styles.serverRowActive : null,
+                  ]}
+                  onLongPress={() => handleRemoveServer(server.id)}
+                >
+                  <View style={[styles.serverIcon, { backgroundColor: theme.accent + '20' }]}>
+                    <Feather name="server" size={16} color={theme.accent} />
+                  </View>
+                  <View style={styles.serverInfo}>
+                    <ThemedText style={[styles.serverName, { color: theme.text }]}>
+                      {server.name}
+                    </ThemedText>
+                    <ThemedText style={[styles.serverAddress, { color: theme.textSecondary }]}>
+                      {server.host}:{server.port}
+                    </ThemedText>
+                  </View>
+                  {activeServer?.id === server.id ? (
+                    <View style={styles.activeBadge}>
+                      <Feather name="check" size={14} color={theme.success} />
+                    </View>
+                  ) : null}
+                </Pressable>
+              ))}
+              <ThemedText style={[styles.hintText, { color: theme.textTertiary }]}>
+                Long press a server to remove it.
+              </ThemedText>
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>LMS Connection</ThemedText>
+          <ThemedText style={styles.sectionTitle}>New LMS Connection</ThemedText>
           <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
             <View style={styles.inputRow}>
               <TextInput
@@ -305,28 +344,6 @@ export default function SettingsScreen() {
                   styles.connectButton,
                   { flex: 1 },
                   { 
-                    backgroundColor: theme.accent,
-                    opacity: pressed || isConnecting ? 0.7 : 1,
-                  },
-                ]}
-                onPress={handleConnectLms}
-                disabled={isConnecting}
-              >
-                {isConnecting ? (
-                  <ActivityIndicator size="small" color={theme.buttonText} />
-                ) : (
-                  <Feather name="wifi" size={18} color={theme.buttonText} />
-                )}
-                <ThemedText style={[styles.connectButtonText, { color: theme.buttonText }]}>
-                  {isConnecting ? "Connecting..." : "Connect"}
-                </ThemedText>
-              </Pressable>
-              
-              <Pressable
-                style={({ pressed }) => [
-                  styles.connectButton,
-                  { flex: 1, marginLeft: Spacing.sm },
-                  { 
                     backgroundColor: theme.accentSecondary,
                     opacity: pressed || isDiscovering ? 0.7 : 1,
                   },
@@ -341,6 +358,28 @@ export default function SettingsScreen() {
                 )}
                 <ThemedText style={[styles.connectButtonText, { color: theme.buttonText }]}>
                   {isDiscovering ? "Searching..." : "Search"}
+                </ThemedText>
+              </Pressable>
+              
+              <Pressable
+                style={({ pressed }) => [
+                  styles.connectButton,
+                  { flex: 1, marginLeft: Spacing.sm },
+                  { 
+                    backgroundColor: theme.accent,
+                    opacity: pressed || isConnecting ? 0.7 : 1,
+                  },
+                ]}
+                onPress={handleConnectLms}
+                disabled={isConnecting}
+              >
+                {isConnecting ? (
+                  <ActivityIndicator size="small" color={theme.buttonText} />
+                ) : (
+                  <Feather name="wifi" size={18} color={theme.buttonText} />
+                )}
+                <ThemedText style={[styles.connectButtonText, { color: theme.buttonText }]}>
+                  {isConnecting ? "Connecting..." : "Connect"}
                 </ThemedText>
               </Pressable>
             </View>
@@ -431,6 +470,26 @@ export default function SettingsScreen() {
             <ThemedText style={[styles.libraryStatus, { color: theme.textSecondary }]}>
               {activeServer ? `Connected to ${activeServer.name}` : "No server connected"}
             </ThemedText>
+            {activeServer && (
+              <View style={styles.libraryStats}>
+                <View style={styles.statItem}>
+                  <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Albums</ThemedText>
+                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>—</ThemedText>
+                </View>
+                <View style={styles.statItem}>
+                  <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Artists</ThemedText>
+                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>—</ThemedText>
+                </View>
+                <View style={styles.statItem}>
+                  <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Tracks</ThemedText>
+                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>—</ThemedText>
+                </View>
+                <View style={styles.statItem}>
+                  <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Playlists</ThemedText>
+                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>{playlists?.length || 0}</ThemedText>
+                </View>
+              </View>
+            )}
             <Pressable
               style={({ pressed }) => [
                 styles.refreshButton,
@@ -959,25 +1018,24 @@ const styles = StyleSheet.create({
   },
   libraryStats: {
     flexDirection: "row",
-    paddingVertical: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
+    justifyContent: "space-around",
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.backgroundTertiary,
   },
-  libraryStat: {
-    flex: 1,
+  statItem: {
     alignItems: "center",
   },
-  libraryStatNumber: {
-    ...Typography.title,
-    fontWeight: "700",
+  statLabel: {
+    fontSize: 12,
+    color: Colors.light.textTertiary,
+    marginBottom: Spacing.xs,
   },
-  libraryStatLabel: {
-    ...Typography.caption,
-    marginTop: Spacing.xs,
-  },
-  libraryStatDivider: {
-    width: 1,
-    height: "100%",
-    marginHorizontal: Spacing.lg,
+  statValue: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: Colors.light.accent,
   },
   refreshButton: {
     flexDirection: "row",
