@@ -80,6 +80,15 @@ The app uses LMS's JSON-RPC API at `http://<server>:9000/jsonrpc.js`:
 - Focus on album artwork and typography
 - Liquid glass UI effects where supported
 
+## User's Local Environment
+- **Mac IP**: 192.168.0.21
+- **LMS Server**: 192.168.0.19:9000
+- **Preferred Player**: OLADRAplayer (bb:bb:37:be:02:c2)
+- **Chromecast IP**: 192.168.0.239
+- **Local Server Port**: 3000
+- **Local Server Path**: `/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server`
+- **Restart Command**: `cd "/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server" && npm start`
+
 ## Getting Started
 
 ### Prerequisites
