@@ -1,24 +1,24 @@
 import React from "react";
 import { View, StyleSheet, Pressable, Image } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useNavigation, CommonActions } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { ThemedText } from "@/components/ThemedText";
 import { usePlayback } from "@/hooks/usePlayback";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
-import { MainTabParamList } from "@/navigation/MainTabNavigator";
-
-type NavigationProp = BottomTabNavigationProp<MainTabParamList>;
 
 export default function MiniPlayer() {
-  const navigation = useNavigation<NavigationProp>();
+  const navigation = useNavigation();
   const { currentTrack, isPlaying, togglePlayPause, next } = usePlayback();
 
   if (!currentTrack) return null;
 
   const handlePress = () => {
-    navigation.navigate("QueueTab");
+    navigation.dispatch(
+      CommonActions.navigate({
+        name: "QueueTab",
+      })
+    );
   };
 
   return (
