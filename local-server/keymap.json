@@ -1,0 +1,76 @@
+{
+  "enabled": true,
+  "description": "Keyboard/IR remote control mappings for Flirc USB",
+  "instructions": {
+    "setup": "Use the Flirc software to program your remote buttons to these keys",
+    "note": "Key names match Node.js readline key names"
+  },
+  "mappings": {
+    "space": {
+      "command": "pause",
+      "description": "Play/Pause toggle"
+    },
+    "p": {
+      "command": "pause",
+      "description": "Play/Pause toggle (alternate)"
+    },
+    "right": {
+      "command": "next",
+      "description": "Next track"
+    },
+    "n": {
+      "command": "next",
+      "description": "Next track (alternate)"
+    },
+    "left": {
+      "command": "previous",
+      "description": "Previous track"
+    },
+    "b": {
+      "command": "previous",
+      "description": "Previous track (alternate)"
+    },
+    "up": {
+      "command": "volume_up",
+      "value": 5,
+      "description": "Volume up 5%"
+    },
+    "down": {
+      "command": "volume_down",
+      "value": 5,
+      "description": "Volume down 5%"
+    },
+    "m": {
+      "command": "mute",
+      "description": "Toggle mute"
+    },
+    "s": {
+      "command": "stop",
+      "description": "Stop playback"
+    },
+    "r": {
+      "command": "shuffle",
+      "description": "Toggle shuffle"
+    },
+    "1": {
+      "command": "playlist",
+      "value": 0,
+      "description": "Play first favorite/preset"
+    },
+    "2": {
+      "command": "playlist",
+      "value": 1,
+      "description": "Play second favorite/preset"
+    },
+    "3": {
+      "command": "playlist",
+      "value": 2,
+      "description": "Play third favorite/preset"
+    }
+  },
+  "presets": [
+    { "name": "Jazz", "shuffle": true },
+    { "name": "Classical", "shuffle": false },
+    { "name": "Rock", "shuffle": true }
+  ]
+}

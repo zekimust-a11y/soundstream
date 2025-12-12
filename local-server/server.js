@@ -1,6 +1,8 @@
 const express = require('express');
 const path = require('path');
 const http = require('http');
+const fs = require('fs');
+const readline = require('readline');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -9,6 +11,7 @@ const LMS_HOST = process.env.LMS_HOST || '192.168.0.19';
 const LMS_PORT = process.env.LMS_PORT || '9000';
 const CHROMECAST_IP = process.env.CHROMECAST_IP || '';
 const PAUSE_TIMEOUT = parseInt(process.env.PAUSE_TIMEOUT || '5000', 10);
+const ENABLE_KEYBOARD = process.env.ENABLE_KEYBOARD !== 'false';
 
 let Client, Application, DefaultMediaReceiver;
 let castClient = null;
@@ -269,6 +272,178 @@ function getLocalIp() {
   return 'localhost';
 }
 
+// ============================================
+// Keyboard / IR Remote Control (Flirc USB)
+// ============================================
+
+let keymap = null;
+let keyboardEnabled = false;
+
+function loadKeymap() {
+  const keymapPath = path.join(__dirname, 'keymap.json');
+  try {
+    if (fs.existsSync(keymapPath)) {
+      const data = fs.readFileSync(keymapPath, 'utf8');
+      keymap = JSON.parse(data);
+      console.log('Keymap loaded:', Object.keys(keymap.mappings || {}).length, 'key mappings');
+      return true;
+    }
+  } catch (e) {
+    console.error('Failed to load keymap.json:', e.message);
+  }
+  return false;
+}
+
+async function executeKeyCommand(mapping) {
+  if (!currentPlayerId) {
+    const players = await getPlayers();
+    if (players.length > 0) {
+      currentPlayerId = players[0].playerid;
+    } else {
+      console.log('No player available for command');
+      return;
+    }
+  }
+
+  const { command, value } = mapping;
+  console.log(`Executing command: ${command}${value !== undefined ? ` (${value})` : ''}`);
+
+  try {
+    switch (command) {
+      case 'pause':
+      case 'play':
+        await lmsRequest(currentPlayerId, ['pause']);
+        break;
+        
+      case 'stop':
+        await lmsRequest(currentPlayerId, ['stop']);
+        break;
+        
+      case 'next':
+        await lmsRequest(currentPlayerId, ['playlist', 'index', '+1']);
+        break;
+        
+      case 'previous':
+        await lmsRequest(currentPlayerId, ['playlist', 'index', '-1']);
+        break;
+        
+      case 'volume_up':
+        await lmsRequest(currentPlayerId, ['mixer', 'volume', `+${value || 5}`]);
+        break;
+        
+      case 'volume_down':
+        await lmsRequest(currentPlayerId, ['mixer', 'volume', `-${value || 5}`]);
+        break;
+        
+      case 'mute':
+        await lmsRequest(currentPlayerId, ['mixer', 'muting', 'toggle']);
+        break;
+        
+      case 'shuffle':
+        const status = await getPlayerStatus(currentPlayerId);
+        const currentShuffle = status['playlist shuffle'] || 0;
+        await lmsRequest(currentPlayerId, ['playlist', 'shuffle', currentShuffle ? '0' : '1']);
+        break;
+        
+      case 'playlist':
+        if (keymap.presets && keymap.presets[value]) {
+          const preset = keymap.presets[value];
+          console.log(`Playing preset: ${preset.name}`);
+          
+          // Get playlists and find matching one
+          const result = await lmsRequest(currentPlayerId, ['playlists', '0', '999']);
+          const playlists = result.playlists_loop || [];
+          const match = playlists.find(p => 
+            p.playlist.toLowerCase().includes(preset.name.toLowerCase())
+          );
+          
+          if (match) {
+            if (preset.shuffle) {
+              await lmsRequest(currentPlayerId, ['playlist', 'shuffle', '1']);
+            }
+            await lmsRequest(currentPlayerId, ['playlistcontrol', 'cmd:load', `playlist_id:${match.id}`]);
+            console.log(`Started playlist: ${match.playlist}`);
+          } else {
+            console.log(`Preset playlist not found: ${preset.name}`);
+          }
+        }
+        break;
+        
+      default:
+        console.log(`Unknown command: ${command}`);
+    }
+  } catch (e) {
+    console.error('Command error:', e.message);
+  }
+}
+
+function handleKeypress(key) {
+  if (!keymap || !keymap.mappings) return;
+  
+  // Normalize key name
+  let keyName = key.name || key.sequence;
+  
+  // Handle special keys
+  if (key.ctrl) keyName = `ctrl+${keyName}`;
+  if (key.alt) keyName = `alt+${keyName}`;
+  if (key.meta) keyName = `meta+${keyName}`;
+  
+  const mapping = keymap.mappings[keyName];
+  if (mapping) {
+    console.log(`Key pressed: ${keyName} -> ${mapping.description || mapping.command}`);
+    executeKeyCommand(mapping);
+  }
+}
+
+function startKeyboardListener() {
+  if (!ENABLE_KEYBOARD) {
+    console.log('Keyboard control disabled (set ENABLE_KEYBOARD=true to enable)');
+    return;
+  }
+
+  if (!loadKeymap()) {
+    console.log('Keyboard control disabled (keymap.json not found)');
+    return;
+  }
+
+  if (!keymap.enabled) {
+    console.log('Keyboard control disabled in keymap.json');
+    return;
+  }
+
+  // Check if running in a TTY (interactive terminal)
+  if (!process.stdin.isTTY) {
+    console.log('Keyboard control: Not running in interactive terminal');
+    console.log('  For IR remote with Flirc, run server in a terminal session');
+    return;
+  }
+
+  try {
+    readline.emitKeypressEvents(process.stdin);
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    
+    process.stdin.on('keypress', (str, key) => {
+      // Exit on Ctrl+C
+      if (key && key.ctrl && key.name === 'c') {
+        console.log('Exiting...');
+        process.exit();
+      }
+      
+      if (key) {
+        handleKeypress(key);
+      }
+    });
+    
+    keyboardEnabled = true;
+    console.log('Keyboard/IR remote control enabled');
+    console.log('  Press keys to control playback (Ctrl+C to exit)');
+    
+  } catch (e) {
+    console.log('Keyboard control unavailable:', e.message);
+  }
+}
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
@@ -286,7 +461,8 @@ app.get('/api/status', async (req, res) => {
     chromecastIp: CHROMECAST_IP,
     isCasting,
     currentPlayerId,
-    lastMode
+    lastMode,
+    keyboardEnabled
   });
 });
 
@@ -312,6 +488,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('    LMS_PORT=<port>      - LMS port (default: 9000)');
   console.log('    CHROMECAST_IP=<ip>   - Chromecast IP for auto-cast');
   console.log('    PAUSE_TIMEOUT=<ms>   - Pause timeout (default: 5000)');
+  console.log('    ENABLE_KEYBOARD=true - Enable keyboard/IR control');
   console.log('');
   console.log('  Now Playing URL:');
   console.log(`    http://${serverIp}:${PORT}/now-playing`);
@@ -328,4 +505,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('  npm install castv2-client');
     console.log('');
   }
+
+  // Start keyboard/IR remote listener
+  startKeyboardListener();
 });

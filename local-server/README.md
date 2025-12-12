@@ -130,6 +130,95 @@ http://<SERVER_IP>:5000/now-playing?host=<LMS_IP>&port=9000
 - `GET /now-playing` - Full-screen Now Playing display
 - `GET /api/status` - Current server status (JSON)
 
+## IR Remote Control (Flirc USB)
+
+Use any IR remote to control your music with a Flirc USB adapter.
+
+### What is Flirc?
+
+Flirc USB is a small device that plugs into your computer and receives infrared signals from any remote control, converting them to keyboard presses. This lets you use a TV remote, universal remote, or any IR remote to control LMS playback.
+
+### Setup
+
+1. **Get a Flirc USB** from [flirc.tv](https://flirc.tv)
+
+2. **Install Flirc software** on your computer
+
+3. **Program your remote** using the Flirc software:
+   - Open Flirc app
+   - Go to Controllers → Full Keyboard
+   - Click a key, then press the corresponding button on your remote
+   - Recommended mappings:
+
+   | Remote Button | Program to Key | Action |
+   |---------------|----------------|--------|
+   | Play/Pause | Space or P | Toggle play/pause |
+   | Next | Right Arrow or N | Next track |
+   | Previous | Left Arrow or B | Previous track |
+   | Volume Up | Up Arrow | Volume +5% |
+   | Volume Down | Down Arrow | Volume -5% |
+   | Mute | M | Toggle mute |
+   | Stop | S | Stop playback |
+   | Shuffle | R | Toggle shuffle |
+   | Preset 1 | 1 | Play first preset |
+   | Preset 2 | 2 | Play second preset |
+   | Preset 3 | 3 | Play third preset |
+
+4. **Plug Flirc into your server** (Raspberry Pi, PC, etc.)
+
+5. **Start the server in a terminal**:
+   ```bash
+   LMS_HOST=192.168.0.19 ENABLE_KEYBOARD=true npm start
+   ```
+
+### Customizing Key Mappings
+
+Edit `keymap.json` to customize key mappings and presets:
+
+```json
+{
+  "enabled": true,
+  "mappings": {
+    "space": { "command": "pause", "description": "Play/Pause" },
+    "right": { "command": "next", "description": "Next track" },
+    "up": { "command": "volume_up", "value": 5, "description": "Volume +5%" }
+  },
+  "presets": [
+    { "name": "Jazz", "shuffle": true },
+    { "name": "Classical", "shuffle": false }
+  ]
+}
+```
+
+### Available Commands
+
+| Command | Value | Description |
+|---------|-------|-------------|
+| `pause` | - | Toggle play/pause |
+| `stop` | - | Stop playback |
+| `next` | - | Next track |
+| `previous` | - | Previous track |
+| `volume_up` | 1-100 | Increase volume |
+| `volume_down` | 1-100 | Decrease volume |
+| `mute` | - | Toggle mute |
+| `shuffle` | - | Toggle shuffle |
+| `playlist` | 0-9 | Play preset by index |
+
+### Running as Background Service with IR
+
+When running as a systemd service, you need to configure it to have access to the terminal. Add to your service file:
+
+```ini
+[Service]
+Environment=ENABLE_KEYBOARD=true
+StandardInput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+```
+
+Alternatively, run in a tmux/screen session for easier access.
+
 ## Troubleshooting
 
 ### Chromecast not connecting
