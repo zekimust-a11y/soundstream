@@ -444,45 +444,6 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {servers.length > 0 ? (
-          <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>Connected Servers</ThemedText>
-            <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
-              {servers.map((server) => (
-                <Pressable
-                  key={server.id}
-                  style={({ pressed }) => [
-                    styles.serverRow,
-                    { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
-                    activeServer?.id === server.id ? styles.serverRowActive : null,
-                  ]}
-                  onLongPress={() => handleRemoveServer(server.id)}
-                >
-                  <View style={[styles.serverIcon, { backgroundColor: theme.accent + '20' }]}>
-                    <Feather name="server" size={16} color={theme.accent} />
-                  </View>
-                  <View style={styles.serverInfo}>
-                    <ThemedText style={[styles.serverName, { color: theme.text }]}>
-                      {server.name}
-                    </ThemedText>
-                    <ThemedText style={[styles.serverAddress, { color: theme.textSecondary }]}>
-                      {server.host}:{server.port}
-                    </ThemedText>
-                  </View>
-                  {activeServer?.id === server.id ? (
-                    <View style={styles.activeBadge}>
-                      <Feather name="check" size={14} color={theme.success} />
-                    </View>
-                  ) : null}
-                </Pressable>
-              ))}
-              <ThemedText style={[styles.hintText, { color: theme.textTertiary }]}>
-                Long press a server to remove it.
-              </ThemedText>
-            </View>
-          </View>
-        ) : null}
-
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Library</ThemedText>
           <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>

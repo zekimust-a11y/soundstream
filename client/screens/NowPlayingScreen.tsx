@@ -23,7 +23,7 @@ import { usePlayback, Zone } from "@/hooks/usePlayback";
 import { useMusic } from "@/hooks/useMusic";
 
 const { width, height } = Dimensions.get("window");
-const ALBUM_ART_SIZE = Math.min(width - Spacing.xl * 2, height * 0.34);
+const ALBUM_ART_SIZE = Math.min(width - Spacing.xl * 2, height * 0.32);
 
 function formatTime(seconds: number): string {
   if (!seconds || !isFinite(seconds) || seconds < 0) return "0:00";
@@ -281,9 +281,9 @@ export default function NowPlayingScreen() {
 
           <ScrollView 
             style={styles.content} 
-            contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom + 100 }]}
+            contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom + Spacing.lg }]}
             showsVerticalScrollIndicator={false}
-            bounces={true}
+            bounces={false}
           >
             <View style={styles.albumArtContainer}>
               <Image
