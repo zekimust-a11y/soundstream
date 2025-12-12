@@ -3,6 +3,7 @@ const path = require('path');
 const http = require('http');
 const fs = require('fs');
 const readline = require('readline');
+const { exec } = require('child_process');
 
 const app = express();
 app.use(express.json());
@@ -46,28 +47,22 @@ function saveConfig() {
 
 loadConfig();
 
-let Client, Application, DefaultMediaReceiver;
-let castClient = null;
-let dashCastSession = null;
 let isCasting = false;
 let pauseTimer = null;
 let currentPlayerId = '';
 let lastMode = '';
 let serverIp = '';
 
-const DASHCAST_APP_ID = 'CC1AD845';
-
-try {
-  const castv2 = require('castv2-client');
-  Client = castv2.Client;
-  Application = castv2.Application;
-  DefaultMediaReceiver = castv2.DefaultMediaReceiver;
-  console.log('Chromecast support enabled');
-} catch (e) {
-  console.log('Chromecast support disabled (install castv2-client to enable)');
-}
-
-// Using DefaultMediaReceiver to cast the Now Playing webpage
+// Check if catt is available for Chromecast casting
+let cattAvailable = false;
+exec('which catt', (error) => {
+  if (!error) {
+    cattAvailable = true;
+    console.log('Chromecast support enabled (using catt)');
+  } else {
+    console.log('Chromecast support disabled (install catt: pip3 install catt)');
+  }
+});
 
 async function lmsRequest(playerId, command) {
   return new Promise((resolve, reject) => {
@@ -128,98 +123,45 @@ async function getPlayerStatus(playerId) {
   }
 }
 
-function connectToChromecast() {
-  if (!Client || !chromecastIp) {
-    console.log('Chromecast not configured');
-    return Promise.resolve(false);
-  }
-
-  return new Promise((resolve) => {
-    if (castClient) {
-      castClient.close();
-      castClient = null;
-      dashCastSession = null;
-    }
-
-    castClient = new Client();
-
-    castClient.connect(chromecastIp, () => {
-      console.log('Connected to Chromecast at', chromecastIp);
-      resolve(true);
-    });
-
-    castClient.on('error', (err) => {
-      console.error('Chromecast error:', err.message);
-      castClient = null;
-      dashCastSession = null;
-      isCasting = false;
-      resolve(false);
-    });
-
-    castClient.on('close', () => {
-      console.log('Chromecast connection closed');
-      castClient = null;
-      dashCastSession = null;
-      isCasting = false;
-    });
-  });
-}
-
 async function startCasting() {
   if (isCasting) return;
-  if (!DefaultMediaReceiver) {
-    console.log('Chromecast not available (castv2-client not loaded)');
+  if (!cattAvailable) {
+    console.log('Chromecast not available (install catt: pip3 install catt)');
     return;
   }
-  if (!castClient) {
-    const connected = await connectToChromecast();
-    if (!connected) return;
+  if (!chromecastIp) {
+    console.log('Chromecast not configured');
+    return;
   }
 
   const nowPlayingUrl = `http://${serverIp}:${PORT}/now-playing?host=${LMS_HOST}&port=${LMS_PORT}&player=${encodeURIComponent(currentPlayerId)}`;
   
   console.log('Starting cast to:', nowPlayingUrl);
 
-  castClient.launch(DefaultMediaReceiver, (err, player) => {
-    if (err) {
-      console.error('Error launching media receiver:', err);
+  // Use catt to cast the URL to Chromecast
+  const cattCmd = `catt -d "${chromecastIp}" cast_site "${nowPlayingUrl}"`;
+  
+  exec(cattCmd, (error, stdout, stderr) => {
+    if (error) {
+      console.error('Error starting cast:', error.message);
       return;
     }
-
-    dashCastSession = player;
-    
-    const media = {
-      contentId: nowPlayingUrl,
-      contentType: 'text/html',
-      streamType: 'LIVE',
-      metadata: {
-        type: 0,
-        metadataType: 0,
-        title: 'SoundStream Now Playing'
-      }
-    };
-    
-    player.load(media, { autoplay: true }, (err, status) => {
-      if (err) {
-        console.error('Error loading URL:', err);
-        return;
-      }
-      console.log('Cast started successfully');
-      isCasting = true;
-    });
+    console.log('Cast started successfully');
+    isCasting = true;
   });
 }
 
 function stopCasting() {
   if (!isCasting) return;
+  if (!cattAvailable || !chromecastIp) return;
 
   console.log('Stopping cast...');
   
-  if (castClient) {
-    castClient.close();
-    castClient = null;
-    dashCastSession = null;
-  }
+  exec(`catt -d "${chromecastIp}" stop`, (error) => {
+    if (error) {
+      console.error('Error stopping cast:', error.message);
+    }
+  });
   
   isCasting = false;
 }
@@ -568,30 +510,15 @@ app.post('/api/chromecast', async (req, res) => {
   if (isCasting) {
     stopCasting();
   }
-  if (castClient) {
-    castClient.close();
-    castClient = null;
-    dashCastSession = null;
-  }
   
   if (chromecastIp) {
-    const connected = await connectToChromecast();
-    if (connected) {
-      console.log(`Chromecast configured: ${chromecastName} (${chromecastIp})`);
-      res.json({ 
-        success: true, 
-        message: `Connected to ${chromecastName || chromecastIp}`,
-        chromecastIp,
-        chromecastName
-      });
-    } else {
-      res.json({ 
-        success: false, 
-        message: `Saved ${chromecastName || chromecastIp} but could not connect yet`,
-        chromecastIp,
-        chromecastName
-      });
-    }
+    console.log(`Chromecast configured: ${chromecastName} (${chromecastIp})`);
+    res.json({ 
+      success: true, 
+      message: `Configured ${chromecastName || chromecastIp}`,
+      chromecastIp,
+      chromecastName
+    });
   } else {
     res.json({ 
       success: true, 
@@ -609,11 +536,6 @@ app.delete('/api/chromecast', (req, res) => {
   
   if (isCasting) {
     stopCasting();
-  }
-  if (castClient) {
-    castClient.close();
-    castClient = null;
-    dashCastSession = null;
   }
   
   res.json({ success: true, message: 'Chromecast disabled' });
@@ -724,14 +646,15 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('===========================================');
   console.log('');
 
-  if (Client) {
-    console.log('Starting LMS status polling...');
-    setInterval(pollLmsStatus, 2000);
-    pollLmsStatus();
-  } else {
-    console.log('Install castv2-client for Chromecast auto-casting:');
-    console.log('  npm install castv2-client');
+  // Always start LMS polling for automatic Chromecast casting
+  console.log('Starting LMS status polling...');
+  setInterval(pollLmsStatus, 2000);
+  pollLmsStatus();
+  
+  if (!cattAvailable) {
     console.log('');
+    console.log('Install catt for Chromecast auto-casting:');
+    console.log('  pip3 install catt');
   }
 
   // Start keyboard/IR remote listener
