@@ -293,7 +293,10 @@ export default function SettingsScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: tabBarHeight + Spacing["5xl"] },
+          { 
+            paddingTop: headerHeight + Spacing.lg,
+            paddingBottom: tabBarHeight + Spacing["5xl"],
+          },
         ]}
       >
         <View style={styles.section}>
@@ -778,7 +781,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
   },
   section: {
     marginBottom: Spacing["2xl"],
