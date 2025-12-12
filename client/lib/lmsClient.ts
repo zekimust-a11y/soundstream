@@ -293,27 +293,27 @@ class LmsClient {
   }
 
   async getArtistsPage(start: number = 0, limit: number = 50): Promise<{ artists: LmsArtist[], total: number }> {
-    const result = await this.request('', ['artists', String(start), String(limit), 'tags:s']);
+    const result = await this.request('', ['artists', String(start), String(limit), 'tags:sR']);
     const artistsLoop = (result.artists_loop || []) as Array<Record<string, unknown>>;
     const total = Number(result.count) || 0;
     
     const artists = artistsLoop.map((a) => ({
       id: String(a.id || ''),
       name: String(a.artist || a.name || 'Unknown Artist'),
-      albumCount: a.album_count ? Number(a.album_count) : undefined,
+      albumCount: a.albums ? Number(a.albums) : a.album_count ? Number(a.album_count) : 0,
     }));
     
     return { artists, total };
   }
 
   async getArtists(): Promise<LmsArtist[]> {
-    const result = await this.request('', ['artists', '0', '100', 'tags:s']);
+    const result = await this.request('', ['artists', '0', '100', 'tags:sR']);
     const artistsLoop = (result.artists_loop || []) as Array<Record<string, unknown>>;
     
     return artistsLoop.map((a) => ({
       id: String(a.id || ''),
       name: String(a.artist || 'Unknown Artist'),
-      albumCount: a.album_count ? Number(a.album_count) : undefined,
+      albumCount: a.albums ? Number(a.albums) : a.album_count ? Number(a.album_count) : 0,
     }));
   }
 

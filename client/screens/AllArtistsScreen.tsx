@@ -96,7 +96,7 @@ export default function AllArtistsScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.headerInfo}>
+      <View style={[styles.headerInfo, { paddingTop: insets.top + Spacing.md }]}>
         <ThemedText style={styles.count}>
           {artists.length.toLocaleString()} of {total.toLocaleString()} artists
         </ThemedText>
