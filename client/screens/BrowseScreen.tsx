@@ -145,9 +145,15 @@ export default function BrowseScreen() {
         <HeaderTitle />
         <View style={styles.headerRight}>
           <Pressable
-            style={({ pressed }) => [styles.filterButton, { opacity: pressed ? 0.6 : 1 }]}
+            style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
           >
             <Feather name="sliders" size={20} color={Colors.light.text} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
+            onPress={() => navigation.navigate("Settings")}
+          >
+            <Feather name="settings" size={20} color={Colors.light.text} />
           </Pressable>
         </View>
       </View>
@@ -286,7 +292,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
   },
-  filterButton: {
+  headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
