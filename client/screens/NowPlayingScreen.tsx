@@ -40,20 +40,53 @@ function normalizeDuration(duration: number): number {
   return duration;
 }
 
-function getQualityLabel(format?: string, sampleRate?: string, bitDepth?: string): string {
-  if (!format) return "";
+interface QualityInfo {
+  label: string;
+  details: string;
+}
+
+function getQualityInfo(format?: string, sampleRate?: string, bitDepth?: string): QualityInfo {
+  if (!format) return { label: "", details: "" };
+  
   const f = format.toUpperCase();
-  if (f === "FLAC" || f === "ALAC" || f === "WAV" || f === "AIFF") {
-    if (sampleRate) {
-      const rate = parseFloat(sampleRate);
-      if (rate >= 176) return "HI-RES";
-      if (rate >= 88) return "HI-RES";
-      if (rate >= 44) return "CD QUALITY";
-    }
-    return "LOSSLESS";
+  let label = "";
+  let details = "";
+  
+  // Build details string (e.g., "24bit/96kHz")
+  const bits = bitDepth ? parseInt(bitDepth) : null;
+  const rate = sampleRate ? parseFloat(sampleRate) : null;
+  
+  if (bits && rate) {
+    const rateKHz = rate >= 1000 ? Math.round(rate / 1000) : rate;
+    details = `${bits}bit / ${rateKHz}kHz`;
+  } else if (rate) {
+    const rateKHz = rate >= 1000 ? Math.round(rate / 1000) : rate;
+    details = `${rateKHz}kHz`;
+  } else if (bits) {
+    details = `${bits}bit`;
   }
-  if (f === "DSD") return "HI-RES";
-  return f;
+  
+  // Determine quality label
+  if (f === "FLAC" || f === "ALAC" || f === "WAV" || f === "AIFF") {
+    if (rate) {
+      const rateKHz = rate >= 1000 ? rate / 1000 : rate;
+      if (rateKHz > 44.1 || (bits && bits > 16)) {
+        label = "Hi-Res";
+      } else {
+        label = "CD";
+      }
+    } else {
+      label = "Lossless";
+    }
+  } else if (f === "DSD" || f.includes("DSD")) {
+    label = "Hi-Res";
+  } else if (f === "MP3" || f === "AAC" || f === "OGG") {
+    label = f;
+  } else {
+    label = f;
+  }
+  
+  return { label, details };
 }
 
 function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
@@ -202,7 +235,7 @@ export default function NowPlayingScreen() {
   
   const displayTime = isSeeking ? seekPosition : currentTime;
   const duration = currentTrack ? normalizeDuration(currentTrack.duration) : 0;
-  const qualityLabel = currentTrack ? getQualityLabel(currentTrack.format, currentTrack.sampleRate, currentTrack.bitDepth) : "";
+  const qualityInfo = currentTrack ? getQualityInfo(currentTrack.format, currentTrack.sampleRate, currentTrack.bitDepth) : { label: "", details: "" };
   const isFavorite = currentTrack?.id ? isFavoriteTrack(currentTrack.id) : false;
 
   if (!currentTrack) {
@@ -264,9 +297,9 @@ export default function NowPlayingScreen() {
                     <ThemedText style={styles.qobuzOverlayText}>Q</ThemedText>
                   </View>
                 ) : null}
-                {qualityLabel ? (
+                {qualityInfo.label ? (
                   <View style={styles.qualityOverlay}>
-                    <ThemedText style={styles.qualityOverlayText}>{qualityLabel}</ThemedText>
+                    <ThemedText style={styles.qualityOverlayText}>{qualityInfo.label}</ThemedText>
                   </View>
                 ) : null}
               </View>
@@ -279,6 +312,11 @@ export default function NowPlayingScreen() {
               <ThemedText style={styles.trackArtistAlbum} numberOfLines={1}>
                 {currentTrack.artist}{currentTrack.album ? ` \u2022 ${currentTrack.album}` : ""}
               </ThemedText>
+              {qualityInfo.details ? (
+                <ThemedText style={styles.qualityDetails}>
+                  {qualityInfo.details}
+                </ThemedText>
+              ) : null}
             </View>
 
             <View style={styles.metaRow}>
@@ -552,6 +590,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.light.textSecondary,
     textAlign: "center",
+  },
+  qualityDetails: {
+    fontSize: 13,
+    color: Colors.light.textTertiary,
+    textAlign: "center",
+    marginTop: 4,
   },
   metaRow: {
     flexDirection: "row",
