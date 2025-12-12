@@ -105,6 +105,12 @@ export default function SettingsScreen() {
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveredServers, setDiscoveredServers] = useState<Array<{host: string; port: number; name: string}>>([]);
   const [urlCopied, setUrlCopied] = useState(false);
+  
+  const [localServerIp, setLocalServerIp] = useState("");
+  const [localServerPort, setLocalServerPort] = useState("5000");
+  const [isDiscoveringChromecasts, setIsDiscoveringChromecasts] = useState(false);
+  const [discoveredChromecasts, setDiscoveredChromecasts] = useState<Array<{name: string; model: string; ip: string; port: number}>>([]);
+  const [selectedChromecast, setSelectedChromecast] = useState<{name: string; ip: string} | null>(null);
 
   const nowPlayingUrl = useMemo(() => {
     if (!activeServer || !activePlayer) return null;
@@ -126,7 +132,7 @@ export default function SettingsScreen() {
     if (settingsLoaded) {
       saveSettings();
     }
-  }, [gapless, crossfade, normalization, hardwareVolumeControl, streamingQuality, settingsLoaded]);
+  }, [gapless, crossfade, normalization, hardwareVolumeControl, streamingQuality, localServerIp, localServerPort, selectedChromecast, settingsLoaded]);
 
   const loadSettings = async () => {
     try {
@@ -138,6 +144,9 @@ export default function SettingsScreen() {
         setNormalization(settings.normalization ?? false);
         setHardwareVolumeControl(settings.hardwareVolumeControl ?? false);
         setStreamingQuality(settings.streamingQuality ?? "cd");
+        setLocalServerIp(settings.localServerIp ?? "");
+        setLocalServerPort(settings.localServerPort ?? "5000");
+        setSelectedChromecast(settings.selectedChromecast ?? null);
       }
       setSettingsLoaded(true);
     } catch (e) {
@@ -150,11 +159,64 @@ export default function SettingsScreen() {
     try {
       await AsyncStorage.setItem(
         SETTINGS_KEY,
-        JSON.stringify({ gapless, crossfade, normalization, hardwareVolumeControl, streamingQuality })
+        JSON.stringify({ 
+          gapless, 
+          crossfade, 
+          normalization, 
+          hardwareVolumeControl, 
+          streamingQuality,
+          localServerIp,
+          localServerPort,
+          selectedChromecast,
+        })
       );
     } catch (e) {
       console.error("Failed to save settings:", e);
     }
+  };
+
+  const handleDiscoverChromecasts = async () => {
+    if (!localServerIp.trim()) {
+      Alert.alert('Local Server Required', 'Please enter the IP address of the computer running the local display server.');
+      return;
+    }
+
+    setIsDiscoveringChromecasts(true);
+    setDiscoveredChromecasts([]);
+
+    try {
+      const port = localServerPort || '3000';
+      const response = await fetch(`http://${localServerIp.trim()}:${port}/api/chromecasts?timeout=5000`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to connect to local server');
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      setDiscoveredChromecasts(data.devices || []);
+      
+      if (data.devices?.length === 0) {
+        Alert.alert('No Devices Found', 'No Chromecast devices were found on your network. Make sure your Chromecast is powered on and connected to the same network.');
+      }
+    } catch (error) {
+      console.error('Chromecast discovery error:', error);
+      Alert.alert(
+        'Discovery Failed', 
+        `Could not discover Chromecast devices. Make sure the local server is running at ${localServerIp}:${localServerPort}\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    } finally {
+      setIsDiscoveringChromecasts(false);
+    }
+  };
+
+  const handleSelectChromecast = (device: {name: string; ip: string}) => {
+    setSelectedChromecast(device);
+    Alert.alert('Chromecast Selected', `${device.name} has been selected.\n\nTo enable auto-casting, restart your local server with:\n\nCHROMECAST_IP=${device.ip} node server.js`);
   };
 
   const handleConnectLms = async () => {
@@ -732,6 +794,125 @@ export default function SettingsScreen() {
         ) : null}
 
         <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Display Server</ThemedText>
+          <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.tvDisplayContent}>
+              <View style={styles.tvDisplayHeader}>
+                <View style={[styles.iconContainer, { backgroundColor: '#4CAF50' + '20' }]}>
+                  <Feather name="cast" size={18} color="#4CAF50" />
+                </View>
+                <View style={styles.settingContent}>
+                  <ThemedText style={styles.settingTitle}>Chromecast Auto-Cast</ThemedText>
+                  <ThemedText style={styles.settingSubtitle}>
+                    Automatically display Now Playing on your TV when music plays
+                  </ThemedText>
+                </View>
+              </View>
+              
+              <ThemedText style={[styles.inputLabel, { color: theme.textSecondary, marginTop: Spacing.lg }]}>
+                Local Server Address
+              </ThemedText>
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={[styles.hostInput, { color: theme.text, borderColor: theme.border }]}
+                  placeholder="Server IP (e.g., 192.168.0.50)"
+                  placeholderTextColor={theme.textTertiary}
+                  value={localServerIp}
+                  onChangeText={setLocalServerIp}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="default"
+                />
+                <TextInput
+                  style={[styles.portInput, { color: theme.text, borderColor: theme.border }]}
+                  placeholder="Port"
+                  placeholderTextColor={theme.textTertiary}
+                  value={localServerPort}
+                  onChangeText={setLocalServerPort}
+                  keyboardType="number-pad"
+                />
+              </View>
+              
+              <Pressable
+                style={({ pressed }) => [
+                  styles.connectButton,
+                  { 
+                    backgroundColor: '#4CAF50',
+                    opacity: pressed || isDiscoveringChromecasts ? 0.7 : 1,
+                    marginTop: Spacing.md,
+                  },
+                ]}
+                onPress={handleDiscoverChromecasts}
+                disabled={isDiscoveringChromecasts}
+              >
+                {isDiscoveringChromecasts ? (
+                  <ActivityIndicator size="small" color={theme.buttonText} />
+                ) : (
+                  <Feather name="search" size={18} color={theme.buttonText} />
+                )}
+                <ThemedText style={[styles.connectButtonText, { color: theme.buttonText }]}>
+                  {isDiscoveringChromecasts ? "Scanning..." : "Find Chromecast Devices"}
+                </ThemedText>
+              </Pressable>
+
+              {selectedChromecast ? (
+                <View style={[styles.selectedDevice, { backgroundColor: '#4CAF50' + '15', marginTop: Spacing.md }]}>
+                  <Feather name="check-circle" size={18} color="#4CAF50" />
+                  <View style={{ marginLeft: Spacing.sm, flex: 1 }}>
+                    <ThemedText style={styles.selectedDeviceName}>{selectedChromecast.name}</ThemedText>
+                    <ThemedText style={[styles.selectedDeviceIp, { color: theme.textSecondary }]}>
+                      {selectedChromecast.ip}
+                    </ThemedText>
+                  </View>
+                  <Pressable
+                    onPress={() => setSelectedChromecast(null)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Feather name="x" size={18} color={theme.textSecondary} />
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {discoveredChromecasts.length > 0 ? (
+                <View style={{ marginTop: Spacing.md }}>
+                  <ThemedText style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    Found Devices
+                  </ThemedText>
+                  {discoveredChromecasts.map((device, index) => (
+                    <Pressable
+                      key={`${device.ip}-${index}`}
+                      style={({ pressed }) => [
+                        styles.deviceRow,
+                        { 
+                          backgroundColor: pressed ? theme.backgroundTertiary : theme.backgroundDefault,
+                          borderColor: theme.border,
+                        },
+                      ]}
+                      onPress={() => handleSelectChromecast({ name: device.name, ip: device.ip })}
+                    >
+                      <View style={[styles.iconContainer, { backgroundColor: '#4CAF50' + '20' }]}>
+                        <Feather name="tv" size={16} color="#4CAF50" />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+                        <ThemedText style={styles.deviceName}>{device.name}</ThemedText>
+                        <ThemedText style={[styles.deviceModel, { color: theme.textSecondary }]}>
+                          {device.model ? `${device.model} - ` : ''}{device.ip}
+                        </ThemedText>
+                      </View>
+                      <Feather name="plus-circle" size={20} color="#4CAF50" />
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              <ThemedText style={[styles.tvDisplayHint, { color: theme.textTertiary, marginTop: Spacing.md }]}>
+                Requires the local display server running on a computer on your network. The server will scan for Chromecast devices.
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Data</ThemedText>
           <View style={styles.sectionContent}>
             <SettingRow
@@ -1158,5 +1339,41 @@ const styles = StyleSheet.create({
   tvDisplayHint: {
     ...Typography.caption,
     textAlign: "center",
+  },
+  inputLabel: {
+    ...Typography.caption,
+    fontWeight: "600",
+    marginBottom: Spacing.sm,
+  },
+  selectedDevice: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
+  },
+  selectedDeviceName: {
+    ...Typography.body,
+    fontWeight: "500",
+  },
+  selectedDeviceIp: {
+    ...Typography.caption,
+    marginTop: 2,
+  },
+  deviceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  deviceName: {
+    ...Typography.body,
+    fontWeight: "500",
+  },
+  deviceModel: {
+    ...Typography.caption,
+    marginTop: 2,
   },
 });

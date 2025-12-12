@@ -129,6 +129,7 @@ http://<SERVER_IP>:5000/now-playing?host=<LMS_IP>&port=9000
 - `GET /` - Home page with setup form
 - `GET /now-playing` - Full-screen Now Playing display
 - `GET /api/status` - Current server status (JSON)
+- `GET /api/chromecasts` - Discover Chromecast devices on the network (requires mdns-js)
 
 ## IR Remote Control (Flirc USB)
 

@@ -466,6 +466,81 @@ app.get('/api/status', async (req, res) => {
   });
 });
 
+let mdns;
+try {
+  mdns = require('mdns-js');
+  console.log('mDNS discovery available');
+} catch (e) {
+  console.log('mDNS discovery unavailable (install mdns-js to enable)');
+}
+
+app.get('/api/chromecasts', (req, res) => {
+  if (!mdns) {
+    return res.status(503).json({ 
+      error: 'mDNS not available',
+      devices: [] 
+    });
+  }
+
+  const timeout = parseInt(req.query.timeout) || 5000;
+  const devices = [];
+  const seen = new Set();
+  
+  const browser = mdns.createBrowser(mdns.tcp('googlecast'));
+  
+  browser.on('ready', () => {
+    browser.discover();
+  });
+  
+  browser.on('update', (data) => {
+    if (data.addresses && data.addresses.length > 0) {
+      const ip = data.addresses.find(addr => addr.includes('.')) || data.addresses[0];
+      const key = `${ip}:${data.port}`;
+      
+      if (!seen.has(key)) {
+        seen.add(key);
+        
+        let name = data.fullname || data.host || 'Unknown';
+        if (name.includes('._googlecast')) {
+          name = name.split('._googlecast')[0];
+        }
+        name = name.replace(/-/g, ' ').replace(/\._tcp\.local$/, '');
+        
+        const txtRecord = data.txt || [];
+        let friendlyName = name;
+        let model = '';
+        
+        txtRecord.forEach(entry => {
+          if (typeof entry === 'string') {
+            if (entry.startsWith('fn=')) {
+              friendlyName = entry.substring(3);
+            } else if (entry.startsWith('md=')) {
+              model = entry.substring(3);
+            }
+          }
+        });
+        
+        devices.push({
+          name: friendlyName,
+          model: model,
+          ip: ip,
+          port: data.port || 8009
+        });
+      }
+    }
+  });
+  
+  setTimeout(() => {
+    try {
+      browser.stop();
+    } catch (e) {}
+    
+    res.json({
+      devices: devices.sort((a, b) => a.name.localeCompare(b.name))
+    });
+  }, timeout);
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   serverIp = getLocalIp();
   
