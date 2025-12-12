@@ -482,6 +482,29 @@ app.get('/now-playing', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'now-playing.html'));
 });
 
+// LMS proxy endpoint - allows browser to make LMS requests through this server (avoids CORS)
+app.post('/api/lms', async (req, res) => {
+  const { host, port, playerId, command } = req.body;
+  const lmsHost = host || LMS_HOST;
+  const lmsPort = port || LMS_PORT;
+  
+  try {
+    const response = await fetch(`http://${lmsHost}:${lmsPort}/jsonrpc.js`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 1,
+        method: 'slim.request',
+        params: [playerId || '', command]
+      })
+    });
+    const data = await response.json();
+    res.json(data.result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/status', async (req, res) => {
   res.json({
     lmsHost: LMS_HOST,

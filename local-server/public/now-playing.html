@@ -216,7 +216,8 @@
     const port = params.get('port') || '9000';
     let playerId = params.get('player') || '';
     
-    const lmsUrl = `http://${host}:${port}/jsonrpc.js`;
+    // Use proxy endpoint to avoid CORS issues
+    const proxyUrl = '/api/lms';
     let currentArtwork = '';
     let waveformBars = [];
     
@@ -231,18 +232,18 @@
     
     const waveformHeights = generateWaveformHeights(80);
     
-    async function lmsRequest(playerId, command) {
-      const response = await fetch(lmsUrl, {
+    async function lmsRequest(pid, command) {
+      const response = await fetch(proxyUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: 1,
-          method: 'slim.request',
-          params: [playerId, command]
+          host: host,
+          port: port,
+          playerId: pid,
+          command: command
         })
       });
-      const data = await response.json();
-      return data.result;
+      return await response.json();
     }
     
     async function getPlayers() {
