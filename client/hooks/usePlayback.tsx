@@ -496,6 +496,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     
     try {
       if (track.lmsTrackId) {
+        // Ensure player is powered on
+        await lmsClient.setPower(activePlayer.id, true);
         // Load track into playlist
         await lmsClient.playTrack(activePlayer.id, track.lmsTrackId);
         // Actually start playback
