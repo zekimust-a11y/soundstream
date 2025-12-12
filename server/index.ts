@@ -1,5 +1,6 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
@@ -178,6 +179,14 @@ function configureExpoAndLanding(app: express.Application) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.status(200).send(nowPlayingTemplate);
   });
+
+  // Proxy /app to the Expo Metro bundler for web version
+  app.use("/app", createProxyMiddleware({
+    target: "http://localhost:8081",
+    changeOrigin: true,
+    pathRewrite: { "^/app": "" },
+    ws: true,
+  }));
 
   log("Serving static Expo files with dynamic manifest routing");
 
