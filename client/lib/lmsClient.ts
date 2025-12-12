@@ -689,15 +689,44 @@ class LmsClient {
   }
 
   async getFavoriteRadios(): Promise<LmsRadioStation[]> {
-    const result = await this.request('', ['favorites', 'items', '0', '500', 'want_url:1', 'tags:s']);
+    const result = await this.request('', ['favorites', 'items', '0', '500', 'want_url:1', 'tags:stc']);
     const favoritesLoop = (result.favorites_loop || []) as Array<Record<string, unknown>>;
     
-    return favoritesLoop.map((f) => ({
-      id: String(f.id || f.favoriteid || ''),
-      name: String(f.name || 'Unknown Station'),
-      url: f.url ? String(f.url) : undefined,
-      image: f.image ? String(f.image) : undefined,
-    }));
+    return favoritesLoop
+      .filter((f) => {
+        const url = f.url ? String(f.url) : '';
+        const type = f.type ? String(f.type) : '';
+        const hasFolder = f.hasitems !== undefined && Number(f.hasitems) > 0;
+        if (hasFolder) return false;
+        if (type === 'audio') return true;
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+          const isStream = url.includes('.mp3') || url.includes('.aac') || 
+                          url.includes('.m3u') || url.includes('.pls') ||
+                          url.includes('stream') || url.includes('radio') ||
+                          url.includes('tunein') || url.includes('icecast') ||
+                          !url.match(/\.(flac|wav|aiff|ape|alac|m4a)$/i);
+          return isStream;
+        }
+        return false;
+      })
+      .map((f) => ({
+        id: String(f.id || f.favoriteid || ''),
+        name: String(f.name || 'Unknown Station'),
+        url: f.url ? String(f.url) : undefined,
+        image: f.image ? String(f.image) : undefined,
+      }));
+  }
+
+  async getLibraryTotals(): Promise<{ albums: number; artists: number; tracks: number }> {
+    const albumsResult = await this.request('', ['info', 'total', 'albums', '?']);
+    const artistsResult = await this.request('', ['info', 'total', 'artists', '?']);
+    const songsResult = await this.request('', ['info', 'total', 'songs', '?']);
+    
+    return {
+      albums: Number(albumsResult._albums || 0),
+      artists: Number(artistsResult._artists || 0),
+      tracks: Number(songsResult._songs || 0),
+    };
   }
 
   async autoDiscoverServers(onProgress?: (found: number, scanning: number) => void): Promise<LmsServer[]> {

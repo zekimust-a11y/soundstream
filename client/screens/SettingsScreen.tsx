@@ -103,13 +103,32 @@ export default function SettingsScreen() {
   
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveredServers, setDiscoveredServers] = useState<Array<{host: string; port: number; name: string}>>([]);
+  const [libraryStats, setLibraryStats] = useState<{ albums: number; artists: number; tracks: number } | null>(null);
 
   useEffect(() => {
     loadSettings();
     if (activeServer) {
       refreshPlayers();
+      loadLibraryStats();
     }
   }, []);
+
+  useEffect(() => {
+    if (activeServer) {
+      loadLibraryStats();
+    } else {
+      setLibraryStats(null);
+    }
+  }, [activeServer]);
+
+  const loadLibraryStats = async () => {
+    try {
+      const stats = await lmsClient.getLibraryTotals();
+      setLibraryStats(stats);
+    } catch (e) {
+      console.error("Failed to load library stats:", e);
+    }
+  };
 
   useEffect(() => {
     // Only save after initial load is complete and when values actually change
@@ -474,15 +493,21 @@ export default function SettingsScreen() {
               <View style={styles.libraryStats}>
                 <View style={styles.statItem}>
                   <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Albums</ThemedText>
-                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>—</ThemedText>
+                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>
+                    {libraryStats?.albums?.toLocaleString() || '—'}
+                  </ThemedText>
                 </View>
                 <View style={styles.statItem}>
                   <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Artists</ThemedText>
-                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>—</ThemedText>
+                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>
+                    {libraryStats?.artists?.toLocaleString() || '—'}
+                  </ThemedText>
                 </View>
                 <View style={styles.statItem}>
                   <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Tracks</ThemedText>
-                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>—</ThemedText>
+                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>
+                    {libraryStats?.tracks?.toLocaleString() || '—'}
+                  </ThemedText>
                 </View>
                 <View style={styles.statItem}>
                   <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Playlists</ThemedText>
