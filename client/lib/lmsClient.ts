@@ -227,7 +227,7 @@ class LmsClient {
       album: String(data.album || 'Unknown Album'),
       albumId: data.album_id ? String(data.album_id) : undefined,
       artistId: data.artist_id ? String(data.artist_id) : undefined,
-      duration: Math.round(durationSec * 1000),
+      duration: durationSec,
       trackNumber: data.tracknum ? Number(data.tracknum) : undefined,
       artwork_url: data.artwork_url ? String(data.artwork_url) : undefined,
       url: data.url ? String(data.url) : undefined,
@@ -288,7 +288,7 @@ class LmsClient {
     
     const artists = artistsLoop.map((a) => ({
       id: String(a.id || ''),
-      name: String(a.artist || ''),
+      name: String(a.artist || a.name || 'Unknown Artist'),
       albumCount: a.album_count ? Number(a.album_count) : undefined,
     }));
     
