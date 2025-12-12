@@ -292,9 +292,11 @@ export default function NowPlayingScreen() {
               />
               <View style={styles.artworkBadges}>
                 {currentTrack.source === "qobuz" ? (
-                  <View style={styles.qobuzOverlay}>
-                    <ThemedText style={styles.qobuzOverlayText}>Q</ThemedText>
-                  </View>
+                  <Image
+                    source={require("../assets/images/qobuz-icon.png")}
+                    style={styles.qobuzIconBadge}
+                    contentFit="contain"
+                  />
                 ) : null}
                 {qualityInfo.label ? (
                   <View style={styles.qualityOverlay}>
@@ -594,16 +596,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-end",
   },
-  qobuzOverlay: {
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.xs,
-  },
-  qobuzOverlayText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#fff",
+  qobuzIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    padding: 4,
   },
   qualityOverlay: {
     backgroundColor: "rgba(0, 0, 0, 0.75)",
