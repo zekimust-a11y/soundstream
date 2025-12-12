@@ -104,7 +104,6 @@ export default function PlaylistsScreen() {
             </ThemedText>
           ) : null}
         </View>
-        <Feather name="chevron-right" size={20} color={Colors.light.textTertiary} />
       </Pressable>
       <View style={styles.playlistActions}>
         <Pressable
@@ -114,7 +113,7 @@ export default function PlaylistsScreen() {
           ]}
           onPress={() => handleShufflePlaylist(item)}
         >
-          <Feather name="shuffle" size={20} color={Colors.light.textSecondary} />
+          <Feather name="shuffle" size={20} color={Colors.light.accent} />
         </Pressable>
         <Pressable
           style={({ pressed }) => [
@@ -253,7 +252,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 4,
-    backgroundColor: "#F99C38",
+    backgroundColor: "#000",
     alignItems: "center",
     justifyContent: "center",
     marginLeft: Spacing.sm,
