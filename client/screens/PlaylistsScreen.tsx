@@ -218,16 +218,14 @@ export default function PlaylistsScreen() {
       >
         <View style={styles.gridImageContainer}>
           <PlaylistMosaic artworks={artworks || []} size={GRID_ITEM_SIZE} />
-          <View style={styles.gridOverlay}>
+          <View style={styles.gridOverlay} pointerEvents="box-none">
             <Pressable
               style={({ pressed }) => [
                 styles.gridOverlayButton,
-                { opacity: pressed ? 0.8 : 1 },
+                { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.95 : 1 }] },
               ]}
-              onPress={(e) => {
-                e.stopPropagation();
-                handleShufflePlaylist(item);
-              }}
+              onPress={() => handleShufflePlaylist(item)}
+              hitSlop={8}
             >
               <Feather name="shuffle" size={18} color="#fff" />
             </Pressable>
@@ -235,14 +233,12 @@ export default function PlaylistsScreen() {
               style={({ pressed }) => [
                 styles.gridOverlayButton,
                 styles.gridPlayButton,
-                { opacity: pressed ? 0.8 : 1 },
+                { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.95 : 1 }] },
               ]}
-              onPress={(e) => {
-                e.stopPropagation();
-                handlePlayPlaylist(item);
-              }}
+              onPress={() => handlePlayPlaylist(item)}
+              hitSlop={8}
             >
-              <Feather name="play" size={22} color="#fff" />
+              <Feather name="play" size={22} color="#fff" style={{ marginLeft: 2 }} />
             </Pressable>
           </View>
           {isQobuz ? (
@@ -498,7 +494,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.light.accent,
   },
   mosaicContainer: {
     borderRadius: BorderRadius.sm,
