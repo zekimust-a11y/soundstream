@@ -418,7 +418,7 @@ export default function NowPlayingScreen() {
                 style={({ pressed }) => [styles.mainControl, { opacity: pressed ? 0.5 : 1 }]}
                 onPress={previous}
               >
-                <Feather name="skip-back" size={36} color={Colors.light.text} />
+                <Feather name="skip-back" size={36} color="#000" />
               </Pressable>
 
               <Pressable
@@ -431,7 +431,7 @@ export default function NowPlayingScreen() {
                 <Feather
                   name={isPlaying ? "pause" : "play"}
                   size={36}
-                  color={Colors.light.buttonText}
+                  color="#000"
                   style={!isPlaying ? { marginLeft: 4 } : undefined}
                 />
               </Pressable>
@@ -440,7 +440,7 @@ export default function NowPlayingScreen() {
                 style={({ pressed }) => [styles.mainControl, { opacity: pressed ? 0.5 : 1 }]}
                 onPress={next}
               >
-                <Feather name="skip-forward" size={36} color={Colors.light.text} />
+                <Feather name="skip-forward" size={36} color="#000" />
               </Pressable>
 
               <Pressable
@@ -742,7 +742,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#000",
+    backgroundColor: "#fff",
+    borderWidth: 3,
+    borderColor: "#000",
     justifyContent: "center",
     alignItems: "center",
     marginHorizontal: Spacing.md,
