@@ -1,0 +1,660 @@
+Last login: Fri Dec 12 13:50:07 on ttys002
+zeki@Zekis-MacBook-Air ~ % curl -v http://192.168.0.42:8008/setup/eureka_info
+*   Trying 192.168.0.42:8008...
+* Connected to 192.168.0.42 (192.168.0.42) port 8008
+> GET /setup/eureka_info HTTP/1.1
+> Host: 192.168.0.42:8008
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 200 OK
+< Access-Control-Allow-Headers:Content-Type
+< Cache-Control:no-cache
+< Content-Length:1192
+< Content-Type:application/json
+< 
+* Connection #0 to host 192.168.0.42 left intact
+{"bssid":"","build_version":"599752810","cast_build_revision":"1.68.cast_20240119_0202_RC07.599752810","connected":true,"ethernet_connected":true,"has_update":false,"hotspot_bssid":"FA:8F:CA:6A:0F:32","ip_address":"192.168.0.42","locale":"en-US","location":{"country_code":"US","latitude":255.0,"longitude":255.0},"mac_address":"50:1E:2D:68:EE:7A","name":"Living room","opt_in":{"crash":false,"opencast":false,"stats":false},"public_key":"MIIBCgKCAQEApFXmf4SUsBB7bTIM0YyF+owKuI+FX09tJijB+ulvXRy+ri55aZ6rjGh+bxO7FqNTts5PqNO47DRB8KBt26/5cObO5iwAINanIXrGmbj6/CJgsN7svGrXNlfn9w9TNykNiqUUx/kkWL1cMvyIE6Jzvc+x3vxXlk7kbvWXQbKhEjdhHadFBOYDZ5ARezY0OwuW8J51nKvoGUmGBArUu9yYGZ+DCREEmPrO2TdAroEkO3Z9tFdZR7Bcja90XdpMoePSlKt8vaKowEzrxIxt8OLeDYnUieNcA3rHFZGT3bguvd0xMBebqu70TFOEX7B9gdu3th+O1NTWUB6jgs8GCMJVzQIDAQAB","release_track":"stable-channel","setup_state":60,"setup_stats":{"historically_succeeded":true,"num_check_connectivity":0,"num_connect_wifi":0,"num_connected_wifi_not_saved":0,"num_initial_eureka_info":0,"num_obtain_ip":0},"ssdp_udn":"ae04ea60-8ad9-3020-3aa0-73e6cadc29a2","ssid":"","time_format":1,"tos_accepted":true,"uptime":24160.853836,"version":12,"wpa_configured":false,"wpa_state":0}%       zeki@Zekis-MacBook-Air ~ % curl -v http://192.168.0.42:8008/setup/assistant/get_volume
+*   Trying 192.168.0.42:8008...
+^C
+zeki@Zekis-MacBook-Air ~ % curl -v --connect-timeout 5 http://192.168.0.42:8008/setup/get_volume
+*   Trying 192.168.0.42:8008...
+* Connected to 192.168.0.42 (192.168.0.42) port 8008
+> GET /setup/get_volume HTTP/1.1
+> Host: 192.168.0.42:8008
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Content-Length:0
+< 
+* Connection #0 to host 192.168.0.42 left intact
+zeki@Zekis-MacBook-Air ~ % curl -v http://192.168.0.42:8008/
+*   Trying 192.168.0.42:8008...
+* connect to 192.168.0.42 port 8008 from 192.168.0.65 port 59866 failed: Operation timed out
+* Failed to connect to 192.168.0.42 port 8008 after 75002 ms: Couldn't connect to server
+* Closing connection
+curl: (28) Failed to connect to 192.168.0.42 port 8008 after 75002 ms: Couldn't connect to server
+zeki@Zekis-MacBook-Air ~ % ping varese-interface-501e2d68ee7a.local
+PING varese-interface-501e2d68ee7a.local (192.168.0.42): 56 data bytes
+64 bytes from 192.168.0.42: icmp_seq=0 ttl=64 time=37.225 ms
+64 bytes from 192.168.0.42: icmp_seq=1 ttl=64 time=6.955 ms
+Request timeout for icmp_seq 2
+Request timeout for icmp_seq 3
+Request timeout for icmp_seq 4
+Request timeout for icmp_seq 5
+Request timeout for icmp_seq 6
+Request timeout for icmp_seq 7
+Request timeout for icmp_seq 8
+Request timeout for icmp_seq 9
+Request timeout for icmp_seq 10
+Request timeout for icmp_seq 11
+Request timeout for icmp_seq 12
+Request timeout for icmp_seq 13
+Request timeout for icmp_seq 14
+Request timeout for icmp_seq 15
+Request timeout for icmp_seq 16
+Request timeout for icmp_seq 17
+Request timeout for icmp_seq 18
+Request timeout for icmp_seq 19
+Request timeout for icmp_seq 20
+Request timeout for icmp_seq 21
+Request timeout for icmp_seq 22
+Request timeout for icmp_seq 23
+Request timeout for icmp_seq 24
+Request timeout for icmp_seq 25
+Request timeout for icmp_seq 26
+Request timeout for icmp_seq 27
+Request timeout for icmp_seq 28
+Request timeout for icmp_seq 29
+Request timeout for icmp_seq 30
+Request timeout for icmp_seq 31
+Request timeout for icmp_seq 32
+Request timeout for icmp_seq 33
+Request timeout for icmp_seq 34
+Request timeout for icmp_seq 35
+Request timeout for icmp_seq 36
+Request timeout for icmp_seq 37
+Request timeout for icmp_seq 38
+Request timeout for icmp_seq 39
+Request timeout for icmp_seq 40
+Request timeout for icmp_seq 41
+Request timeout for icmp_seq 42
+Request timeout for icmp_seq 43
+Request timeout for icmp_seq 44
+Request timeout for icmp_seq 45
+Request timeout for icmp_seq 46
+Request timeout for icmp_seq 47
+Request timeout for icmp_seq 48
+Request timeout for icmp_seq 49
+Request timeout for icmp_seq 50
+Request timeout for icmp_seq 51
+Request timeout for icmp_seq 52
+Request timeout for icmp_seq 53
+Request timeout for icmp_seq 54
+Request timeout for icmp_seq 55
+Request timeout for icmp_seq 56
+Request timeout for icmp_seq 57
+Request timeout for icmp_seq 58
+Request timeout for icmp_seq 59
+Request timeout for icmp_seq 60
+Request timeout for icmp_seq 61
+Request timeout for icmp_seq 62
+Request timeout for icmp_seq 63
+Request timeout for icmp_seq 64
+Request timeout for icmp_seq 65
+Request timeout for icmp_seq 66
+Request timeout for icmp_seq 67
+Request timeout for icmp_seq 68
+Request timeout for icmp_seq 69
+Request timeout for icmp_seq 70
+Request timeout for icmp_seq 71
+Request timeout for icmp_seq 72
+Request timeout for icmp_seq 73
+Request timeout for icmp_seq 74
+Request timeout for icmp_seq 75
+Request timeout for icmp_seq 76
+Request timeout for icmp_seq 77
+Request timeout for icmp_seq 78
+Request timeout for icmp_seq 79
+Request timeout for icmp_seq 80
+Request timeout for icmp_seq 81
+Request timeout for icmp_seq 82
+Request timeout for icmp_seq 83
+Request timeout for icmp_seq 84
+Request timeout for icmp_seq 85
+Request timeout for icmp_seq 86
+Request timeout for icmp_seq 87
+Request timeout for icmp_seq 88
+64 bytes from 192.168.0.42: icmp_seq=89 ttl=64 time=15.660 ms
+Request timeout for icmp_seq 90
+Request timeout for icmp_seq 91
+Request timeout for icmp_seq 92
+Request timeout for icmp_seq 93
+Request timeout for icmp_seq 94
+Request timeout for icmp_seq 95
+Request timeout for icmp_seq 96
+Request timeout for icmp_seq 97
+Request timeout for icmp_seq 98
+Request timeout for icmp_seq 99
+^C
+--- varese-interface-501e2d68ee7a.local ping statistics ---
+101 packets transmitted, 3 packets received, 97.0% packet loss
+round-trip min/avg/max/stddev = 6.955/19.947/37.225/12.724 ms
+zeki@Zekis-MacBook-Air ~ % for port in 80 1400 8008 8080 49152 60006 7878; do nc -zv -w 2 192.168.0.17 $port 2>&1 | grep -i "succeeded"; done
+Connection to 192.168.0.17 port 80 [tcp/http] succeeded!
+Connection to 192.168.0.17 port 7878 [tcp/*] succeeded!
+zeki@Zekis-MacBook-Air ~ % for port in 80 1400 8008 8080 49152 60006; do nc -zv -w 2 192.168.0.17 $port 2>&1 | grep -i "succeeded"; done
+Connection to 192.168.0.17 port 80 [tcp/http] succeeded!
+zeki@Zekis-MacBook-Air ~ % 
+zeki@Zekis-MacBook-Air ~ % 
+zeki@Zekis-MacBook-Air ~ % 
+zeki@Zekis-MacBook-Air ~ % curl -v --connect-timeout 5 http://192.168.0.17/
+curl -v --connect-timeout 5 http://192.168.0.17/description.xml
+curl -v --connect-timeout 5 http://192.168.0.17/upnp/description.xml
+*   Trying 192.168.0.17:80...
+* Connected to 192.168.0.17 (192.168.0.17) port 80
+> GET / HTTP/1.1
+> Host: 192.168.0.17
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 200 OK
+< Server: nginx/1.20.1
+< Date: Fri, 12 Dec 2025 14:01:30 GMT
+< Content-Type: text/html; charset=utf-8
+< Content-Length: 6820
+< Connection: keep-alive
+< Vary: Accept-Encoding
+< 
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<link rel="stylesheet" href="static/style.css" />
+
+		
+			<title>Living room - dCS</title>
+		
+
+		<script type="text/javascript" src="static/translate.js"></script>
+
+		
+			<script type="text/javascript" src="static/updates.js"></script>
+			<script type="text/javascript" src="static/upload-widget.js"></script>
+		
+	</head>
+
+	<body>
+		<img id="header-image" src="static/img/dCSlogo_black.jpg">
+
+		<noscript>
+			<div class="error message translatable" data-translation-key="javascript-disabled-info">
+				In order for this page to function properly, JavaScript must be enabled.
+			</div>
+		</noscript>
+
+		
+
+		
+
+		
+
+		<fieldset>
+			<legend class="translatable" data-translation-key="info-box-title">
+				Info
+			</legend>
+
+			<div>
+				<label for="device-version" class="translatable" data-translation-key="device-version-label">
+					Device version:
+				</label>
+				<label id="device-version">1.0.7</label>
+			</div>
+
+			
+				<form action="device_name" method="POST">
+					<label for="device-name" class="translatable" data-translation-key="device-name-label">
+						Device name:
+					</label>
+					<input name="name" type="text" id="device-name" value="Living room"></input>
+					<br \>
+					<button id="device-name-submit" class="translatable" data-translation-key="submit-button" type="submit">
+						Submit
+					</button>
+				</form>
+			
+		</fieldset>
+
+		
+			<fieldset>
+				<legend class="translatable" data-translation-key="firmware-update-box-title">
+					Firmware Update
+				</legend>
+
+				<div id="update-status-idle" class="translatable" data-translation-key="update-status-idle" style="display: none">
+					No update in progress.
+				</div>
+
+				<div id="update-status-checking" class="translatable" data-translation-key="update-status-checking" style="display: none">
+					Checking for updates...
+				</div>
+
+				<div id="update-status-available" class="translatable" data-translation-key="update-status-available" style="display: none">
+					An update is available to download.
+				</div>
+
+				<div id="update-status-downloading" class="translatable" data-translation-key="update-status-downloading" style="display: none">
+					An update is being downloaded.
+				</div>
+
+				<div id="update-status-downloaded" class="translatable" data-translation-key="update-status-downloaded" style="display: none">
+					An update was downloaded and is ready to install.
+				</div>
+
+				<div id="update-status-installing" class="translatable" data-translation-key="update-status-installing" style="display: none">
+					The update is being installed. Your device will reboot.
+				</div>
+
+				<div id="update-status-error" class="error translatable" data-translation-key="update-status-error" style="display: none">
+					An error occurred during the update process.
+				</div>
+
+				<div id="update-version" style="display: none">
+					<span class="translatable" data-translation-key="available-version">Available version:</span> <span id="available-version"></span>
+				</div>
+
+				<div id="download-progress" style="display: none">
+					<span class="translatable" data-translation-key="download-progress">Download progress:</span> <span id="progress-value"></span>
+				</div>
+
+				<hr id="update-status-divider" style="display: none" />
+
+				<form action="check_for_updates" method="POST" id="update-check-container">
+					<label for="update-check" class="translatable" data-translation-key="internet-update-check-button-label">
+						Check if an update is available for download
+					</label>
+					<br />
+					<button id="update-check" class="translatable" data-translation-key="internet-update-check-button">
+						Check
+					</button>
+				</form>
+
+				<form action="download_update" method="POST" id="update-download-container" style="display: none">
+					<label for="update-download" class="translatable" data-translation-key="internet-update-download-button-label">
+						Download update
+					</label>
+					<br />
+					<button id="update-download" class="translatable" data-translation-key="internet-update-download-button">
+						Download
+					</button>
+				</form>
+
+				<form action="install_update" method="POST" id="update-install-container" style="display: none">
+					<label for="update-install" class="translatable" data-translation-key="internet-update-install-button-label">
+						Install update
+					</label>
+					<br />
+					<button id="update-install" class="translatable" data-translation-key="internet-update-install-button">
+						Install
+					</button>
+				</form>
+
+				<hr />
+
+				<div>
+					<label for="firmware-upload" class="translatable" data-translation-key="firmware-upload-label">
+						Upload firmware
+					</label>
+					<br />
+					<input type="file" accept=".sdfw" id="firmware-upload"></input>
+					<br />
+					<button id="firmware-submit" class="translatable" data-translation-key="submit-button" onClick="submitUpdateFile()">
+						Submit
+					</button>
+				</div>
+			</fieldset>
+		
+
+		
+			<fieldset>
+				<legend class="translatable" data-translation-key="factory-reset-box-title">
+					Factory Reset
+				</legend>
+
+				<form action="factory_reset" method="POST">
+					<label for="factory-reset" class="translatable" data-translation-key="factory-reset-button-label">
+						Reset device to its factory state, discarding all configuration
+					</label>
+					<br />
+					<button id="factory-reset" class="translatable" data-translation-key="factory-reset-button" type="submit">
+						Reset
+					</button>
+				</form>
+			</fieldset>
+		
+
+		<fieldset>
+			<legend class="translatable" data-translation-key="system-logs-box-title">
+				System Logs
+			</legend>
+
+			<form action="log_download" method="GET">
+				<label for="log-download" class="translatable" data-translation-key="system-logs-download-button-label">
+					Download system logs
+				</label>
+				<br />
+				<button id="log-download" class="translatable" data-translation-key="system-logs-download-button" type="submit">
+					Download
+				</button>
+			</form>
+		</fieldset>
+
+		<fieldset>
+			<legend class="translatable" data-translation-key="network-info-box-title">
+				Network Information
+			</legend>
+
+			<div>
+				<label for="network-type" class="translatable" data-translation-key="network-type-label">
+					Network type:
+				</label>
+				<label id="network-type">DHCP</label>
+			</div>
+
+			<div>
+				<label for="ipv4-address" class="translatable" data-translation-key="ipv4-address-label">
+					IPv4 address:
+				</label>
+				<label id="ipv4-address">192.168.0.17/24</label>
+			</div>
+
+			<div>
+				<label for="ipv6-address" class="translatable" data-translation-key="ipv6-address-label">
+					IPv6 address:
+				</label>
+				<label id="ipv6-address">-</label>
+			</div>
+		</fieldset>
+		<progress-upload-widget id="upload-popup"></progress-upload-widget>
+	</body>
+* Connection #0 to host 192.168.0.17 left intact
+</html>*   Trying 192.168.0.17:80...
+* Connected to 192.168.0.17 (192.168.0.17) port 80
+> GET /description.xml HTTP/1.1
+> Host: 192.168.0.17
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Server: nginx/1.20.1
+< Date: Fri, 12 Dec 2025 14:01:30 GMT
+< Content-Length: 0
+< Connection: keep-alive
+< 
+* Connection #0 to host 192.168.0.17 left intact
+*   Trying 192.168.0.17:80...
+* Connected to 192.168.0.17 (192.168.0.17) port 80
+> GET /upnp/description.xml HTTP/1.1
+> Host: 192.168.0.17
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Server: nginx/1.20.1
+< Date: Fri, 12 Dec 2025 14:01:30 GMT
+< Content-Length: 0
+< Connection: keep-alive
+< 
+* Connection #0 to host 192.168.0.17 left intact
+zeki@Zekis-MacBook-Air ~ % curl -v --connect-timeout 5 http://192.168.0.17/
+curl -v --connect-timeout 5 http://192.168.0.17/description.xml
+*   Trying 192.168.0.17:80...
+* Connected to 192.168.0.17 (192.168.0.17) port 80
+> GET / HTTP/1.1
+> Host: 192.168.0.17
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 200 OK
+< Server: nginx/1.20.1
+< Date: Fri, 12 Dec 2025 14:01:37 GMT
+< Content-Type: text/html; charset=utf-8
+< Content-Length: 6820
+< Connection: keep-alive
+< Vary: Accept-Encoding
+< 
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<link rel="stylesheet" href="static/style.css" />
+
+		
+			<title>Living room - dCS</title>
+		
+
+		<script type="text/javascript" src="static/translate.js"></script>
+
+		
+			<script type="text/javascript" src="static/updates.js"></script>
+			<script type="text/javascript" src="static/upload-widget.js"></script>
+		
+	</head>
+
+	<body>
+		<img id="header-image" src="static/img/dCSlogo_black.jpg">
+
+		<noscript>
+			<div class="error message translatable" data-translation-key="javascript-disabled-info">
+				In order for this page to function properly, JavaScript must be enabled.
+			</div>
+		</noscript>
+
+		
+
+		
+
+		
+
+		<fieldset>
+			<legend class="translatable" data-translation-key="info-box-title">
+				Info
+			</legend>
+
+			<div>
+				<label for="device-version" class="translatable" data-translation-key="device-version-label">
+					Device version:
+				</label>
+				<label id="device-version">1.0.7</label>
+			</div>
+
+			
+				<form action="device_name" method="POST">
+					<label for="device-name" class="translatable" data-translation-key="device-name-label">
+						Device name:
+					</label>
+					<input name="name" type="text" id="device-name" value="Living room"></input>
+					<br \>
+					<button id="device-name-submit" class="translatable" data-translation-key="submit-button" type="submit">
+						Submit
+					</button>
+				</form>
+			
+		</fieldset>
+
+		
+			<fieldset>
+				<legend class="translatable" data-translation-key="firmware-update-box-title">
+					Firmware Update
+				</legend>
+
+				<div id="update-status-idle" class="translatable" data-translation-key="update-status-idle" style="display: none">
+					No update in progress.
+				</div>
+
+				<div id="update-status-checking" class="translatable" data-translation-key="update-status-checking" style="display: none">
+					Checking for updates...
+				</div>
+
+				<div id="update-status-available" class="translatable" data-translation-key="update-status-available" style="display: none">
+					An update is available to download.
+				</div>
+
+				<div id="update-status-downloading" class="translatable" data-translation-key="update-status-downloading" style="display: none">
+					An update is being downloaded.
+				</div>
+
+				<div id="update-status-downloaded" class="translatable" data-translation-key="update-status-downloaded" style="display: none">
+					An update was downloaded and is ready to install.
+				</div>
+
+				<div id="update-status-installing" class="translatable" data-translation-key="update-status-installing" style="display: none">
+					The update is being installed. Your device will reboot.
+				</div>
+
+				<div id="update-status-error" class="error translatable" data-translation-key="update-status-error" style="display: none">
+					An error occurred during the update process.
+				</div>
+
+				<div id="update-version" style="display: none">
+					<span class="translatable" data-translation-key="available-version">Available version:</span> <span id="available-version"></span>
+				</div>
+
+				<div id="download-progress" style="display: none">
+					<span class="translatable" data-translation-key="download-progress">Download progress:</span> <span id="progress-value"></span>
+				</div>
+
+				<hr id="update-status-divider" style="display: none" />
+
+				<form action="check_for_updates" method="POST" id="update-check-container">
+					<label for="update-check" class="translatable" data-translation-key="internet-update-check-button-label">
+						Check if an update is available for download
+					</label>
+					<br />
+					<button id="update-check" class="translatable" data-translation-key="internet-update-check-button">
+						Check
+					</button>
+				</form>
+
+				<form action="download_update" method="POST" id="update-download-container" style="display: none">
+					<label for="update-download" class="translatable" data-translation-key="internet-update-download-button-label">
+						Download update
+					</label>
+					<br />
+					<button id="update-download" class="translatable" data-translation-key="internet-update-download-button">
+						Download
+					</button>
+				</form>
+
+				<form action="install_update" method="POST" id="update-install-container" style="display: none">
+					<label for="update-install" class="translatable" data-translation-key="internet-update-install-button-label">
+						Install update
+					</label>
+					<br />
+					<button id="update-install" class="translatable" data-translation-key="internet-update-install-button">
+						Install
+					</button>
+				</form>
+
+				<hr />
+
+				<div>
+					<label for="firmware-upload" class="translatable" data-translation-key="firmware-upload-label">
+						Upload firmware
+					</label>
+					<br />
+					<input type="file" accept=".sdfw" id="firmware-upload"></input>
+					<br />
+					<button id="firmware-submit" class="translatable" data-translation-key="submit-button" onClick="submitUpdateFile()">
+						Submit
+					</button>
+				</div>
+			</fieldset>
+		
+
+		
+			<fieldset>
+				<legend class="translatable" data-translation-key="factory-reset-box-title">
+					Factory Reset
+				</legend>
+
+				<form action="factory_reset" method="POST">
+					<label for="factory-reset" class="translatable" data-translation-key="factory-reset-button-label">
+						Reset device to its factory state, discarding all configuration
+					</label>
+					<br />
+					<button id="factory-reset" class="translatable" data-translation-key="factory-reset-button" type="submit">
+						Reset
+					</button>
+				</form>
+			</fieldset>
+		
+
+		<fieldset>
+			<legend class="translatable" data-translation-key="system-logs-box-title">
+				System Logs
+			</legend>
+
+			<form action="log_download" method="GET">
+				<label for="log-download" class="translatable" data-translation-key="system-logs-download-button-label">
+					Download system logs
+				</label>
+				<br />
+				<button id="log-download" class="translatable" data-translation-key="system-logs-download-button" type="submit">
+					Download
+				</button>
+			</form>
+		</fieldset>
+
+		<fieldset>
+			<legend class="translatable" data-translation-key="network-info-box-title">
+				Network Information
+			</legend>
+
+			<div>
+				<label for="network-type" class="translatable" data-translation-key="network-type-label">
+					Network type:
+				</label>
+				<label id="network-type">DHCP</label>
+			</div>
+
+			<div>
+				<label for="ipv4-address" class="translatable" data-translation-key="ipv4-address-label">
+					IPv4 address:
+				</label>
+				<label id="ipv4-address">192.168.0.17/24</label>
+			</div>
+
+			<div>
+				<label for="ipv6-address" class="translatable" data-translation-key="ipv6-address-label">
+					IPv6 address:
+				</label>
+				<label id="ipv6-address">-</label>
+			</div>
+		</fieldset>
+		<progress-upload-widget id="upload-popup"></progress-upload-widget>
+	</body>
+* Connection #0 to host 192.168.0.17 left intact
+</html>*   Trying 192.168.0.17:80...
+* Connected to 192.168.0.17 (192.168.0.17) port 80
+> GET /description.xml HTTP/1.1
+> Host: 192.168.0.17
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Server: nginx/1.20.1
+< Date: Fri, 12 Dec 2025 14:01:37 GMT
+< Content-Length: 0
+< Connection: keep-alive
+< 
+* Connection #0 to host 192.168.0.17 left intact
+zeki@Zekis-MacBook-Air ~ % 
