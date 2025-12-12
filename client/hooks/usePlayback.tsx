@@ -410,7 +410,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         debugLog.error('Set volume failed', error instanceof Error ? error.message : String(error));
       }
-    }, 150);
+    }, 50);
   }, [activePlayer]);
 
   const addToQueue = useCallback(async (track: Track) => {
