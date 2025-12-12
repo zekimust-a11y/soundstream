@@ -98,6 +98,9 @@ export default function SettingsScreen() {
   const [normalization, setNormalization] = useState(false);
   const [streamingQuality, setStreamingQuality] = useState<"cd" | "hires">("cd");
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveredServers, setDiscoveredServers] = useState<Array<{host: string; port: number; name: string}>>([]);
 
   useEffect(() => {
     loadSettings();
@@ -174,6 +177,51 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleAutoDiscover = async () => {
+    setIsDiscovering(true);
+    setConnectionError(null);
+    setDiscoveredServers([]);
+    
+    try {
+      const servers = await lmsClient.autoDiscoverServers();
+      setDiscoveredServers(servers.map(s => ({ host: s.host, port: s.port, name: s.name })));
+      
+      if (servers.length === 0) {
+        setConnectionError("No LMS servers found. Make sure your server is running on this network.");
+      }
+    } catch (error) {
+      setConnectionError("Auto-discovery failed: " + (error instanceof Error ? error.message : "Unknown error"));
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
+  const handleSelectDiscoveredServer = async (host: string, port: number) => {
+    setIsConnecting(true);
+    setConnectionError(null);
+    
+    try {
+      const server = await lmsClient.discoverServer(host, port);
+      
+      if (server) {
+        addServer({
+          name: server.name,
+          host: server.host,
+          port: server.port,
+          type: 'lms',
+        });
+        lmsClient.setServer(server.host, server.port);
+        await refreshPlayers();
+        setDiscoveredServers([]);
+        Alert.alert('Connected', `Successfully connected to ${server.name}`);
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : "Connection failed");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   const handleRefreshPlayers = async () => {
     setIsRefreshingPlayers(true);
     await refreshPlayers();
@@ -224,26 +272,51 @@ export default function SettingsScreen() {
               />
             </View>
             
-            <Pressable
-              style={({ pressed }) => [
-                styles.connectButton,
-                { 
-                  backgroundColor: theme.accent,
-                  opacity: pressed || isConnecting ? 0.7 : 1,
-                },
-              ]}
-              onPress={handleConnectLms}
-              disabled={isConnecting}
-            >
-              {isConnecting ? (
-                <ActivityIndicator size="small" color={theme.buttonText} />
-              ) : (
-                <Feather name="wifi" size={18} color={theme.buttonText} />
-              )}
-              <ThemedText style={[styles.connectButtonText, { color: theme.buttonText }]}>
-                {isConnecting ? "Connecting..." : "Connect to LMS"}
-              </ThemedText>
-            </Pressable>
+            <View style={styles.buttonRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.connectButton,
+                  { flex: 1 },
+                  { 
+                    backgroundColor: theme.accent,
+                    opacity: pressed || isConnecting ? 0.7 : 1,
+                  },
+                ]}
+                onPress={handleConnectLms}
+                disabled={isConnecting}
+              >
+                {isConnecting ? (
+                  <ActivityIndicator size="small" color={theme.buttonText} />
+                ) : (
+                  <Feather name="wifi" size={18} color={theme.buttonText} />
+                )}
+                <ThemedText style={[styles.connectButtonText, { color: theme.buttonText }]}>
+                  {isConnecting ? "Connecting..." : "Connect"}
+                </ThemedText>
+              </Pressable>
+              
+              <Pressable
+                style={({ pressed }) => [
+                  styles.connectButton,
+                  { flex: 1, marginLeft: Spacing.sm },
+                  { 
+                    backgroundColor: theme.accentSecondary,
+                    opacity: pressed || isDiscovering ? 0.7 : 1,
+                  },
+                ]}
+                onPress={handleAutoDiscover}
+                disabled={isDiscovering}
+              >
+                {isDiscovering ? (
+                  <ActivityIndicator size="small" color={theme.buttonText} />
+                ) : (
+                  <Feather name="search" size={18} color={theme.buttonText} />
+                )}
+                <ThemedText style={[styles.connectButtonText, { color: theme.buttonText }]}>
+                  {isDiscovering ? "Searching..." : "Search"}
+                </ThemedText>
+              </Pressable>
+            </View>
             
             {connectionError ? (
               <ThemedText style={[styles.errorText, { color: theme.error }]}>
@@ -251,8 +324,37 @@ export default function SettingsScreen() {
               </ThemedText>
             ) : null}
             
+            {discoveredServers.length > 0 ? (
+              <View style={styles.discoveredSection}>
+                <ThemedText style={[styles.discoveredTitle, { color: theme.text }]}>
+                  Found {discoveredServers.length} Server{discoveredServers.length !== 1 ? 's' : ''}
+                </ThemedText>
+                {discoveredServers.map((server) => (
+                  <Pressable
+                    key={`${server.host}:${server.port}`}
+                    style={({ pressed }) => [
+                      styles.discoveredServer,
+                      { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
+                    ]}
+                    onPress={() => handleSelectDiscoveredServer(server.host, server.port)}
+                  >
+                    <Feather name="server" size={16} color={theme.accent} />
+                    <View style={styles.discoveredServerInfo}>
+                      <ThemedText style={[styles.discoveredServerName, { color: theme.text }]}>
+                        {server.name}
+                      </ThemedText>
+                      <ThemedText style={[styles.discoveredServerAddress, { color: theme.textSecondary }]}>
+                        {server.host}:{server.port}
+                      </ThemedText>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={theme.textTertiary} />
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+            
             <ThemedText style={[styles.hintText, { color: theme.textTertiary }]}>
-              Enter the IP address of your Logitech Media Server. Default port is 9000.
+              Enter the IP address of your Logitech Media Server. Default port is 9000. Or use Search to auto-discover.
             </ThemedText>
           </View>
         </View>
@@ -657,12 +759,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     ...Typography.body,
   },
+  buttonRow: {
+    flexDirection: "row",
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+  },
   connectButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
     gap: Spacing.sm,
@@ -683,6 +789,38 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     marginBottom: Spacing.lg,
     paddingHorizontal: Spacing.lg,
+  },
+  discoveredSection: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  discoveredTitle: {
+    ...Typography.caption,
+    fontWeight: "600",
+    marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+  },
+  discoveredServer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    gap: Spacing.md,
+  },
+  discoveredServerInfo: {
+    flex: 1,
+  },
+  discoveredServerName: {
+    ...Typography.body,
+    fontWeight: "500",
+  },
+  discoveredServerAddress: {
+    ...Typography.caption,
+    marginTop: 2,
   },
   serverRow: {
     flexDirection: "row",

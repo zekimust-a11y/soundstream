@@ -423,6 +423,56 @@ class LmsClient {
     
     return null;
   }
+
+  async autoDiscoverServers(onProgress?: (found: number, scanning: number) => void): Promise<LmsServer[]> {
+    debugLog.info('Starting auto-discovery of LMS servers...');
+    
+    const port = 9000;
+    const timeoutMs = 2000;
+    const previousBaseUrl = this.baseUrl;
+    const found: LmsServer[] = [];
+    
+    // Scan common local IP ranges: 192.168.x.x, 10.x.x.x, 172.16-31.x.x
+    const ipRanges = [
+      { start: [192, 168, 0], end: [192, 168, 255] },
+      { start: [10, 0, 0], end: [10, 255, 255] },
+      { start: [172, 16, 0], end: [172, 31, 255] },
+    ];
+    
+    const promises: Promise<void>[] = [];
+    let scanned = 0;
+    let totalToScan = 0;
+
+    for (const range of ipRanges) {
+      for (let i = range.start[2]; i <= Math.min(range.end[2], range.start[2] + 30); i++) {
+        totalToScan++;
+        const ip = `${range.start[0]}.${range.start[1]}.${i}`;
+        
+        promises.push(
+          (async () => {
+            try {
+              const server = await this.discoverServer(ip, port, timeoutMs);
+              if (server) {
+                found.push(server);
+                debugLog.response('LMS Found', `${server.host}:${server.port}`);
+              }
+            } catch {
+              // Ignore errors
+            } finally {
+              scanned++;
+              onProgress?.(found.length, scanned);
+            }
+          })()
+        );
+      }
+    }
+    
+    await Promise.all(promises);
+    this.baseUrl = previousBaseUrl;
+    debugLog.info('Auto-discovery complete', `Found ${found.length} server(s)`);
+    
+    return found;
+  }
 }
 
 export const lmsClient = new LmsClient();
