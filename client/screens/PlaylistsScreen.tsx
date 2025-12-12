@@ -140,13 +140,15 @@ export default function PlaylistsScreen() {
         }
       }
       
-      if (uniqueArtworks.length > 0) {
-        setPlaylistArtworks(prev => ({
-          ...prev,
-          [playlist.id]: uniqueArtworks,
-        }));
-      }
+      setPlaylistArtworks(prev => ({
+        ...prev,
+        [playlist.id]: uniqueArtworks,
+      }));
     } catch (error) {
+      setPlaylistArtworks(prev => ({
+        ...prev,
+        [playlist.id]: [],
+      }));
     }
   }, []);
 
@@ -198,9 +200,13 @@ export default function PlaylistsScreen() {
   };
 
   const renderGridItem = ({ item }: { item: LmsPlaylist }) => {
-    const artworks = playlistArtworks[item.id] || [];
+    const artworks = playlistArtworks[item.id];
     const displayName = item.name.replace(/^Qobuz\s*:?\s*/i, '').trim();
     const isQobuz = item.url?.includes('qobuz');
+    
+    if (artworks === undefined) {
+      loadPlaylistArtworks(item);
+    }
     
     return (
       <Pressable
@@ -211,7 +217,7 @@ export default function PlaylistsScreen() {
         onPress={() => handleOpenPlaylist(item)}
       >
         <View style={styles.gridImageContainer}>
-          <PlaylistMosaic artworks={artworks} size={GRID_ITEM_SIZE} />
+          <PlaylistMosaic artworks={artworks || []} size={GRID_ITEM_SIZE} />
           {isQobuz ? (
             <View style={styles.gridQobuzBadge}>
               <ThemedText style={styles.gridQobuzText}>Q</ThemedText>
