@@ -256,9 +256,11 @@ export default function PlaylistsScreen() {
             </Pressable>
           </View>
           {isQobuz ? (
-            <View style={styles.gridQobuzBadge}>
-              <ThemedText style={styles.gridQobuzText}>Q</ThemedText>
-            </View>
+            <Image
+              source={require("../assets/images/qobuz-icon.png")}
+              style={styles.gridQobuzBadge}
+              contentFit="cover"
+            />
           ) : null}
         </View>
         <ThemedText style={styles.gridTitle} numberOfLines={2}>
@@ -285,9 +287,11 @@ export default function PlaylistsScreen() {
         <View style={styles.listInfo}>
           <View style={styles.listNameRow}>
             {item.url?.includes('qobuz') ? (
-              <View style={styles.listQobuzBadge}>
-                <ThemedText style={styles.listQobuzText}>Q</ThemedText>
-              </View>
+              <Image
+                source={require("../assets/images/qobuz-icon.png")}
+                style={styles.listQobuzBadge}
+                contentFit="cover"
+              />
             ) : null}
             <ThemedText style={styles.listName} numberOfLines={1}>
               {item.name.replace(/^Qobuz\s*:?\s*/i, '').trim()}
@@ -540,17 +544,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: Spacing.sm,
     left: Spacing.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 4,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  gridQobuzText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#fff",
+    width: 24,
+    height: 24,
+    borderRadius: 6,
   },
   gridTitle: {
     ...Typography.body,
@@ -598,15 +594,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 4,
-    backgroundColor: "#000",
-    alignItems: "center",
-    justifyContent: "center",
     marginRight: Spacing.sm,
-  },
-  listQobuzText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#fff",
   },
   listTracks: {
     ...Typography.caption,
