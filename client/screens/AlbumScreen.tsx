@@ -38,13 +38,13 @@ export default function AlbumScreen() {
   const route = useRoute<RouteProps>();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
-  const { getAlbumTracks, albums, addToRecentlyPlayed } = useMusic();
+  const { getAlbumTracks, addToRecentlyPlayed } = useMusic();
   const { playTrack, addToQueue, currentTrack, isPlaying } = usePlayback();
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  const album = albums.find((a) => a.id === route.params.id);
+  const [albumYear, setAlbumYear] = useState<number | undefined>();
+  const [albumImageUrl, setAlbumImageUrl] = useState<string | undefined>();
 
   useEffect(() => {
     async function loadTracks() {
@@ -52,6 +52,9 @@ export default function AlbumScreen() {
       try {
         const albumTracks = await getAlbumTracks(route.params.id);
         setTracks(albumTracks);
+        if (albumTracks.length > 0 && albumTracks[0].albumArt) {
+          setAlbumImageUrl(albumTracks[0].albumArt);
+        }
       } catch (error) {
         console.error("Failed to load album tracks:", error);
       } finally {
@@ -84,15 +87,15 @@ export default function AlbumScreen() {
       >
         <View style={styles.albumHeader}>
           <Image
-            source={album?.imageUrl || require("../assets/images/placeholder-album.png")}
+            source={albumImageUrl || require("../assets/images/placeholder-album.png")}
             style={styles.albumArt}
             contentFit="cover"
           />
           <ThemedText style={styles.albumTitle}>{route.params.name}</ThemedText>
           <ThemedText style={styles.albumArtist}>{route.params.artistName}</ThemedText>
-          {album?.year ? (
+          {tracks.length > 0 ? (
             <ThemedText style={styles.albumMeta}>
-              {album.year} {tracks.length > 0 ? `• ${tracks.length} tracks` : ''}
+              {tracks.length} tracks
             </ThemedText>
           ) : null}
         </View>
