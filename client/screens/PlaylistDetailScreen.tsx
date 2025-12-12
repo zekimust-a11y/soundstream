@@ -46,7 +46,7 @@ export default function PlaylistDetailScreen() {
     }
   }, [activeServer, playlist.id]);
 
-  const displayName = playlist.name.replace(/^Qobuz\s*/i, '').trim();
+  const displayName = playlist.name.replace(/^Qobuz\s*:?\s*/i, '').trim();
 
   useEffect(() => {
     navigation.setOptions({

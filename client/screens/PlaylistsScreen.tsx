@@ -84,19 +84,16 @@ export default function PlaylistsScreen() {
         ]}
         onPress={() => handleOpenPlaylist(item)}
       >
-        <View style={styles.playlistIcon}>
-          <Feather name="list" size={24} color={Colors.light.accent} />
-        </View>
         <View style={styles.playlistInfo}>
           <View style={styles.playlistNameRow}>
-            <ThemedText style={styles.playlistName} numberOfLines={1}>
-              {item.name.replace(/^Qobuz\s*/i, '').trim()}
-            </ThemedText>
             {item.url?.includes('qobuz') ? (
               <View style={styles.qobuzBadge}>
                 <ThemedText style={styles.qobuzBadgeText}>Q</ThemedText>
               </View>
             ) : null}
+            <ThemedText style={styles.playlistName} numberOfLines={1}>
+              {item.name.replace(/^Qobuz\s*:?\s*/i, '').trim()}
+            </ThemedText>
           </View>
           {item.trackCount !== undefined ? (
             <ThemedText style={styles.playlistTracks}>
@@ -226,17 +223,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  playlistIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.light.backgroundSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   playlistInfo: {
     flex: 1,
-    marginLeft: Spacing.md,
     marginRight: Spacing.sm,
   },
   playlistNameRow: {
@@ -255,7 +243,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: Spacing.sm,
+    marginRight: Spacing.sm,
   },
   qobuzBadgeText: {
     fontSize: 12,
