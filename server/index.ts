@@ -165,6 +165,20 @@ function configureExpoAndLanding(app: express.Application) {
   const landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
   const appName = getAppName();
 
+  // Serve Now Playing display page
+  const nowPlayingPath = path.resolve(
+    process.cwd(),
+    "server",
+    "templates",
+    "now-playing.html",
+  );
+  
+  app.get("/now-playing", (req: Request, res: Response) => {
+    const nowPlayingTemplate = fs.readFileSync(nowPlayingPath, "utf-8");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(200).send(nowPlayingTemplate);
+  });
+
   log("Serving static Expo files with dynamic manifest routing");
 
   app.use((req: Request, res: Response, next: NextFunction) => {

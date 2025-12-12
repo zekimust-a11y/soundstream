@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -9,8 +9,10 @@ import {
   Alert,
   Platform,
   TextInput,
+  Linking,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Clipboard from "expo-clipboard";
 
 const SETTINGS_KEY = "@soundstream_settings";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -101,6 +103,21 @@ export default function SettingsScreen() {
   
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveredServers, setDiscoveredServers] = useState<Array<{host: string; port: number; name: string}>>([]);
+  const [urlCopied, setUrlCopied] = useState(false);
+
+  const nowPlayingUrl = useMemo(() => {
+    if (!activeServer || !activePlayer) return null;
+    // For web, use current origin; for mobile, use the EXPO_PUBLIC_DOMAIN
+    let baseUrl: string;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      baseUrl = window.location.origin;
+    } else {
+      // Use the domain from environment, fallback to localhost
+      const domain = process.env.EXPO_PUBLIC_DOMAIN || 'localhost:5000';
+      baseUrl = domain.startsWith('http') ? domain : `https://${domain}`;
+    }
+    return `${baseUrl}/now-playing?host=${activeServer.host}&port=${activeServer.port}&player=${encodeURIComponent(activePlayer.id)}`;
+  }, [activeServer, activePlayer]);
 
   useEffect(() => {
     loadSettings();
@@ -642,6 +659,79 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {nowPlayingUrl ? (
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>TV Display</ThemedText>
+            <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={styles.tvDisplayContent}>
+                <View style={styles.tvDisplayHeader}>
+                  <View style={[styles.iconContainer, { backgroundColor: '#9C27B0' + '20' }]}>
+                    <Feather name="tv" size={18} color="#9C27B0" />
+                  </View>
+                  <View style={styles.settingContent}>
+                    <ThemedText style={styles.settingTitle}>Now Playing Display</ThemedText>
+                    <ThemedText style={styles.settingSubtitle}>
+                      Cast this page to your TV to show album artwork and track info
+                    </ThemedText>
+                  </View>
+                </View>
+                <View style={styles.urlContainer}>
+                  <ThemedText 
+                    style={[styles.urlText, { color: theme.textSecondary }]} 
+                    numberOfLines={2}
+                  >
+                    {nowPlayingUrl}
+                  </ThemedText>
+                </View>
+                <View style={styles.tvDisplayButtons}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.tvDisplayButton,
+                      { 
+                        backgroundColor: theme.accent,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                    onPress={async () => {
+                      await Clipboard.setStringAsync(nowPlayingUrl);
+                      setUrlCopied(true);
+                      setTimeout(() => setUrlCopied(false), 2000);
+                    }}
+                  >
+                    <Feather name={urlCopied ? "check" : "copy"} size={16} color={theme.buttonText} />
+                    <ThemedText style={[styles.tvDisplayButtonText, { color: theme.buttonText }]}>
+                      {urlCopied ? "Copied!" : "Copy URL"}
+                    </ThemedText>
+                  </Pressable>
+                  {Platform.OS === 'web' ? (
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.tvDisplayButton,
+                        styles.tvDisplayButtonSecondary,
+                        { 
+                          borderColor: theme.border,
+                          opacity: pressed ? 0.7 : 1,
+                        },
+                      ]}
+                      onPress={() => {
+                        window.open(nowPlayingUrl, '_blank');
+                      }}
+                    >
+                      <Feather name="external-link" size={16} color={theme.text} />
+                      <ThemedText style={[styles.tvDisplayButtonText, { color: theme.text }]}>
+                        Open
+                      </ThemedText>
+                    </Pressable>
+                  ) : null}
+                </View>
+                <ThemedText style={[styles.tvDisplayHint, { color: theme.textTertiary }]}>
+                  Open this URL in Chrome on your computer, then use Chrome's built-in Cast feature to display on your TV
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Data</ThemedText>
           <View style={styles.sectionContent}>
@@ -1019,5 +1109,49 @@ const styles = StyleSheet.create({
     ...Typography.label,
     color: Colors.light.buttonText,
     fontWeight: "600",
+  },
+  tvDisplayContent: {
+    padding: Spacing.lg,
+  },
+  tvDisplayHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: Spacing.md,
+  },
+  urlContainer: {
+    backgroundColor: Colors.light.backgroundTertiary,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.md,
+  },
+  urlText: {
+    ...Typography.caption,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  tvDisplayButtons: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  tvDisplayButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.sm,
+  },
+  tvDisplayButtonSecondary: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+  },
+  tvDisplayButtonText: {
+    ...Typography.body,
+    fontWeight: "600",
+  },
+  tvDisplayHint: {
+    ...Typography.caption,
+    textAlign: "center",
   },
 });

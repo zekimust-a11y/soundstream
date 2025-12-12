@@ -451,6 +451,89 @@ async function discoverServerContent(host: string, port: number): Promise<Browse
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // LMS JSON-RPC proxy endpoint for Now Playing display
+  // SECURITY: Only allows read-only 'status' command to prevent unauthorized control
+  app.post('/api/lms/proxy', async (req: Request, res: Response) => {
+    const { host, port, playerId, command } = req.body;
+    
+    if (!host || !playerId || !command) {
+      return res.status(400).json({ error: 'Missing host, playerId, or command' });
+    }
+    
+    // Validate host is a valid private IPv4 address (LAN only)
+    // Strict validation: must be numeric IPv4, no hostnames allowed
+    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    const ipMatch = String(host).match(ipv4Regex);
+    if (!ipMatch) {
+      return res.status(403).json({ error: 'Only IPv4 addresses are allowed (no hostnames)' });
+    }
+    
+    const octets = [
+      parseInt(ipMatch[1], 10),
+      parseInt(ipMatch[2], 10),
+      parseInt(ipMatch[3], 10),
+      parseInt(ipMatch[4], 10),
+    ];
+    
+    // Validate all octets are in valid range
+    if (octets.some(o => o < 0 || o > 255)) {
+      return res.status(403).json({ error: 'Invalid IP address' });
+    }
+    
+    // Check if IP is in private ranges:
+    // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+    const isPrivate = (
+      (octets[0] === 10) ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 192 && octets[1] === 168)
+    );
+    
+    if (!isPrivate) {
+      return res.status(403).json({ error: 'Only private network addresses are allowed' });
+    }
+    
+    // Validate command - only allow read-only status commands
+    if (!Array.isArray(command) || command.length === 0) {
+      return res.status(400).json({ error: 'Invalid command format' });
+    }
+    
+    const allowedCommands = ['status', 'serverstatus', 'players'];
+    const baseCommand = String(command[0]).toLowerCase();
+    if (!allowedCommands.includes(baseCommand)) {
+      return res.status(403).json({ error: 'Only read-only commands are allowed' });
+    }
+    
+    try {
+      const lmsPort = parseInt(String(port)) || 9000;
+      if (lmsPort < 1 || lmsPort > 65535) {
+        return res.status(400).json({ error: 'Invalid port' });
+      }
+      
+      const response = await fetch(`http://${host}:${lmsPort}/jsonrpc.js`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 1,
+          method: 'slim.request',
+          params: [playerId, command]
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`LMS returned ${response.status}`);
+      }
+      
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('[LMS Proxy] Error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'LMS request failed' 
+      });
+    }
+  });
+
   // SSDP discovery endpoint - discovers UPnP/OpenHome devices on the network
   app.get('/api/discover', async (req: Request, res: Response) => {
     try {
