@@ -117,15 +117,13 @@ export default function AllAlbumsScreen() {
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         ListFooterComponent={ListFooter}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={10}
-        windowSize={5}
-        initialNumToRender={10}
-        getItemLayout={(_, index) => ({
-          length: ALBUM_SIZE + Spacing.lg + 60,
-          offset: (ALBUM_SIZE + Spacing.lg + 60) * Math.floor(index / NUM_COLUMNS),
-          index,
-        })}
+        removeClippedSubviews={false}
+        maxToRenderPerBatch={20}
+        windowSize={10}
+        initialNumToRender={20}
+        maintainVisibleContentPosition={{
+          minIndexForVisible: 0,
+        }}
       />
     </ThemedView>
   );
