@@ -476,7 +476,8 @@ function startKeyboardListener() {
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  // Auto-redirect to now-playing with configured LMS
+  res.redirect(`/now-playing?host=${LMS_HOST}&port=${LMS_PORT}`);
 });
 
 app.get('/now-playing', (req, res) => {
