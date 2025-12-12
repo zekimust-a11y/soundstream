@@ -1001,12 +1001,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             if (response.ok) {
               const text = await response.text();
-              const volumeMatch = text.match(/<CurrentVolume>(\d+)<\/CurrentVolume>/i);
+              console.log(`[UPnP] GetVolume response:`, text.substring(0, 500));
+              
+              // Try standard UPnP format first (0-100 integer)
+              let volumeMatch = text.match(/<CurrentVolume>(\d+)<\/CurrentVolume>/i);
               if (volumeMatch) {
                 const currentVolume = parseInt(volumeMatch[1], 10);
-                console.log(`[UPnP] Got volume: ${currentVolume}`);
-                return res.json({ success: true, volume: currentVolume });
+                console.log(`[UPnP] Got volume (standard): ${currentVolume}`);
+                return res.json({ success: true, volume: currentVolume, format: 'standard' });
               }
+              
+              // Try dCS/dB format (negative decimals like -34.5)
+              volumeMatch = text.match(/<CurrentVolume>(-?\d+\.?\d*)<\/CurrentVolume>/i);
+              if (volumeMatch) {
+                const dbVolume = parseFloat(volumeMatch[1]);
+                // Convert dB to 0-100 scale: dCS range is typically -80dB to 0dB
+                // Map -80 to 0%, 0 to 100%
+                const percentVolume = Math.round(((dbVolume + 80) / 80) * 100);
+                const clampedVolume = Math.max(0, Math.min(100, percentVolume));
+                console.log(`[UPnP] Got volume (dB): ${dbVolume}dB -> ${clampedVolume}%`);
+                return res.json({ success: true, volume: clampedVolume, dbVolume, format: 'dB' });
+              }
+              
+              // Try Volume tag (some devices use this)
+              volumeMatch = text.match(/<Volume>(-?\d+\.?\d*)<\/Volume>/i);
+              if (volumeMatch) {
+                const vol = parseFloat(volumeMatch[1]);
+                if (vol < 0) {
+                  // dB format
+                  const percentVolume = Math.round(((vol + 80) / 80) * 100);
+                  const clampedVolume = Math.max(0, Math.min(100, percentVolume));
+                  console.log(`[UPnP] Got volume (dB alt): ${vol}dB -> ${clampedVolume}%`);
+                  return res.json({ success: true, volume: clampedVolume, dbVolume: vol, format: 'dB' });
+                } else {
+                  console.log(`[UPnP] Got volume (alt): ${vol}`);
+                  return res.json({ success: true, volume: Math.round(vol), format: 'standard' });
+                }
+              }
+              
+              console.log(`[UPnP] Could not parse volume from response`);
             }
           } catch (e) {
             console.log(`[UPnP] Failed at ${controlUrl}:`, e);
@@ -1022,13 +1055,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: 'Volume must be between 0 and 100' });
         }
         
+        // Check if device uses dB format (from request body or default to percentage)
+        const useDbFormat = req.body.useDbFormat === true;
+        let volumeValue: string;
+        
+        if (useDbFormat) {
+          // Convert 0-100 to dB scale (-80 to 0)
+          const dbVolume = ((volume / 100) * 80) - 80;
+          volumeValue = dbVolume.toFixed(1);
+          console.log(`[UPnP] Setting volume: ${volume}% -> ${volumeValue}dB`);
+        } else {
+          volumeValue = String(Math.round(volume));
+        }
+        
         const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
   <s:Body>
     <u:SetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
       <InstanceID>0</InstanceID>
       <Channel>Master</Channel>
-      <DesiredVolume>${volume}</DesiredVolume>
+      <DesiredVolume>${volumeValue}</DesiredVolume>
     </u:SetVolume>
   </s:Body>
 </s:Envelope>`;
