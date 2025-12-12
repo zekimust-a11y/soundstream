@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Now Playing - SoundStream</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #000;
+      color: white;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    
+    .background {
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background-size: cover;
+      background-position: center;
+      filter: blur(80px) saturate(1.5);
+      opacity: 0.4;
+      transition: background-image 1s ease;
+    }
+    
+    .container {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+    }
+    
+    .content {
+      display: flex;
+      align-items: center;
+      gap: 80px;
+      max-width: 1400px;
+    }
+    
+    .artwork-container {
+      flex-shrink: 0;
+    }
+    
+    .artwork {
+      width: 500px;
+      height: 500px;
+      border-radius: 12px;
+      box-shadow: 0 40px 100px rgba(0,0,0,0.5);
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      object-fit: cover;
+    }
+    
+    .info {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .title {
+      font-size: 4rem;
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 16px;
+      text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    
+    .artist {
+      font-size: 2.5rem;
+      font-weight: 400;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 8px;
+    }
+    
+    .album {
+      font-size: 1.5rem;
+      font-weight: 300;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 40px;
+    }
+    
+    .progress-container {
+      margin-top: 40px;
+    }
+    
+    .progress-bar {
+      height: 6px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      border-radius: 3px;
+      transition: width 1s linear;
+    }
+    
+    .time {
+      display: flex;
+      justify-content: space-between;
+      font-size: 1.25rem;
+      color: rgba(255,255,255,0.5);
+    }
+    
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 24px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 100px;
+      font-size: 1.25rem;
+      margin-bottom: 24px;
+    }
+    
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s infinite;
+    }
+    
+    .status-dot.paused {
+      background: #f59e0b;
+      animation: none;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .not-playing {
+      text-align: center;
+    }
+    
+    .not-playing h2 {
+      font-size: 3rem;
+      font-weight: 300;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 16px;
+    }
+    
+    .not-playing p {
+      font-size: 1.25rem;
+      color: rgba(255,255,255,0.3);
+    }
+    
+    .error {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      padding: 20px 30px;
+      border-radius: 12px;
+      text-align: center;
+    }
+    
+    .error h3 {
+      color: #ef4444;
+      margin-bottom: 8px;
+    }
+    
+    .quality {
+      display: flex;
+      gap: 16px;
+      margin-top: 24px;
+    }
+    
+    .quality-badge {
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      font-size: 0.875rem;
+      color: rgba(255,255,255,0.7);
+    }
+    
+    @media (max-width: 1200px) {
+      .content { flex-direction: column; gap: 40px; text-align: center; }
+      .artwork { width: 400px; height: 400px; }
+      .title { font-size: 3rem; }
+      .artist { font-size: 2rem; }
+      .album { font-size: 1.25rem; }
+      .quality { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="background" id="background"></div>
+  
+  <div class="container">
+    <div class="content" id="content">
+      <div class="not-playing" id="notPlaying">
+        <h2>Connecting to LMS...</h2>
+        <p>Please wait</p>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const host = params.get('host') || '192.168.0.19';
+    const port = params.get('port') || '9000';
+    let playerId = params.get('player') || '';
+    
+    const lmsUrl = `http://${host}:${port}/jsonrpc.js`;
+    let currentArtwork = '';
+    
+    async function lmsRequest(playerId, command) {
+      const response = await fetch(lmsUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 1,
+          method: 'slim.request',
+          params: [playerId, command]
+        })
+      });
+      const data = await response.json();
+      return data.result;
+    }
+    
+    async function getPlayers() {
+      try {
+        const result = await lmsRequest('', ['players', '0', '100']);
+        return result.players_loop || [];
+      } catch (e) {
+        console.error('Failed to get players:', e);
+        return [];
+      }
+    }
+    
+    async function getPlayerStatus(pid) {
+      try {
+        return await lmsRequest(pid, ['status', '-', '1', 'tags:aAlcdegiIKloNrstuwy']);
+      } catch (e) {
+        console.error('Failed to get player status:', e);
+        return null;
+      }
+    }
+    
+    function formatTime(seconds) {
+      if (!seconds || isNaN(seconds)) return '0:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    function getArtworkUrl(track) {
+      if (track.artwork_url) {
+        if (track.artwork_url.startsWith('http')) return track.artwork_url;
+        return `http://${host}:${port}${track.artwork_url}`;
+      }
+      if (track.coverid) {
+        return `http://${host}:${port}/music/${track.coverid}/cover.jpg`;
+      }
+      if (track.id) {
+        return `http://${host}:${port}/music/${track.id}/cover.jpg`;
+      }
+      return '';
+    }
+    
+    function updateDisplay(status) {
+      const content = document.getElementById('content');
+      const background = document.getElementById('background');
+      
+      if (!status || !status.playlist_loop || status.playlist_loop.length === 0) {
+        content.innerHTML = `
+          <div class="not-playing">
+            <h2>Nothing Playing</h2>
+            <p>Start playing music on your Squeezebox player</p>
+          </div>
+        `;
+        background.style.backgroundImage = '';
+        return;
+      }
+      
+      const track = status.playlist_loop[0];
+      const isPlaying = status.mode === 'play';
+      const currentTime = status.time || 0;
+      const duration = track.duration || status.duration || 0;
+      const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+      
+      const artworkUrl = getArtworkUrl(track);
+      
+      if (artworkUrl && artworkUrl !== currentArtwork) {
+        currentArtwork = artworkUrl;
+        background.style.backgroundImage = `url(${artworkUrl})`;
+      }
+      
+      let qualityHtml = '';
+      if (track.samplerate || track.bitrate || track.type) {
+        qualityHtml = '<div class="quality">';
+        if (track.type) {
+          qualityHtml += `<span class="quality-badge">${track.type.toUpperCase()}</span>`;
+        }
+        if (track.samplerate) {
+          const sr = track.samplerate >= 1000 ? `${(track.samplerate/1000).toFixed(1)}kHz` : `${track.samplerate}Hz`;
+          qualityHtml += `<span class="quality-badge">${sr}</span>`;
+        }
+        if (track.bitrate) {
+          qualityHtml += `<span class="quality-badge">${track.bitrate}kbps</span>`;
+        }
+        if (track.samplesize) {
+          qualityHtml += `<span class="quality-badge">${track.samplesize}-bit</span>`;
+        }
+        qualityHtml += '</div>';
+      }
+      
+      content.innerHTML = `
+        <div class="artwork-container">
+          <img class="artwork" src="${artworkUrl || ''}" alt="Album Art" onerror="this.style.display='none'">
+        </div>
+        <div class="info">
+          <div class="status">
+            <span class="status-dot ${isPlaying ? '' : 'paused'}"></span>
+            ${isPlaying ? 'Now Playing' : 'Paused'}
+          </div>
+          <h1 class="title">${track.title || 'Unknown Track'}</h1>
+          <p class="artist">${track.artist || 'Unknown Artist'}</p>
+          <p class="album">${track.album || ''}</p>
+          ${qualityHtml}
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${progress}%"></div>
+            </div>
+            <div class="time">
+              <span>${formatTime(currentTime)}</span>
+              <span>${formatTime(duration)}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function showError(message) {
+      const content = document.getElementById('content');
+      content.innerHTML = `
+        <div class="error">
+          <h3>Connection Error</h3>
+          <p>${message}</p>
+          <p style="margin-top: 16px; font-size: 0.875rem;">
+            Make sure LMS is running at http://${host}:${port}
+          </p>
+        </div>
+      `;
+    }
+    
+    async function init() {
+      try {
+        if (!playerId) {
+          const players = await getPlayers();
+          if (players.length > 0) {
+            playerId = players[0].playerid;
+            console.log('Auto-selected player:', players[0].name, playerId);
+          } else {
+            showError('No players found on LMS server');
+            return;
+          }
+        }
+        
+        async function poll() {
+          try {
+            const status = await getPlayerStatus(playerId);
+            updateDisplay(status);
+          } catch (e) {
+            console.error('Poll error:', e);
+          }
+        }
+        
+        poll();
+        setInterval(poll, 1000);
+        
+      } catch (e) {
+        showError('Cannot connect to LMS server: ' + e.message);
+      }
+    }
+    
+    init();
+  </script>
+</body>
+</html>

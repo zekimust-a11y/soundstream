@@ -1,0 +1,12 @@
+{
+  "name": "soundstream-display",
+  "version": "1.0.0",
+  "description": "SoundStream Now Playing display server for Chromecast/TV",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SoundStream Display</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    p { color: #94a3b8; margin-bottom: 1.5rem; line-height: 1.6; }
+    .setup-form {
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-top: 2rem;
+    }
+    .form-group { margin-bottom: 1rem; text-align: left; }
+    label { display: block; margin-bottom: 0.5rem; color: #94a3b8; font-size: 0.875rem; }
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.05);
+      color: white;
+      font-size: 1rem;
+    }
+    input:focus { outline: none; border-color: #667eea; }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 1rem;
+      transition: transform 0.2s, opacity 0.2s;
+    }
+    button:hover { transform: translateY(-2px); opacity: 0.9; }
+    .help { font-size: 0.75rem; color: #64748b; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SoundStream Display</h1>
+    <p>Connect to your Logitech Media Server to display Now Playing information on your TV or Chromecast.</p>
+    
+    <div class="setup-form">
+      <form id="setupForm">
+        <div class="form-group">
+          <label for="host">LMS Server IP Address</label>
+          <input type="text" id="host" placeholder="192.168.0.19" required>
+          <div class="help">The IP address of your Logitech Media Server</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="port">LMS Port</label>
+          <input type="number" id="port" value="9000" required>
+          <div class="help">Usually 9000 (default LMS port)</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="player">Player MAC Address (optional)</label>
+          <input type="text" id="player" placeholder="00:04:20:xx:xx:xx">
+          <div class="help">Leave blank to auto-detect first player</div>
+        </div>
+        
+        <button type="submit">Launch Now Playing Display</button>
+      </form>
+    </div>
+  </div>
+  
+  <script>
+    document.getElementById('setupForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const host = document.getElementById('host').value;
+      const port = document.getElementById('port').value;
+      const player = document.getElementById('player').value;
+      
+      let url = `/now-playing?host=${encodeURIComponent(host)}&port=${encodeURIComponent(port)}`;
+      if (player) {
+        url += `&player=${encodeURIComponent(player)}`;
+      }
+      
+      window.location.href = url;
+    });
+  </script>
+</body>
+</html>
