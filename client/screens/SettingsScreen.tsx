@@ -801,7 +801,7 @@ export default function SettingsScreen() {
                   style={[styles.textInput, { backgroundColor: theme.backgroundSecondary, color: theme.text, borderColor: theme.border }]}
                   value={dacPort}
                   onChangeText={setDacPort}
-                  placeholder="80"
+                  placeholder="16500"
                   placeholderTextColor={theme.textTertiary}
                   keyboardType="numeric"
                 />
@@ -833,7 +833,7 @@ export default function SettingsScreen() {
                     await setDacConfig({
                       enabled,
                       ip: dacIp.trim(),
-                      port: parseInt(dacPort) || 80,
+                      port: parseInt(dacPort) || 16500,
                       name: dacName,
                     });
                     setIsDacEnabled(enabled);
