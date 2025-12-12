@@ -325,6 +325,27 @@ export default function SettingsScreen() {
     setIsRefreshingPlayers(false);
   };
 
+  const handleSelectPlayer = async (player: typeof players[0]) => {
+    setActivePlayer(player);
+    
+    // Also sync player selection to local Chromecast display server if configured
+    if (localServerIp) {
+      try {
+        const serverUrl = `http://${localServerIp.trim()}:${localServerPort}`;
+        await fetch(`${serverUrl}/api/player`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            playerId: player.id,
+            playerName: player.name
+          })
+        });
+      } catch (e) {
+        // Silent fail - local server might not be running
+      }
+    }
+  };
+
   const handleRemoveServer = (serverId: string) => {
     Alert.alert(
       "Remove Server",
@@ -523,7 +544,7 @@ export default function SettingsScreen() {
                     { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
                     activePlayer?.id === player.id ? styles.playerRowActive : null,
                   ]}
-                  onPress={() => setActivePlayer(player)}
+                  onPress={() => handleSelectPlayer(player)}
                 >
                   <View style={[styles.playerIcon, { backgroundColor: player.power ? theme.success + '20' : theme.textTertiary + '20' }]}>
                     <Feather name="speaker" size={16} color={player.power ? theme.success : theme.textTertiary} />
