@@ -113,7 +113,7 @@ export default function SettingsScreen() {
   const [selectedChromecast, setSelectedChromecast] = useState<{name: string; ip: string} | null>(null);
   
   const [dacIp, setDacIp] = useState("");
-  const [dacPort, setDacPort] = useState("80");
+  const [dacPort, setDacPort] = useState("16500");
   const [dacName, setDacName] = useState("dCS Varese");
   const [isDacEnabled, setIsDacEnabled] = useState(false);
   const [isDacConnecting, setIsDacConnecting] = useState(false);
