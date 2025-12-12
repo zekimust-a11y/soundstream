@@ -86,6 +86,7 @@ The app uses LMS's JSON-RPC API at `http://<server>:9000/jsonrpc.js`:
 - **Preferred Player**: OLADRAplayer (bb:bb:37:be:02:c2)
 - **Chromecast IP**: 192.168.0.239
 - **Local Server Port**: 3000
+- **dCS Varese**: Core at 192.168.0.17, Interface at 192.168.0.42 (UPnP port 16500)
 - **Local Server Path**: `/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server`
 - **Restart Command**: `cd "/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server" && npm start`
 
@@ -127,6 +128,15 @@ For mobile testing:
 - UPnP client (upnpClient.ts)
 - SSDP discovery (useSsdpDiscovery.tsx)
 - SSDP bridge server (ssdp-bridge.ts)
+
+## dCS Varese Volume Control (Investigated)
+
+Investigated direct volume control of dCS Varese DAC from the app. Findings:
+- **Core** (192.168.0.17): Web interface on port 80 (firmware updates only), ACTUS protocol on port 7878 (encrypted/proprietary)
+- **Interface** (192.168.0.42): UPnP on port 16500, Chromecast on port 8009
+- dCS Mosaic app uses proprietary encrypted ACTUS protocol - cannot reverse-engineer
+- Third-party apps like mConnect/BubbleUPnP can control volume via UPnP but experience is flaky
+- **Decision**: Use LMS player volume control instead (reliable and already working)
 
 ## Flirc USB / IR Remote Control
 

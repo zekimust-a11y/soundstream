@@ -87,7 +87,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer } = useMusic();
   const { theme } = useTheme();
-  const { players, activePlayer, setActivePlayer, refreshPlayers, dacConfig, setDacConfig, dacVolume } = usePlayback();
+  const { players, activePlayer, setActivePlayer, refreshPlayers } = usePlayback();
   
   const [isConnecting, setIsConnecting] = useState(false);
   const [lmsHost, setLmsHost] = useState("");
@@ -111,13 +111,6 @@ export default function SettingsScreen() {
   const [isDiscoveringChromecasts, setIsDiscoveringChromecasts] = useState(false);
   const [discoveredChromecasts, setDiscoveredChromecasts] = useState<Array<{name: string; model: string; ip: string; port: number}>>([]);
   const [selectedChromecast, setSelectedChromecast] = useState<{name: string; ip: string} | null>(null);
-  
-  const [dacIp, setDacIp] = useState("");
-  const [dacPort, setDacPort] = useState("16500");
-  const [dacName, setDacName] = useState("dCS Varese");
-  const [isDacEnabled, setIsDacEnabled] = useState(false);
-  const [isDacConnecting, setIsDacConnecting] = useState(false);
-  const [dacConnectionError, setDacConnectionError] = useState<string | null>(null);
 
   const nowPlayingUrl = useMemo(() => {
     if (!activeServer || !activePlayer) return null;
@@ -134,15 +127,6 @@ export default function SettingsScreen() {
       refreshPlayers();
     }
   }, []);
-
-  useEffect(() => {
-    if (dacConfig) {
-      setDacIp(dacConfig.ip);
-      setDacPort(String(dacConfig.port));
-      setDacName(dacConfig.name);
-      setIsDacEnabled(dacConfig.enabled);
-    }
-  }, [dacConfig]);
 
   useEffect(() => {
     if (settingsLoaded) {
@@ -760,111 +744,6 @@ export default function SettingsScreen() {
                 <View style={styles.radioEmpty} />
               )}
             </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>DAC Volume Control</ThemedText>
-          <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.dacHeader}>
-              <View style={[styles.iconContainer, { backgroundColor: '#E91E63' + '20' }]}>
-                <Feather name="sliders" size={18} color="#E91E63" />
-              </View>
-              <View style={styles.settingContent}>
-                <ThemedText style={styles.settingTitle}>External DAC Volume</ThemedText>
-                <ThemedText style={styles.settingSubtitle}>
-                  Control volume on your dCS Varese or other UPnP DAC instead of the player
-                </ThemedText>
-              </View>
-            </View>
-            
-            <View style={styles.dacInputRow}>
-              <View style={styles.dacInputGroup}>
-                <ThemedText style={[styles.inputLabel, { color: theme.textSecondary }]}>DAC IP Address</ThemedText>
-                <TextInput
-                  style={[styles.textInput, { backgroundColor: theme.backgroundSecondary, color: theme.text, borderColor: theme.border }]}
-                  value={dacIp}
-                  onChangeText={(text) => {
-                    setDacIp(text);
-                    setDacConnectionError(null);
-                  }}
-                  placeholder="192.168.0.42"
-                  placeholderTextColor={theme.textTertiary}
-                  keyboardType="numeric"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-              <View style={styles.dacPortGroup}>
-                <ThemedText style={[styles.inputLabel, { color: theme.textSecondary }]}>Port</ThemedText>
-                <TextInput
-                  style={[styles.textInput, { backgroundColor: theme.backgroundSecondary, color: theme.text, borderColor: theme.border }]}
-                  value={dacPort}
-                  onChangeText={setDacPort}
-                  placeholder="16500"
-                  placeholderTextColor={theme.textTertiary}
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-            
-            {dacConnectionError ? (
-              <ThemedText style={[styles.errorText, { color: theme.error }]}>
-                {dacConnectionError}
-              </ThemedText>
-            ) : null}
-            
-            <View style={styles.dacToggleRow}>
-              <ThemedText style={[styles.dacToggleLabel, { color: theme.text }]}>
-                Use DAC for volume control
-              </ThemedText>
-              <Switch
-                value={isDacEnabled}
-                onValueChange={async (enabled) => {
-                  if (enabled && !dacIp.trim()) {
-                    Alert.alert('IP Required', 'Please enter the DAC IP address first.');
-                    return;
-                  }
-                  
-                  setIsDacConnecting(true);
-                  setDacConnectionError(null);
-                  
-                  try {
-                    await setDacConfig({
-                      enabled,
-                      ip: dacIp.trim(),
-                      port: parseInt(dacPort) || 16500,
-                      name: dacName,
-                    });
-                    setIsDacEnabled(enabled);
-                  } catch (e) {
-                    setDacConnectionError(e instanceof Error ? e.message : 'Failed to connect to DAC');
-                    setIsDacEnabled(false);
-                  } finally {
-                    setIsDacConnecting(false);
-                  }
-                }}
-                trackColor={{
-                  false: Colors.light.backgroundTertiary,
-                  true: Colors.light.accent,
-                }}
-                thumbColor={Colors.light.text}
-                disabled={isDacConnecting}
-              />
-            </View>
-            
-            {isDacEnabled && dacConfig?.enabled ? (
-              <View style={[styles.dacStatusRow, { backgroundColor: theme.success + '10', borderColor: theme.success }]}>
-                <Feather name="check-circle" size={16} color={theme.success} />
-                <ThemedText style={[styles.dacStatusText, { color: theme.success }]}>
-                  DAC volume control active (Current: {dacVolume}%)
-                </ThemedText>
-              </View>
-            ) : null}
-            
-            <ThemedText style={[styles.hintText, { color: theme.textTertiary }]}>
-              When enabled, the app will control your DAC's volume via UPnP instead of the LMS player volume. Set your LMS player volume to 100% (fixed output).
-            </ThemedText>
           </View>
         </View>
 
