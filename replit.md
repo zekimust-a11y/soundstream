@@ -119,6 +119,21 @@ For mobile testing:
 - SSDP discovery (useSsdpDiscovery.tsx)
 - SSDP bridge server (ssdp-bridge.ts)
 
+## Flirc USB / IR Remote Control
+
+The local-server includes keyboard listener support for Flirc USB adapters, allowing any IR remote to control LMS playback.
+
+### How It Works
+- Flirc USB receives IR signals from any remote and converts them to keyboard presses
+- The local-server listens for keyboard events in stdin raw mode
+- Key mappings are defined in `local-server/keymap.json`
+- Commands are sent to LMS via JSON-RPC
+
+### Key Notes
+- Requires `process.stdin.resume()` after `setRawMode(true)` for keypress events to fire
+- Only works when running in an interactive terminal (TTY)
+- Configure `ENABLE_KEYBOARD=true` environment variable
+
 ## iOS Shortcuts Integration
 
 The server exposes REST endpoints for iOS Shortcuts to enable Siri voice control.
