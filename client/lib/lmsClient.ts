@@ -374,6 +374,132 @@ class LmsClient {
     return { artists, albums, tracks };
   }
 
+  async searchQobuz(query: string): Promise<{ artists: LmsArtist[]; albums: LmsAlbum[]; tracks: LmsTrack[] }> {
+    try {
+      const result = await this.request('', [
+        'qobuz', 'items', '0', '100',
+        `search:${query}`,
+        'menu:qobuz',
+        'want_url:1'
+      ]);
+
+      const items = (result.item_loop || []) as Array<Record<string, unknown>>;
+      const artists: LmsArtist[] = [];
+      const albums: LmsAlbum[] = [];
+      const tracks: LmsTrack[] = [];
+
+      for (const item of items) {
+        const type = String(item.type || '');
+        const name = String(item.name || item.text || '');
+        const id = String(item.id || item.url || `qobuz_${Date.now()}_${Math.random()}`);
+
+        if (type === 'artist' || (item.hasArtwork === undefined && !item.url && name)) {
+          if (item.artist_id || type === 'artist') {
+            artists.push({
+              id: String(item.artist_id || id),
+              name: String(item.artist || name),
+            });
+          }
+        } else if (type === 'album' || item.album_id) {
+          const artworkUrl = item.image ? String(item.image) : 
+            (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
+          albums.push({
+            id: String(item.album_id || id),
+            title: String(item.album || item.title || name),
+            artist: String(item.artist || item.albumartist || 'Unknown Artist'),
+            artwork_url: artworkUrl,
+            year: item.year ? Number(item.year) : undefined,
+          });
+        } else if (type === 'audio' || item.url || item.duration) {
+          const artworkUrl = item.image ? String(item.image) : 
+            (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
+          tracks.push({
+            id: id,
+            title: String(item.title || item.name || name),
+            artist: String(item.artist || 'Unknown Artist'),
+            album: String(item.album || ''),
+            duration: Number(item.duration || 0),
+            artwork_url: artworkUrl,
+            url: item.url ? String(item.url) : undefined,
+            format: item.type ? String(item.type).toUpperCase() : 'FLAC',
+            sampleRate: item.samplerate ? String(item.samplerate) : undefined,
+            bitDepth: item.bits_per_sample ? String(item.bits_per_sample) : undefined,
+          });
+        }
+      }
+
+      debugLog.info('Qobuz search results', `${artists.length} artists, ${albums.length} albums, ${tracks.length} tracks`);
+      return { artists, albums, tracks };
+    } catch (error) {
+      debugLog.error('Qobuz search failed', error instanceof Error ? error.message : String(error));
+      return { artists: [], albums: [], tracks: [] };
+    }
+  }
+
+  async globalSearch(query: string): Promise<{ artists: LmsArtist[]; albums: LmsAlbum[]; tracks: LmsTrack[] }> {
+    try {
+      const result = await this.request('', [
+        'globalsearch', 'items', '0', '100',
+        `search:${query}`,
+        'want_url:1'
+      ]);
+
+      const items = (result.item_loop || result.loop_loop || []) as Array<Record<string, unknown>>;
+      const artists: LmsArtist[] = [];
+      const albums: LmsAlbum[] = [];
+      const tracks: LmsTrack[] = [];
+
+      for (const item of items) {
+        const type = String(item.type || '');
+        const hasUrl = Boolean(item.url);
+
+        if (type === 'artist' || item.artist_id) {
+          artists.push({
+            id: String(item.artist_id || item.id || ''),
+            name: String(item.artist || item.name || item.text || 'Unknown Artist'),
+          });
+        } else if (type === 'album' || item.album_id) {
+          const artworkUrl = item.image ? String(item.image) : 
+            (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
+          albums.push({
+            id: String(item.album_id || item.id || ''),
+            title: String(item.album || item.title || item.name || item.text || 'Unknown Album'),
+            artist: String(item.artist || item.albumartist || 'Unknown Artist'),
+            artwork_url: artworkUrl,
+            year: item.year ? Number(item.year) : undefined,
+          });
+        } else if (type === 'audio' || type === 'track' || hasUrl) {
+          const artworkUrl = item.image ? String(item.image) : 
+            (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
+          tracks.push({
+            id: String(item.id || item.url || `track_${Date.now()}`),
+            title: String(item.title || item.name || item.text || 'Unknown Track'),
+            artist: String(item.artist || 'Unknown Artist'),
+            album: String(item.album || ''),
+            duration: Number(item.duration || 0),
+            artwork_url: artworkUrl,
+            url: item.url ? String(item.url) : undefined,
+            format: 'FLAC',
+          });
+        }
+      }
+
+      debugLog.info('Global search results', `${artists.length} artists, ${albums.length} albums, ${tracks.length} tracks`);
+      return { artists, albums, tracks };
+    } catch (error) {
+      debugLog.error('Global search failed', error instanceof Error ? error.message : String(error));
+      return this.search(query);
+    }
+  }
+
+  private normalizeArtworkUrl(url: string): string {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    return `${this.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+  }
+
   async play(playerId: string): Promise<void> {
     await this.request(playerId, ['play']);
   }

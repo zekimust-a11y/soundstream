@@ -270,18 +270,49 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      const result = await lmsClient.search(query);
-      
-      const convertedArtists = result.artists.map(convertLmsArtistToArtist);
-      const convertedAlbums = result.albums.map(convertLmsAlbumToAlbum);
-      const convertedTracks = result.tracks.map(t => convertLmsTrackToTrack(t, activeServer.id));
-      
+      const sourceFilter = filters?.source || "all";
       const typeFilter = filters?.type || "all";
       
+      let localResult = { artists: [] as any[], albums: [] as any[], tracks: [] as any[] };
+      let qobuzResult = { artists: [] as any[], albums: [] as any[], tracks: [] as any[] };
+      
+      if (sourceFilter === "local" || sourceFilter === "all") {
+        const result = await lmsClient.search(query);
+        localResult = {
+          artists: result.artists.map(convertLmsArtistToArtist),
+          albums: result.albums.map(convertLmsAlbumToAlbum),
+          tracks: result.tracks.map(t => ({ ...convertLmsTrackToTrack(t, activeServer.id), source: 'local' })),
+        };
+      }
+      
+      if (sourceFilter === "qobuz" || sourceFilter === "all") {
+        try {
+          const result = await lmsClient.searchQobuz(query);
+          qobuzResult = {
+            artists: result.artists.map(convertLmsArtistToArtist),
+            albums: result.albums.map(convertLmsAlbumToAlbum),
+            tracks: result.tracks.map(t => ({ ...convertLmsTrackToTrack(t, activeServer.id), source: 'qobuz' })),
+          };
+        } catch (e) {
+          debugLog.info('Qobuz search not available', e instanceof Error ? e.message : String(e));
+        }
+      }
+      
+      const mergedArtists = [...localResult.artists, ...qobuzResult.artists];
+      const mergedAlbums = [...localResult.albums, ...qobuzResult.albums];
+      const mergedTracks = [...localResult.tracks, ...qobuzResult.tracks];
+      
+      const uniqueArtists = mergedArtists.filter((a, i, arr) => 
+        arr.findIndex(x => x.id === a.id || x.name === a.name) === i
+      );
+      const uniqueAlbums = mergedAlbums.filter((a, i, arr) => 
+        arr.findIndex(x => x.id === a.id || (x.name === a.name && x.artist === a.artist)) === i
+      );
+      
       return {
-        artists: (typeFilter === "all" || typeFilter === "artists") ? convertedArtists : [],
-        albums: (typeFilter === "all" || typeFilter === "albums") ? convertedAlbums : [],
-        tracks: (typeFilter === "all" || typeFilter === "tracks") ? convertedTracks : [],
+        artists: (typeFilter === "all" || typeFilter === "artists") ? uniqueArtists : [],
+        albums: (typeFilter === "all" || typeFilter === "albums") ? uniqueAlbums : [],
+        tracks: (typeFilter === "all" || typeFilter === "tracks") ? mergedTracks : [],
       };
     } catch (error) {
       debugLog.error('Search failed', error instanceof Error ? error.message : String(error));
