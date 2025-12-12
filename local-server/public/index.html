@@ -95,8 +95,31 @@
   </div>
   
   <script>
-    document.getElementById('setupForm').addEventListener('submit', (e) => {
-      e.preventDefault();
+    async function loadConfig() {
+      try {
+        const response = await fetch('/api/status');
+        const config = await response.json();
+        
+        if (config.lmsHost) {
+          document.getElementById('host').value = config.lmsHost;
+        }
+        if (config.lmsPort) {
+          document.getElementById('port').value = config.lmsPort;
+        }
+        if (config.currentPlayerId) {
+          document.getElementById('player').value = config.currentPlayerId;
+        }
+        
+        // Auto-redirect if LMS is configured
+        if (config.lmsHost && config.lmsHost !== '192.168.0.19') {
+          launchNowPlaying();
+        }
+      } catch (e) {
+        console.log('Could not load config:', e);
+      }
+    }
+    
+    function launchNowPlaying() {
       const host = document.getElementById('host').value;
       const port = document.getElementById('port').value;
       const player = document.getElementById('player').value;
@@ -107,7 +130,14 @@
       }
       
       window.location.href = url;
+    }
+    
+    document.getElementById('setupForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      launchNowPlaying();
     });
+    
+    loadConfig();
   </script>
 </body>
 </html>
