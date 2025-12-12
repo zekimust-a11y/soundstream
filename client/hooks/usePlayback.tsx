@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { lmsClient, LmsPlayer, LmsPlayerStatus } from "@/lib/lmsClient";
+import { upnpVolumeClient } from "@/lib/upnpVolumeClient";
 import { debugLog } from "@/lib/debugLog";
 
 export interface Zone {
@@ -65,6 +66,9 @@ interface PlaybackContextType extends PlaybackState {
   setActivePlayer: (player: LmsPlayer) => void;
   refreshPlayers: () => Promise<void>;
   syncPlayerStatus: () => Promise<void>;
+  dacConfig: DacConfig | null;
+  setDacConfig: (config: DacConfig | null) => void;
+  dacVolume: number;
 }
 
 const PlaybackContext = createContext<PlaybackContextType | undefined>(undefined);
@@ -72,6 +76,14 @@ const PlaybackContext = createContext<PlaybackContextType | undefined>(undefined
 const STORAGE_KEY = "@soundstream_playback";
 const ZONES_KEY = "@soundstream_zones";
 const LMS_PLAYER_KEY = "@soundstream_lms_active_player";
+const DAC_CONFIG_KEY = "@soundstream_dac_config";
+
+export interface DacConfig {
+  enabled: boolean;
+  ip: string;
+  port: number;
+  name: string;
+}
 
 const DEFAULT_ZONES: Zone[] = [
   { id: "local", name: "This Device", type: "local", isActive: false, volume: 0.8 },
@@ -90,6 +102,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   
   const [players, setPlayers] = useState<LmsPlayer[]>([]);
   const [activePlayer, setActivePlayerState] = useState<LmsPlayer | null>(null);
+  const [dacConfig, setDacConfigState] = useState<DacConfig | null>(null);
+  const [dacVolume, setDacVolume] = useState(50);
   
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedTimeRef = useRef<number>(0);
@@ -102,6 +116,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     loadState();
     loadZones();
     loadActivePlayer();
+    loadDacConfig();
   }, []);
 
   useEffect(() => {
@@ -136,6 +151,50 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       console.error("Failed to load active player:", e);
     }
   };
+
+  const loadDacConfig = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(DAC_CONFIG_KEY);
+      if (stored) {
+        const config: DacConfig = JSON.parse(stored);
+        setDacConfigState(config);
+        if (config.enabled && config.ip) {
+          upnpVolumeClient.setDevice(config.ip, config.port, config.name);
+          // Try to get initial volume from DAC
+          try {
+            const vol = await upnpVolumeClient.getVolume();
+            setDacVolume(vol);
+          } catch (e) {
+            debugLog.error('Failed to get DAC volume', e instanceof Error ? e.message : String(e));
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load DAC config:", e);
+    }
+  };
+
+  const setDacConfig = useCallback(async (config: DacConfig | null) => {
+    setDacConfigState(config);
+    if (config) {
+      await AsyncStorage.setItem(DAC_CONFIG_KEY, JSON.stringify(config));
+      if (config.enabled && config.ip) {
+        upnpVolumeClient.setDevice(config.ip, config.port, config.name);
+        // Get initial volume
+        try {
+          const vol = await upnpVolumeClient.getVolume();
+          setDacVolume(vol);
+        } catch (e) {
+          debugLog.error('Failed to get DAC volume', e instanceof Error ? e.message : String(e));
+        }
+      } else {
+        upnpVolumeClient.clearDevice();
+      }
+    } else {
+      await AsyncStorage.removeItem(DAC_CONFIG_KEY);
+      upnpVolumeClient.clearDevice();
+    }
+  }, []);
 
   const refreshPlayers = useCallback(async () => {
     try {
@@ -387,9 +446,38 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, [activePlayer]);
 
   const setVolume = useCallback((vol: number) => {
+    const clampedVol = Math.max(0, Math.min(1, vol));
+    const volumePercent = Math.round(clampedVol * 100);
+    
+    // If DAC volume control is enabled, control the DAC instead of LMS player
+    if (dacConfig?.enabled && upnpVolumeClient.isConfigured()) {
+      setDacVolume(volumePercent);
+      
+      pendingVolumeRef.current = volumePercent;
+      
+      if (volumeTimeoutRef.current) {
+        clearTimeout(volumeTimeoutRef.current);
+      }
+      
+      volumeTimeoutRef.current = setTimeout(async () => {
+        const finalVol = pendingVolumeRef.current;
+        if (finalVol === null) return;
+        
+        pendingVolumeRef.current = null;
+        
+        try {
+          await upnpVolumeClient.setVolume(finalVol);
+          debugLog.info('DAC volume set', `${finalVol}%`);
+        } catch (error) {
+          debugLog.error('Set DAC volume failed', error instanceof Error ? error.message : String(error));
+        }
+      }, 50);
+      return;
+    }
+    
+    // Fall back to LMS player volume control
     if (!activePlayer) return;
     
-    const clampedVol = Math.max(0, Math.min(1, vol));
     setVolumeState(clampedVol);
     
     pendingVolumeRef.current = clampedVol;
@@ -402,16 +490,16 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       const finalVol = pendingVolumeRef.current;
       if (finalVol === null || !activePlayer) return;
       
-      const volumePercent = Math.round(finalVol * 100);
+      const lmsVolumePercent = Math.round(finalVol * 100);
       pendingVolumeRef.current = null;
       
       try {
-        await lmsClient.setVolume(activePlayer.id, volumePercent);
+        await lmsClient.setVolume(activePlayer.id, lmsVolumePercent);
       } catch (error) {
         debugLog.error('Set volume failed', error instanceof Error ? error.message : String(error));
       }
     }, 50);
-  }, [activePlayer]);
+  }, [activePlayer, dacConfig]);
 
   const addToQueue = useCallback(async (track: Track) => {
     if (!activePlayer || !track.lmsTrackId) {
@@ -657,6 +745,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         setActivePlayer,
         refreshPlayers,
         syncPlayerStatus,
+        dacConfig,
+        setDacConfig,
+        dacVolume,
       }}
     >
       {children}

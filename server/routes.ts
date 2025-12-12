@@ -921,6 +921,278 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==========================================
+  // UPnP Volume Control for dCS Varese DAC
+  // ==========================================
+  // Controls volume on UPnP/OpenHome devices via RenderingControl service
+  
+  app.post('/api/upnp/volume', async (req: Request, res: Response) => {
+    const { action, ip, port = 80, volume, mute } = req.body;
+    
+    if (!ip || !action) {
+      return res.status(400).json({ error: 'Missing ip or action' });
+    }
+    
+    // Validate IP is a private address
+    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    const ipMatch = String(ip).match(ipv4Regex);
+    if (!ipMatch) {
+      return res.status(403).json({ error: 'Only IPv4 addresses are allowed' });
+    }
+    
+    const octets = [
+      parseInt(ipMatch[1], 10),
+      parseInt(ipMatch[2], 10),
+      parseInt(ipMatch[3], 10),
+      parseInt(ipMatch[4], 10),
+    ];
+    
+    if (octets.some(o => o < 0 || o > 255)) {
+      return res.status(403).json({ error: 'Invalid IP address' });
+    }
+    
+    const isPrivate = (
+      (octets[0] === 10) ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 192 && octets[1] === 168)
+    );
+    
+    if (!isPrivate) {
+      return res.status(403).json({ error: 'Only private network addresses are allowed' });
+    }
+    
+    const devicePort = parseInt(String(port)) || 80;
+    const baseUrl = `http://${ip}:${devicePort}`;
+    
+    // Common RenderingControl control URLs for UPnP devices
+    const controlUrls = [
+      `${baseUrl}/RenderingControl/ctrl`,
+      `${baseUrl}/upnp/control/RenderingControl`,
+      `${baseUrl}/MediaRenderer/RenderingControl/Control`,
+      `${baseUrl}/dev/RenderingControl/ctrl`,
+      `${baseUrl}/RenderingControl`,
+    ];
+    
+    try {
+      if (action === 'get') {
+        // Get current volume
+        const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:GetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+    </u:GetVolume>
+  </s:Body>
+</s:Envelope>`;
+        
+        for (const controlUrl of controlUrls) {
+          try {
+            console.log(`[UPnP] Trying GetVolume at: ${controlUrl}`);
+            const response = await fetch(controlUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'text/xml; charset=utf-8',
+                'SOAPACTION': '"urn:schemas-upnp-org:service:RenderingControl:1#GetVolume"',
+              },
+              body: soapEnvelope,
+              signal: AbortSignal.timeout(5000),
+            });
+            
+            if (response.ok) {
+              const text = await response.text();
+              const volumeMatch = text.match(/<CurrentVolume>(\d+)<\/CurrentVolume>/i);
+              if (volumeMatch) {
+                const currentVolume = parseInt(volumeMatch[1], 10);
+                console.log(`[UPnP] Got volume: ${currentVolume}`);
+                return res.json({ success: true, volume: currentVolume });
+              }
+            }
+          } catch (e) {
+            console.log(`[UPnP] Failed at ${controlUrl}:`, e);
+            continue;
+          }
+        }
+        
+        return res.status(500).json({ error: 'Failed to get volume from device' });
+        
+      } else if (action === 'set') {
+        // Set volume
+        if (volume === undefined || volume < 0 || volume > 100) {
+          return res.status(400).json({ error: 'Volume must be between 0 and 100' });
+        }
+        
+        const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+      <DesiredVolume>${volume}</DesiredVolume>
+    </u:SetVolume>
+  </s:Body>
+</s:Envelope>`;
+        
+        for (const controlUrl of controlUrls) {
+          try {
+            console.log(`[UPnP] Trying SetVolume(${volume}) at: ${controlUrl}`);
+            const response = await fetch(controlUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'text/xml; charset=utf-8',
+                'SOAPACTION': '"urn:schemas-upnp-org:service:RenderingControl:1#SetVolume"',
+              },
+              body: soapEnvelope,
+              signal: AbortSignal.timeout(5000),
+            });
+            
+            if (response.ok) {
+              console.log(`[UPnP] Set volume to ${volume} successfully`);
+              return res.json({ success: true, volume });
+            }
+          } catch (e) {
+            console.log(`[UPnP] Failed at ${controlUrl}:`, e);
+            continue;
+          }
+        }
+        
+        return res.status(500).json({ error: 'Failed to set volume on device' });
+        
+      } else if (action === 'mute') {
+        // Set mute state
+        const muteValue = mute ? '1' : '0';
+        
+        const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetMute xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+      <DesiredMute>${muteValue}</DesiredMute>
+    </u:SetMute>
+  </s:Body>
+</s:Envelope>`;
+        
+        for (const controlUrl of controlUrls) {
+          try {
+            console.log(`[UPnP] Trying SetMute(${mute}) at: ${controlUrl}`);
+            const response = await fetch(controlUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'text/xml; charset=utf-8',
+                'SOAPACTION': '"urn:schemas-upnp-org:service:RenderingControl:1#SetMute"',
+              },
+              body: soapEnvelope,
+              signal: AbortSignal.timeout(5000),
+            });
+            
+            if (response.ok) {
+              console.log(`[UPnP] Set mute to ${mute} successfully`);
+              return res.json({ success: true, muted: mute });
+            }
+          } catch (e) {
+            console.log(`[UPnP] Failed at ${controlUrl}:`, e);
+            continue;
+          }
+        }
+        
+        return res.status(500).json({ error: 'Failed to set mute on device' });
+        
+      } else {
+        return res.status(400).json({ error: 'Invalid action. Use: get, set, or mute' });
+      }
+    } catch (error) {
+      console.error('[UPnP] Error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'UPnP request failed' 
+      });
+    }
+  });
+
+  // Discover UPnP device description and find RenderingControl URL
+  app.get('/api/upnp/discover', async (req: Request, res: Response) => {
+    const { ip, port = 80 } = req.query;
+    
+    if (!ip) {
+      return res.status(400).json({ error: 'Missing ip' });
+    }
+    
+    const devicePort = parseInt(String(port)) || 80;
+    const baseUrl = `http://${ip}:${devicePort}`;
+    
+    // Try common device description URLs
+    const descriptionUrls = [
+      `${baseUrl}/description.xml`,
+      `${baseUrl}/upnp/desc.xml`,
+      `${baseUrl}/DeviceDescription.xml`,
+      `${baseUrl}/dev/desc.xml`,
+      `${baseUrl}/`,
+    ];
+    
+    try {
+      for (const descUrl of descriptionUrls) {
+        try {
+          console.log(`[UPnP] Trying device description at: ${descUrl}`);
+          const response = await fetch(descUrl, {
+            signal: AbortSignal.timeout(5000),
+          });
+          
+          if (response.ok) {
+            const xml = await response.text();
+            
+            // Extract device info
+            const friendlyNameMatch = xml.match(/<friendlyName>([^<]*)<\/friendlyName>/i);
+            const manufacturerMatch = xml.match(/<manufacturer>([^<]*)<\/manufacturer>/i);
+            const modelNameMatch = xml.match(/<modelName>([^<]*)<\/modelName>/i);
+            
+            // Find RenderingControl service URL
+            let renderingControlUrl: string | null = null;
+            const serviceRegex = /<service>([\s\S]*?)<\/service>/gi;
+            let match;
+            
+            while ((match = serviceRegex.exec(xml)) !== null) {
+              const serviceXml = match[1];
+              if (serviceXml.includes('RenderingControl')) {
+                const controlURLMatch = serviceXml.match(/<controlURL>([^<]+)<\/controlURL>/i);
+                if (controlURLMatch) {
+                  let controlURL = controlURLMatch[1];
+                  if (controlURL.startsWith('/')) {
+                    controlURL = baseUrl + controlURL;
+                  } else if (!controlURL.startsWith('http')) {
+                    controlURL = baseUrl + '/' + controlURL;
+                  }
+                  renderingControlUrl = controlURL;
+                  break;
+                }
+              }
+            }
+            
+            return res.json({
+              success: true,
+              device: {
+                ip,
+                port: devicePort,
+                friendlyName: friendlyNameMatch?.[1] || 'Unknown Device',
+                manufacturer: manufacturerMatch?.[1],
+                modelName: modelNameMatch?.[1],
+                renderingControlUrl,
+              }
+            });
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+      
+      return res.status(404).json({ error: 'Could not find device description' });
+    } catch (error) {
+      console.error('[UPnP] Discovery error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Discovery failed' 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
