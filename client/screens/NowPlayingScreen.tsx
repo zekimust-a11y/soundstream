@@ -23,7 +23,7 @@ import { usePlayback, Zone } from "@/hooks/usePlayback";
 import { useMusic } from "@/hooks/useMusic";
 
 const { width, height } = Dimensions.get("window");
-const ALBUM_ART_SIZE = Math.min(width - Spacing.xl * 2, height * 0.38);
+const ALBUM_ART_SIZE = Math.min(width - Spacing.xl * 2, height * 0.34);
 
 function formatTime(seconds: number): string {
   if (!seconds || !isFinite(seconds) || seconds < 0) return "0:00";
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
   },
   albumArtContainer: {
     alignItems: "center",
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   albumArt: {
     width: ALBUM_ART_SIZE,
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
   },
   trackInfo: {
     alignItems: "center",
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   trackTitle: {
     fontSize: 22,
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
     gap: Spacing.lg,
   },
   metaButton: {
@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   progressContainer: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   progressTapArea: {
     height: 24,
@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
     gap: Spacing.md,
   },
   sideControl: {
@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
   volumeRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
     gap: Spacing.sm,
   },
   volumeSliderWrapper: {
