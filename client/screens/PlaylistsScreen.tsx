@@ -1,347 +1,148 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   StyleSheet,
-  ScrollView,
-  Pressable,
-  TextInput,
-  Modal,
   FlatList,
-  Alert,
+  Pressable,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { useMusic, type Playlist } from "@/hooks/useMusic";
-import { usePlayback, type Track } from "@/hooks/usePlayback";
-
-function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
-
-function PlaylistCard({ 
-  playlist, 
-  onPress, 
-  onDelete 
-}: { 
-  playlist: Playlist; 
-  onPress: () => void; 
-  onDelete: () => void;
-}) {
-  const totalDuration = playlist.tracks.reduce((acc, t) => acc + t.duration, 0);
-  const coverArt = playlist.tracks[0]?.albumArt;
-
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.playlistCard, { opacity: pressed ? 0.7 : 1 }]}
-      onPress={onPress}
-    >
-      <View style={styles.playlistCover}>
-        {coverArt ? (
-          <Image source={coverArt} style={styles.coverImage} contentFit="cover" />
-        ) : (
-          <View style={styles.coverPlaceholder}>
-            <Feather name="music" size={32} color={Colors.light.textTertiary} />
-          </View>
-        )}
-        {playlist.tracks.length > 0 ? (
-          <View style={styles.playlistOverlay}>
-            <Feather name="play" size={24} color={Colors.light.text} />
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.playlistInfo}>
-        <ThemedText style={styles.playlistName} numberOfLines={1}>
-          {playlist.name}
-        </ThemedText>
-        <ThemedText style={styles.playlistMeta}>
-          {playlist.tracks.length} track{playlist.tracks.length !== 1 ? "s" : ""}
-          {playlist.tracks.length > 0 ? ` • ${Math.floor(totalDuration / 60)} min` : ""}
-        </ThemedText>
-      </View>
-      <Pressable
-        style={({ pressed }) => [styles.deleteButton, { opacity: pressed ? 0.6 : 1 }]}
-        onPress={onDelete}
-      >
-        <Feather name="trash-2" size={18} color={Colors.light.error} />
-      </Pressable>
-    </Pressable>
-  );
-}
+import { useLms } from "@/hooks/useLms";
+import { usePlayback } from "@/hooks/usePlayback";
+import { lmsClient, type LmsPlaylist } from "@/lib/lmsClient";
 
 export default function PlaylistsScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
-  const { playlists, createPlaylist, deletePlaylist, removeFromPlaylist, reorderPlaylist } = useMusic();
-  const { playTrack } = usePlayback();
+  const { server, activePlayer } = useLms();
+  const { playPlaylist } = usePlayback();
+  const [playlists, setPlaylists] = useState<LmsPlaylist[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newPlaylistName, setNewPlaylistName] = useState("");
-  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
+  const loadPlaylists = useCallback(async () => {
+    if (!server) return;
+    
+    try {
+      lmsClient.setServer(server.host, server.port);
+      const fetchedPlaylists = await lmsClient.getPlaylists();
+      setPlaylists(fetchedPlaylists);
+    } catch (error) {
+      console.error("Failed to load playlists:", error);
+    }
+  }, [server]);
 
   useEffect(() => {
-    if (selectedPlaylist) {
-      const updated = playlists.find(p => p.id === selectedPlaylist.id);
-      if (updated) {
-        setSelectedPlaylist(updated);
-      } else {
-        setSelectedPlaylist(null);
-      }
+    if (server) {
+      setIsLoading(true);
+      loadPlaylists().finally(() => setIsLoading(false));
+    } else {
+      setPlaylists([]);
     }
-  }, [playlists]);
+  }, [server, loadPlaylists]);
 
-  const handleCreatePlaylist = () => {
-    if (newPlaylistName.trim()) {
-      createPlaylist(newPlaylistName.trim());
-      setNewPlaylistName("");
-      setShowCreateModal(false);
-    }
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadPlaylists();
+    setIsRefreshing(false);
   };
 
-  const handleDeletePlaylist = (playlist: Playlist) => {
-    Alert.alert(
-      "Delete Playlist",
-      `Are you sure you want to delete "${playlist.name}"?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => deletePlaylist(playlist.id) },
-      ]
-    );
+  const handlePlayPlaylist = (playlist: LmsPlaylist) => {
+    if (!activePlayer) return;
+    playPlaylist(playlist.id);
   };
 
-  const handlePlayPlaylist = (playlist: Playlist) => {
-    if (playlist.tracks.length > 0) {
-      playTrack(playlist.tracks[0], playlist.tracks);
-    }
-  };
-
-  const handleMoveTrackUp = (index: number) => {
-    if (selectedPlaylist && index > 0) {
-      reorderPlaylist(selectedPlaylist.id, index, index - 1);
-    }
-  };
-
-  const handleMoveTrackDown = (index: number) => {
-    if (selectedPlaylist && index < selectedPlaylist.tracks.length - 1) {
-      reorderPlaylist(selectedPlaylist.id, index, index + 1);
-    }
-  };
-
-  const renderTrack = ({ item, index }: { item: Track; index: number }) => (
+  const renderPlaylist = ({ item }: { item: LmsPlaylist }) => (
     <Pressable
-      style={({ pressed }) => [styles.trackRow, { opacity: pressed ? 0.6 : 1 }]}
-      onPress={() => selectedPlaylist && playTrack(item, selectedPlaylist.tracks)}
+      style={({ pressed }) => [
+        styles.playlistRow,
+        { opacity: pressed ? 0.6 : 1 },
+      ]}
+      onPress={() => handlePlayPlaylist(item)}
     >
-      <View style={styles.reorderControls}>
-        <Pressable
-          style={({ pressed }) => [styles.reorderButton, { opacity: pressed ? 0.6 : 1 }]}
-          onPress={() => handleMoveTrackUp(index)}
-          disabled={index === 0}
-        >
-          <Feather name="chevron-up" size={16} color={index === 0 ? Colors.light.textTertiary + "40" : Colors.light.textSecondary} />
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.reorderButton, { opacity: pressed ? 0.6 : 1 }]}
-          onPress={() => handleMoveTrackDown(index)}
-          disabled={!selectedPlaylist || index === selectedPlaylist.tracks.length - 1}
-        >
-          <Feather name="chevron-down" size={16} color={!selectedPlaylist || index === selectedPlaylist.tracks.length - 1 ? Colors.light.textTertiary + "40" : Colors.light.textSecondary} />
-        </Pressable>
+      <View style={styles.playlistIcon}>
+        <Feather name="list" size={24} color={Colors.light.accent} />
       </View>
-      <Image
-        source={item.albumArt || require("../assets/images/placeholder-album.png")}
-        style={styles.trackImage}
-        contentFit="cover"
-      />
-      <View style={styles.trackInfo}>
-        <ThemedText style={styles.trackTitle} numberOfLines={1}>{item.title}</ThemedText>
-        <ThemedText style={styles.trackArtist} numberOfLines={1}>{item.artist}</ThemedText>
+      <View style={styles.playlistInfo}>
+        <ThemedText style={styles.playlistName} numberOfLines={1}>
+          {item.name}
+        </ThemedText>
+        {item.trackCount !== undefined ? (
+          <ThemedText style={styles.playlistTracks}>
+            {item.trackCount} {item.trackCount === 1 ? "track" : "tracks"}
+          </ThemedText>
+        ) : null}
       </View>
-      <ThemedText style={styles.trackDuration}>{formatDuration(item.duration)}</ThemedText>
-      <Pressable
-        style={({ pressed }) => [styles.removeButton, { opacity: pressed ? 0.6 : 1 }]}
-        onPress={() => selectedPlaylist && removeFromPlaylist(selectedPlaylist.id, item.id)}
-      >
-        <Feather name="x" size={16} color={Colors.light.textTertiary} />
-      </Pressable>
+      <Feather name="play-circle" size={24} color={Colors.light.textSecondary} />
     </Pressable>
   );
 
+  const renderEmptyState = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.emptyState}>
+          <ActivityIndicator size="large" color={Colors.light.accent} />
+          <ThemedText style={styles.emptySubtitle}>
+            Loading playlists...
+          </ThemedText>
+        </View>
+      );
+    }
+
+    if (!server) {
+      return (
+        <View style={styles.emptyState}>
+          <Feather name="server" size={48} color={Colors.light.textTertiary} />
+          <ThemedText style={styles.emptyTitle}>No server connected</ThemedText>
+          <ThemedText style={styles.emptySubtitle}>
+            Connect to your LMS server in Settings
+          </ThemedText>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyState}>
+        <Feather name="list" size={48} color={Colors.light.textTertiary} />
+        <ThemedText style={styles.emptyTitle}>No playlists found</ThemedText>
+        <ThemedText style={styles.emptySubtitle}>
+          Create playlists in your LMS to see them here
+        </ThemedText>
+      </View>
+    );
+  };
+
   return (
     <ThemedView style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+        <ThemedText style={styles.headerTitle}>Playlists</ThemedText>
+      </View>
+
+      <FlatList
+        data={playlists}
+        renderItem={renderPlaylist}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + Spacing.lg, paddingBottom: tabBarHeight + Spacing["5xl"] },
+          styles.listContent,
+          { paddingBottom: tabBarHeight + Spacing["5xl"] },
+          playlists.length === 0 && styles.emptyListContent,
         ]}
-      >
-        <View style={styles.header}>
-          <ThemedText style={styles.title}>Playlists</ThemedText>
-          <Pressable
-            style={({ pressed }) => [styles.createButton, { opacity: pressed ? 0.8 : 1 }]}
-            onPress={() => setShowCreateModal(true)}
-          >
-            <Feather name="plus" size={20} color={Colors.light.buttonText} />
-            <ThemedText style={styles.createButtonText}>New</ThemedText>
-          </Pressable>
-        </View>
-
-        {playlists.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
-              <Feather name="list" size={48} color={Colors.light.textTertiary} />
-            </View>
-            <ThemedText style={styles.emptyTitle}>No playlists yet</ThemedText>
-            <ThemedText style={styles.emptySubtitle}>
-              Create your first playlist to organize your music
-            </ThemedText>
-            <Pressable
-              style={({ pressed }) => [styles.emptyButton, { opacity: pressed ? 0.8 : 1 }]}
-              onPress={() => setShowCreateModal(true)}
-            >
-              <Feather name="plus" size={18} color={Colors.light.buttonText} />
-              <ThemedText style={styles.emptyButtonText}>Create Playlist</ThemedText>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.playlistGrid}>
-            {playlists.map((playlist) => (
-              <PlaylistCard
-                key={playlist.id}
-                playlist={playlist}
-                onPress={() => setSelectedPlaylist(playlist)}
-                onDelete={() => handleDeletePlaylist(playlist)}
-              />
-            ))}
-          </View>
-        )}
-      </ScrollView>
-
-      <Modal
-        visible={showCreateModal}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setShowCreateModal(false)}
-      >
-        <Pressable 
-          style={styles.modalOverlay}
-          onPress={() => setShowCreateModal(false)}
-        >
-          <Pressable style={styles.createModalContent} onPress={(e) => e.stopPropagation()}>
-            <ThemedText style={styles.modalTitle}>New Playlist</ThemedText>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Playlist name"
-              placeholderTextColor={Colors.light.textTertiary}
-              value={newPlaylistName}
-              onChangeText={setNewPlaylistName}
-              autoFocus
-            />
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={({ pressed }) => [styles.modalButton, styles.cancelButton, { opacity: pressed ? 0.7 : 1 }]}
-                onPress={() => {
-                  setNewPlaylistName("");
-                  setShowCreateModal(false);
-                }}
-              >
-                <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.modalButton, 
-                  styles.confirmButton,
-                  { opacity: pressed ? 0.8 : 1 },
-                  !newPlaylistName.trim() && styles.buttonDisabled,
-                ]}
-                onPress={handleCreatePlaylist}
-                disabled={!newPlaylistName.trim()}
-              >
-                <ThemedText style={styles.confirmButtonText}>Create</ThemedText>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal
-        visible={!!selectedPlaylist}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setSelectedPlaylist(null)}
-      >
-        <Pressable 
-          style={styles.modalOverlay}
-          onPress={() => setSelectedPlaylist(null)}
-        >
-          <Pressable 
-            style={[styles.detailModalContent, { paddingBottom: insets.bottom + Spacing.lg }]}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={styles.modalHandle} />
-            {selectedPlaylist ? (
-              <>
-                <View style={styles.detailHeader}>
-                  <View style={styles.detailCover}>
-                    {selectedPlaylist.tracks[0]?.albumArt ? (
-                      <Image 
-                        source={selectedPlaylist.tracks[0].albumArt} 
-                        style={styles.detailCoverImage} 
-                        contentFit="cover" 
-                      />
-                    ) : (
-                      <View style={styles.detailCoverPlaceholder}>
-                        <Feather name="music" size={40} color={Colors.light.textTertiary} />
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.detailInfo}>
-                    <ThemedText style={styles.detailName}>{selectedPlaylist.name}</ThemedText>
-                    <ThemedText style={styles.detailMeta}>
-                      {selectedPlaylist.tracks.length} tracks
-                    </ThemedText>
-                    {selectedPlaylist.tracks.length > 0 ? (
-                      <Pressable
-                        style={({ pressed }) => [styles.playAllButton, { opacity: pressed ? 0.8 : 1 }]}
-                        onPress={() => handlePlayPlaylist(selectedPlaylist)}
-                      >
-                        <Feather name="play" size={16} color={Colors.light.buttonText} />
-                        <ThemedText style={styles.playAllButtonText}>Play All</ThemedText>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-                {selectedPlaylist.tracks.length === 0 ? (
-                  <View style={styles.emptyPlaylist}>
-                    <Feather name="music" size={32} color={Colors.light.textTertiary} />
-                    <ThemedText style={styles.emptyPlaylistText}>
-                      No tracks in this playlist yet
-                    </ThemedText>
-                    <ThemedText style={styles.emptyPlaylistSubtext}>
-                      Add tracks from search or browse
-                    </ThemedText>
-                  </View>
-                ) : (
-                  <FlatList
-                    data={selectedPlaylist.tracks}
-                    renderItem={renderTrack}
-                    keyExtractor={(item) => item.id}
-                    style={styles.trackList}
-                  />
-                )}
-              </>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        ListEmptyComponent={renderEmptyState}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.light.accent}
+          />
+        }
+      />
     </ThemedView>
   );
 }
@@ -351,313 +152,68 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundRoot,
   },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: Spacing.lg,
-  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
   },
-  title: {
+  headerTitle: {
     ...Typography.display,
     color: Colors.light.text,
   },
-  createButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.light.accent,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.full,
-    gap: Spacing.xs,
-  },
-  createButtonText: {
-    ...Typography.caption,
-    color: Colors.light.buttonText,
-    fontWeight: "600",
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 100,
-  },
-  emptyIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Colors.light.backgroundSecondary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: Spacing.xl,
-  },
-  emptyTitle: {
-    ...Typography.title,
-    color: Colors.light.text,
-    marginBottom: Spacing.sm,
-  },
-  emptySubtitle: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    textAlign: "center",
-    marginBottom: Spacing.xl,
-  },
-  emptyButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.light.accent,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xl,
-    borderRadius: BorderRadius.sm,
-    gap: Spacing.sm,
-  },
-  emptyButtonText: {
-    ...Typography.headline,
-    color: Colors.light.buttonText,
-  },
-  playlistGrid: {
-    gap: Spacing.md,
-  },
-  playlistCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.light.backgroundDefault,
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.md,
-  },
-  playlistCover: {
-    width: 60,
-    height: 60,
-    borderRadius: BorderRadius.xs,
-    overflow: "hidden",
-  },
-  coverImage: {
-    width: "100%",
-    height: "100%",
-  },
-  coverPlaceholder: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: Colors.light.backgroundSecondary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  playlistOverlay: {
-    position: "absolute",
-    right: 4,
-    bottom: 4,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: Colors.light.accent,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  playlistInfo: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  playlistName: {
-    ...Typography.headline,
-    color: Colors.light.text,
-  },
-  playlistMeta: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    marginTop: 2,
-  },
-  deleteButton: {
-    padding: Spacing.sm,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  createModalContent: {
-    backgroundColor: Colors.light.backgroundDefault,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.xl,
-    width: "85%",
-    maxWidth: 340,
-  },
-  modalTitle: {
-    ...Typography.title,
-    color: Colors.light.text,
-    marginBottom: Spacing.lg,
-    textAlign: "center",
-  },
-  modalInput: {
-    backgroundColor: Colors.light.backgroundSecondary,
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.md,
-    color: Colors.light.text,
-    ...Typography.body,
-    marginBottom: Spacing.lg,
-  },
-  modalButtons: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    alignItems: "center",
-  },
-  cancelButton: {
-    backgroundColor: Colors.light.backgroundSecondary,
-  },
-  cancelButtonText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-  },
-  confirmButton: {
-    backgroundColor: Colors.light.accent,
-  },
-  confirmButtonText: {
-    ...Typography.headline,
-    color: Colors.light.buttonText,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  detailModalContent: {
-    backgroundColor: Colors.light.backgroundDefault,
-    borderTopLeftRadius: BorderRadius.md,
-    borderTopRightRadius: BorderRadius.md,
-    paddingTop: Spacing.md,
-    width: "100%",
-    maxHeight: "80%",
-    position: "absolute",
-    bottom: 0,
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: Colors.light.textTertiary,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: Spacing.lg,
-  },
-  detailHeader: {
-    flexDirection: "row",
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.lg,
-  },
-  detailCover: {
-    width: 100,
-    height: 100,
-    borderRadius: BorderRadius.sm,
-    overflow: "hidden",
-  },
-  detailCoverImage: {
-    width: "100%",
-    height: "100%",
-  },
-  detailCoverPlaceholder: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: Colors.light.backgroundSecondary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  detailInfo: {
-    flex: 1,
-    marginLeft: Spacing.lg,
-    justifyContent: "center",
-  },
-  detailName: {
-    ...Typography.title,
-    color: Colors.light.text,
-  },
-  detailMeta: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    marginTop: Spacing.xs,
-  },
-  playAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.light.accent,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.full,
-    gap: Spacing.xs,
-    alignSelf: "flex-start",
-    marginTop: Spacing.md,
-  },
-  playAllButtonText: {
-    ...Typography.caption,
-    color: Colors.light.buttonText,
-    fontWeight: "600",
-  },
-  emptyPlaylist: {
-    alignItems: "center",
-    paddingVertical: Spacing["3xl"],
-  },
-  emptyPlaylistText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    marginTop: Spacing.md,
-  },
-  emptyPlaylistSubtext: {
-    ...Typography.caption,
-    color: Colors.light.textTertiary,
-    marginTop: Spacing.xs,
-  },
-  trackList: {
+  listContent: {
     paddingHorizontal: Spacing.lg,
   },
-  trackRow: {
+  emptyListContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  playlistRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.light.border,
   },
-  trackNumber: {
-    ...Typography.caption,
-    color: Colors.light.textTertiary,
-    width: 24,
+  playlistIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.light.backgroundSecondary,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  trackImage: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.xs,
-  },
-  trackInfo: {
+  playlistInfo: {
     flex: 1,
     marginLeft: Spacing.md,
   },
-  trackTitle: {
+  playlistName: {
     ...Typography.body,
     color: Colors.light.text,
   },
-  trackArtist: {
+  playlistTracks: {
     ...Typography.caption,
     color: Colors.light.textSecondary,
+    marginTop: 2,
   },
-  trackDuration: {
-    ...Typography.caption,
-    color: Colors.light.textTertiary,
-    marginRight: Spacing.sm,
-  },
-  removeButton: {
-    padding: Spacing.sm,
-  },
-  reorderControls: {
-    flexDirection: "column",
+  emptyState: {
     alignItems: "center",
-    marginRight: Spacing.sm,
+    justifyContent: "center",
+    paddingHorizontal: Spacing["2xl"],
   },
-  reorderButton: {
-    padding: 2,
+  emptyTitle: {
+    ...Typography.title,
+    color: Colors.light.text,
+    textAlign: "center",
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  emptySubtitle: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.sm,
   },
 });

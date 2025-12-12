@@ -36,6 +36,13 @@ export interface LmsArtist {
   albumCount?: number;
 }
 
+export interface LmsPlaylist {
+  id: string;
+  name: string;
+  url?: string;
+  trackCount?: number;
+}
+
 export interface LmsTrack {
   id: string;
   title: string;
@@ -260,6 +267,29 @@ class LmsClient {
       name: String(a.artist || 'Unknown Artist'),
       albumCount: a.album_count ? Number(a.album_count) : undefined,
     }));
+  }
+
+  async getPlaylists(): Promise<LmsPlaylist[]> {
+    const result = await this.request('', ['playlists', '0', '500', 'tags:u']);
+    const playlistsLoop = (result.playlists_loop || []) as Array<Record<string, unknown>>;
+    
+    return playlistsLoop.map((p) => ({
+      id: String(p.id || ''),
+      name: String(p.playlist || 'Unknown Playlist'),
+      url: p.url ? String(p.url) : undefined,
+      trackCount: p.tracks ? Number(p.tracks) : undefined,
+    }));
+  }
+
+  async getPlaylistTracks(playlistId: string): Promise<LmsTrack[]> {
+    const result = await this.request('', ['playlists', 'tracks', '0', '500', `playlist_id:${playlistId}`, 'tags:acdlKNuT']);
+    const playlistTracksLoop = (result.playlisttracks_loop || []) as Array<Record<string, unknown>>;
+    
+    return playlistTracksLoop.map((t, i) => this.parseTrack(t, i));
+  }
+
+  async playPlaylist(playerId: string, playlistId: string): Promise<void> {
+    await this.request(playerId, ['playlistcontrol', 'cmd:load', `playlist_id:${playlistId}`]);
   }
 
   async getAlbumTracks(albumId: string): Promise<LmsTrack[]> {

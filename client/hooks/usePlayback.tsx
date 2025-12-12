@@ -53,6 +53,7 @@ interface PlaybackContextType extends PlaybackState {
   clearQueue: () => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
   playTrack: (track: Track, tracks?: Track[]) => void;
+  playPlaylist: (playlistId: string) => void;
   toggleShuffle: () => void;
   toggleRepeat: () => void;
   setActiveZone: (zoneId: string) => void;
@@ -522,6 +523,26 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
   }, [activePlayer, syncPlayerStatus]);
 
+  const playPlaylist = useCallback(async (playlistId: string) => {
+    if (!activePlayer) {
+      debugLog.error('No active player', 'Cannot play playlist without a player');
+      return;
+    }
+    
+    try {
+      await lmsClient.setPower(activePlayer.id, true);
+      await lmsClient.playPlaylist(activePlayer.id, playlistId);
+      await lmsClient.play(activePlayer.id);
+      setIsPlaying(true);
+      
+      setTimeout(() => {
+        syncPlayerStatus();
+      }, 500);
+    } catch (error) {
+      debugLog.error('Play playlist failed', error instanceof Error ? error.message : String(error));
+    }
+  }, [activePlayer, syncPlayerStatus]);
+
   const toggleShuffle = useCallback(async () => {
     if (!activePlayer) {
       setShuffle((prev) => !prev);
@@ -625,6 +646,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         clearQueue,
         reorderQueue,
         playTrack,
+        playPlaylist,
         toggleShuffle,
         toggleRepeat,
         setActiveZone,

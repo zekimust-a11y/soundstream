@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View } from "react-native";
 import BrowseStackNavigator from "@/navigation/BrowseStackNavigator";
-import QueueScreen from "@/screens/QueueScreen";
+import PlaylistsScreen from "@/screens/PlaylistsScreen";
 import SearchStackNavigator from "@/navigation/SearchStackNavigator";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 import MiniPlayer from "@/components/MiniPlayer";
@@ -13,7 +13,7 @@ import { Colors } from "@/constants/theme";
 
 export type MainTabParamList = {
   BrowseTab: undefined;
-  QueueTab: undefined;
+  PlaylistsTab: undefined;
   SearchTab: undefined;
   SettingsTab: undefined;
 };
@@ -64,12 +64,12 @@ export default function MainTabNavigator() {
           }}
         />
         <Tab.Screen
-          name="QueueTab"
-          component={QueueScreen}
+          name="PlaylistsTab"
+          component={PlaylistsScreen}
           options={{
-            title: "Queue",
+            title: "Playlists",
             tabBarIcon: ({ color, size }) => (
-              <Feather name="folder" size={size} color={color} />
+              <Feather name="list" size={size} color={color} />
             ),
           }}
         />
