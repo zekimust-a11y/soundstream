@@ -80,7 +80,7 @@ export default function BrowseScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { recentlyPlayed, activeServer, refreshLibrary } = useMusic();
+  const { recentlyPlayed, refreshLibrary } = useMusic();
   const { playTrack } = usePlayback();
   
   const { data: albumsData, isLoading: albumsLoading, refetch: refetchAlbums } = useAlbumsPreview(20);
@@ -119,12 +119,6 @@ export default function BrowseScreen() {
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <HeaderTitle />
         <View style={styles.headerRight}>
-          {activeServer ? (
-            <View style={styles.serverIndicator}>
-              <View style={styles.serverDot} />
-              <ThemedText style={styles.serverName}>{activeServer.name}</ThemedText>
-            </View>
-          ) : null}
           <Pressable
             style={({ pressed }) => [styles.filterButton, { opacity: pressed ? 0.6 : 1 }]}
           >
@@ -262,25 +256,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-  },
-  serverIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.light.backgroundSecondary,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-  },
-  serverDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.light.success,
-    marginRight: Spacing.xs,
-  },
-  serverName: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
   },
   filterButton: {
     padding: Spacing.sm,
