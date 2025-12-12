@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Track } from "@/hooks/usePlayback";
 import { lmsClient, LmsAlbum, LmsArtist, LmsTrack } from "@/lib/lmsClient";
@@ -138,6 +138,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [favorites, setFavorites] = useState<Favorites>(DEFAULT_FAVORITES);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const isInitialLoad = useRef(true);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadData();
@@ -199,8 +201,13 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         setAlbums(uniqueAlbums);
         setTracks(uniqueTracks);
       }
+      
+      setTimeout(() => {
+        isInitialLoad.current = false;
+      }, 1000);
     } catch (e) {
       console.error("Failed to load music data:", e);
+      isInitialLoad.current = false;
     }
   };
 
@@ -271,9 +278,22 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    if (artists.length > 0 || albums.length > 0 || tracks.length > 0) {
-      saveLibrary(artists, albums, tracks);
+    if (isInitialLoad.current) {
+      return;
     }
+    if (artists.length > 0 || albums.length > 0 || tracks.length > 0) {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      saveTimeoutRef.current = setTimeout(() => {
+        saveLibrary(artists, albums, tracks);
+      }, 2000);
+    }
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
   }, [artists, albums, tracks]);
 
   const addServer = useCallback((server: Omit<Server, "id" | "connected">) => {
