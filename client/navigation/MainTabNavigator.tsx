@@ -6,6 +6,7 @@ import { Platform, StyleSheet, View } from "react-native";
 import BrowseStackNavigator from "@/navigation/BrowseStackNavigator";
 import PlaylistsStackNavigator from "@/navigation/PlaylistsStackNavigator";
 import AlbumsStackNavigator from "@/navigation/AlbumsStackNavigator";
+import SearchStackNavigator from "@/navigation/SearchStackNavigator";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 import MiniPlayer from "@/components/MiniPlayer";
 import { useTheme } from "@/hooks/useTheme";
@@ -15,6 +16,7 @@ export type MainTabParamList = {
   BrowseTab: undefined;
   PlaylistsTab: undefined;
   AlbumsTab: undefined;
+  SearchTab: undefined;
   SettingsTab: undefined;
 };
 
@@ -80,6 +82,16 @@ export default function MainTabNavigator() {
             title: "Albums",
             tabBarIcon: ({ color, size }) => (
               <Feather name="disc" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="SearchTab"
+          component={SearchStackNavigator}
+          options={{
+            title: "Search",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="search" size={size} color={color} />
             ),
           }}
         />
