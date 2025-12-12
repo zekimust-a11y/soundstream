@@ -653,13 +653,13 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('  Configuration:');
   console.log(`    LMS Host: ${LMS_HOST}`);
   console.log(`    LMS Port: ${LMS_PORT}`);
-  console.log(`    Chromecast IP: ${CHROMECAST_IP || '(not set)'}`);
+  console.log(`    Chromecast: ${chromecastName ? `${chromecastName} (${chromecastIp})` : chromecastIp || '(not set)'}`);
   console.log(`    Pause Timeout: ${PAUSE_TIMEOUT/1000} seconds`);
   console.log('');
   console.log('  Environment Variables:');
   console.log('    LMS_HOST=<ip>        - LMS server IP');
   console.log('    LMS_PORT=<port>      - LMS port (default: 9000)');
-  console.log('    CHROMECAST_IP=<ip>   - Chromecast IP for auto-cast');
+  console.log('    CHROMECAST_IP=<ip>   - Initial Chromecast IP (can be set via app)');
   console.log('    PAUSE_TIMEOUT=<ms>   - Pause timeout (default: 5000)');
   console.log('    ENABLE_KEYBOARD=true - Enable keyboard/IR control');
   console.log('');
