@@ -85,7 +85,7 @@ function SettingRow({
 export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, artists, albums, addServer, activeServer, removeServer } = useMusic();
+  const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer } = useMusic();
   const { theme } = useTheme();
   const { players, activePlayer, setActivePlayer, refreshPlayers } = usePlayback();
   
@@ -98,6 +98,7 @@ export default function SettingsScreen() {
   const [gapless, setGapless] = useState(true);
   const [crossfade, setCrossfade] = useState(false);
   const [normalization, setNormalization] = useState(false);
+  const [hardwareVolumeControl, setHardwareVolumeControl] = useState(false);
   const [streamingQuality, setStreamingQuality] = useState<"cd" | "hires">("cd");
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   
@@ -125,7 +126,7 @@ export default function SettingsScreen() {
     if (settingsLoaded) {
       saveSettings();
     }
-  }, [gapless, crossfade, normalization, streamingQuality, settingsLoaded]);
+  }, [gapless, crossfade, normalization, hardwareVolumeControl, streamingQuality, settingsLoaded]);
 
   const loadSettings = async () => {
     try {
@@ -135,6 +136,7 @@ export default function SettingsScreen() {
         setGapless(settings.gapless ?? true);
         setCrossfade(settings.crossfade ?? false);
         setNormalization(settings.normalization ?? false);
+        setHardwareVolumeControl(settings.hardwareVolumeControl ?? false);
         setStreamingQuality(settings.streamingQuality ?? "cd");
       }
       setSettingsLoaded(true);
@@ -148,7 +150,7 @@ export default function SettingsScreen() {
     try {
       await AsyncStorage.setItem(
         SETTINGS_KEY,
-        JSON.stringify({ gapless, crossfade, normalization, streamingQuality })
+        JSON.stringify({ gapless, crossfade, normalization, hardwareVolumeControl, streamingQuality })
       );
     } catch (e) {
       console.error("Failed to save settings:", e);
@@ -496,25 +498,9 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Library</ThemedText>
           <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.libraryStats}>
-              <View style={styles.libraryStat}>
-                <ThemedText style={[styles.libraryStatNumber, { color: theme.text }]}>
-                  {artists.length}
-                </ThemedText>
-                <ThemedText style={[styles.libraryStatLabel, { color: theme.textSecondary }]}>
-                  Artists
-                </ThemedText>
-              </View>
-              <View style={[styles.libraryStatDivider, { backgroundColor: theme.border }]} />
-              <View style={styles.libraryStat}>
-                <ThemedText style={[styles.libraryStatNumber, { color: theme.text }]}>
-                  {albums.length}
-                </ThemedText>
-                <ThemedText style={[styles.libraryStatLabel, { color: theme.textSecondary }]}>
-                  Albums
-                </ThemedText>
-              </View>
-            </View>
+            <ThemedText style={[styles.libraryStatus, { color: theme.textSecondary }]}>
+              {activeServer ? `Connected to ${activeServer.name}` : "No server connected"}
+            </ThemedText>
             <Pressable
               style={({ pressed }) => [
                 styles.refreshButton,
@@ -592,6 +578,24 @@ export default function SettingsScreen() {
                 <Switch
                   value={normalization}
                   onValueChange={setNormalization}
+                  trackColor={{
+                    false: Colors.light.backgroundTertiary,
+                    true: Colors.light.accent,
+                  }}
+                  thumbColor={Colors.light.text}
+                />
+              }
+            />
+            <SettingRow
+              icon="volume-2"
+              iconColor={Colors.light.accentSecondary}
+              title="Hardware Volume Buttons"
+              subtitle="Use phone buttons to control player volume"
+              showChevron={false}
+              rightElement={
+                <Switch
+                  value={hardwareVolumeControl}
+                  onValueChange={setHardwareVolumeControl}
                   trackColor={{
                     false: Colors.light.backgroundTertiary,
                     true: Colors.light.accent,
@@ -1024,6 +1028,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.sm,
+  },
+  libraryStatus: {
+    ...Typography.body,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   libraryStats: {
     flexDirection: "row",

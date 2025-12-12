@@ -5,6 +5,7 @@ import NowPlayingScreen from "@/screens/NowPlayingScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { PlaybackProvider } from "@/hooks/usePlayback";
 import { MusicProvider } from "@/hooks/useMusic";
+import { SettingsProvider } from "@/hooks/useSettings";
 
 export type RootStackParamList = {
   Main: undefined;
@@ -17,9 +18,10 @@ export default function RootStackNavigator() {
   const screenOptions = useScreenOptions();
 
   return (
-    <MusicProvider>
-      <PlaybackProvider>
-        <Stack.Navigator screenOptions={screenOptions}>
+    <SettingsProvider>
+      <MusicProvider>
+        <PlaybackProvider>
+          <Stack.Navigator screenOptions={screenOptions}>
           <Stack.Screen
             name="Main"
             component={MainTabNavigator}
@@ -33,8 +35,9 @@ export default function RootStackNavigator() {
               headerShown: false,
             }}
           />
-        </Stack.Navigator>
-      </PlaybackProvider>
-    </MusicProvider>
+          </Stack.Navigator>
+        </PlaybackProvider>
+      </MusicProvider>
+    </SettingsProvider>
   );
 }
