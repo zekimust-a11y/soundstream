@@ -7,6 +7,9 @@ import AllAlbumsScreen from "@/screens/AllAlbumsScreen";
 import AllArtistsScreen from "@/screens/AllArtistsScreen";
 import NowPlayingScreen from "@/screens/NowPlayingScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
+import ServerManagementScreen from "@/screens/ServerManagementScreen";
+import QobuzLoginScreen from "@/screens/QobuzLoginScreen";
+import DebugScreen from "@/screens/DebugScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type BrowseStackParamList = {
@@ -17,6 +20,9 @@ export type BrowseStackParamList = {
   AllArtists: undefined;
   NowPlaying: undefined;
   Settings: undefined;
+  ServerManagement: undefined;
+  QobuzLogin: undefined;
+  Debug: undefined;
 };
 
 const Stack = createNativeStackNavigator<BrowseStackParamList>();
@@ -67,6 +73,21 @@ export default function BrowseStackNavigator() {
         name="Settings"
         component={SettingsScreen}
         options={{ headerTitle: "Settings" }}
+      />
+      <Stack.Screen
+        name="ServerManagement"
+        component={ServerManagementScreen}
+        options={{ headerTitle: "Servers" }}
+      />
+      <Stack.Screen
+        name="QobuzLogin"
+        component={QobuzLoginScreen}
+        options={{ headerTitle: "Qobuz" }}
+      />
+      <Stack.Screen
+        name="Debug"
+        component={DebugScreen}
+        options={{ headerTitle: "Debug Console" }}
       />
     </Stack.Navigator>
   );

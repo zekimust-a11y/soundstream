@@ -25,6 +25,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { useTheme } from "@/hooks/useTheme";
+import { useSettings } from "@/hooks/useSettings";
 import { usePlayback } from "@/hooks/usePlayback";
 import { lmsClient } from "@/lib/lmsClient";
 import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
@@ -87,6 +88,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer, playlists } = useMusic();
   const { theme } = useTheme();
+  const { chromecastIp, setChromecastIp } = useSettings();
   const { players, activePlayer, setActivePlayer, refreshPlayers } = usePlayback();
   
   const [isConnecting, setIsConnecting] = useState(false);
@@ -710,6 +712,30 @@ export default function SettingsScreen() {
                 <View style={styles.radioEmpty} />
               )}
             </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>TV Display</ThemedText>
+          <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
+            <ThemedText style={[styles.hintText, { color: theme.textSecondary, marginBottom: Spacing.md }]}>
+              Stream album artwork and track info to a TV via Chromecast
+            </ThemedText>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={[styles.hostInput, { color: theme.text, borderColor: theme.border }]}
+                placeholder="Chromecast IP (e.g., 192.168.0.239)"
+                placeholderTextColor={theme.textTertiary}
+                value={chromecastIp}
+                onChangeText={setChromecastIp}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="default"
+              />
+            </View>
+            <ThemedText style={[styles.hintText, { color: theme.textTertiary }]}>
+              Enter your Chromecast device IP address for TV display feature
+            </ThemedText>
           </View>
         </View>
 

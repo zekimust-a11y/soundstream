@@ -9,6 +9,7 @@ interface Settings {
   normalization: boolean;
   hardwareVolumeControl: boolean;
   streamingQuality: "cd" | "hires";
+  chromecastIp: string;
 }
 
 interface SettingsContextType extends Settings {
@@ -17,6 +18,7 @@ interface SettingsContextType extends Settings {
   setNormalization: (value: boolean) => void;
   setHardwareVolumeControl: (value: boolean) => void;
   setStreamingQuality: (value: "cd" | "hires") => void;
+  setChromecastIp: (value: string) => void;
   isLoaded: boolean;
 }
 
@@ -26,6 +28,7 @@ const defaultSettings: Settings = {
   normalization: false,
   hardwareVolumeControl: false,
   streamingQuality: "cd",
+  chromecastIp: "",
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -55,6 +58,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           normalization: parsed.normalization ?? defaultSettings.normalization,
           hardwareVolumeControl: parsed.hardwareVolumeControl ?? defaultSettings.hardwareVolumeControl,
           streamingQuality: parsed.streamingQuality ?? defaultSettings.streamingQuality,
+          chromecastIp: parsed.chromecastIp ?? defaultSettings.chromecastIp,
         });
       }
       setIsLoaded(true);
@@ -92,6 +96,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings(prev => ({ ...prev, streamingQuality: value }));
   }, []);
 
+  const setChromecastIp = useCallback((value: string) => {
+    setSettings(prev => ({ ...prev, chromecastIp: value }));
+  }, []);
+
   return (
     <SettingsContext.Provider
       value={{
@@ -101,6 +109,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setNormalization,
         setHardwareVolumeControl,
         setStreamingQuality,
+        setChromecastIp,
         isLoaded,
       }}
     >
