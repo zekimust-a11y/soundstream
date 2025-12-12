@@ -240,8 +240,8 @@ class LmsClient {
 
   async getAlbums(artistId?: string): Promise<LmsAlbum[]> {
     const command = artistId 
-      ? ['albums', '0', '500', `artist_id:${artistId}`, 'tags:aajlyST']
-      : ['albums', '0', '500', 'tags:aajlyST'];
+      ? ['albums', '0', '100000', `artist_id:${artistId}`, 'tags:aajlyST']
+      : ['albums', '0', '100000', 'tags:aajlyST'];
     
     const result = await this.request('', command);
     const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
@@ -259,7 +259,7 @@ class LmsClient {
   }
 
   async getArtists(): Promise<LmsArtist[]> {
-    const result = await this.request('', ['artists', '0', '1000', 'tags:s']);
+    const result = await this.request('', ['artists', '0', '100000', 'tags:s']);
     const artistsLoop = (result.artists_loop || []) as Array<Record<string, unknown>>;
     
     return artistsLoop.map((a) => ({
@@ -270,7 +270,7 @@ class LmsClient {
   }
 
   async getPlaylists(): Promise<LmsPlaylist[]> {
-    const result = await this.request('', ['playlists', '0', '500', 'tags:u']);
+    const result = await this.request('', ['playlists', '0', '10000', 'tags:u']);
     const playlistsLoop = (result.playlists_loop || []) as Array<Record<string, unknown>>;
     
     return playlistsLoop.map((p) => ({
