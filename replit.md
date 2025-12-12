@@ -131,37 +131,67 @@ For mobile testing:
 - SSDP discovery (useSsdpDiscovery.tsx)
 - SSDP bridge server (ssdp-bridge.ts)
 
-## dCS Mosaic Volume Control
+## dCS Mosaic Volume Control - Research Notes (December 2024)
 
-The local-server includes Mosaic volume control via macOS accessibility APIs.
+**Status: NOT WORKING - No viable automation path found**
 
-### How It Works
-- `mosaic-volume.swift` uses macOS accessibility APIs to find and control the volume slider in the Mosaic app
-- Requires accessibility permission granted to Terminal in System Settings
-- Can be compiled for faster execution: `swiftc -O -o mosaic-volume mosaic-volume.swift`
+The dCS Varese DAC uses the Mosaic app for volume control. Extensive research was conducted to find a way to automate volume control. All approaches failed.
 
-### API Endpoints
+### Approaches Attempted
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/mosaic/volume` | GET | Get current volume |
-| `/api/mosaic/volume` | POST | Set volume (action: set/up/down/mute) |
-| `/api/mosaic/sliders` | GET | List all sliders (debug) |
+#### 1. UPnP/DLNA Control (FAILED)
+- **Tested**: Standard UPnP RenderingControl service at various ports
+- **Result**: dCS Varese does not expose volume control via UPnP
+- **Details**: 
+  - Interface at 192.168.0.42:16500 responds to discovery but has no SetVolume action
+  - Core at 192.168.0.17 also tested - no volume endpoints
+  - Wireshark packet capture of Mosaic ↔ Varese traffic showed proprietary protocol (ACTUS)
 
-### CLI Usage
+#### 2. OpenHome Protocol (FAILED)
+- **Tested**: OpenHome Volume service calls
+- **Result**: Not supported by dCS
+- **Details**: Standard OpenHome volume commands return errors or are ignored
 
-```bash
-./mosaic-volume --get           # Get current volume
-./mosaic-volume --set 75        # Set volume to 75%
-./mosaic-volume --up 5          # Volume up 5%
-./mosaic-volume --down 5        # Volume down 5%
-./mosaic-volume --mute          # Toggle mute
-```
+#### 3. macOS Accessibility APIs - Slider (FAILED)
+- **Tested**: `mosaic-volume.swift` using AXUIElement APIs
+- **Result**: The Mosaic Mac app (iOS Catalyst) uses SwiftUI rotary dial with no accessible slider properties
+- **Details**:
+  - `--list` command shows elements but dial has no min/max/value attributes
+  - The AXSlider role is not used for the volume dial
+  - SwiftUI HostingScrollView wraps the dial with empty children array
 
-### Prerequisites
-1. macOS only (uses accessibility APIs)
-2. Mosaic app running (can be in background)
-3. Accessibility permission granted to Terminal
+#### 4. macOS Accessibility APIs - Mouse Drag Simulation (PARTIAL)
+- **Tested**: CGEvent mouse drag simulation on the rotary dial
+- **Result**: Works technically, but impractical
+- **Problem**: The Volume Control panel in Mosaic auto-minimizes after ~2 minutes of inactivity
+- **Details**:
+  - `--drag-up` and `--drag-down` commands simulate mouse drags
+  - Requires Volume Control panel to be visible and in a known position
+  - Would need additional automation to reopen panel before each adjustment
+
+#### 5. Keyboard Shortcuts (NOT TESTED)
+- Mosaic may not support keyboard shortcuts for volume
+- User declined to test as the window timeout issue makes this approach equally impractical
+
+#### 6. iOS Remote Control (NOT POSSIBLE)
+- iPhone version of Mosaic keeps Volume Control panel open
+- However, iOS is sandboxed - no way to remotely control app UI from a server
+- No "virtual finger" API exists on iOS
+- Shortcuts app cannot interact with third-party UI elements
+
+### ACTUS Protocol
+- dCS uses a proprietary protocol called "ACTUS" for device communication
+- Packet captures show encrypted/binary traffic between Mosaic and Varese
+- No public documentation available
+- Would require reverse engineering or contacting dCS for API access
+
+### Recommendations
+1. **Use LMS digital volume**: Control volume via LMS player (digital attenuation). This works reliably.
+2. **Manual Mosaic for critical listening**: When bit-perfect playback is required, set Mosaic volume manually and leave it.
+3. **Contact dCS**: Ask dCS support about automation options, MQTT, or API access for home automation integrations.
+
+### Files
+- `local-server/mosaic-volume.swift` - macOS accessibility CLI (kept for reference, not functional for production use)
 
 ## Flirc USB / IR Remote Control
 
