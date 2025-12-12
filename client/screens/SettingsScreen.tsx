@@ -535,7 +535,11 @@ export default function SettingsScreen() {
               </Pressable>
             </View>
             <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
-              {players.map((player) => (
+              {[...players].sort((a, b) => {
+                if (activePlayer?.id === a.id) return -1;
+                if (activePlayer?.id === b.id) return 1;
+                return 0;
+              }).map((player) => (
                 <Pressable
                   key={player.id}
                   style={({ pressed }) => [
