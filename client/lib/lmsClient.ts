@@ -164,14 +164,15 @@ class LmsClient {
   }
 
   async getPlayerStatus(playerId: string): Promise<LmsPlayerStatus> {
-    const result = await this.request(playerId, ['status', '-', '100', 'tags:acdlKNuT']);
+    // Use '0' to fetch from start so playlist_cur_index aligns with array indices
+    const result = await this.request(playerId, ['status', '0', '100', 'tags:acdlKNuT']);
     
     const playlistLoop = (result.playlist_loop || []) as Array<Record<string, unknown>>;
     const playlist = playlistLoop.map((t, index) => this.parseTrack(t, index));
 
-    const currentTrack = playlist.length > 0 && result.playlist_cur_index !== undefined
-      ? playlist[Number(result.playlist_cur_index)]
-      : undefined;
+    // Get current track using playlist_cur_index
+    const curIndex = Number(result.playlist_cur_index || 0);
+    const currentTrack = playlist.length > 0 ? playlist[curIndex] : undefined;
 
     return {
       power: result.power === 1,
