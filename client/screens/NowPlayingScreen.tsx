@@ -10,7 +10,6 @@ import {
   LayoutChangeEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
@@ -46,7 +45,7 @@ function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
   onToggle: () => void;
   onVolumeChange: (volume: number) => void;
 }) {
-  const iconName = zone.type === "airplay" ? "airplay" : zone.type === "upnp" ? "speaker" : "smartphone";
+  const iconName = zone.type === "lms" ? "speaker" : "smartphone";
   
   return (
     <View style={styles.zoneItem}>
@@ -66,7 +65,7 @@ function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
             {zone.name}
           </ThemedText>
           <ThemedText style={styles.zoneType}>
-            {zone.type === "upnp" ? "UPNP Renderer" : zone.type === "airplay" ? "AirPlay" : "Local"}
+            {zone.type === "lms" ? "LMS Player" : "Local"}
           </ThemedText>
         </View>
         <Pressable
@@ -102,7 +101,6 @@ function ZoneItem({ zone, isActive, onSelect, onToggle, onVolumeChange }: {
 
 export default function NowPlayingScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPosition, setSeekPosition] = useState(0);
@@ -166,13 +164,8 @@ export default function NowPlayingScreen() {
   if (!currentTrack) {
     return (
       <ThemedView style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.xs }]}>
-          <Pressable
-            style={({ pressed }) => [styles.closeButton, { opacity: pressed ? 0.6 : 1 }]}
-            onPress={() => navigation.goBack()}
-          >
-            <Feather name="chevron-down" size={28} color={Colors.light.text} />
-          </Pressable>
+        <View style={[styles.header, { paddingTop: insets.top }]}>
+          <ThemedText style={styles.headerTitle}>Now Playing</ThemedText>
         </View>
         <View style={styles.emptyState}>
           <Image
@@ -191,14 +184,8 @@ export default function NowPlayingScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.xs }]}>
-        <Pressable
-          style={({ pressed }) => [styles.closeButton, { opacity: pressed ? 0.6 : 1 }]}
-          onPress={() => navigation.goBack()}
-        >
-          <Feather name="chevron-down" size={28} color={Colors.light.text} />
-        </Pressable>
-        <ThemedText style={styles.headerTitle}>NOW PLAYING</ThemedText>
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <ThemedText style={styles.headerTitle}>Now Playing</ThemedText>
         <Pressable
           style={({ pressed }) => [styles.menuButton, { opacity: pressed ? 0.6 : 1 }]}
         >
@@ -368,16 +355,15 @@ export default function NowPlayingScreen() {
 
         <View style={[styles.deviceSelector, { marginBottom: insets.bottom + Spacing.xl }]}>
           <Pressable
-            style={({ pressed }) => [styles.deviceButton, { opacity: pressed ? 0.6 : 1 }]}
+            style={({ pressed }) => [styles.speakerButton, { opacity: pressed ? 0.6 : 1 }]}
             onPress={() => setShowZoneModal(true)}
           >
-            <Feather name="speaker" size={16} color={Colors.light.accent} />
-            <ThemedText style={styles.deviceText}>
-              {activeZones.length > 1 
-                ? `${activeZones.length} zones` 
-                : activeZone?.name || "Select zone"}
-            </ThemedText>
-            <Feather name="chevron-up" size={16} color={Colors.light.textSecondary} />
+            <Feather name="speaker" size={20} color={Colors.light.accent} />
+            {activeZones.length > 1 ? (
+              <View style={styles.zoneCountBadge}>
+                <ThemedText style={styles.zoneCountText}>{activeZones.length}</ThemedText>
+              </View>
+            ) : null}
           </Pressable>
         </View>
       </ScrollView>
@@ -441,19 +427,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
-    paddingBottom: 0,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingBottom: Spacing.xs,
+    minHeight: 44,
   },
   headerTitle: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 1,
+    flex: 1,
+    fontSize: 17,
+    fontWeight: "600",
+    color: Colors.light.text,
+    marginLeft: Spacing.md,
   },
   menuButton: {
     width: 40,
@@ -609,18 +591,30 @@ const styles = StyleSheet.create({
   deviceSelector: {
     alignItems: "center",
   },
-  deviceButton: {
-    flexDirection: "row",
-    alignItems: "center",
+  speakerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Colors.light.backgroundSecondary,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.full,
-    gap: Spacing.sm,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  deviceText: {
-    ...Typography.caption,
-    color: Colors.light.accent,
+  zoneCountBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.light.accent,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  zoneCountText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.light.buttonText,
   },
   emptyState: {
     flex: 1,
@@ -767,7 +761,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   doneButtonText: {
-    ...Typography.bodyBold,
+    ...Typography.body,
+    fontWeight: "600",
     color: Colors.light.buttonText,
   },
 });
