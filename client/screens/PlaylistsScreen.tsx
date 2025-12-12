@@ -218,6 +218,33 @@ export default function PlaylistsScreen() {
       >
         <View style={styles.gridImageContainer}>
           <PlaylistMosaic artworks={artworks || []} size={GRID_ITEM_SIZE} />
+          <View style={styles.gridOverlay}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.gridOverlayButton,
+                { opacity: pressed ? 0.8 : 1 },
+              ]}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleShufflePlaylist(item);
+              }}
+            >
+              <Feather name="shuffle" size={18} color="#fff" />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.gridOverlayButton,
+                styles.gridPlayButton,
+                { opacity: pressed ? 0.8 : 1 },
+              ]}
+              onPress={(e) => {
+                e.stopPropagation();
+                handlePlayPlaylist(item);
+              }}
+            >
+              <Feather name="play" size={22} color="#fff" />
+            </Pressable>
+          </View>
           {isQobuz ? (
             <View style={styles.gridQobuzBadge}>
               <ThemedText style={styles.gridQobuzText}>Q</ThemedText>
@@ -445,6 +472,33 @@ const styles = StyleSheet.create({
   gridImageContainer: {
     position: "relative",
     marginBottom: Spacing.sm,
+  },
+  gridOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.md,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    borderRadius: BorderRadius.sm,
+  },
+  gridOverlayButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gridPlayButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.light.accent,
   },
   mosaicContainer: {
     borderRadius: BorderRadius.sm,
