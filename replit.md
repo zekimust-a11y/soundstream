@@ -4,12 +4,12 @@
 SoundStream is a mobile music player app built with Expo/React Native. It connects to **Logitech Media Server (LMS)** to browse music libraries and control playback on LMS-connected players (Squeezebox devices, piCorePlayer, etc.). Audio streams directly from server to player for bit-perfect playback.
 
 ## Current State
-- **Version**: 1.0.0
-- **Status**: LMS integration complete
+- **Version**: 1.1.0
+- **Status**: LMS integration complete with Radio support
 - **Last Updated**: December 12, 2024
 - **Theme**: Light theme (default)
 - **Build Type**: Works in Expo Go
-- **Latest Update**: Replaced UPnP/SSDP with LMS JSON-RPC API for simpler, more reliable server connectivity
+- **Latest Update**: Added Radio tab for favorite stations, moved Settings to Browse screen, improved navigation
 
 ## Architecture
 
@@ -56,13 +56,15 @@ client/
 ### Key Features
 1. **LMS Connection**: Connect to LMS server by IP address
 2. **Player Selection**: Discover and select from available players
-3. **Browse Tab**: Library browsing with artists, albums, and recently played
-4. **Playlists Tab**: Browse playlists, tap to view tracks, shuffle or play buttons
-5. **Queue Tab**: Playback queue management with drag-to-reorder
-6. **Search Tab**: Search music library
-7. **Settings Tab**: Server management, player selection, playback settings
-8. **Now Playing**: Full-screen modal with player controls
-9. **iOS Shortcuts**: Server endpoints for Siri voice control via iOS Shortcuts app
+3. **Browse Tab**: Library browsing with artists, albums, recently played + Settings access
+4. **Playlists Tab**: Browse playlists with mosaic artwork, shuffle or play buttons
+5. **Albums Tab**: Browse all albums with infinite scrolling
+6. **Artists Tab**: Browse all artists with album counts
+7. **Radio Tab**: Browse favorite radio stations from LMS
+8. **Search Tab**: Search music library
+9. **Settings Screen**: Server management, player selection, playback settings (accessed from Browse)
+10. **Now Playing**: Full-screen modal with player controls and audio quality display
+11. **iOS Shortcuts**: Server endpoints for Siri voice control via iOS Shortcuts app
 
 ### LMS JSON-RPC API
 The app uses LMS's JSON-RPC API at `http://<server>:9000/jsonrpc.js`:
@@ -98,7 +100,7 @@ The app uses LMS's JSON-RPC API at `http://<server>:9000/jsonrpc.js`:
 
 ### Setup
 1. Open the app
-2. Go to Settings tab
+2. Tap the Settings icon (gear) in the top right of the Browse screen
 3. Enter your LMS server IP address (e.g., 192.168.0.100)
 4. Tap "Connect to LMS"
 5. Select a player from the Players section
