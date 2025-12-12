@@ -13,7 +13,7 @@ type NavigationProp = BottomTabNavigationProp<MainTabParamList>;
 
 export default function MiniPlayer() {
   const navigation = useNavigation<NavigationProp>();
-  const { currentTrack, isPlaying, togglePlayPause } = usePlayback();
+  const { currentTrack, isPlaying, togglePlayPause, next } = usePlayback();
 
   if (!currentTrack) return null;
 
@@ -45,10 +45,24 @@ export default function MiniPlayer() {
           <Pressable
             onPress={(e) => {
               e.stopPropagation();
+              next();
+            }}
+            style={styles.controlButton}
+            hitSlop={8}
+          >
+            <Feather
+              name="skip-forward"
+              size={20}
+              color={Colors.light.text}
+            />
+          </Pressable>
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
               togglePlayPause();
             }}
-            style={styles.playButton}
-            hitSlop={12}
+            style={styles.controlButton}
+            hitSlop={8}
           >
             <Feather
               name={isPlaying ? "pause" : "play"}
@@ -110,9 +124,9 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
-  playButton: {
-    width: 44,
-    height: 44,
+  controlButton: {
+    width: 40,
+    height: 40,
     justifyContent: "center",
     alignItems: "center",
   },
