@@ -134,6 +134,9 @@ async function startCasting() {
     return;
   }
 
+  // Set flag immediately to prevent duplicate calls
+  isCasting = true;
+
   const nowPlayingUrl = `http://${serverIp}:${PORT}/now-playing?host=${LMS_HOST}&port=${LMS_PORT}&player=${encodeURIComponent(currentPlayerId)}`;
   
   console.log('Starting cast to:', nowPlayingUrl);
@@ -144,10 +147,10 @@ async function startCasting() {
   exec(cattCmd, (error, stdout, stderr) => {
     if (error) {
       console.error('Error starting cast:', error.message);
+      isCasting = false; // Reset on error so it can retry
       return;
     }
     console.log('Cast started successfully');
-    isCasting = true;
   });
 }
 
