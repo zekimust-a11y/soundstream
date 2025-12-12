@@ -145,7 +145,7 @@ export default function SettingsScreen() {
         setHardwareVolumeControl(settings.hardwareVolumeControl ?? false);
         setStreamingQuality(settings.streamingQuality ?? "cd");
         setLocalServerIp(settings.localServerIp ?? "");
-        setLocalServerPort(settings.localServerPort ?? "5000");
+        setLocalServerPort(settings.localServerPort ?? "3000");
         setSelectedChromecast(settings.selectedChromecast ?? null);
       }
       setSettingsLoaded(true);
@@ -332,7 +332,7 @@ export default function SettingsScreen() {
     if (localServerIp) {
       try {
         const serverUrl = `http://${localServerIp.trim()}:${localServerPort}`;
-        await fetch(`${serverUrl}/api/player`, {
+        const response = await fetch(`${serverUrl}/api/player`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -340,8 +340,11 @@ export default function SettingsScreen() {
             playerName: player.name
           })
         });
+        if (response.ok) {
+          console.log('Player synced to local server:', player.name);
+        }
       } catch (e) {
-        // Silent fail - local server might not be running
+        console.log('Could not sync player to local server:', e);
       }
     }
   };
