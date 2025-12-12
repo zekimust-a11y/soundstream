@@ -46,11 +46,13 @@ export default function PlaylistDetailScreen() {
     }
   }, [activeServer, playlist.id]);
 
+  const displayName = playlist.name.replace(/^Qobuz\s*/i, '').trim();
+
   useEffect(() => {
     navigation.setOptions({
-      headerTitle: playlist.name,
+      headerTitle: displayName,
     });
-  }, [navigation, playlist.name]);
+  }, [navigation, displayName]);
 
   useEffect(() => {
     if (activeServer) {

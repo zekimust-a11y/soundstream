@@ -90,7 +90,7 @@ export default function PlaylistsScreen() {
         <View style={styles.playlistInfo}>
           <View style={styles.playlistNameRow}>
             <ThemedText style={styles.playlistName} numberOfLines={1}>
-              {item.name}
+              {item.name.replace(/^Qobuz\s*/i, '').trim()}
             </ThemedText>
             {item.url?.includes('qobuz') ? (
               <View style={styles.qobuzBadge}>
