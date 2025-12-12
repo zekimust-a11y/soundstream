@@ -16,6 +16,8 @@ const ENABLE_KEYBOARD = process.env.ENABLE_KEYBOARD !== 'false';
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 let chromecastIp = process.env.CHROMECAST_IP || '';
 let chromecastName = '';
+let preferredPlayerId = '';
+let preferredPlayerName = '';
 
 function loadConfig() {
   try {
@@ -23,7 +25,9 @@ function loadConfig() {
       const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
       chromecastIp = data.chromecastIp || chromecastIp;
       chromecastName = data.chromecastName || '';
-      console.log('Loaded config:', { chromecastIp, chromecastName });
+      preferredPlayerId = data.preferredPlayerId || '';
+      preferredPlayerName = data.preferredPlayerName || '';
+      console.log('Loaded config:', { chromecastIp, chromecastName, preferredPlayerId, preferredPlayerName });
     }
   } catch (e) {
     console.log('No config file found, using defaults');
@@ -32,7 +36,7 @@ function loadConfig() {
 
 function saveConfig() {
   try {
-    const data = { chromecastIp, chromecastName };
+    const data = { chromecastIp, chromecastName, preferredPlayerId, preferredPlayerName };
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2));
     console.log('Config saved:', data);
   } catch (e) {
@@ -246,12 +250,18 @@ function stopCasting() {
 async function pollLmsStatus() {
   try {
     if (!currentPlayerId) {
-      const players = await getPlayers();
-      if (players.length > 0) {
-        currentPlayerId = players[0].playerid;
-        console.log('Auto-selected player:', players[0].name);
+      // Use preferred player if configured
+      if (preferredPlayerId) {
+        currentPlayerId = preferredPlayerId;
+        console.log('Using preferred player:', preferredPlayerName || preferredPlayerId);
       } else {
-        return;
+        const players = await getPlayers();
+        if (players.length > 0) {
+          currentPlayerId = players[0].playerid;
+          console.log('Auto-selected player:', players[0].name);
+        } else {
+          return;
+        }
       }
     }
 
@@ -513,11 +523,56 @@ app.get('/api/status', async (req, res) => {
     lmsPort: LMS_PORT,
     chromecastIp: chromecastIp,
     chromecastName: chromecastName,
+    preferredPlayerId,
+    preferredPlayerName,
     isCasting,
     currentPlayerId,
     lastMode,
     keyboardEnabled
   });
+});
+
+// List available LMS players
+app.get('/api/players', async (req, res) => {
+  try {
+    const players = await getPlayers();
+    res.json({ 
+      players,
+      preferredPlayerId,
+      preferredPlayerName
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Set preferred player
+app.post('/api/player', async (req, res) => {
+  const { playerId, playerName } = req.body;
+  
+  preferredPlayerId = playerId || '';
+  preferredPlayerName = playerName || '';
+  currentPlayerId = preferredPlayerId; // Update current player immediately
+  
+  saveConfig();
+  
+  if (preferredPlayerId) {
+    console.log(`Preferred player set: ${preferredPlayerName} (${preferredPlayerId})`);
+    res.json({ 
+      success: true, 
+      message: `Player set to ${preferredPlayerName || preferredPlayerId}`,
+      preferredPlayerId,
+      preferredPlayerName
+    });
+  } else {
+    console.log('Preferred player cleared, will auto-select');
+    res.json({ 
+      success: true, 
+      message: 'Player preference cleared, will auto-select',
+      preferredPlayerId: '',
+      preferredPlayerName: ''
+    });
+  }
 });
 
 app.post('/api/chromecast', async (req, res) => {
