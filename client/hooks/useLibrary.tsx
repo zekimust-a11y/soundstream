@@ -133,6 +133,8 @@ export function useFavoriteRadios() {
     queryKey: ['radio', 'favorites', activeServer?.id],
     queryFn: async () => {
       if (!activeServer) return [];
+      // Ensure server is set before fetching favorites
+      lmsClient.setServer(activeServer.host, activeServer.port);
       return await lmsClient.getFavoriteRadios();
     },
     enabled: !!activeServer,
