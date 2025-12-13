@@ -15,10 +15,17 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  WithSpringConfig,
+} from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
+import { AlbumGridSkeleton, AlbumListSkeleton } from "@/components/SkeletonLoader";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback } from "@/hooks/usePlayback";
 import { lmsClient, type LmsPlaylist, type LmsTrack } from "@/lib/lmsClient";
@@ -34,6 +41,126 @@ type ViewMode = "grid" | "list";
 
 const VIEW_MODE_KEY = "@playlists_view_mode";
 const ARTWORK_CACHE_KEY = "@playlists_artworks";
+
+const springConfig: WithSpringConfig = {
+  damping: 15,
+  mass: 0.3,
+  stiffness: 150,
+  overshootClamping: true,
+  energyThreshold: 0.001,
+};
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const PlaylistGridItem = memo(({ 
+  item, 
+  artworks, 
+  onPress, 
+  onPlay, 
+  onShuffle 
+}: { 
+  item: LmsPlaylist;
+  artworks: string[];
+  onPress: () => void;
+  onPlay: () => void;
+  onShuffle: () => void;
+}) => {
+  const cardScale = useSharedValue(1);
+  const overlayOpacity = useSharedValue(0.7);
+  const shuffleScale = useSharedValue(1);
+  const playScale = useSharedValue(1);
+  const isQobuz = item.url?.includes('qobuz');
+
+  const cardAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: cardScale.value }],
+  }));
+
+  const overlayAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: overlayOpacity.value,
+  }));
+
+  const shuffleAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: shuffleScale.value }],
+  }));
+
+  const playAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: playScale.value }],
+  }));
+
+  return (
+    <Animated.View style={[styles.gridItem, cardAnimatedStyle]}>
+      <View style={styles.gridImageContainer}>
+        <AnimatedPressable
+          style={cardAnimatedStyle}
+          onPress={onPress}
+          onPressIn={() => {
+            cardScale.value = withSpring(0.96, springConfig);
+            overlayOpacity.value = withSpring(1, springConfig);
+          }}
+          onPressOut={() => {
+            cardScale.value = withSpring(1, springConfig);
+            overlayOpacity.value = withSpring(0.7, springConfig);
+          }}
+        >
+          <PlaylistMosaic artworks={artworks || []} size={GRID_ITEM_SIZE} />
+        </AnimatedPressable>
+        <Animated.View style={[styles.gridOverlay, overlayAnimatedStyle]}>
+          <AnimatedPressable
+            style={[styles.gridOverlayButton, shuffleAnimatedStyle]}
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              onShuffle();
+            }}
+            onPressIn={(e) => {
+              e?.stopPropagation?.();
+              shuffleScale.value = withSpring(0.9, springConfig);
+            }}
+            onPressOut={() => {
+              shuffleScale.value = withSpring(1, springConfig);
+            }}
+            hitSlop={8}
+          >
+            <Feather name="shuffle" size={18} color="#fff" />
+          </AnimatedPressable>
+          <AnimatedPressable
+            style={[styles.gridOverlayButton, styles.gridPlayButton, playAnimatedStyle]}
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              onPlay();
+            }}
+            onPressIn={(e) => {
+              e?.stopPropagation?.();
+              playScale.value = withSpring(0.9, springConfig);
+            }}
+            onPressOut={() => {
+              playScale.value = withSpring(1, springConfig);
+            }}
+            hitSlop={8}
+          >
+            <Feather name="play" size={22} color="#fff" style={{ marginLeft: 2 }} />
+          </AnimatedPressable>
+        </Animated.View>
+        {isQobuz ? (
+          <View style={styles.gridQobuzBadge}>
+            <Image
+              source={require("../assets/images/qobuz-icon.png")}
+              style={styles.gridQobuzIcon}
+              contentFit="contain"
+            />
+          </View>
+        ) : null}
+      </View>
+      <ThemedText style={styles.gridTitle} numberOfLines={2}>
+        {item.name.replace(/^Qobuz\s*:?\s*/i, '').trim()}
+      </ThemedText>
+      {item.trackCount !== undefined ? (
+        <ThemedText style={styles.gridSubtitle}>
+          {item.trackCount} {item.trackCount === 1 ? "track" : "tracks"}
+        </ThemedText>
+      ) : null}
+    </Animated.View>
+  );
+});
 
 const PlaylistMosaic = memo(({ artworks, size }: { artworks: string[]; size: number }) => {
   const tileSize = size / 2;
@@ -198,15 +325,43 @@ export default function PlaylistsScreen() {
     setIsRefreshing(false);
   };
 
-  const handlePlayPlaylist = (playlist: LmsPlaylist) => {
-    if (!activePlayer) return;
-    playPlaylist(playlist.id);
+  const handlePlayPlaylist = async (playlist: LmsPlaylist) => {
+    if (!activePlayer) {
+      console.log('No active player');
+      return;
+    }
+    if (!activeServer) {
+      console.log('No active server');
+      return;
+    }
+    // Ensure server is set in lmsClient
+    lmsClient.setServer(activeServer.host, activeServer.port);
+    console.log('Playing playlist:', playlist.id);
+    try {
+      await playPlaylist(playlist.id);
+    } catch (error) {
+      console.error('Failed to play playlist:', error);
+    }
   };
 
   const handleShufflePlaylist = async (playlist: LmsPlaylist) => {
-    if (!activePlayer) return;
-    await lmsClient.setShuffle(activePlayer.id, 1);
-    playPlaylist(playlist.id);
+    if (!activePlayer) {
+      console.log('No active player');
+      return;
+    }
+    if (!activeServer) {
+      console.log('No active server');
+      return;
+    }
+    // Ensure server is set in lmsClient
+    lmsClient.setServer(activeServer.host, activeServer.port);
+    console.log('Shuffling playlist:', playlist.id);
+    try {
+      await lmsClient.setShuffle(activePlayer.id, 1);
+      await playPlaylist(playlist.id);
+    } catch (error) {
+      console.error('Failed to shuffle playlist:', error);
+    }
   };
 
   const handleOpenPlaylist = (playlist: LmsPlaylist) => {
@@ -215,63 +370,19 @@ export default function PlaylistsScreen() {
 
   const renderGridItem = ({ item }: { item: LmsPlaylist }) => {
     const artworks = playlistArtworks[item.id];
-    const displayName = item.name.replace(/^Qobuz\s*:?\s*/i, '').trim();
-    const isQobuz = item.url?.includes('qobuz');
     
     if (artworks === undefined) {
       loadPlaylistArtworks(item);
     }
     
     return (
-      <Pressable
-        style={({ pressed }) => [
-          styles.gridItem,
-          { opacity: pressed ? 0.6 : 1 },
-        ]}
+      <PlaylistGridItem
+        item={item}
+        artworks={artworks || []}
         onPress={() => handleOpenPlaylist(item)}
-      >
-        <View style={styles.gridImageContainer}>
-          <PlaylistMosaic artworks={artworks || []} size={GRID_ITEM_SIZE} />
-          <View style={styles.gridOverlay} pointerEvents="box-none">
-            <Pressable
-              style={({ pressed }) => [
-                styles.gridOverlayButton,
-                { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.95 : 1 }] },
-              ]}
-              onPress={() => handleShufflePlaylist(item)}
-              hitSlop={8}
-            >
-              <Feather name="shuffle" size={18} color="#fff" />
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.gridOverlayButton,
-                styles.gridPlayButton,
-                { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.95 : 1 }] },
-              ]}
-              onPress={() => handlePlayPlaylist(item)}
-              hitSlop={8}
-            >
-              <Feather name="play" size={22} color="#fff" style={{ marginLeft: 2 }} />
-            </Pressable>
-          </View>
-          {isQobuz ? (
-            <Image
-              source={require("../assets/images/qobuz-icon.png")}
-              style={styles.gridQobuzBadge}
-              contentFit="cover"
-            />
-          ) : null}
-        </View>
-        <ThemedText style={styles.gridTitle} numberOfLines={2}>
-          {displayName}
-        </ThemedText>
-        {item.trackCount !== undefined ? (
-          <ThemedText style={styles.gridSubtitle}>
-            {item.trackCount} tracks
-          </ThemedText>
-        ) : null}
-      </Pressable>
+        onPlay={() => handlePlayPlaylist(item)}
+        onShuffle={() => handleShufflePlaylist(item)}
+      />
     );
   };
 
@@ -287,11 +398,13 @@ export default function PlaylistsScreen() {
         <View style={styles.listInfo}>
           <View style={styles.listNameRow}>
             {item.url?.includes('qobuz') ? (
-              <Image
-                source={require("../assets/images/qobuz-icon.png")}
-                style={styles.listQobuzBadge}
-                contentFit="cover"
-              />
+              <View style={styles.listQobuzBadge}>
+                <Image
+                  source={require("../assets/images/qobuz-icon.png")}
+                  style={styles.listQobuzIcon}
+                  contentFit="contain"
+                />
+              </View>
             ) : null}
             <ThemedText style={styles.listName} numberOfLines={1}>
               {item.name.replace(/^Qobuz\s*:?\s*/i, '').trim()}
@@ -329,14 +442,7 @@ export default function PlaylistsScreen() {
 
   const renderEmptyState = () => {
     if (isLoading) {
-      return (
-        <View style={styles.emptyState}>
-          <ActivityIndicator size="large" color={Colors.light.accent} />
-          <ThemedText style={styles.emptySubtitle}>
-            Loading playlists...
-          </ThemedText>
-        </View>
-      );
+      return null; // Skeleton will be shown instead
     }
 
     if (!activeServer) {
@@ -456,8 +562,11 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
   },
   headerTitle: {
-    ...Typography.display,
+    fontSize: 22.4, // 30% smaller than Typography.display (32px * 0.7)
+    fontWeight: "700",
     color: Colors.light.text,
+    textAlign: "left",
+    alignSelf: "flex-start",
   },
   viewToggle: {
     flexDirection: "row",
@@ -486,6 +595,7 @@ const styles = StyleSheet.create({
   gridImageContainer: {
     position: "relative",
     marginBottom: Spacing.sm,
+    ...Shadows.small,
   },
   gridOverlay: {
     position: "absolute",
@@ -497,8 +607,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.md,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
     borderRadius: BorderRadius.sm,
+    pointerEvents: "box-none",
   },
   gridOverlayButton: {
     width: 40,
@@ -546,7 +657,15 @@ const styles = StyleSheet.create({
     left: Spacing.sm,
     width: 24,
     height: 24,
-    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 4,
+    padding: 2,
+  },
+  gridQobuzIcon: {
+    width: 20,
+    height: 20,
   },
   gridTitle: {
     ...Typography.body,
@@ -593,8 +712,16 @@ const styles = StyleSheet.create({
   listQobuzBadge: {
     width: 20,
     height: 20,
-    borderRadius: 4,
     marginRight: Spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 3,
+    padding: 2,
+  },
+  listQobuzIcon: {
+    width: 16,
+    height: 16,
   },
   listTracks: {
     ...Typography.caption,

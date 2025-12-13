@@ -1,50 +1,189 @@
-import React, { useCallback, memo } from "react";
+import React, { useCallback, memo, useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
   FlatList,
   Pressable,
+  Dimensions,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  WithSpringConfig,
+} from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
+import { ArtistGridSkeleton, AlbumListSkeleton } from "@/components/SkeletonLoader";
 import { useInfiniteArtists, Artist } from "@/hooks/useLibrary";
+import { useMusic } from "@/hooks/useMusic";
+import { usePlayback } from "@/hooks/usePlayback";
+import { lmsClient } from "@/lib/lmsClient";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
 
-type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
+const { width } = Dimensions.get("window");
+const NUM_COLUMNS = 2;
+const GRID_ITEM_SIZE = (width - Spacing.lg * 3) / NUM_COLUMNS;
 
-const ArtistRow = memo(({ artist, onPress }: { artist: Artist; onPress: () => void }) => (
-  <Pressable
-    style={({ pressed }) => [
-      styles.artistRow,
-      { opacity: pressed ? 0.6 : 1 },
-    ]}
-    onPress={onPress}
-  >
-    <View style={styles.artistAvatar}>
-      <Feather name="user" size={24} color={Colors.light.textTertiary} />
-    </View>
-    <View style={styles.artistInfo}>
-      <ThemedText style={styles.artistName} numberOfLines={1}>
+type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
+type ViewMode = "grid" | "list";
+
+const VIEW_MODE_KEY = "@artists_view_mode";
+
+const springConfig: WithSpringConfig = {
+  damping: 15,
+  mass: 0.3,
+  stiffness: 150,
+  overshootClamping: true,
+  energyThreshold: 0.001,
+};
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const ArtistGridCard = memo(({ artist, onPress, onPlay }: { 
+  artist: Artist; 
+  onPress: () => void;
+  onPlay: () => void;
+}) => {
+  const cardScale = useSharedValue(1);
+  const overlayOpacity = useSharedValue(0.7);
+  const playScale = useSharedValue(1);
+
+  const cardAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: cardScale.value }],
+  }));
+
+  const overlayAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: overlayOpacity.value,
+  }));
+
+  const playAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: playScale.value }],
+  }));
+
+  return (
+    <Animated.View style={[styles.gridItem, cardAnimatedStyle]}>
+      <View style={styles.gridImageContainer}>
+        <AnimatedPressable
+          style={styles.gridImagePressable}
+          onPress={onPress}
+          onPressIn={() => {
+            cardScale.value = withSpring(0.96, springConfig);
+            overlayOpacity.value = withSpring(1, springConfig);
+          }}
+          onPressOut={() => {
+            cardScale.value = withSpring(1, springConfig);
+            overlayOpacity.value = withSpring(0.7, springConfig);
+          }}
+        >
+          {artist.imageUrl ? (
+            <Image
+              source={artist.imageUrl}
+              style={styles.gridImageRound}
+              contentFit="cover"
+            />
+          ) : (
+            <View style={styles.gridImageRoundPlaceholder}>
+              <Feather name="user" size={GRID_ITEM_SIZE * 0.3} color={Colors.light.textTertiary} />
+            </View>
+          )}
+        </AnimatedPressable>
+        <Animated.View 
+          style={[styles.gridOverlay, overlayAnimatedStyle]}
+          pointerEvents="box-none"
+        >
+          <AnimatedPressable
+            style={[styles.gridOverlayButton, styles.gridPlayButton, playAnimatedStyle]}
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              onPlay();
+            }}
+            onPressIn={(e) => {
+              e?.stopPropagation?.();
+              playScale.value = withSpring(0.9, springConfig);
+            }}
+            onPressOut={(e) => {
+              e?.stopPropagation?.();
+              playScale.value = withSpring(1, springConfig);
+            }}
+            hitSlop={8}
+          >
+            <Feather name="play" size={22} color="#fff" style={{ marginLeft: 2 }} />
+          </AnimatedPressable>
+        </Animated.View>
+      </View>
+      <ThemedText style={styles.gridTitle} numberOfLines={2}>
         {artist.name}
       </ThemedText>
-      <ThemedText style={styles.artistAlbums}>
+      <ThemedText style={styles.gridSubtitle} numberOfLines={1}>
         {artist.albumCount || 0} albums
       </ThemedText>
-    </View>
-    <Feather name="chevron-right" size={20} color={Colors.light.textTertiary} />
-  </Pressable>
+    </Animated.View>
+  );
+});
+
+const ArtistListRow = memo(({ artist, onPress, onPlay }: { 
+  artist: Artist; 
+  onPress: () => void;
+  onPlay: () => void;
+}) => (
+  <View style={styles.listRow}>
+    <Pressable
+      style={({ pressed }) => [
+        styles.listMainArea,
+        { opacity: pressed ? 0.6 : 1 },
+      ]}
+      onPress={onPress}
+    >
+      {artist.imageUrl ? (
+        <Image
+          source={artist.imageUrl}
+          style={styles.listImageRound}
+          contentFit="cover"
+        />
+      ) : (
+        <View style={styles.listImageRoundPlaceholder}>
+          <Feather name="user" size={24} color={Colors.light.textTertiary} />
+        </View>
+      )}
+      <View style={styles.listInfo}>
+        <ThemedText style={styles.listTitle} numberOfLines={1}>
+          {artist.name}
+        </ThemedText>
+        <ThemedText style={styles.listSubtitle} numberOfLines={1}>
+          {artist.albumCount || 0} albums
+        </ThemedText>
+      </View>
+    </Pressable>
+    <Pressable
+      style={({ pressed }) => [
+        styles.actionButton,
+        { opacity: pressed ? 0.6 : 1 },
+      ]}
+      onPress={onPlay}
+    >
+      <Feather name="play-circle" size={22} color={Colors.light.accent} />
+    </Pressable>
+  </View>
 ));
 
 export default function AllArtistsScreen() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
+  const { activeServer } = useMusic();
+  const { activePlayer, syncPlayerStatus } = usePlayback();
   
   const {
     data,
@@ -52,14 +191,63 @@ export default function AllArtistsScreen() {
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
+    error,
   } = useInfiniteArtists();
 
   const artists = data?.pages.flatMap(page => page.artists) || [];
   const total = data?.pages[0]?.total || 0;
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+
+  useEffect(() => {
+    AsyncStorage.getItem(VIEW_MODE_KEY).then((mode) => {
+      if (mode === "list" || mode === "grid") {
+        setViewMode(mode);
+      }
+    });
+  }, []);
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    AsyncStorage.setItem(VIEW_MODE_KEY, mode);
+  };
 
   const handleArtistPress = useCallback((artist: Artist) => {
     navigation.navigate("Artist", { id: artist.id, name: artist.name });
   }, [navigation]);
+
+  const handlePlayArtist = useCallback(async (artist: Artist) => {
+    if (!activePlayer || !activeServer) {
+      console.log('Cannot play artist: missing player or server', {
+        hasPlayer: !!activePlayer,
+        hasServer: !!activeServer,
+        artistName: artist.name
+      });
+      return;
+    }
+    try {
+      console.log('Playing artist:', artist.name);
+      lmsClient.setServer(activeServer.host, activeServer.port);
+      // Get first album from artist and play it
+      const albums = await lmsClient.getAlbumsByArtistName(artist.name);
+      console.log(`Found ${albums.length} albums for artist: ${artist.name}`);
+      if (albums.length > 0) {
+        console.log('Playing album:', albums[0].name, 'ID:', albums[0].id);
+        await lmsClient.setPower(activePlayer.id, true);
+        await lmsClient.stop(activePlayer.id);
+        await lmsClient.playAlbum(activePlayer.id, albums[0].id);
+        await lmsClient.play(activePlayer.id);
+        console.log('Artist play command sent successfully');
+        
+        setTimeout(() => {
+          syncPlayerStatus();
+        }, 500);
+      } else {
+        console.log(`No albums found for artist: ${artist.name}`);
+      }
+    } catch (error) {
+      console.error('Failed to play artist:', error);
+    }
+  }, [activePlayer, activeServer, syncPlayerStatus]);
 
   const handleEndReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -67,9 +255,21 @@ export default function AllArtistsScreen() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const renderArtist = useCallback(({ item }: { item: Artist }) => (
-    <ArtistRow artist={item} onPress={() => handleArtistPress(item)} />
-  ), [handleArtistPress]);
+  const renderGridItem = useCallback(({ item }: { item: Artist }) => (
+    <ArtistGridCard 
+      artist={item} 
+      onPress={() => handleArtistPress(item)}
+      onPlay={() => handlePlayArtist(item)}
+    />
+  ), [handleArtistPress, handlePlayArtist]);
+
+  const renderListItem = useCallback(({ item }: { item: Artist }) => (
+    <ArtistListRow 
+      artist={item} 
+      onPress={() => handleArtistPress(item)}
+      onPlay={() => handlePlayArtist(item)}
+    />
+  ), [handleArtistPress, handlePlayArtist]);
 
   const keyExtractor = useCallback((item: Artist) => item.id, []);
 
@@ -82,47 +282,137 @@ export default function AllArtistsScreen() {
     );
   }, [isFetchingNextPage]);
 
-  const ItemSeparator = useCallback(() => (
-    <View style={styles.separator} />
-  ), []);
-
   if (isLoading) {
     return (
+      <ThemedView style={styles.container}>
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+          <ThemedText style={styles.headerTitle}>Artists</ThemedText>
+          <View style={styles.viewToggle}>
+            <Pressable
+              style={[
+                styles.toggleButton,
+                viewMode === "grid" && styles.toggleButtonActive,
+              ]}
+              onPress={() => handleViewModeChange("grid")}
+            >
+              <Feather
+                name="grid"
+                size={18}
+                color={viewMode === "grid" ? Colors.light.accent : Colors.light.textSecondary}
+              />
+            </Pressable>
+            <Pressable
+              style={[
+                styles.toggleButton,
+                viewMode === "list" && styles.toggleButtonActive,
+              ]}
+              onPress={() => handleViewModeChange("list")}
+            >
+              <Feather
+                name="list"
+                size={18}
+                color={viewMode === "list" ? Colors.light.accent : Colors.light.textSecondary}
+              />
+            </Pressable>
+          </View>
+        </View>
+        {viewMode === "grid" ? <ArtistGridSkeleton /> : <AlbumListSkeleton />}
+      </ThemedView>
+    );
+  }
+  
+  if (error) {
+    return (
       <ThemedView style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.light.accent} />
+        <ThemedText style={styles.errorText}>Error loading artists</ThemedText>
+        <ThemedText style={styles.errorSubtext}>
+          {error instanceof Error ? error.message : 'Unknown error'}
+        </ThemedText>
       </ThemedView>
     );
   }
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.headerInfo, { paddingTop: insets.top + Spacing.md }]}>
-        <ThemedText style={styles.count}>
-          {artists.length.toLocaleString()} of {total.toLocaleString()} artists
-        </ThemedText>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+        <ThemedText style={styles.headerTitle}>Artists</ThemedText>
+        <View style={styles.viewToggle}>
+          <Pressable
+            style={[
+              styles.toggleButton,
+              viewMode === "grid" && styles.toggleButtonActive,
+            ]}
+            onPress={() => handleViewModeChange("grid")}
+          >
+            <Feather
+              name="grid"
+              size={18}
+              color={viewMode === "grid" ? Colors.light.accent : Colors.light.textSecondary}
+            />
+          </Pressable>
+          <Pressable
+            style={[
+              styles.toggleButton,
+              viewMode === "list" && styles.toggleButtonActive,
+            ]}
+            onPress={() => handleViewModeChange("list")}
+          >
+            <Feather
+              name="list"
+              size={18}
+              color={viewMode === "list" ? Colors.light.accent : Colors.light.textSecondary}
+            />
+          </Pressable>
+        </View>
       </View>
-      <FlatList
-        data={artists}
-        renderItem={renderArtist}
-        keyExtractor={keyExtractor}
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + Spacing.xl },
-        ]}
-        onEndReached={handleEndReached}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={ListFooter}
-        ItemSeparatorComponent={ItemSeparator}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={20}
-        windowSize={10}
-        initialNumToRender={20}
-        getItemLayout={(_, index) => ({
-          length: 72 + StyleSheet.hairlineWidth,
-          offset: (72 + StyleSheet.hairlineWidth) * index,
-          index,
-        })}
-      />
+
+      {viewMode === "grid" ? (
+        <FlatList
+          key="grid"
+          data={artists}
+          renderItem={renderGridItem}
+          keyExtractor={keyExtractor}
+          numColumns={NUM_COLUMNS}
+          contentContainerStyle={[
+            styles.gridContent,
+            { 
+              paddingTop: Spacing.md,
+              paddingBottom: tabBarHeight + Spacing["5xl"] 
+            },
+          ]}
+          columnWrapperStyle={styles.gridRow}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={ListFooter}
+          removeClippedSubviews={false}
+          maxToRenderPerBatch={20}
+          windowSize={10}
+          initialNumToRender={20}
+          {...(Platform.OS === 'ios' && { contentInsetAdjustmentBehavior: 'automatic' })}
+        />
+      ) : (
+        <FlatList
+          key="list"
+          data={artists}
+          renderItem={renderListItem}
+          keyExtractor={keyExtractor}
+          contentContainerStyle={[
+            styles.listContent,
+            { 
+              paddingTop: Spacing.md,
+              paddingBottom: tabBarHeight + Spacing["5xl"] 
+            },
+          ]}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={ListFooter}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={20}
+          windowSize={10}
+          initialNumToRender={20}
+          {...(Platform.OS === 'ios' && { contentInsetAdjustmentBehavior: 'automatic' })}
+        />
+      )}
     </ThemedView>
   );
 }
@@ -138,55 +428,168 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: Colors.light.backgroundRoot,
   },
-  headerInfo: {
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
+  headerTitle: {
+    fontSize: 22.4, // 30% smaller than Typography.display (32px * 0.7)
+    fontWeight: "700",
+    color: Colors.light.text,
+    textAlign: "left",
+    alignSelf: "flex-start",
+  },
+  viewToggle: {
+    flexDirection: "row",
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: BorderRadius.sm,
+    padding: 2,
+  },
+  toggleButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.xs,
+  },
+  toggleButtonActive: {
+    backgroundColor: Colors.light.backgroundDefault,
+  },
+  gridContent: {
+    paddingHorizontal: Spacing.lg,
+  },
+  gridRow: {
+    gap: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  gridItem: {
+    width: GRID_ITEM_SIZE,
+  },
+  gridImageContainer: {
+    position: "relative",
+    marginBottom: Spacing.sm,
+    width: GRID_ITEM_SIZE,
+    height: GRID_ITEM_SIZE,
+  },
+  gridImagePressable: {
+    width: GRID_ITEM_SIZE,
+    height: GRID_ITEM_SIZE,
+    borderRadius: GRID_ITEM_SIZE / 2,
+    overflow: "hidden",
+  },
+  gridImageRound: {
+    width: GRID_ITEM_SIZE,
+    height: GRID_ITEM_SIZE,
+    borderRadius: GRID_ITEM_SIZE / 2,
+    backgroundColor: "transparent",
+  },
+  gridImageRoundPlaceholder: {
+    width: GRID_ITEM_SIZE,
+    height: GRID_ITEM_SIZE,
+    borderRadius: GRID_ITEM_SIZE / 2,
+    backgroundColor: Colors.light.backgroundSecondary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  gridOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    borderRadius: GRID_ITEM_SIZE / 2,
+    pointerEvents: "box-none",
+  },
+  gridOverlayButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gridPlayButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  gridTitle: {
+    ...Typography.headline,
+    color: Colors.light.text,
+    marginTop: Spacing.xs,
+    textAlign: "center",
+  },
+  gridSubtitle: {
+    ...Typography.caption,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+    textAlign: "center",
+  },
+  listContent: {
+    paddingHorizontal: Spacing.lg,
+  },
+  listRow: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.light.border,
   },
-  count: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-  },
-  content: {
-    paddingTop: Spacing.sm,
-  },
-  artistRow: {
+  listMainArea: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    height: 72,
   },
-  artistAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  listImageRound: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginRight: Spacing.md,
+  },
+  listImageRoundPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.md,
   },
-  artistInfo: {
+  listInfo: {
     flex: 1,
   },
-  artistName: {
+  listTitle: {
     ...Typography.body,
     color: Colors.light.text,
     fontWeight: "500",
   },
-  artistAlbums: {
+  listSubtitle: {
     ...Typography.caption,
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Colors.light.border,
-    marginLeft: Spacing.lg + 48 + Spacing.md,
+  actionButton: {
+    padding: Spacing.sm,
   },
   footer: {
     padding: Spacing.xl,
     alignItems: "center",
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    color: Colors.light.textSecondary,
+  },
+  errorText: {
+    ...Typography.title,
+    color: Colors.light.error,
+    marginBottom: Spacing.sm,
+  },
+  errorSubtext: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
   },
 });

@@ -17,7 +17,7 @@ export default function RadioStackNavigator() {
       <Stack.Screen
         name="Radio"
         component={RadioScreen}
-        options={{ headerTitle: "Radio" }}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

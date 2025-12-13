@@ -21,7 +21,7 @@ export default function AlbumsStackNavigator() {
       <Stack.Screen
         name="AllAlbums"
         component={AllAlbumsScreen}
-        options={{ headerTitle: "Albums" }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Album"

@@ -19,6 +19,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic, type Album } from "@/hooks/useMusic";
+import { lmsClient } from "@/lib/lmsClient";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
 
 const { width } = Dimensions.get("window");
@@ -36,21 +37,46 @@ export default function ArtistScreen() {
 
   const [albums, setAlbums] = useState<Album[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [artistImage, setArtistImage] = useState<string | undefined>(undefined);
+  const [artistBio, setArtistBio] = useState<{ bio?: string; formedYear?: string; genre?: string; country?: string } | null>(null);
+  const [isLoadingBio, setIsLoadingBio] = useState(true);
+
+  const artistName = route.params.name;
 
   useEffect(() => {
-    async function loadAlbums() {
+    async function loadData() {
       setIsLoading(true);
+      setIsLoadingBio(true);
+      
       try {
-        const artistAlbums = await getArtistAlbums(route.params.id);
-        setAlbums(artistAlbums);
+        // Load albums by artist name (since we use name as ID)
+        const artistAlbums = await lmsClient.getAlbumsByArtistName(artistName);
+        setAlbums(artistAlbums.map(album => ({
+          id: album.id,
+          name: album.title,
+          artist: album.artist,
+          imageUrl: lmsClient.getArtworkUrl(album),
+          year: album.year,
+          trackCount: album.trackCount,
+        })));
+        
+        // Load artist image and bio from TheAudioDB
+        const [image, bio] = await Promise.all([
+          lmsClient.getArtistImage(artistName),
+          lmsClient.getArtistBio(artistName),
+        ]);
+        
+        setArtistImage(image);
+        setArtistBio(bio);
       } catch (error) {
-        console.error("Failed to load artist albums:", error);
+        console.error("Failed to load artist data:", error);
       } finally {
         setIsLoading(false);
+        setIsLoadingBio(false);
       }
     }
-    loadAlbums();
-  }, [route.params.id, getArtistAlbums]);
+    loadData();
+  }, [artistName]);
 
   return (
     <ThemedView style={styles.container}>
@@ -62,16 +88,52 @@ export default function ArtistScreen() {
         ]}
       >
         <View style={styles.artistHeader}>
-          <View style={styles.artistImagePlaceholder}>
-            <Feather name="user" size={64} color={Colors.light.textTertiary} />
+          <View style={styles.artistImageContainer}>
+            {artistImage ? (
+              <Image
+                source={artistImage}
+                style={styles.artistImage}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={styles.artistImagePlaceholder}>
+                <Feather name="user" size={64} color={Colors.light.textTertiary} />
+              </View>
+            )}
           </View>
-          <ThemedText style={styles.artistName}>{route.params.name}</ThemedText>
+          <ThemedText style={styles.artistName}>{artistName}</ThemedText>
           {!isLoading ? (
             <ThemedText style={styles.artistMeta}>
               {albums.length} album{albums.length !== 1 ? "s" : ""}
             </ThemedText>
           ) : null}
+          {artistBio && (artistBio.formedYear || artistBio.genre || artistBio.country) && (
+            <View style={styles.artistDetails}>
+              {artistBio.formedYear && (
+                <ThemedText style={styles.artistDetail}>
+                  Formed: {artistBio.formedYear}
+                </ThemedText>
+              )}
+              {artistBio.genre && (
+                <ThemedText style={styles.artistDetail}>
+                  {artistBio.genre}
+                </ThemedText>
+              )}
+              {artistBio.country && (
+                <ThemedText style={styles.artistDetail}>
+                  {artistBio.country}
+                </ThemedText>
+              )}
+            </View>
+          )}
         </View>
+
+        {artistBio?.bio && (
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>About</ThemedText>
+            <ThemedText style={styles.bioText}>{artistBio.bio}</ThemedText>
+          </View>
+        )}
 
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Discography</ThemedText>
@@ -130,6 +192,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing["3xl"],
   },
+  artistImageContainer: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    marginBottom: Spacing.lg,
+    overflow: "hidden",
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  artistImage: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+  },
   artistImagePlaceholder: {
     width: 160,
     height: 160,
@@ -137,7 +212,23 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: Spacing.lg,
+  },
+  artistDetails: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    marginTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  artistDetail: {
+    ...Typography.caption,
+    color: Colors.light.textSecondary,
+    paddingHorizontal: Spacing.sm,
+  },
+  bioText: {
+    ...Typography.body,
+    color: Colors.light.text,
+    lineHeight: 22,
   },
   artistName: {
     ...Typography.display,

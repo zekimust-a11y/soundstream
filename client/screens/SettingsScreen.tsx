@@ -86,7 +86,7 @@ export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer, playlists } = useMusic();
+  const { servers, qobuzConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer, playlists, updateServerConnectionStatus, setActiveServer } = useMusic();
   const { theme } = useTheme();
   const { 
     chromecastIp, setChromecastIp,
@@ -94,10 +94,9 @@ export default function SettingsScreen() {
     crossfade, setCrossfade,
     normalization, setNormalization,
     hardwareVolumeControl, setHardwareVolumeControl,
-    streamingQuality, setStreamingQuality,
     isLoaded: settingsLoaded,
   } = useSettings();
-  const { players, activePlayer, setActivePlayer, refreshPlayers } = usePlayback();
+  const { players, activePlayer, setActivePlayer, refreshPlayers, allPlayers, disabledPlayers, togglePlayerDisabled } = usePlayback();
   
   const [isConnecting, setIsConnecting] = useState(false);
   const [lmsHost, setLmsHost] = useState("");
@@ -107,15 +106,20 @@ export default function SettingsScreen() {
   
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveredServers, setDiscoveredServers] = useState<Array<{host: string; port: number; name: string}>>([]);
-  const [libraryStats, setLibraryStats] = useState<{ albums: number; artists: number; tracks: number } | null>(null);
+  const [libraryStats, setLibraryStats] = useState<{ albums: number; artists: number; tracks: number; radioStations: number; playlists: number } | null>(null);
   
   const [isChromecastDiscovering, setIsChromecastDiscovering] = useState(false);
   const [discoveredChromecastDevices, setDiscoveredChromecastDevices] = useState<Array<{ip: string; name: string}>>([]);
+  const [isConfiguringLMS, setIsConfiguringLMS] = useState(false);
 
   useEffect(() => {
     if (activeServer) {
       refreshPlayers();
       loadLibraryStats();
+    }
+    // Check server connection status when screen loads
+    if (servers.length > 0) {
+      updateServerConnectionStatus();
     }
   }, []);
 
@@ -223,6 +227,36 @@ export default function SettingsScreen() {
     setIsRefreshingPlayers(false);
   };
 
+  const handleConfigureLMS = async () => {
+    if (!activePlayer) {
+      Alert.alert('No Player Selected', 'Please select a player first to configure LMS settings.');
+      return;
+    }
+
+    if (!activeServer) {
+      Alert.alert('No Server Connected', 'Please connect to an LMS server first.');
+      return;
+    }
+
+    setIsConfiguringLMS(true);
+    try {
+      lmsClient.setServer(activeServer.host, activeServer.port);
+      await lmsClient.configureForStablePlayback(activePlayer.id);
+      Alert.alert(
+        'Configuration Complete',
+        'LMS server and player settings have been optimized to prevent audio dropouts.\n\nSettings applied:\n• Buffer size: 8192 frames\n• Streaming buffer: 100%\n• Network buffers: 128KB\n• Rebuffer threshold: 0%\n• Crossfade/Replay Gain: Disabled\n• Gapless playback: Enabled\n\nNote: Some settings may need to be configured manually in the LMS web interface if not available via API.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert(
+        'Configuration Error',
+        `Some settings were configured, but some preferences may need to be set manually in the LMS web interface.\n\nError: ${error instanceof Error ? error.message : String(error)}\n\nSee AUDIO_DROPOUT_TROUBLESHOOTING.md for manual configuration steps.`
+      );
+    } finally {
+      setIsConfiguringLMS(false);
+    }
+  };
+
   const handleSelectPlayer = (player: typeof players[0]) => {
     setActivePlayer(player);
   };
@@ -244,37 +278,80 @@ export default function SettingsScreen() {
     setDiscoveredChromecastDevices([]);
     
     try {
-      // Simulate SSDP discovery for Chromecast devices
-      // In a real implementation, you would use a library like react-native-ssdp-client
-      // For now, we'll use a simple UDP broadcast discovery
-      const response = await fetch(`${getApiUrl()}/api/chromecast/discover`, {
+      const apiUrl = getApiUrl();
+      console.log('[Chromecast] Discovering devices via:', `${apiUrl}/api/chromecast/discover`);
+      
+      const response = await fetch(`${apiUrl}/api/chromecast/discover`, {
         method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
       
-      if (response.ok) {
-        const devices = await response.json();
-        setDiscoveredChromecastDevices(devices);
-        
-        if (devices.length === 0) {
-          setConnectionError("No Chromecast devices found. Make sure your device is powered on and connected to WiFi.");
-        }
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Chromecast] Discovery failed:', response.status, errorText);
+        setConnectionError(`Discovery failed: ${response.status} ${response.statusText}`);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('[Chromecast] Discovery response:', data);
+      
+      // Handle both array response and object with devices property
+      const devices = Array.isArray(data) ? data : (data.devices || []);
+      
+      if (devices.length === 0) {
+        setConnectionError("No Chromecast devices found. Make sure your device is powered on and connected to WiFi.");
       } else {
-        setConnectionError("Could not discover Chromecast devices");
+        setDiscoveredChromecastDevices(devices);
+        setConnectionError(null);
       }
     } catch (error) {
-      setConnectionError("Discovery failed: " + (error instanceof Error ? error.message : "Unknown error"));
+      console.error('[Chromecast] Discovery error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setConnectionError(`Discovery failed: ${errorMessage}`);
     } finally {
       setIsChromecastDiscovering(false);
     }
   };
 
-  const handleSelectChromecast = (ip: string) => {
+  const handleSelectChromecast = async (ip: string) => {
     setChromecastIp(ip);
     setDiscoveredChromecastDevices([]);
+    
+    // Automatically start casting when a device is selected
+    try {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/chromecast/cast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ip,
+          lmsHost: activeServer?.host,
+          lmsPort: activeServer?.port || 9000,
+          playerId: activePlayer?.id,
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[Chromecast] Cast started:', data);
+      } else {
+        const errorText = await response.text();
+        console.error('[Chromecast] Failed to start cast:', errorText);
+        setConnectionError(`Failed to start casting: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('[Chromecast] Error starting cast:', error);
+      setConnectionError(`Failed to start casting: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const getApiUrl = () => {
-    const domain = process.env.EXPO_PUBLIC_DOMAIN || 'localhost:5000';
+    const domain = process.env.EXPO_PUBLIC_DOMAIN || 'localhost:3000';
     const protocol = Platform.OS === 'web' ? window.location.protocol : 'http:';
     return `${protocol}//${domain}`;
   };
@@ -306,6 +383,11 @@ export default function SettingsScreen() {
                       { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
                       activeServer?.id === server.id ? styles.serverRowActive : null,
                     ]}
+                    onPress={() => {
+                      if (server.connected) {
+                        setActiveServer(server);
+                      }
+                    }}
                     onLongPress={() => handleRemoveServer(server.id)}
                   >
                     <View style={[styles.serverIcon, { backgroundColor: theme.accent + '20' }]}>
@@ -324,10 +406,18 @@ export default function SettingsScreen() {
                         <Feather name="check" size={14} color={theme.success} />
                       </View>
                     ) : null}
+                    {!server.connected ? (
+                      <View style={[styles.connectionBadge, { backgroundColor: theme.error + '20' }]}>
+                        <Feather name="x-circle" size={14} color={theme.error} />
+                        <ThemedText style={[styles.connectionText, { color: theme.error }]}>
+                          Offline
+                        </ThemedText>
+                      </View>
+                    ) : null}
                   </Pressable>
                 ))}
                 <ThemedText style={[styles.hintText, { color: theme.textTertiary }]}>
-                  Long press a server to remove it.
+                  Tap a server to select it. Long press to remove.
                 </ThemedText>
               </>
             ) : (
@@ -477,7 +567,15 @@ export default function SettingsScreen() {
                 </View>
                 <View style={styles.statItem}>
                   <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Playlists</ThemedText>
-                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>{playlists?.length || 0}</ThemedText>
+                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>
+                    {libraryStats?.playlists?.toLocaleString() || '—'}
+                  </ThemedText>
+                </View>
+                <View style={styles.statItem}>
+                  <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Radio</ThemedText>
+                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>
+                    {libraryStats?.radioStations?.toLocaleString() || '—'}
+                  </ThemedText>
                 </View>
               </View>
             )}
@@ -489,7 +587,11 @@ export default function SettingsScreen() {
                   opacity: pressed || isLoading ? 0.7 : 1,
                 },
               ]}
-              onPress={refreshLibrary}
+              onPress={async () => {
+                await refreshLibrary();
+                // Reload library stats to get updated radio station count
+                await loadLibraryStats();
+              }}
               disabled={isLoading || servers.length === 0}
             >
               {isLoading ? (
@@ -509,58 +611,99 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {players.length > 0 ? (
+        {allPlayers.length > 0 ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionTitle}>Players</ThemedText>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.refreshPlayersButton,
-                  { opacity: pressed ? 0.7 : 1 },
-                ]}
-                onPress={handleRefreshPlayers}
-                disabled={isRefreshingPlayers}
-              >
-                {isRefreshingPlayers ? (
-                  <ActivityIndicator size="small" color={theme.accent} />
-                ) : (
-                  <Feather name="refresh-cw" size={16} color={theme.accent} />
+              <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                {activePlayer && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.refreshPlayersButton,
+                      { opacity: pressed ? 0.7 : 1 },
+                    ]}
+                    onPress={handleConfigureLMS}
+                    disabled={isConfiguringLMS}
+                  >
+                    {isConfiguringLMS ? (
+                      <ActivityIndicator size="small" color={theme.accent} />
+                    ) : (
+                      <Feather name="settings" size={16} color={theme.accent} />
+                    )}
+                  </Pressable>
                 )}
-              </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.refreshPlayersButton,
+                    { opacity: pressed ? 0.7 : 1 },
+                  ]}
+                  onPress={handleRefreshPlayers}
+                  disabled={isRefreshingPlayers}
+                >
+                  {isRefreshingPlayers ? (
+                    <ActivityIndicator size="small" color={theme.accent} />
+                  ) : (
+                    <Feather name="refresh-cw" size={16} color={theme.accent} />
+                  )}
+                </Pressable>
+              </View>
             </View>
             <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
-              {[...players].sort((a, b) => {
+              {[...allPlayers].sort((a, b) => {
                 if (activePlayer?.id === a.id) return -1;
                 if (activePlayer?.id === b.id) return 1;
                 return 0;
-              }).map((player) => (
-                <Pressable
-                  key={player.id}
-                  style={({ pressed }) => [
-                    styles.playerRow,
-                    { opacity: pressed ? 0.7 : 1, borderColor: theme.border },
-                    activePlayer?.id === player.id ? styles.playerRowActive : null,
-                  ]}
-                  onPress={() => handleSelectPlayer(player)}
-                >
-                  <View style={[styles.playerIcon, { backgroundColor: player.power ? theme.success + '20' : theme.textTertiary + '20' }]}>
-                    <Feather name="speaker" size={16} color={player.power ? theme.success : theme.textTertiary} />
+              }).map((player) => {
+                const isDisabled = disabledPlayers.has(player.id);
+                return (
+                  <View
+                    key={player.id}
+                    style={[
+                      styles.playerRow,
+                      { borderColor: theme.border, opacity: isDisabled ? 0.5 : 1 },
+                      activePlayer?.id === player.id ? styles.playerRowActive : null,
+                    ]}
+                  >
+                    <Pressable
+                      style={({ pressed }) => [
+                        { flex: 1, flexDirection: 'row', alignItems: 'center', opacity: pressed ? 0.7 : 1 },
+                      ]}
+                      onPress={() => !isDisabled && handleSelectPlayer(player)}
+                      disabled={isDisabled}
+                    >
+                      <View style={[styles.playerIcon, { backgroundColor: player.power ? theme.success + '20' : theme.textTertiary + '20' }]}>
+                        <Feather name="speaker" size={16} color={player.power ? theme.success : theme.textTertiary} />
+                      </View>
+                      <View style={styles.playerInfo}>
+                        <ThemedText style={[styles.playerName, { color: theme.text }]}>
+                          {player.name}
+                        </ThemedText>
+                        <ThemedText style={[styles.playerModel, { color: theme.textSecondary }]}>
+                          {player.model} {player.power ? '• On' : '• Off'} {isDisabled ? '• Hidden' : ''}
+                        </ThemedText>
+                      </View>
+                      {activePlayer?.id === player.id ? (
+                        <Feather name="check-circle" size={20} color={theme.accent} />
+                      ) : (
+                        <View style={styles.radioEmpty} />
+                      )}
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.eyeButton,
+                        { opacity: pressed ? 0.6 : 1 },
+                      ]}
+                      onPress={() => togglePlayerDisabled(player.id)}
+                    >
+                      <Feather 
+                        name={isDisabled ? "eye-off" : "eye"} 
+                        size={18} 
+                        color={isDisabled ? theme.textTertiary : theme.textSecondary} 
+                      />
+                    </Pressable>
                   </View>
-                  <View style={styles.playerInfo}>
-                    <ThemedText style={[styles.playerName, { color: theme.text }]}>
-                      {player.name}
-                    </ThemedText>
-                    <ThemedText style={[styles.playerModel, { color: theme.textSecondary }]}>
-                      {player.model} {player.power ? '• On' : '• Off'}
-                    </ThemedText>
-                  </View>
-                  {activePlayer?.id === player.id ? (
-                    <Feather name="check-circle" size={20} color={theme.accent} />
-                  ) : (
-                    <View style={styles.radioEmpty} />
-                  )}
-                </Pressable>
-              ))}
+                );
+              })}
             </View>
           </View>
         ) : null}
@@ -653,57 +796,26 @@ export default function SettingsScreen() {
                 />
               }
             />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Streaming Quality</ThemedText>
-          <View style={styles.sectionContent}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.qualityOption,
-                streamingQuality === "cd" && styles.qualityOptionActive,
-                { opacity: pressed ? 0.6 : 1 },
-              ]}
-              onPress={() => setStreamingQuality("cd")}
-            >
-              <View style={styles.qualityInfo}>
-                <ThemedText style={styles.qualityTitle}>CD Quality</ThemedText>
-                <ThemedText style={styles.qualitySubtitle}>
-                  16-bit / 44.1kHz FLAC
-                </ThemedText>
-              </View>
-              {streamingQuality === "cd" ? (
-                <Feather name="check-circle" size={20} color={Colors.light.accent} />
-              ) : (
-                <View style={styles.radioEmpty} />
-              )}
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.qualityOption,
-                streamingQuality === "hires" && styles.qualityOptionActive,
-                { opacity: pressed ? 0.6 : 1 },
-              ]}
-              onPress={() => setStreamingQuality("hires")}
-            >
-              <View style={styles.qualityInfo}>
-                <View style={styles.qualityTitleRow}>
-                  <ThemedText style={styles.qualityTitle}>Hi-Res</ThemedText>
-                  <View style={styles.hiResBadge}>
-                    <ThemedText style={styles.hiResBadgeText}>Hi-Res</ThemedText>
-                  </View>
-                </View>
-                <ThemedText style={styles.qualitySubtitle}>
-                  Up to 24-bit / 192kHz FLAC
-                </ThemedText>
-              </View>
-              {streamingQuality === "hires" ? (
-                <Feather name="check-circle" size={20} color={Colors.light.accent} />
-              ) : (
-                <View style={styles.radioEmpty} />
-              )}
-            </Pressable>
+            {Platform.OS === 'ios' && (
+              <SettingRow
+                icon="volume-2"
+                iconColor={Colors.light.accentSecondary}
+                title="Hardware Volume Control"
+                subtitle="Use iPhone volume buttons to control playback"
+                showChevron={false}
+                rightElement={
+                  <Switch
+                    value={hardwareVolumeControl}
+                    onValueChange={setHardwareVolumeControl}
+                    trackColor={{
+                      false: Colors.light.backgroundTertiary,
+                      true: Colors.light.accent,
+                    }}
+                    thumbColor={Colors.light.text}
+                  />
+                }
+              />
+            )}
           </View>
         </View>
 
@@ -1025,6 +1137,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  eyeButton: {
+    padding: Spacing.sm,
+    marginLeft: Spacing.sm,
+  },
   playerRowActive: {
     backgroundColor: Colors.light.accent + '10',
   },
@@ -1086,6 +1202,19 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.light.textSecondary,
     marginRight: Spacing.sm,
+  },
+  connectionBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    marginLeft: Spacing.sm,
+  },
+  connectionText: {
+    fontSize: 11,
+    fontWeight: "600",
   },
   connectedBadge: {
     width: 20,

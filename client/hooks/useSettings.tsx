@@ -8,7 +8,6 @@ interface Settings {
   crossfade: boolean;
   normalization: boolean;
   hardwareVolumeControl: boolean;
-  streamingQuality: "cd" | "hires";
   chromecastIp: string;
 }
 
@@ -17,7 +16,6 @@ interface SettingsContextType extends Settings {
   setCrossfade: (value: boolean) => void;
   setNormalization: (value: boolean) => void;
   setHardwareVolumeControl: (value: boolean) => void;
-  setStreamingQuality: (value: "cd" | "hires") => void;
   setChromecastIp: (value: string) => void;
   isLoaded: boolean;
 }
@@ -27,7 +25,6 @@ const defaultSettings: Settings = {
   crossfade: false,
   normalization: false,
   hardwareVolumeControl: false,
-  streamingQuality: "hires",
   chromecastIp: "",
 };
 
@@ -57,7 +54,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           crossfade: parsed.crossfade ?? defaultSettings.crossfade,
           normalization: parsed.normalization ?? defaultSettings.normalization,
           hardwareVolumeControl: parsed.hardwareVolumeControl ?? defaultSettings.hardwareVolumeControl,
-          streamingQuality: parsed.streamingQuality ?? defaultSettings.streamingQuality,
           chromecastIp: parsed.chromecastIp ?? defaultSettings.chromecastIp,
         });
       }
@@ -92,10 +88,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings(prev => ({ ...prev, hardwareVolumeControl: value }));
   }, []);
 
-  const setStreamingQuality = useCallback((value: "cd" | "hires") => {
-    setSettings(prev => ({ ...prev, streamingQuality: value }));
-  }, []);
-
   const setChromecastIp = useCallback((value: string) => {
     setSettings(prev => ({ ...prev, chromecastIp: value }));
   }, []);
@@ -108,7 +100,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setCrossfade,
         setNormalization,
         setHardwareVolumeControl,
-        setStreamingQuality,
         setChromecastIp,
         isLoaded,
       }}

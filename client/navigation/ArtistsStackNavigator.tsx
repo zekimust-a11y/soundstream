@@ -19,7 +19,7 @@ export default function ArtistsStackNavigator() {
       <Stack.Screen
         name="AllArtists"
         component={AllArtistsScreen}
-        options={{ headerTitle: "Artists" }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Artist"

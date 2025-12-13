@@ -16,6 +16,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { SourceBadge } from "@/components/SourceBadge";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
@@ -52,8 +53,13 @@ export default function AlbumScreen() {
       try {
         const albumTracks = await getAlbumTracks(route.params.id);
         setTracks(albumTracks);
-        if (albumTracks.length > 0 && albumTracks[0].albumArt) {
-          setAlbumImageUrl(albumTracks[0].albumArt);
+        if (albumTracks.length > 0) {
+          if (albumTracks[0].albumArt) {
+            setAlbumImageUrl(albumTracks[0].albumArt);
+          }
+          if (albumTracks[0].source) {
+            setAlbumSource(albumTracks[0].source);
+          }
         }
       } catch (error) {
         console.error("Failed to load album tracks:", error);
@@ -86,11 +92,14 @@ export default function AlbumScreen() {
         ]}
       >
         <View style={styles.albumHeader}>
-          <Image
-            source={albumImageUrl || require("../assets/images/placeholder-album.png")}
-            style={styles.albumArt}
-            contentFit="cover"
-          />
+          <View style={styles.albumArtContainer}>
+            <Image
+              source={albumImageUrl || require("../assets/images/placeholder-album.png")}
+              style={styles.albumArt}
+              contentFit="cover"
+            />
+            <SourceBadge source={albumSource} size={24} />
+          </View>
           <ThemedText style={styles.albumTitle}>{route.params.name}</ThemedText>
           <ThemedText style={styles.albumArtist}>{route.params.artistName}</ThemedText>
           {tracks.length > 0 ? (
@@ -194,11 +203,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing["2xl"],
   },
+  albumArtContainer: {
+    position: "relative",
+    marginBottom: Spacing.lg,
+  },
   albumArt: {
     width: ALBUM_ART_SIZE,
     height: ALBUM_ART_SIZE,
     borderRadius: BorderRadius.xs,
-    marginBottom: Spacing.lg,
   },
   albumTitle: {
     ...Typography.title,

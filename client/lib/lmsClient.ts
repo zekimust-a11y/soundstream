@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { debugLog } from './debugLog';
 import { getApiUrl } from './query-client';
 
@@ -34,6 +35,7 @@ export interface LmsArtist {
   id: string;
   name: string;
   albumCount?: number;
+  artworkUrl?: string;
 }
 
 export interface LmsPlaylist {
@@ -94,9 +96,13 @@ interface LmsJsonRpcResponse {
 
 class LmsClient {
   private baseUrl: string = '';
+  private serverHost: string = '';
+  private serverPort: number = 9000;
   private requestId: number = 1;
 
   setServer(host: string, port: number = 9000): void {
+    this.serverHost = host;
+    this.serverPort = port;
     this.baseUrl = `http://${host}:${port}`;
     debugLog.info('LMS server set', `${this.baseUrl}`);
   }
@@ -118,6 +124,70 @@ class LmsClient {
 
     debugLog.request('LMS', `${command.join(' ')}`);
 
+    // On web platform, use server-side proxy to avoid CORS restrictions
+    if (Platform.OS === 'web') {
+      try {
+        // Ensure we have server host/port - extract from baseUrl if needed
+        let host = this.serverHost;
+        let port = this.serverPort;
+        
+        if (!host && this.baseUrl) {
+          // Extract host and port from baseUrl (format: http://host:port)
+          const urlMatch = this.baseUrl.match(/^https?:\/\/([^:]+)(?::(\d+))?/);
+          if (urlMatch) {
+            host = urlMatch[1];
+            port = urlMatch[2] ? parseInt(urlMatch[2], 10) : 9000;
+          }
+        }
+        
+        if (!host) {
+          throw new Error('LMS server not configured - no host available');
+        }
+        
+        let domain = process.env.EXPO_PUBLIC_DOMAIN;
+        if (!domain) {
+          if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+            domain = 'localhost:3000';
+          } else {
+            domain = 'localhost:3000';
+          }
+        }
+        const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+        const apiUrl = `${protocol}//${domain}`;
+        
+        const response = await fetch(`${apiUrl}/api/lms/proxy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            host,
+            port,
+            playerId,
+            command,
+            id: requestBody.id,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const data: LmsJsonRpcResponse = await response.json();
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        debugLog.response('LMS', 'OK');
+        return data.result || {};
+      } catch (error) {
+        debugLog.error('LMS request failed', error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    }
+
+    // On native platforms, use direct connection
     try {
       const response = await fetch(`${this.baseUrl}/jsonrpc.js`, {
         method: 'POST',
@@ -299,29 +369,186 @@ class LmsClient {
     }));
   }
 
+  /**
+   * Get albums by artist name (since we use artist name as ID)
+   */
+  async getAlbumsByArtistName(artistName: string): Promise<LmsAlbum[]> {
+    if (!artistName || artistName.trim() === '') {
+      return [];
+    }
+    
+    // Search for albums by artist name
+    const command = ['albums', '0', '500', `search:${artistName.trim()}`, 'tags:aajlyST'];
+    const result = await this.request('', command);
+    const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
+    
+    // Filter to only albums that match the exact artist name
+    return albumsLoop
+      .filter((a) => {
+        const albumArtist = String(a.artist || a.albumartist || '').trim();
+        return albumArtist.toLowerCase() === artistName.trim().toLowerCase();
+      })
+      .map((a) => ({
+        id: String(a.id || ''),
+        title: String(a.album || 'Unknown Album'),
+        artist: String(a.artist || a.albumartist || 'Unknown Artist'),
+        artistId: a.artist_id ? String(a.artist_id) : undefined,
+        artwork_url: a.artwork_url ? String(a.artwork_url) : 
+          (a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` : undefined),
+        year: a.year ? Number(a.year) : undefined,
+        trackCount: a.track_count ? Number(a.track_count) : undefined,
+      }));
+  }
+
   async getArtistsPage(start: number = 0, limit: number = 50): Promise<{ artists: LmsArtist[], total: number }> {
-    const result = await this.request('', ['artists', String(start), String(limit), 'tags:l']);
-    const artistsLoop = (result.artists_loop || []) as Array<Record<string, unknown>>;
-    const total = Number(result.count) || 0;
+    try {
+      // Get artists from albums in local library (not Qobuz) to ensure we only show artists with actual content
+      // Fetch enough albums to get unique artists for pagination
+      const albumsToFetch = Math.max((start + limit) * 5, 1000); // Fetch enough to cover pagination
+      const result = await this.request('', ['albums', '0', String(albumsToFetch), 'tags:al']);
+      const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
+      
+      // Build a map of unique artists with their album counts
+      // Use artist name as key since albums don't have artist_id
+      const artistMap = new Map<string, { id: string; name: string; albumCount: number }>();
+      
+      for (const album of albumsLoop) {
+        const artistName = String(album.artist || album.albumartist || '').trim();
+        
+        // Skip invalid artist names
+        if (!artistName || artistName === '-' || artistName === '') {
+          continue;
+        }
+        
+        // Use artist name as the key (normalize to handle case differences)
+        const artistKey = artistName.toLowerCase();
+        
+        if (artistMap.has(artistKey)) {
+          artistMap.get(artistKey)!.albumCount++;
+        } else {
+          // Generate a simple ID from the artist name (or use name as ID)
+          artistMap.set(artistKey, {
+            id: artistName, // Use name as ID since we don't have artist_id
+            name: artistName,
+            albumCount: 1,
+          });
+        }
+      }
+      
+      // Convert map to array, sort by name, and paginate
+      const allArtists = Array.from(artistMap.values())
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(a => ({
+          id: a.id,
+          name: a.name,
+          albumCount: a.albumCount,
+        } as LmsArtist));
+      
+      const total = allArtists.length;
+      const artists = allArtists.slice(start, start + limit);
+      
+      return { artists, total };
+    } catch (error) {
+      debugLog.error('getArtistsPage failed', error instanceof Error ? error.message : String(error));
+      return { artists: [], total: 0 };
+    }
+  }
+  
+  /**
+   * Fetch artist image from TheAudioDB API
+   * Returns the artist's thumbnail/portrait image, not album artwork
+   */
+  async getArtistImage(artistName: string): Promise<string | undefined> {
+    if (!artistName || artistName.trim() === '') {
+      return undefined;
+    }
     
-    const artists = artistsLoop.map((a) => ({
-      id: String(a.id || ''),
-      name: String(a.artist || a.name || 'Unknown Artist'),
-      albumCount: Number(a.album_count || 0),
-    }));
+    try {
+      // TheAudioDB free API key
+      const apiKey = '2';
+      const encodedName = encodeURIComponent(artistName.trim());
+      const url = `https://www.theaudiodb.com/api/v1/json/${apiKey}/search.php?s=${encodedName}`;
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        return undefined;
+      }
+      
+      const data = await response.json();
+      if (data.artists && data.artists.length > 0) {
+        const artist = data.artists[0];
+        // Prefer thumbnail (portrait) over fanart (background)
+        // strArtistThumb is typically a square portrait image
+        return artist.strArtistThumb || artist.strArtistWideThumb || artist.strArtistFanart || undefined;
+      }
+    } catch (error) {
+      debugLog.error('Failed to fetch artist image', error instanceof Error ? error.message : String(error));
+    }
     
-    return { artists, total };
+    return undefined;
+  }
+
+  /**
+   * Fetch artist bio and information from TheAudioDB API
+   */
+  async getArtistBio(artistName: string): Promise<{ bio?: string; image?: string; formedYear?: string; genre?: string; country?: string } | null> {
+    if (!artistName || artistName.trim() === '') {
+      return null;
+    }
+    
+    try {
+      // TheAudioDB free API key
+      const apiKey = '2';
+      const encodedName = encodeURIComponent(artistName.trim());
+      const url = `https://www.theaudiodb.com/api/v1/json/${apiKey}/search.php?s=${encodedName}`;
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        return null;
+      }
+      
+      const data = await response.json();
+      if (data.artists && data.artists.length > 0) {
+        const artist = data.artists[0];
+        return {
+          bio: artist.strBiographyEN || artist.strBiographyDE || artist.strBiographyFR || artist.strBiographyIT || artist.strBiographyES || undefined,
+          image: artist.strArtistThumb || artist.strArtistWideThumb || artist.strArtistFanart || undefined,
+          formedYear: artist.intFormedYear || undefined,
+          genre: artist.strGenre || undefined,
+          country: artist.strCountry || undefined,
+        };
+      }
+    } catch (error) {
+      debugLog.error('Failed to fetch artist bio', error instanceof Error ? error.message : String(error));
+    }
+    
+    return null;
   }
 
   async getArtists(): Promise<LmsArtist[]> {
-    const result = await this.request('', ['artists', '0', '100', 'tags:l']);
+    // Request album_count tag to get album counts
+    const result = await this.request('', ['artists', '0', '1000', 'tags:al']);
     const artistsLoop = (result.artists_loop || []) as Array<Record<string, unknown>>;
     
-    return artistsLoop.map((a) => ({
-      id: String(a.id || ''),
-      name: String(a.artist || 'Unknown Artist'),
-      albumCount: Number(a.album_count || 0),
-    }));
+    return artistsLoop
+      .map((a) => {
+        const artistName = String(a.artist || a.name || '').trim();
+        // Filter out invalid artist names (empty, dashes, etc.)
+        if (!artistName || artistName === '-' || artistName === '') {
+          return null;
+        }
+        const albumCount = a.album_count !== undefined ? Number(a.album_count) : (a.albums !== undefined ? Number(a.albums) : 0);
+        // Filter out artists with 0 albums (these are Qobuz-only artists)
+        if (albumCount === 0) {
+          return null;
+        }
+        return {
+          id: String(a.id || ''),
+          name: artistName,
+          albumCount,
+        } as LmsArtist;
+      })
+      .filter((a): a is LmsArtist => a !== null);
   }
 
   async getPlaylists(): Promise<LmsPlaylist[]> {
@@ -344,6 +571,7 @@ class LmsClient {
   }
 
   async playPlaylist(playerId: string, playlistId: string): Promise<void> {
+    // Let LMS handle format/transcoding automatically based on player capabilities
     await this.request(playerId, ['playlistcontrol', 'cmd:load', `playlist_id:${playlistId}`]);
   }
 
@@ -354,11 +582,60 @@ class LmsClient {
     return titlesLoop.map((t, i) => this.parseTrack(t, i));
   }
 
+  /**
+   * Get all tracks from the library (for shuffle all functionality)
+   * Fetches tracks in batches to handle large libraries
+   */
+  async getAllLibraryTracks(limit: number = 10000): Promise<LmsTrack[]> {
+    try {
+      // Fetch tracks in batches of 1000
+      const batchSize = 1000;
+      const batches = Math.ceil(Math.min(limit, 10000) / batchSize);
+      const allTracks: LmsTrack[] = [];
+      
+      for (let i = 0; i < batches; i++) {
+        const start = i * batchSize;
+        const count = Math.min(batchSize, limit - start);
+        
+        const result = await this.request('', ['titles', String(start), String(count), 'tags:acdlKNuTsSp']);
+        const titlesLoop = (result.titles_loop || []) as Array<Record<string, unknown>>;
+        
+        const tracks = titlesLoop.map((t, index) => this.parseTrack(t, start + index));
+        allTracks.push(...tracks);
+        
+        // If we got fewer tracks than requested, we've reached the end
+        if (tracks.length < count) {
+          break;
+        }
+      }
+      
+      debugLog.info('Fetched all library tracks', `Total: ${allTracks.length}`);
+      return allTracks;
+    } catch (error) {
+      debugLog.error('Failed to get all library tracks', error instanceof Error ? error.message : String(error));
+      return [];
+    }
+  }
+
   async search(query: string): Promise<{ artists: LmsArtist[]; albums: LmsAlbum[]; tracks: LmsTrack[] }> {
+    if (!this.baseUrl) {
+      throw new Error('LMS server not configured');
+    }
+    
+    debugLog.info('Searching local library', `Query: ${query}`);
     const [artistsResult, albumsResult, tracksResult] = await Promise.all([
-      this.request('', ['artists', '0', '50', `search:${query}`]),
-      this.request('', ['albums', '0', '50', `search:${query}`, 'tags:aajlyST']),
-      this.request('', ['titles', '0', '50', `search:${query}`, 'tags:acdlKNuT']),
+      this.request('', ['artists', '0', '50', `search:${query}`]).catch(e => {
+        debugLog.error('Artists search failed', e instanceof Error ? e.message : String(e));
+        return { artists_loop: [] };
+      }),
+      this.request('', ['albums', '0', '50', `search:${query}`, 'tags:aajlyST']).catch(e => {
+        debugLog.error('Albums search failed', e instanceof Error ? e.message : String(e));
+        return { albums_loop: [] };
+      }),
+      this.request('', ['titles', '0', '50', `search:${query}`, 'tags:acdlKNuT']).catch(e => {
+        debugLog.error('Tracks search failed', e instanceof Error ? e.message : String(e));
+        return { titles_loop: [] };
+      }),
     ]);
 
     const artists = ((artistsResult.artists_loop || []) as Array<Record<string, unknown>>).map((a) => ({
@@ -382,7 +659,12 @@ class LmsClient {
   }
 
   async searchQobuz(query: string): Promise<{ artists: LmsArtist[]; albums: LmsAlbum[]; tracks: LmsTrack[] }> {
+    if (!this.baseUrl) {
+      throw new Error('LMS server not configured');
+    }
+    
     try {
+      debugLog.info('Searching Qobuz', `Query: ${query}`);
       const artists: LmsArtist[] = [];
       const albums: LmsAlbum[] = [];
       const tracks: LmsTrack[] = [];
@@ -393,7 +675,7 @@ class LmsClient {
         this.request('', ['qobuz', 'items', '0', '50', `search:${query}`, 'type:tracks', 'want_url:1']).catch(() => ({})),
       ]);
 
-      const artistItems = (artistsResult.item_loop || []) as Array<Record<string, unknown>>;
+      const artistItems = ((artistsResult as Record<string, unknown>).item_loop || []) as Array<Record<string, unknown>>;
       for (const item of artistItems) {
         const name = String(item.name || item.text || item.artist || '');
         if (name) {
@@ -404,7 +686,7 @@ class LmsClient {
         }
       }
 
-      const albumItems = (albumsResult.item_loop || []) as Array<Record<string, unknown>>;
+      const albumItems = ((albumsResult as Record<string, unknown>).item_loop || []) as Array<Record<string, unknown>>;
       for (const item of albumItems) {
         const title = String(item.album || item.title || item.name || item.text || '');
         if (title) {
@@ -420,7 +702,7 @@ class LmsClient {
         }
       }
 
-      const trackItems = (tracksResult.item_loop || []) as Array<Record<string, unknown>>;
+      const trackItems = ((tracksResult as Record<string, unknown>).item_loop || []) as Array<Record<string, unknown>>;
       for (const item of trackItems) {
         const title = String(item.title || item.name || item.text || '');
         if (title) {
@@ -497,9 +779,15 @@ class LmsClient {
   }
 
   async globalSearch(query: string): Promise<{ artists: LmsArtist[]; albums: LmsAlbum[]; tracks: LmsTrack[] }> {
+    if (!this.baseUrl) {
+      throw new Error('LMS server not configured');
+    }
+    
     try {
+      debugLog.info('Global search', `Query: ${query}`);
+      // Use globalsearch to search both LMS library and Qobuz
       const result = await this.request('', [
-        'globalsearch', 'items', '0', '100',
+        'globalsearch', 'items', '0', '200',
         `search:${query}`,
         'want_url:1'
       ]);
@@ -512,6 +800,10 @@ class LmsClient {
       for (const item of items) {
         const type = String(item.type || '');
         const hasUrl = Boolean(item.url);
+        const url = item.url ? String(item.url) : '';
+        // Check if item is from Qobuz (Qobuz URLs typically contain 'qobuz' or are streaming URLs)
+        const isQobuz = url.includes('qobuz') || String(item.extid || '').includes('qobuz') || 
+                       String(item.id || '').startsWith('qobuz_');
 
         if (type === 'artist' || item.artist_id) {
           artists.push({
@@ -548,7 +840,17 @@ class LmsClient {
       return { artists, albums, tracks };
     } catch (error) {
       debugLog.error('Global search failed', error instanceof Error ? error.message : String(error));
-      return this.search(query);
+      // Fallback to separate searches if globalsearch is not available
+      const [localResult, qobuzResult] = await Promise.all([
+        this.search(query).catch(() => ({ artists: [], albums: [], tracks: [] })),
+        this.searchQobuz(query).catch(() => ({ artists: [], albums: [], tracks: [] })),
+      ]);
+      
+      return {
+        artists: [...localResult.artists, ...qobuzResult.artists],
+        albums: [...localResult.albums, ...qobuzResult.albums],
+        tracks: [...localResult.tracks, ...qobuzResult.tracks],
+      };
     }
   }
 
@@ -597,7 +899,149 @@ class LmsClient {
     await this.request(playerId, ['power', on ? '1' : '0']);
   }
 
+  async setPlayerPreference(playerId: string, pref: string, value: string): Promise<void> {
+    await this.request(playerId, ['playerpref', pref, value]);
+  }
+
+  /**
+   * Set server-wide preference (not player-specific)
+   */
+  async setServerPreference(pref: string, value: string): Promise<void> {
+    await this.request('', ['pref', pref, value]);
+  }
+
+  /**
+   * Configure player to use native format playback (disable transcoding)
+   * This prevents white noise issues with high-res audio files
+   */
+  async configureNativePlayback(playerId: string): Promise<void> {
+    try {
+      // Disable transcoding - use native format when player supports it
+      await this.setPlayerPreference(playerId, 'transcode', '0');
+      // Also ensure FLAC/DSD native playback is enabled
+      await this.setPlayerPreference(playerId, 'transcodeFLAC', '0');
+      await this.setPlayerPreference(playerId, 'transcodeDSD', '0');
+    } catch (error) {
+      // If setting fails, continue anyway - some players may not support these preferences
+      debugLog.info('Could not set native playback preferences', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /**
+   * Configure player buffer settings to prevent audio dropouts
+   * Especially important for high-res audio and UPnP bridge scenarios
+   * 
+   * Note: Buffer settings may need to be configured manually in LMS web UI
+   * as preference names vary by player type. This attempts common settings.
+   */
+  async configureBufferSettings(playerId: string): Promise<void> {
+    try {
+      // Try to set buffer-related preferences (names may vary by player)
+      // These are common Squeezelite buffer settings
+      const bufferPrefs = [
+        ['bufferSize', '8192'],        // Buffer size in frames
+        ['streamBuffer', '100'],       // Streaming buffer percentage
+        ['rebufferAt', '0'],           // Rebuffer threshold (0% = only when necessary)
+        ['streamBufferSize', '131072'], // Stream buffer size in bytes (128KB)
+      ];
+      
+      for (const [pref, value] of bufferPrefs) {
+        try {
+          await this.setPlayerPreference(playerId, pref, value);
+          debugLog.info('Set buffer preference', `${pref} = ${value}`);
+        } catch (e) {
+          // Some preferences may not be supported - continue with others
+          debugLog.info('Buffer preference not supported', `${pref} (this is normal for some players)`);
+        }
+      }
+      
+      debugLog.info('Buffer settings configured', `Player: ${playerId}`);
+    } catch (error) {
+      // Buffer preferences may not be available via API - user should set manually in LMS
+      debugLog.info('Could not set buffer preferences via API', 'Configure manually in LMS web UI - see AUDIO_DROPOUT_TROUBLESHOOTING.md');
+    }
+  }
+
+  /**
+   * Configure LMS player and server settings to prevent audio dropouts
+   * Optimized for Squeezelite players and UPnP bridge scenarios
+   * This focuses on buffer settings and streaming configuration
+   */
+  async configureForStablePlayback(playerId: string): Promise<void> {
+    debugLog.info('Configuring LMS for stable playback (dropout prevention)', `Player: ${playerId}`);
+    
+    try {
+      // 1. Configure buffer settings (most critical for preventing dropouts)
+      await this.configureBufferSettings(playerId);
+      
+      // 2. Set additional player preferences for stable playback
+      const playerPrefs = [
+        // Streaming buffer settings (critical for preventing dropouts)
+        ['streamBuffer', '100'],           // 100% streaming buffer
+        ['rebufferAt', '0'],               // Don't rebuffer unless necessary (0% = only when buffer empty)
+        ['streamBufferSize', '131072'],     // 128KB stream buffer (larger = more stable)
+        
+        // Audio buffer settings (for Squeezelite)
+        ['bufferSize', '8192'],            // 8192 frame buffer (larger = more stable)
+        ['bufferSizeMax', '16384'],        // Max buffer size
+        
+        // Disable processing that can cause dropouts or add latency
+        ['crossfade', '0'],                 // Disable crossfade (can cause dropouts)
+        ['replayGain', '0'],               // Disable replay gain (adds processing overhead)
+        ['replayGainMode', 'off'],         // Replay gain mode off
+        
+        // Gapless playback (enabled, but no crossfade)
+        ['gapless', '1'],                  // Enable gapless playback
+      ];
+      
+      for (const [pref, value] of playerPrefs) {
+        try {
+          await this.setPlayerPreference(playerId, pref, value);
+          debugLog.info('Set player preference', `${pref} = ${value}`);
+        } catch (e) {
+          // Some preferences may not be supported - continue with others
+          debugLog.info('Player preference not supported', `${pref} (this is normal for some players)`);
+        }
+      }
+      
+      // 3. Set server-wide network buffer settings
+      const serverPrefs = [
+        ['streamBufferSize', '131072'],     // 128KB server stream buffer
+        ['httpStreamingBuffer', '131072'],  // 128KB HTTP streaming buffer
+        ['streamingTimeout', '30'],         // 30 second timeout
+      ];
+      
+      for (const [pref, value] of serverPrefs) {
+        try {
+          await this.setServerPreference(pref, value);
+          debugLog.info('Set server preference', `${pref} = ${value}`);
+        } catch (e) {
+          // Some server preferences may not be available
+          debugLog.info('Server preference not supported', `${pref} (this is normal)`);
+        }
+      }
+      
+      debugLog.info('Stable playback configuration complete', `Player: ${playerId}`);
+    } catch (error) {
+      debugLog.error('Failed to configure stable playback', error instanceof Error ? error.message : String(error));
+      // Don't throw - some preferences may not be available via API
+      // User can configure manually in LMS web UI if needed
+    }
+  }
+
+  /**
+   * Comprehensive configuration for LMS server and player to prevent audio dropouts
+   * Configures both server-wide and player-specific settings
+   * @deprecated Use configureForStablePlayback instead
+   */
+  async configureForHighResPlayback(playerId: string): Promise<void> {
+    return this.configureForStablePlayback(playerId);
+  }
+
   async playAlbum(playerId: string, albumId: string): Promise<void> {
+    // For albums, we can't check individual track formats before loading
+    // But we can ensure transcoding is enabled as a fallback
+    // LMS will handle format/transcoding automatically based on player capabilities
     await this.request(playerId, ['playlistcontrol', 'cmd:load', `album_id:${albumId}`]);
   }
 
@@ -605,8 +1049,127 @@ class LmsClient {
     await this.request(playerId, ['playlistcontrol', 'cmd:add', `album_id:${albumId}`]);
   }
 
-  async playTrack(playerId: string, trackId: string): Promise<void> {
+  /**
+   * Check if a track format needs transcoding based on DAC capabilities
+   * Returns true if transcoding should be forced
+   * 
+   * Note: We only force transcoding for formats that are definitely not supported:
+   * - DSD formats (not supported natively by most DACs via UPnP)
+   * 
+   * For other formats (FLAC, WAV, etc.), we let LMS handle transcoding automatically
+   * based on the player's reported capabilities. The UPnP bridge should handle
+   * format negotiation with the DAC.
+   */
+  private shouldForceTranscoding(format?: string, sampleRate?: string, bitDepth?: string, playerModel?: string): boolean {
+    if (!format) return false;
+    
+    const f = format.toUpperCase();
+    
+    // DSD formats often cause white noise if not transcoded
+    // Most DACs don't support native DSD via UPnP, so transcode to PCM
+    if (f.includes('DSD') || f.includes('DSF')) {
+      return true;
+    }
+    
+    // For all other formats (FLAC, WAV, AIFF, etc.), let LMS and UPnP bridge
+    // handle format negotiation automatically based on DAC capabilities
+    // The UPnP bridge will transcode if needed based on the DAC's reported support
+    return false;
+  }
+
+  /**
+   * Force transcoding for the current track (useful when experiencing white noise)
+   */
+  async forceTranscodeCurrentTrack(playerId: string): Promise<void> {
+    try {
+      await this.setPlayerPreference(playerId, 'transcode', '1');
+      debugLog.info('Forced transcoding for current track', `Player: ${playerId}`);
+      // Reload current track to apply transcoding
+      const status = await this.getPlayerStatus(playerId);
+      if (status.currentTrack?.id) {
+        await this.request(playerId, ['playlistcontrol', 'cmd:load', `track_id:${status.currentTrack.id}`]);
+        await this.play(playerId);
+      }
+    } catch (error) {
+      debugLog.error('Failed to force transcoding', error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+  }
+
+  async playTrack(playerId: string, trackId: string, isQobuz: boolean = false, format?: string, sampleRate?: string, bitDepth?: string, playerModel?: string): Promise<void> {
+    // Check if this format might cause white noise
+    // Pass player model to detect UPnP bridge usage
+    const needsTranscoding = this.shouldForceTranscoding(format, sampleRate, bitDepth, playerModel);
+    
+    if (needsTranscoding) {
+      // Force transcoding for problematic formats
+      try {
+        await this.setPlayerPreference(playerId, 'transcode', '1');
+        debugLog.info('Forcing transcoding for track', `Format: ${format}, Sample Rate: ${sampleRate}, Bit Depth: ${bitDepth}`);
+      } catch (error) {
+        debugLog.info('Could not force transcoding', error instanceof Error ? error.message : String(error));
+      }
+    }
+    
+    // Load track - LMS will transcode if needed
     await this.request(playerId, ['playlistcontrol', 'cmd:load', `track_id:${trackId}`]);
+    
+    // Reset transcoding preference after a delay (let LMS handle it automatically for next track)
+    if (needsTranscoding) {
+      setTimeout(async () => {
+        try {
+          await this.setPlayerPreference(playerId, 'transcode', '0');
+        } catch (error) {
+          // Ignore errors when resetting
+        }
+      }, 2000);
+    }
+  }
+
+  async playUrl(playerId: string, url: string): Promise<void> {
+    // Let LMS handle format/transcoding automatically based on player capabilities
+    await this.request(playerId, ['playlistcontrol', 'cmd:load', `url:${url}`]);
+  }
+
+  /**
+   * Play a radio station URL
+   * Radio stations should not use high-res buffer settings as they are streaming
+   */
+  async playRadioUrl(playerId: string, url: string): Promise<void> {
+    // For radio streams, we don't want to disable transcoding or set high-res buffers
+    // Clear playlist first, then load the URL
+    await this.request(playerId, ['playlist', 'clear']);
+    await this.request(playerId, ['playlistcontrol', 'cmd:load', `url:${url}`]);
+    debugLog.info('Radio URL loaded', `Player: ${playerId}, URL: ${url.substring(0, 100)}...`);
+  }
+
+  /**
+   * Play a radio station by favorite ID
+   * This is the preferred method for playing LMS favorites
+   */
+  async playRadioFavorite(playerId: string, favoriteId: string): Promise<void> {
+    // Clear playlist first
+    await this.request(playerId, ['playlist', 'clear']);
+    
+    // LMS favorites can be played using the favorites command with item_id
+    // This is more reliable than using playlistcontrol with favorite_id
+    try {
+      // Method 1: Use favorites command (most reliable for LMS favorites)
+      // The item_id format should match the favorite ID from getFavoriteRadios()
+      await this.request(playerId, ['favorites', 'playlist', 'play', `item_id:${favoriteId}`]);
+      debugLog.info('Radio favorite loaded via favorites command', `Player: ${playerId}, Favorite ID: ${favoriteId}`);
+    } catch (error) {
+      // Fallback: Try playlistcontrol with favorite_id
+      debugLog.info('Favorites command failed, trying playlistcontrol', error instanceof Error ? error.message : String(error));
+      try {
+        await this.request(playerId, ['playlistcontrol', 'cmd:load', `favorite_id:${favoriteId}`]);
+        debugLog.info('Radio favorite loaded via playlistcontrol', `Player: ${playerId}, Favorite ID: ${favoriteId}`);
+      } catch (error2) {
+        // Final fallback: Try using the URL if we have it (but we don't have it here)
+        debugLog.error('Both favorite playback methods failed', error2 instanceof Error ? error2.message : String(error2));
+        throw new Error(`Failed to play favorite: ${error2 instanceof Error ? error2.message : String(error2)}`);
+      }
+    }
   }
 
   async addTrackToPlaylist(playerId: string, trackId: string): Promise<void> {
@@ -648,6 +1211,42 @@ class LmsClient {
   }
 
   async discoverServer(host: string, port: number = 9000, timeoutMs: number = 3000): Promise<LmsServer | null> {
+    // On web platform, use server-side proxy to avoid CORS restrictions
+    if (Platform.OS === 'web') {
+      try {
+        let domain = process.env.EXPO_PUBLIC_DOMAIN;
+        if (!domain) {
+          if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+            domain = 'localhost:3000';
+          } else {
+            domain = 'localhost:3000';
+          }
+        }
+        const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+        const apiUrl = `${protocol}//${domain}`;
+        
+        const response = await fetch(`${apiUrl}/api/lms/connect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ host, port }),
+        });
+        
+        if (response.ok) {
+          const server = await response.json() as LmsServer;
+          return server;
+        } else {
+          const error = await response.json().catch(() => ({ error: 'Connection failed' }));
+          debugLog.error('Server connection failed', error.error || `HTTP ${response.status}`);
+          return null;
+        }
+      } catch (error) {
+        debugLog.error('Server connection error', error instanceof Error ? error.message : 'Unknown error');
+        return null;
+      }
+    }
+    
+    // On native platforms, use direct connection
     const previousBaseUrl = this.baseUrl;
     this.baseUrl = `http://${host}:${port}`;
     
@@ -690,7 +1289,8 @@ class LmsClient {
 
   async getFavoriteRadios(): Promise<LmsRadioStation[]> {
     const result = await this.request('', ['favorites', 'items', '0', '500', 'want_url:1', 'tags:stc']);
-    const favoritesLoop = (result.favorites_loop || []) as Array<Record<string, unknown>>;
+    // LMS returns favorites in 'loop_loop' or 'favorites_loop' depending on version
+    const favoritesLoop = (result.loop_loop || result.favorites_loop || []) as Array<Record<string, unknown>>;
     
     return favoritesLoop
       .filter((f) => {
@@ -717,21 +1317,95 @@ class LmsClient {
       }));
   }
 
-  async getLibraryTotals(): Promise<{ albums: number; artists: number; tracks: number }> {
+  async getLibraryTotals(): Promise<{ albums: number; artists: number; tracks: number; radioStations: number; playlists: number }> {
     const albumsResult = await this.request('', ['info', 'total', 'albums', '?']);
-    const artistsResult = await this.request('', ['info', 'total', 'artists', '?']);
     const songsResult = await this.request('', ['info', 'total', 'songs', '?']);
+    
+    // Count unique artists from albums (not from artists command which includes Qobuz)
+    // Fetch a large sample of albums to count unique artists
+    // Use artist name to count unique artists (albums don't have artist_id)
+    const albumsSample = await this.request('', ['albums', '0', '5000', 'tags:al']);
+    const albumsLoop = (albumsSample.albums_loop || []) as Array<Record<string, unknown>>;
+    const uniqueArtists = new Set<string>();
+    
+    for (const album of albumsLoop) {
+      const artistName = String(album.artist || album.albumartist || '').trim();
+      // Only count valid artists (non-empty name, not dashes)
+      if (artistName && artistName !== '-' && artistName !== '') {
+        uniqueArtists.add(artistName);
+      }
+    }
+    
+    // If we got a full sample (5000 albums), we likely have most artists
+    // Otherwise, this is a lower bound estimate
+    const artistCount = uniqueArtists.size;
+    
+    // Count favorite radio stations
+    let radioCount = 0;
+    try {
+      const radios = await this.getFavoriteRadios();
+      radioCount = radios.length;
+    } catch (e) {
+      debugLog.error('Failed to count radio stations', e instanceof Error ? e.message : String(e));
+    }
+    
+    // Count playlists (includes both LMS and Qobuz playlists)
+    let playlistCount = 0;
+    try {
+      const playlists = await this.getPlaylists();
+      playlistCount = playlists.length;
+    } catch (e) {
+      debugLog.error('Failed to count playlists', e instanceof Error ? e.message : String(e));
+    }
     
     return {
       albums: Number(albumsResult._albums || 0),
-      artists: Number(artistsResult._artists || 0),
+      artists: artistCount,
       tracks: Number(songsResult._songs || 0),
+      radioStations: radioCount,
+      playlists: playlistCount,
     };
   }
 
   async autoDiscoverServers(onProgress?: (found: number, scanning: number) => void): Promise<LmsServer[]> {
     debugLog.info('Starting auto-discovery of LMS servers...');
     
+    // On web platform, use server-side discovery endpoint to avoid CORS/security restrictions
+    if (Platform.OS === 'web') {
+      try {
+        // Use the same URL construction as SettingsScreen for web
+        // Try to detect the server port from the current location or use default
+        let domain = process.env.EXPO_PUBLIC_DOMAIN;
+        if (!domain) {
+          // If running locally, try to use the same host with port 3000 (or detect from window.location)
+          if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+            domain = 'localhost:3000';
+          } else {
+            domain = 'localhost:3000';
+          }
+        }
+        const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+        const apiUrl = `${protocol}//${domain}`;
+        
+        const response = await fetch(`${apiUrl}/api/lms/discover`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Discovery failed: ${response.status}`);
+        }
+        
+        const servers = await response.json() as LmsServer[];
+        debugLog.info('Auto-discovery complete', `Found ${servers.length} server(s) via API`);
+        return servers;
+      } catch (error) {
+        debugLog.error('Server-side discovery failed', error instanceof Error ? error.message : 'Unknown error');
+        throw error;
+      }
+    }
+    
+    // On native platforms, use direct network scanning
     const port = 9000;
     const timeoutMs = 2000;
     const previousBaseUrl = this.baseUrl;

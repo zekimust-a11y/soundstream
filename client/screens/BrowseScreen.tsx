@@ -1,4 +1,4 @@
-import React, { useCallback, memo } from "react";
+import React, { useCallback, memo, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -17,11 +17,12 @@ import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { HeaderTitle } from "@/components/HeaderTitle";
+import { SourceBadge } from "@/components/SourceBadge";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
-import { usePlayback } from "@/hooks/usePlayback";
+import { usePlayback, Track } from "@/hooks/usePlayback";
 import { useInfiniteAlbums, useArtistsPreview, Album, Artist } from "@/hooks/useLibrary";
+import { lmsClient } from "@/lib/lmsClient";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
 
 const { width } = Dimensions.get("window");
@@ -38,11 +39,14 @@ const AlbumCard = memo(({ album, onPress }: { album: Album; onPress: () => void 
     ]}
     onPress={onPress}
   >
-    <Image
-      source={album.imageUrl || require("../assets/images/placeholder-album.png")}
-      style={styles.albumImage}
-      contentFit="cover"
-    />
+    <View style={styles.albumImageContainer}>
+      <Image
+        source={album.imageUrl || require("../assets/images/placeholder-album.png")}
+        style={styles.albumImage}
+        contentFit="cover"
+      />
+      <SourceBadge source={album.source} size={20} />
+    </View>
     <ThemedText style={styles.albumTitle} numberOfLines={1}>
       {album.name}
     </ThemedText>
@@ -89,8 +93,9 @@ export default function BrowseScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { recentlyPlayed, refreshLibrary } = useMusic();
-  const { playTrack } = usePlayback();
+  const { recentlyPlayed, refreshLibrary, activeServer } = useMusic();
+  const { playTrack, activePlayer } = usePlayback();
+  const [isShuffling, setIsShuffling] = useState(false);
   
   const { 
     data: albumsData, 
@@ -127,6 +132,59 @@ export default function BrowseScreen() {
     navigation.navigate("AllArtists");
   }, [navigation]);
 
+  const handleShuffleAll = useCallback(async () => {
+    if (!activePlayer || !activeServer || isShuffling) {
+      return;
+    }
+
+    setIsShuffling(true);
+    try {
+      lmsClient.setServer(activeServer.host, activeServer.port);
+      
+      // Get all tracks from library
+      const lmsTracks = await lmsClient.getAllLibraryTracks();
+      
+      if (lmsTracks.length === 0) {
+        console.warn('No tracks found in library');
+        setIsShuffling(false);
+        return;
+      }
+
+      // Convert to app Track format
+      const tracks: Track[] = lmsTracks.map(t => ({
+        id: `${activeServer.id}-${t.id}`,
+        title: t.title,
+        artist: t.artist,
+        album: t.album,
+        albumArt: t.artwork_url ? lmsClient.getArtworkUrl(t as any) : undefined,
+        duration: t.duration,
+        source: 'local',
+        uri: t.url,
+        format: t.format,
+        bitrate: t.bitrate,
+        sampleRate: t.sampleRate,
+        bitDepth: t.bitDepth,
+        lmsTrackId: t.id,
+      }));
+
+      // Shuffle the tracks array
+      const shuffled = [...tracks];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+
+      // Play the first shuffled track with the full shuffled list as queue
+      if (shuffled.length > 0) {
+        playTrack(shuffled[0], shuffled);
+      }
+    } catch (error) {
+      console.error('Failed to shuffle all tracks:', error);
+    } finally {
+      setIsShuffling(false);
+    }
+  }, [activePlayer, activeServer, isShuffling, playTrack]);
+
   const handleEndReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
@@ -142,12 +200,27 @@ export default function BrowseScreen() {
   const ListHeader = useCallback(() => (
     <>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <HeaderTitle />
+        <View style={styles.headerLeft} />
         <View style={styles.headerRight}>
           <Pressable
-            style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
+            style={({ pressed }) => [
+              styles.headerButton, 
+              { opacity: pressed || isShuffling ? 0.6 : 1 }
+            ]}
+            onPress={handleShuffleAll}
+            disabled={isShuffling || !activePlayer || !activeServer}
           >
-            <Feather name="sliders" size={20} color={Colors.light.text} />
+            {isShuffling ? (
+              <ActivityIndicator size="small" color={Colors.light.text} />
+            ) : (
+              <Feather name="shuffle" size={20} color={Colors.light.text} />
+            )}
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
+            onPress={() => navigation.navigate("History")}
+          >
+            <Feather name="clock" size={20} color={Colors.light.text} />
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
@@ -287,6 +360,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
   },
+  headerLeft: {
+    flex: 1,
+  },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
@@ -379,11 +455,14 @@ const styles = StyleSheet.create({
   albumCard: {
     width: ALBUM_SIZE,
   },
+  albumImageContainer: {
+    position: "relative",
+    marginBottom: Spacing.sm,
+  },
   albumImage: {
     width: ALBUM_SIZE,
     height: ALBUM_SIZE,
     borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.sm,
   },
   albumTitle: {
     ...Typography.caption,

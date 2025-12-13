@@ -12,6 +12,7 @@ export interface Album {
   imageUrl?: string;
   year?: number;
   trackCount?: number;
+  source?: "local" | "qobuz";
 }
 
 export interface Artist {
@@ -21,7 +22,7 @@ export interface Artist {
   albumCount?: number;
 }
 
-const convertLmsAlbumToAlbum = (lmsAlbum: LmsAlbum): Album => ({
+const convertLmsAlbumToAlbum = (lmsAlbum: LmsAlbum, source: "local" | "qobuz" = "local"): Album => ({
   id: lmsAlbum.id,
   name: lmsAlbum.title,
   artist: lmsAlbum.artist,
@@ -29,12 +30,14 @@ const convertLmsAlbumToAlbum = (lmsAlbum: LmsAlbum): Album => ({
   imageUrl: lmsClient.getArtworkUrl(lmsAlbum),
   year: lmsAlbum.year,
   trackCount: lmsAlbum.trackCount,
+  source,
 });
 
 const convertLmsArtistToArtist = (lmsArtist: LmsArtist): Artist => ({
   id: lmsArtist.id,
   name: lmsArtist.name,
   albumCount: lmsArtist.albumCount,
+  imageUrl: lmsArtist.artworkUrl,
 });
 
 export function useAlbumsPreview(limit: number = 20) {
@@ -46,7 +49,7 @@ export function useAlbumsPreview(limit: number = 20) {
       if (!activeServer) return { albums: [], total: 0 };
       const result = await lmsClient.getAlbumsPage(0, limit);
       return {
-        albums: result.albums.map(convertLmsAlbumToAlbum),
+        albums: result.albums.map(album => convertLmsAlbumToAlbum(album, 'local')),
         total: result.total,
       };
     },
@@ -67,12 +70,14 @@ export function useArtistsPreview(limit: number = 20) {
       const artistsWithImages = await Promise.all(
         result.artists.map(async (lmsArtist) => {
           const artist = convertLmsArtistToArtist(lmsArtist);
+          // Fetch actual artist image (portrait/photo) from TheAudioDB, not album artwork
           try {
-            const albumsResult = await lmsClient.getAlbumsPage(0, 1, lmsArtist.id);
-            if (albumsResult.albums.length > 0) {
-              artist.imageUrl = lmsClient.getArtworkUrl(albumsResult.albums[0]);
+            const artistImage = await lmsClient.getArtistImage(lmsArtist.name);
+            if (artistImage) {
+              artist.imageUrl = artistImage;
             }
           } catch (e) {
+            // Ignore errors - artist will have no image
           }
           return artist;
         })
@@ -96,7 +101,7 @@ export function useInfiniteAlbums(artistId?: string) {
     queryFn: async ({ pageParam = 0 }) => {
       if (!activeServer) return { albums: [], total: 0, nextPage: undefined };
       const result = await lmsClient.getAlbumsPage(pageParam, PAGE_SIZE, artistId);
-      const albums = result.albums.map(convertLmsAlbumToAlbum);
+      const albums = result.albums.map(album => convertLmsAlbumToAlbum(album, 'local'));
       const nextPage = pageParam + PAGE_SIZE < result.total ? pageParam + PAGE_SIZE : undefined;
       return { albums, total: result.total, nextPage };
     },
@@ -113,11 +118,37 @@ export function useInfiniteArtists() {
   return useInfiniteQuery({
     queryKey: ['artists', 'infinite', activeServer?.id],
     queryFn: async ({ pageParam = 0 }) => {
-      if (!activeServer) return { artists: [], total: 0, nextPage: undefined };
-      const result = await lmsClient.getArtistsPage(pageParam, PAGE_SIZE);
-      const artists = result.artists.map(convertLmsArtistToArtist);
-      const nextPage = pageParam + PAGE_SIZE < result.total ? pageParam + PAGE_SIZE : undefined;
-      return { artists, total: result.total, nextPage };
+      if (!activeServer) {
+        console.log('[useInfiniteArtists] No active server');
+        return { artists: [], total: 0, nextPage: undefined };
+      }
+      console.log('[useInfiniteArtists] Fetching artists, pageParam:', pageParam);
+      try {
+        const result = await lmsClient.getArtistsPage(pageParam, PAGE_SIZE);
+        console.log('[useInfiniteArtists] Got result:', result.artists.length, 'artists, total:', result.total);
+        
+        // Fetch artist images (portraits) from TheAudioDB
+        const artists = await Promise.all(
+          result.artists.map(async (lmsArtist) => {
+            const artist = convertLmsArtistToArtist(lmsArtist);
+            try {
+              const artistImage = await lmsClient.getArtistImage(lmsArtist.name);
+              if (artistImage) {
+                artist.imageUrl = artistImage;
+              }
+            } catch (e) {
+              // Ignore errors - artist will have no image
+            }
+            return artist;
+          })
+        );
+        
+        const nextPage = pageParam + PAGE_SIZE < result.total ? pageParam + PAGE_SIZE : undefined;
+        return { artists, total: result.total, nextPage };
+      } catch (error) {
+        console.error('[useInfiniteArtists] Error:', error);
+        return { artists: [], total: 0, nextPage: undefined };
+      }
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,

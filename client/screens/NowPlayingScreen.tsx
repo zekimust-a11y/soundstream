@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -8,9 +8,11 @@ import {
   ScrollView,
   GestureResponderEvent,
   LayoutChangeEvent,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, CommonActions } from "@react-navigation/native";
+import { InteractionManager } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
 import { Image } from "expo-image";
@@ -155,28 +157,91 @@ export default function NowPlayingScreen() {
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPosition, setSeekPosition] = useState(0);
   const sliderWidthRef = useRef(0);
+  const isMountedRef = useRef(true);
+  const isNavigatingRef = useRef(false);
   
   const translateY = useSharedValue(0);
   
+  useEffect(() => {
+    isMountedRef.current = true;
+    isNavigatingRef.current = false;
+    return () => {
+      isMountedRef.current = false;
+      isNavigatingRef.current = false;
+    };
+  }, []);
+  
   const minimizePlayer = useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
+    // Prevent multiple navigation attempts
+    if (!isMountedRef.current || isNavigatingRef.current) {
+      return;
     }
+    
+    isNavigatingRef.current = true;
+    
+    // Use a small delay to ensure animation completes and component is stable
+    setTimeout(() => {
+      // Double-check everything before navigating
+      if (!isMountedRef.current) {
+        isNavigatingRef.current = false;
+        return;
+      }
+      
+      try {
+        // Check if navigation is still valid
+        if (!navigation) {
+          console.warn('[NowPlayingScreen] Navigation object is null');
+          isNavigatingRef.current = false;
+          return;
+        }
+        
+        // Check if we can go back
+        if (typeof navigation.canGoBack === 'function' && !navigation.canGoBack()) {
+          console.warn('[NowPlayingScreen] Cannot go back - no previous screen');
+          isNavigatingRef.current = false;
+          return;
+        }
+        
+        // Use CommonActions for safer navigation
+        navigation.dispatch(CommonActions.goBack());
+      } catch (error) {
+        console.error('[NowPlayingScreen] Error minimizing player:', error);
+        isNavigatingRef.current = false;
+      }
+    }, 50); // Small delay to ensure animation completes
   }, [navigation]);
   
+  const handleMinimize = useCallback(() => {
+    if (isMountedRef.current && !isNavigatingRef.current) {
+      minimizePlayer();
+    }
+  }, [minimizePlayer]);
+
   const panGesture = Gesture.Pan()
     .onUpdate((event) => {
-      if (event.translationY > 0) {
+      if (event.translationY > 0 && !isNavigatingRef.current) {
         translateY.value = event.translationY * 0.3;
       }
     })
     .onEnd((event) => {
+      // Don't handle gesture if already navigating
+      if (isNavigatingRef.current) {
+        translateY.value = withTiming(0, { duration: 300 });
+        return;
+      }
+      
       if (event.translationY > 100) {
-        translateY.value = withTiming(height, { duration: 350 });
-        // Delay navigation to complete animation smoothly
-        runOnJS(() => {
-          setTimeout(minimizePlayer, 350);
-        })();
+        // Animate out
+        translateY.value = withTiming(height, { duration: 350 }, (finished) => {
+          // Only navigate if animation completed successfully
+          if (finished) {
+            try {
+              runOnJS(handleMinimize)();
+            } catch (error) {
+              console.error('[NowPlayingScreen] Error in runOnJS handleMinimize:', error);
+            }
+          }
+        });
       } else {
         translateY.value = withTiming(0, { duration: 300 });
       }
@@ -289,9 +354,15 @@ export default function NowPlayingScreen() {
           >
             <View style={styles.albumArtContainer}>
               <Image
-                source={currentTrack.albumArt || require("../assets/images/placeholder-album.png")}
+                source={
+                  currentTrack.isRadio && currentTrack.radioStationImage
+                    ? { uri: currentTrack.radioStationImage }
+                    : currentTrack.albumArt 
+                    ? { uri: currentTrack.albumArt }
+                    : require("../assets/images/placeholder-album.png")
+                }
                 style={styles.albumArt}
-                contentFit="cover"
+                contentFit={currentTrack.isRadio ? "contain" : "cover"}
               />
               <View style={styles.artworkBadges}>
                 {currentTrack.source === "qobuz" ? (
@@ -301,7 +372,7 @@ export default function NowPlayingScreen() {
                     contentFit="contain"
                   />
                 ) : null}
-                {qualityInfo.label ? (
+                {qualityInfo.label && !currentTrack.isRadio ? (
                   <View style={styles.qualityOverlay}>
                     <ThemedText style={styles.qualityOverlayText}>{qualityInfo.label}</ThemedText>
                   </View>
@@ -311,58 +382,64 @@ export default function NowPlayingScreen() {
 
             <View style={styles.trackInfo}>
               <ThemedText style={styles.trackTitle} numberOfLines={2}>
-                {currentTrack.title}
+                {currentTrack.isRadio ? (currentTrack.radioStationName || currentTrack.title) : currentTrack.title}
               </ThemedText>
-              <View style={styles.trackMetaRow}>
-                <Pressable 
-                  onPress={() => {
-                    if (currentTrack.metadata) {
-                      try {
-                        const meta = JSON.parse(currentTrack.metadata);
-                        if (meta.artistId) {
-                          minimizePlayer();
-                          navigation.navigate("Browse", { 
-                            screen: "Artist", 
-                            params: { id: meta.artistId, name: currentTrack.artist } 
-                          });
-                        }
-                      } catch {}
-                    }
-                  }}
-                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-                >
-                  <ThemedText style={styles.trackArtistLink} numberOfLines={1}>
-                    {currentTrack.artist}
-                  </ThemedText>
-                </Pressable>
-                {currentTrack.album ? (
-                  <>
-                    <ThemedText style={styles.trackSeparator}> • </ThemedText>
-                    <Pressable 
-                      onPress={() => {
-                        if (currentTrack.metadata) {
-                          try {
-                            const meta = JSON.parse(currentTrack.metadata);
-                            if (meta.albumId) {
-                              minimizePlayer();
-                              navigation.navigate("Browse", { 
-                                screen: "Album", 
-                                params: { id: meta.albumId, name: currentTrack.album, artistName: currentTrack.artist } 
-                              });
-                            }
-                          } catch {}
-                        }
-                      }}
-                      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-                    >
-                      <ThemedText style={styles.trackAlbumLink} numberOfLines={1}>
-                        {currentTrack.album}
-                      </ThemedText>
-                    </Pressable>
-                  </>
-                ) : null}
-              </View>
-              {qualityInfo.details ? (
+              {currentTrack.isRadio ? (
+                <ThemedText style={styles.trackArtistLink} numberOfLines={1}>
+                  Radio Station
+                </ThemedText>
+              ) : (
+                <View style={styles.trackMetaRow}>
+                  <Pressable 
+                    onPress={() => {
+                      if (currentTrack.metadata) {
+                        try {
+                          const meta = JSON.parse(currentTrack.metadata);
+                          if (meta.artistId) {
+                            minimizePlayer();
+                            navigation.navigate("Browse", { 
+                              screen: "Artist", 
+                              params: { id: meta.artistId, name: currentTrack.artist } 
+                            });
+                          }
+                        } catch {}
+                      }
+                    }}
+                    style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+                  >
+                    <ThemedText style={styles.trackArtistLink} numberOfLines={1}>
+                      {currentTrack.artist}
+                    </ThemedText>
+                  </Pressable>
+                  {currentTrack.album ? (
+                    <>
+                      <ThemedText style={styles.trackSeparator}> • </ThemedText>
+                      <Pressable 
+                        onPress={() => {
+                          if (currentTrack.metadata) {
+                            try {
+                              const meta = JSON.parse(currentTrack.metadata);
+                              if (meta.albumId) {
+                                minimizePlayer();
+                                navigation.navigate("Browse", { 
+                                  screen: "Album", 
+                                  params: { id: meta.albumId, name: currentTrack.album, artistName: currentTrack.artist } 
+                                });
+                              }
+                            } catch {}
+                          }
+                        }}
+                        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+                      >
+                        <ThemedText style={styles.trackAlbumLink} numberOfLines={1}>
+                          {currentTrack.album}
+                        </ThemedText>
+                      </Pressable>
+                    </>
+                  ) : null}
+                </View>
+              )}
+              {qualityInfo.details && !currentTrack.isRadio ? (
                 <ThemedText style={styles.qualityDetails}>
                   {qualityInfo.details}
                 </ThemedText>
@@ -481,6 +558,30 @@ export default function NowPlayingScreen() {
                 />
               </View>
               <Feather name="volume-2" size={18} color={Colors.light.textTertiary} />
+              <Pressable
+                style={({ pressed }) => [
+                  styles.volumeButton,
+                  { opacity: pressed ? 0.6 : 1 }
+                ]}
+                onPress={() => {
+                  const newVolume = Math.max(0, volume - 0.01);
+                  setVolume(newVolume);
+                }}
+              >
+                <Feather name="minus" size={20} color={Colors.light.text} />
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.volumeButton,
+                  { opacity: pressed ? 0.6 : 1 }
+                ]}
+                onPress={() => {
+                  const newVolume = Math.min(1, volume + 0.01);
+                  setVolume(newVolume);
+                }}
+              >
+                <Feather name="plus" size={20} color={Colors.light.text} />
+              </Pressable>
             </View>
 
             <View style={styles.bottomRow}>
@@ -585,10 +686,18 @@ const styles = StyleSheet.create({
     width: ALBUM_ART_SIZE,
     height: ALBUM_ART_SIZE,
     borderRadius: BorderRadius.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
+    ...Platform.select({
+      web: {
+        boxShadow: "0px 8px 24px rgba(0, 0, 0, 0.15)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+        elevation: 8,
+      },
+    }),
   },
   artworkBadges: {
     position: "absolute",
@@ -781,6 +890,16 @@ const styles = StyleSheet.create({
   volumeSlider: {
     width: "100%",
     height: 40,
+  },
+  volumeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.light.backgroundSecondary,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   bottomRow: {
     flexDirection: "row",

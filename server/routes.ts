@@ -451,13 +451,33 @@ async function discoverServerContent(host: string, port: number): Promise<Browse
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Android Mosaic ACTUS Relay (optional - for dCS Varese volume control)
+  if (process.env.ENABLE_ANDROID_MOSAIC_RELAY === 'true') {
+    try {
+      const { initializeAndroidMosaicRelay, registerAndroidMosaicRoutes } = await import('./android-mosaic-relay');
+      const relay = initializeAndroidMosaicRelay({
+        enabled: true,
+        adbPath: process.env.ADB_PATH,
+        emulatorSerial: process.env.ANDROID_DEVICE_SERIAL || 'emulator-5554',
+        packageName: process.env.MOSAIC_PACKAGE_NAME, // Optional - will auto-detect
+        volumeUpButton: { x: 540, y: 1146 },
+        volumeDownButton: { x: 540, y: 1581 },
+      });
+      await relay.initialize();
+      registerAndroidMosaicRoutes(app);
+      console.log('[Server] Android Mosaic ACTUS relay enabled');
+    } catch (error) {
+      console.warn('[Server] Android Mosaic relay failed to initialize:', error);
+    }
+  }
+
   // LMS JSON-RPC proxy endpoint for Now Playing display
   // SECURITY: Only allows read-only 'status' command to prevent unauthorized control
   app.post('/api/lms/proxy', async (req: Request, res: Response) => {
     const { host, port, playerId, command } = req.body;
     
-    if (!host || !playerId || !command) {
-      return res.status(400).json({ error: 'Missing host, playerId, or command' });
+    if (!host || !command) {
+      return res.status(400).json({ error: 'Missing host or command' });
     }
     
     // Validate host is a valid private IPv4 address (LAN only)
@@ -492,15 +512,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(403).json({ error: 'Only private network addresses are allowed' });
     }
     
-    // Validate command - only allow read-only status commands
+    // Validate command format
     if (!Array.isArray(command) || command.length === 0) {
       return res.status(400).json({ error: 'Invalid command format' });
     }
     
-    const allowedCommands = ['status', 'serverstatus', 'players'];
+    // Allow common LMS commands (expanded from read-only for full functionality)
+    const allowedCommands = [
+      'status', 'serverstatus', 'players', 'play', 'pause', 'stop', 'next', 'previous',
+      'playlist', 'playlistcontrol', 'mixer', 'browse', 'albums', 'artists', 'tracks',
+      'genres', 'years', 'playlists', 'favorites', 'info', 'rescan', 'search', 'power',
+      'qobuz', 'titles', 'globalsearch'
+    ];
     const baseCommand = String(command[0]).toLowerCase();
     if (!allowedCommands.includes(baseCommand)) {
-      return res.status(403).json({ error: 'Only read-only commands are allowed' });
+      return res.status(403).json({ error: `Command '${baseCommand}' is not allowed` });
     }
     
     try {
@@ -513,9 +539,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: 1,
+          id: req.body.id || 1,
           method: 'slim.request',
-          params: [playerId, command]
+          params: [playerId || '', command]
         }),
         signal: AbortSignal.timeout(10000),
       });
@@ -1239,19 +1265,416 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Chromecast device discovery
-  app.get('/api/chromecast/discover', async (req: Request, res: Response) => {
+  // LMS server discovery endpoint (for web platform)
+  app.get('/api/lms/discover', async (req: Request, res: Response) => {
     try {
-      // Return mock Chromecast devices - in production would use proper mDNS discovery
-      // This demonstrates the endpoint that the frontend expects
-      const mockDevices = [
-        { ip: '192.168.0.239', name: 'Living Room TV' },
-        { ip: '192.168.0.240', name: 'Bedroom TV' },
+      console.log('[LMS] Starting server-side discovery...');
+      const port = 9000;
+      const timeoutMs = 2000;
+      const found: Array<{ id: string; name: string; host: string; port: number; version?: string }> = [];
+      
+      // Scan common local IP ranges: 192.168.0.x, 10.0.0.x, 172.16.0.x
+      // For simplicity, scan the common subnet ranges
+      const ipRanges = [
+        { base: [192, 168, 0], maxHost: 255 },  // 192.168.0.1-255
+        { base: [192, 168, 1], maxHost: 255 },  // 192.168.1.1-255
+        { base: [10, 0, 0], maxHost: 255 },     // 10.0.0.1-255
+        { base: [172, 16, 0], maxHost: 255 },  // 172.16.0.1-255
       ];
       
-      // Filter to only return devices that are likely to exist in test environment
-      // In real usage, this would use mdns or zeroconf to discover actual devices
-      res.json(mockDevices);
+      const promises: Promise<void>[] = [];
+      
+      for (const range of ipRanges) {
+        // Limit scanning to first 30 hosts per subnet for performance
+        for (let i = 1; i <= Math.min(range.maxHost, 30); i++) {
+          const ip = `${range.base[0]}.${range.base[1]}.${range.base[2]}.${i}`;
+          
+          promises.push(
+            (async () => {
+              try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                
+                const response = await fetch(`http://${ip}:${port}/jsonrpc.js`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    id: 1,
+                    method: 'slim.request',
+                    params: ['', ['serverstatus', '0', '0']],
+                  }),
+                  signal: controller.signal,
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                  const data = await response.json();
+                  if (data.result) {
+                    found.push({
+                      id: `lms-${ip}:${port}`,
+                      name: 'Logitech Media Server',
+                      host: ip,
+                      port,
+                      version: String(data.result.version || 'unknown'),
+                    });
+                    console.log(`[LMS] Found server at ${ip}:${port}`);
+                  }
+                }
+              } catch {
+                // Ignore errors for individual IPs
+              }
+            })()
+          );
+        }
+      }
+      
+      await Promise.all(promises);
+      console.log(`[LMS] Discovery complete, found ${found.length} server(s)`);
+      res.json(found);
+    } catch (error) {
+      console.error('[LMS] Discovery error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Discovery failed' 
+      });
+    }
+  });
+
+  // LMS server connection proxy (for web platform to avoid CORS)
+  app.post('/api/lms/connect', async (req: Request, res: Response) => {
+    try {
+      const { host, port } = req.body;
+      
+      if (!host || !port) {
+        return res.status(400).json({ error: 'Host and port are required' });
+      }
+      
+      const lmsUrl = `http://${host}:${port}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      
+      const response = await fetch(`${lmsUrl}/jsonrpc.js`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 1,
+          method: 'slim.request',
+          params: ['', ['serverstatus', '0', '0']],
+        }),
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.result) {
+          res.json({
+            id: `lms-${host}:${port}`,
+            name: 'Logitech Media Server',
+            host,
+            port,
+            version: String(data.result.version || 'unknown'),
+          });
+        } else {
+          res.status(404).json({ error: 'Server responded but no result' });
+        }
+      } else {
+        res.status(response.status).json({ error: `Server returned ${response.status}` });
+      }
+    } catch (error) {
+      console.error('[LMS] Connection proxy error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Connection failed' 
+      });
+    }
+  });
+
+  // Chromecast casting endpoints
+  app.post('/api/chromecast/cast', async (req: Request, res: Response) => {
+    console.log('[Chromecast] Cast endpoint called');
+    try {
+      const { ip, lmsHost, lmsPort, playerId } = req.body;
+      
+      if (!ip) {
+        return res.status(400).json({ error: 'Chromecast IP is required' });
+      }
+      
+      // Get the server's local IP address
+      const os = await import('os');
+      const networkInterfaces = os.networkInterfaces();
+      let serverIp = 'localhost';
+      
+      for (const interfaceName in networkInterfaces) {
+        const interfaces = networkInterfaces[interfaceName];
+        if (interfaces) {
+          for (const iface of interfaces) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+              serverIp = iface.address;
+              break;
+            }
+          }
+        }
+        if (serverIp !== 'localhost') break;
+      }
+      
+      // Construct the now-playing URL
+      const serverPort = process.env.PORT || '3000';
+      const nowPlayingUrl = `http://${serverIp}:${serverPort}/now-playing${lmsHost ? `?host=${lmsHost}&port=${lmsPort || 9000}${playerId ? `&player=${encodeURIComponent(playerId)}` : ''}` : ''}`;
+      
+      console.log(`[Chromecast] Casting to ${ip}: ${nowPlayingUrl}`);
+      
+      // Try to use the relay server on 192.168.0.21:3000 (the "all cast" server)
+      // The relay server uses catt to cast HTML content to Chromecast
+      try {
+        // First, set the preferred player on the relay server so it uses the correct player
+        if (playerId && lmsHost) {
+          try {
+            // Get player name from LMS to pass to relay server
+            const playerNameResponse = await fetch(`http://${lmsHost}:${lmsPort || 9000}/jsonrpc.js`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: 1,
+                method: 'slim.request',
+                params: ['', ['players', '0', '100']]
+              }),
+              signal: AbortSignal.timeout(3000),
+            });
+            
+            let playerName = playerId;
+            if (playerNameResponse.ok) {
+              const playerData = await playerNameResponse.json();
+              const players = playerData.result?.players_loop || [];
+              const player = players.find((p: any) => p.playerid === playerId);
+              if (player) {
+                playerName = player.name || playerId;
+              }
+            }
+            
+            // Set the preferred player on the relay server
+            const playerResponse = await fetch('http://192.168.0.21:3000/api/player', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                playerId,
+                playerName,
+              }),
+              signal: AbortSignal.timeout(5000),
+            });
+            
+            if (playerResponse.ok) {
+              console.log(`[Chromecast] Set preferred player on relay server: ${playerName} (${playerId})`);
+            } else {
+              console.warn('[Chromecast] Failed to set preferred player on relay server');
+            }
+          } catch (playerError) {
+            console.warn('[Chromecast] Could not set preferred player:', playerError instanceof Error ? playerError.message : String(playerError));
+            // Continue anyway - relay server will use its default player
+          }
+        }
+        
+        // Configure the Chromecast on the relay server
+        const configResponse = await fetch('http://192.168.0.21:3000/api/chromecast', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ip,
+            name: `Chromecast ${ip}`,
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+        
+        if (configResponse.ok) {
+          console.log('[Chromecast] Configured on relay server');
+          
+          // The relay server automatically casts when music plays (it polls LMS)
+          // It will now use the correct player that we just set
+          return res.json({ 
+            success: true, 
+            message: 'Chromecast configured. Casting will start automatically when music plays.',
+            url: nowPlayingUrl,
+            relayServer: '192.168.0.21:3000',
+            playerId,
+          });
+        }
+      } catch (relayError) {
+        console.log('[Chromecast] Relay server not available:', relayError instanceof Error ? relayError.message : String(relayError));
+        return res.status(503).json({ 
+          error: 'Relay server on 192.168.0.21:3000 is not available',
+          url: nowPlayingUrl 
+        });
+      }
+      
+      // If relay server configuration failed, return error
+      console.warn('[Chromecast] Relay server configuration failed');
+      return res.status(503).json({ 
+        error: 'Relay server on 192.168.0.21:3000 is not available or configuration failed',
+        url: nowPlayingUrl 
+      });
+      
+    } catch (error) {
+      console.error('[Chromecast] Cast error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Cast failed' 
+      });
+    }
+  });
+
+  app.post('/api/chromecast/stop', async (req: Request, res: Response) => {
+    try {
+      const { ip } = req.body;
+      
+      if (!ip) {
+        return res.status(400).json({ error: 'Chromecast IP is required' });
+      }
+      
+      // Try to use the relay server on 192.168.0.21:3000
+      try {
+        // The relay server automatically stops casting when music pauses/stops
+        // But we can also clear the Chromecast config to stop it
+        const relayResponse = await fetch('http://192.168.0.21:3000/api/chromecast', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(5000),
+        });
+        
+        if (relayResponse.ok) {
+          console.log('[Chromecast] Cast stopped via relay server');
+          return res.json({ success: true, message: 'Cast stopped' });
+        }
+      } catch (relayError) {
+        console.log('[Chromecast] Relay server not available for stop:', relayError instanceof Error ? relayError.message : String(relayError));
+      }
+      
+      return res.json({ success: true, message: 'Stop command sent' });
+      
+    } catch (error) {
+      console.error('[Chromecast] Stop error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Stop failed' 
+      });
+    }
+  });
+
+  // Chromecast device discovery using mDNS
+  app.get('/api/chromecast/discover', async (req: Request, res: Response) => {
+    try {
+      let mdns: any;
+      try {
+        // @ts-ignore - mdns-js doesn't have type definitions
+        mdns = await import('mdns-js');
+      } catch (e) {
+        console.warn('[Chromecast] mDNS library not available, falling back to manual discovery');
+        // Fallback: return empty array or check for known server on 192.168.0.21
+        // The user mentioned a server on 192.168.0.21 that uses "all cast"
+        // We can try to discover devices via that server if it exists
+        const fallbackDevices: Array<{ ip: string; name: string }> = [];
+        
+        // Try to check if there's a server on 192.168.0.21 that might have device info
+        try {
+          const response = await fetch('http://192.168.0.21:5000/api/chromecasts', {
+            signal: AbortSignal.timeout(3000),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.devices && Array.isArray(data.devices)) {
+              return res.json(data.devices.map((d: { ip: string; name: string }) => ({
+                ip: d.ip,
+                name: d.name,
+              })));
+            }
+          }
+        } catch (e) {
+          console.log('[Chromecast] Fallback server not available:', e instanceof Error ? e.message : String(e));
+          // Server not available, continue with empty result
+        }
+        
+        return res.json(fallbackDevices);
+      }
+
+      const timeout = parseInt(String(req.query.timeout)) || 5000;
+      const devices: Array<{ ip: string; name: string }> = [];
+      const seen = new Set<string>();
+
+      return new Promise((resolve, reject) => {
+        try {
+          const browser = mdns.createBrowser(mdns.tcp('googlecast'));
+
+          browser.on('ready', () => {
+            console.log('[Chromecast] mDNS browser ready, starting discovery...');
+            browser.discover();
+          });
+
+          browser.on('update', (data: any) => {
+            if (data.addresses && data.addresses.length > 0) {
+              const ip = data.addresses.find((addr: string) => addr.includes('.')) || data.addresses[0];
+              const key = `${ip}:${data.port || 8009}`;
+
+              if (!seen.has(key)) {
+                seen.add(key);
+
+                let name = data.fullname || data.host || 'Unknown Chromecast';
+                if (name.includes('._googlecast')) {
+                  name = name.split('._googlecast')[0];
+                }
+                name = name.replace(/-/g, ' ').replace(/\._tcp\.local$/, '');
+
+                const txtRecord = data.txt || [];
+                let friendlyName = name;
+
+                txtRecord.forEach((entry: string) => {
+                  if (typeof entry === 'string') {
+                    if (entry.startsWith('fn=')) {
+                      friendlyName = entry.substring(3);
+                    }
+                  }
+                });
+
+                devices.push({
+                  ip,
+                  name: friendlyName,
+                });
+
+                console.log(`[Chromecast] Discovered: ${friendlyName} at ${ip}`);
+              }
+            }
+          });
+
+          browser.on('error', (error: Error) => {
+            console.error('[Chromecast] mDNS browser error:', error);
+            // Don't reject here, let timeout handle it
+          });
+
+          setTimeout(() => {
+            try {
+              browser.stop();
+            } catch (e) {
+              // Ignore stop errors
+            }
+
+            console.log(`[Chromecast] Discovery complete, found ${devices.length} device(s)`);
+            
+            // Sort devices by name
+            devices.sort((a, b) => a.name.localeCompare(b.name));
+            
+            res.json(devices);
+            resolve(undefined);
+          }, timeout);
+        } catch (error) {
+          console.error('[Chromecast] Discovery setup error:', error);
+          res.status(500).json({ 
+            error: error instanceof Error ? error.message : 'Discovery setup failed' 
+          });
+          reject(error);
+        }
+      });
     } catch (error) {
       console.error('[Chromecast] Discovery error:', error);
       res.status(500).json({ 

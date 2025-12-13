@@ -10,6 +10,7 @@ import SettingsScreen from "@/screens/SettingsScreen";
 import ServerManagementScreen from "@/screens/ServerManagementScreen";
 import QobuzLoginScreen from "@/screens/QobuzLoginScreen";
 import DebugScreen from "@/screens/DebugScreen";
+import HistoryScreen from "@/screens/HistoryScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type BrowseStackParamList = {
@@ -20,6 +21,7 @@ export type BrowseStackParamList = {
   AllArtists: undefined;
   NowPlaying: undefined;
   Settings: undefined;
+  History: undefined;
   ServerManagement: undefined;
   QobuzLogin: undefined;
   Debug: undefined;
@@ -73,6 +75,11 @@ export default function BrowseStackNavigator() {
         name="Settings"
         component={SettingsScreen}
         options={{ headerTitle: "Settings" }}
+      />
+      <Stack.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="ServerManagement"

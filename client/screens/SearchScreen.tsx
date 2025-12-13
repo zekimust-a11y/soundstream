@@ -6,6 +6,9 @@ import {
   FlatList,
   Pressable,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -17,6 +20,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { SourceBadge } from "@/components/SourceBadge";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic, type Artist, type Album } from "@/hooks/useMusic";
 import { usePlayback, type Track } from "@/hooks/usePlayback";
@@ -39,7 +43,7 @@ export default function SearchScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
   const searchInputRef = useRef<TextInput>(null);
-  const { searchMusic, addToRecentlyPlayed, isFavoriteTrack, toggleFavoriteTrack } = useMusic();
+  const { searchMusic, addToRecentlyPlayed, isFavoriteTrack, toggleFavoriteTrack, activeServer } = useMusic();
   const { playTrack } = usePlayback();
 
   const [query, setQuery] = useState("");
@@ -112,12 +116,53 @@ export default function SearchScreen() {
       setResults({ artists: [], albums: [], tracks: [] });
       return;
     }
+    
+    // Check if server is offline
+    if (!activeServer || (activeServer && !activeServer.connected)) {
+      setResults({ artists: [], albums: [], tracks: [] });
+      setIsSearching(false);
+      return;
+    }
+    
     setIsSearching(true);
-    const searchResults = await searchMusic(text, { source, type });
-    setResults(searchResults);
-    setIsSearching(false);
-    saveRecentSearch(text);
-  }, [searchMusic, recentSearches]);
+    try {
+      console.log('Performing search:', { 
+        text, 
+        source, 
+        type, 
+        hasServer: !!activeServer,
+        serverHost: activeServer?.host,
+        serverPort: activeServer?.port,
+        serverConnected: activeServer?.connected
+      });
+      
+      if (!activeServer || !activeServer.connected) {
+        console.warn('Server not connected, cannot search');
+        setResults({ artists: [], albums: [], tracks: [] });
+        return;
+      }
+      
+      const searchResults = await searchMusic(text, { source, type });
+      console.log('Search results received:', { 
+        artists: searchResults.artists.length, 
+        albums: searchResults.albums.length, 
+        tracks: searchResults.tracks.length,
+        sampleArtists: searchResults.artists.slice(0, 3).map(a => a.name),
+        sampleAlbums: searchResults.albums.slice(0, 3).map(a => a.name),
+        sampleTracks: searchResults.tracks.slice(0, 3).map(t => t.title)
+      });
+      setResults(searchResults);
+      saveRecentSearch(text);
+    } catch (error) {
+      console.error('Search failed:', error);
+      if (error instanceof Error) {
+        console.error('Search error details:', error.message, error.stack);
+      }
+      setResults({ artists: [], albums: [], tracks: [] });
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchMusic, activeServer]);
 
   const handleSearch = useCallback(async (text: string) => {
     setQuery(text);
@@ -132,8 +177,10 @@ export default function SearchScreen() {
   useEffect(() => {
     if (query.length >= 2) {
       performSearch(query, sourceFilter, activeTab);
+    } else {
+      setResults({ artists: [], albums: [], tracks: [] });
     }
-  }, [sourceFilter, activeTab]);
+  }, [sourceFilter, activeTab, query, performSearch]);
 
   const getFilteredResults = (): SearchResult[] => {
     const allResults: SearchResult[] = [];
@@ -196,11 +243,14 @@ export default function SearchScreen() {
           style={({ pressed }) => [styles.resultRow, { opacity: pressed ? 0.6 : 1 }]}
           onPress={() => handleResultPress(item)}
         >
-          <Image
-            source={album.imageUrl || require("../assets/images/placeholder-album.png")}
-            style={styles.resultImage}
-            contentFit="cover"
-          />
+          <View style={styles.resultImageContainer}>
+            <Image
+              source={album.imageUrl || require("../assets/images/placeholder-album.png")}
+              style={styles.resultImage}
+              contentFit="cover"
+            />
+            <SourceBadge source={album.source} size={18} />
+          </View>
           <View style={styles.resultInfo}>
             <ThemedText style={styles.resultTitle} numberOfLines={1}>
               {album.name}
@@ -314,129 +364,169 @@ export default function SearchScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <View style={styles.searchContainer}>
-          <Feather name="search" size={18} color={Colors.light.textSecondary} style={styles.searchIcon} />
-          <TextInput
-            ref={searchInputRef}
-            style={styles.searchInput}
-            placeholder="Search music..."
-            placeholderTextColor={Colors.light.textTertiary}
-            value={query}
-            onChangeText={handleSearch}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-          />
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      >
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+          <View style={styles.searchContainer}>
+            <Feather name="search" size={20} color={Colors.light.textSecondary} style={styles.searchIcon} />
+            <TextInput
+              ref={searchInputRef}
+              style={styles.searchInput}
+              placeholder="Search your library..."
+              placeholderTextColor={Colors.light.textTertiary}
+              value={query}
+              onChangeText={handleSearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              blurOnSubmit={false}
+            />
+            {query.length > 0 ? (
+              <Pressable
+                style={({ pressed }) => [styles.clearButton, { opacity: pressed ? 0.6 : 1 }]}
+                onPress={() => {
+                  setQuery("");
+                  setResults({ artists: [], albums: [], tracks: [] });
+                  searchInputRef.current?.blur();
+                }}
+              >
+                <Feather name="x" size={18} color={Colors.light.textSecondary} />
+              </Pressable>
+            ) : null}
+          </View>
+
+          {query.length > 0 && (!activeServer || (activeServer && !activeServer.connected)) ? (
+            <View style={styles.offlineMessage}>
+              <Feather name="wifi-off" size={16} color={Colors.light.error} />
+              <ThemedText style={styles.offlineText}>Server is offline. Please connect to a server in Settings.</ThemedText>
+            </View>
+          ) : null}
+          
           {query.length > 0 ? (
-            <Pressable
-              style={({ pressed }) => [styles.clearButton, { opacity: pressed ? 0.6 : 1 }]}
-              onPress={() => {
-                setQuery("");
-                setResults({ artists: [], albums: [], tracks: [] });
-              }}
-            >
-              <Feather name="x" size={18} color={Colors.light.textSecondary} />
-            </Pressable>
+            <View style={styles.filtersRow}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tabsContainer}
+              >
+                {tabs.map((tab) => (
+                  <Pressable
+                    key={tab.key}
+                    style={({ pressed }) => [
+                      styles.tab,
+                      activeTab === tab.key && styles.tabActive,
+                      { opacity: pressed ? 0.6 : 1 },
+                    ]}
+                    onPress={() => setActiveTab(tab.key)}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.tabText,
+                        activeTab === tab.key && styles.tabTextActive,
+                      ]}
+                    >
+                      {tab.label}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.sourceFilters}
+              >
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sourceChip,
+                    sourceFilter === "all" && styles.sourceChipActive,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                  onPress={() => setSourceFilter("all")}
+                >
+                  <Feather name="globe" size={12} color={sourceFilter === "all" ? Colors.light.text : Colors.light.textSecondary} />
+                  <ThemedText style={[styles.sourceChipText, sourceFilter === "all" && styles.sourceChipTextActive]}>
+                    All
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sourceChip,
+                    sourceFilter === "local" && styles.sourceChipActive,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                  onPress={() => setSourceFilter("local")}
+                >
+                  <Feather name="server" size={12} color={sourceFilter === "local" ? Colors.light.text : Colors.light.textSecondary} />
+                  <ThemedText style={[styles.sourceChipText, sourceFilter === "local" && styles.sourceChipTextActive]}>
+                    Local
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sourceChip,
+                    sourceFilter === "qobuz" && styles.sourceChipActive,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                  onPress={() => setSourceFilter("qobuz")}
+                >
+                  <ThemedText style={[styles.qobuzIcon, sourceFilter === "qobuz" && styles.qobuzIconActive]}>Q</ThemedText>
+                  <ThemedText style={[styles.sourceChipText, sourceFilter === "qobuz" && styles.sourceChipTextActive]}>
+                    Qobuz
+                  </ThemedText>
+                </Pressable>
+              </ScrollView>
+            </View>
           ) : null}
         </View>
 
-        {query.length > 0 ? (
-          <>
-            <View style={styles.tabsContainer}>
-              {tabs.map((tab) => (
-                <Pressable
-                  key={tab.key}
-                  style={({ pressed }) => [
-                    styles.tab,
-                    activeTab === tab.key && styles.tabActive,
-                    { opacity: pressed ? 0.6 : 1 },
-                  ]}
-                  onPress={() => setActiveTab(tab.key)}
-                >
-                  <ThemedText
-                    style={[
-                      styles.tabText,
-                      activeTab === tab.key && styles.tabTextActive,
-                    ]}
-                  >
-                    {tab.label}
-                  </ThemedText>
-                </Pressable>
-              ))}
-            </View>
-            <View style={styles.sourceFilters}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.sourceChip,
-                  sourceFilter === "all" && styles.sourceChipActive,
-                  { opacity: pressed ? 0.6 : 1 },
-                ]}
-                onPress={() => setSourceFilter("all")}
-              >
-                <Feather name="globe" size={12} color={sourceFilter === "all" ? Colors.light.text : Colors.light.textSecondary} />
-                <ThemedText style={[styles.sourceChipText, sourceFilter === "all" && styles.sourceChipTextActive]}>
-                  All Sources
-                </ThemedText>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.sourceChip,
-                  sourceFilter === "local" && styles.sourceChipActive,
-                  { opacity: pressed ? 0.6 : 1 },
-                ]}
-                onPress={() => setSourceFilter("local")}
-              >
-                <Feather name="server" size={12} color={sourceFilter === "local" ? Colors.light.text : Colors.light.textSecondary} />
-                <ThemedText style={[styles.sourceChipText, sourceFilter === "local" && styles.sourceChipTextActive]}>
-                  Local
-                </ThemedText>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.sourceChip,
-                  sourceFilter === "qobuz" && styles.sourceChipActive,
-                  { opacity: pressed ? 0.6 : 1 },
-                ]}
-                onPress={() => setSourceFilter("qobuz")}
-              >
-                <ThemedText style={[styles.qobuzIcon, sourceFilter === "qobuz" && styles.qobuzIconActive]}>Q</ThemedText>
-                <ThemedText style={[styles.sourceChipText, sourceFilter === "qobuz" && styles.sourceChipTextActive]}>
-                  Qobuz
-                </ThemedText>
-              </Pressable>
-            </View>
-          </>
-        ) : null}
-      </View>
-
-      {query.length === 0 ? (
-        <View style={[styles.recentWrapper, { paddingBottom: tabBarHeight + Spacing["5xl"] }]}>
-          {renderRecentSearches()}
-        </View>
-      ) : (
-        <FlatList
-          data={filteredResults}
-          renderItem={renderResult}
-          keyExtractor={(item) => `${item.type}-${(item.data as any).id}`}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: tabBarHeight + Spacing["5xl"] },
-            filteredResults.length === 0 && styles.emptyListContent,
-          ]}
-          ListEmptyComponent={
-            !isSearching ? (
-              <View style={styles.emptyState}>
-                <Feather name="search" size={48} color={Colors.light.textTertiary} />
-                <ThemedText style={styles.emptyTitle}>No results found</ThemedText>
-                <ThemedText style={styles.emptySubtitle}>
-                  Try a different search term
-                </ThemedText>
-              </View>
-            ) : null
-          }
-        />
-      )}
+        {query.length === 0 ? (
+          <ScrollView
+            style={styles.recentWrapper}
+            contentContainerStyle={[styles.recentContent, { paddingBottom: tabBarHeight + Spacing.xl }]}
+            keyboardShouldPersistTaps="handled"
+          >
+            {renderRecentSearches()}
+          </ScrollView>
+        ) : (
+          <FlatList
+            data={filteredResults}
+            renderItem={renderResult}
+            keyExtractor={(item) => `${item.type}-${(item.data as any).id}`}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: tabBarHeight + Spacing.xl },
+              filteredResults.length === 0 && styles.emptyListContent,
+            ]}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              !isSearching ? (
+                <View style={styles.emptyState}>
+                  {!activeServer || (activeServer && !activeServer.connected) ? (
+                    <>
+                      <Feather name="wifi-off" size={48} color={Colors.light.error} />
+                      <ThemedText style={styles.emptyTitle}>Server Offline</ThemedText>
+                      <ThemedText style={styles.emptySubtitle}>
+                        Please connect to a server in Settings to search
+                      </ThemedText>
+                    </>
+                  ) : (
+                    <>
+                      <Feather name="search" size={48} color={Colors.light.textTertiary} />
+                      <ThemedText style={styles.emptyTitle}>No results found</ThemedText>
+                      <ThemedText style={styles.emptySubtitle}>
+                        Try a different search term
+                      </ThemedText>
+                    </>
+                  )}
+                </View>
+              ) : null
+            }
+          />
+        )}
+      </KeyboardAvoidingView>
     </ThemedView>
   );
 }
@@ -446,49 +536,65 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundRoot,
   },
+  keyboardAvoid: {
+    flex: 1,
+  },
   header: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
+    backgroundColor: Colors.light.backgroundRoot,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.border,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.light.backgroundSecondary,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
+    height: 44,
+    marginBottom: Spacing.sm,
   },
   searchIcon: {
     marginRight: Spacing.sm,
   },
   searchInput: {
     flex: 1,
-    height: Spacing.inputHeight,
+    height: 44,
     color: Colors.light.text,
     ...Typography.body,
+    fontSize: 16,
   },
   clearButton: {
     padding: Spacing.sm,
   },
+  filtersRow: {
+    marginTop: Spacing.sm,
+    gap: Spacing.xs,
+  },
   tabsContainer: {
     flexDirection: "row",
-    marginTop: Spacing.md,
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
   },
   tab: {
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.xs + 2,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.light.backgroundSecondary,
+    marginRight: Spacing.xs,
   },
   tabActive: {
-    backgroundColor: Colors.light.accent,
+    backgroundColor: "#000",
   },
   tabText: {
     ...Typography.caption,
+    fontSize: 13,
     color: Colors.light.textSecondary,
+    fontWeight: "500",
   },
   tabTextActive: {
-    color: Colors.light.text,
+    color: "#FFF",
     fontWeight: "600",
   },
   listContent: {
@@ -505,6 +611,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.light.border,
+  },
+  resultImageContainer: {
+    position: "relative",
   },
   resultImage: {
     width: 48,
@@ -551,8 +660,8 @@ const styles = StyleSheet.create({
   },
   sourceFilters: {
     flexDirection: "row",
-    marginTop: Spacing.sm,
     gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
   },
   sourceChip: {
     flexDirection: "row",
@@ -605,7 +714,10 @@ const styles = StyleSheet.create({
   },
   recentWrapper: {
     flex: 1,
+  },
+  recentContent: {
     paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
   },
   recentContainer: {
     flex: 1,
@@ -640,5 +752,20 @@ const styles = StyleSheet.create({
   },
   removeButton: {
     padding: Spacing.xs,
+  },
+  offlineMessage: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    backgroundColor: Colors.light.error + "15",
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
+  },
+  offlineText: {
+    flex: 1,
+    ...Typography.caption,
+    color: Colors.light.error,
+    fontSize: 13,
   },
 });

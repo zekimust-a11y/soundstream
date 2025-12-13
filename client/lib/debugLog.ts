@@ -36,15 +36,40 @@ export const debugLog = {
 };
 
 function addLog(type: LogEntry['type'], message: string, details?: string) {
-  logs.unshift({
+  const entry: LogEntry = {
     timestamp: new Date(),
     type,
     message,
     details
-  });
+  };
+  
+  logs.unshift(entry);
   if (logs.length > MAX_ENTRIES) {
     logs = logs.slice(0, MAX_ENTRIES);
   }
+  
+  // Also output to console for remote debugging
+  const fullMessage = details ? `${message} - ${details}` : message;
+  const timestamp = entry.timestamp.toLocaleTimeString();
+  const prefix = `[${timestamp}] [${type.toUpperCase()}]`;
+  
+  switch (type) {
+    case 'error':
+      console.error(prefix, fullMessage);
+      break;
+    case 'info':
+      console.log(prefix, fullMessage);
+      break;
+    case 'request':
+      console.log(prefix, '→', fullMessage);
+      break;
+    case 'response':
+      console.log(prefix, '←', fullMessage);
+      break;
+    default:
+      console.log(prefix, fullMessage);
+  }
+  
   notifyListeners();
 }
 

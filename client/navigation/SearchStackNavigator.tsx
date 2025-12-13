@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import SearchScreen from "@/screens/SearchScreen";
 import ArtistScreen from "@/screens/ArtistScreen";
@@ -21,7 +22,13 @@ export default function SearchStackNavigator() {
       <Stack.Screen
         name="Search"
         component={SearchScreen}
-        options={{ headerShown: false }}
+        options={{ 
+          headerShown: false,
+          // Prevent keyboard from pushing content up and hiding tab bar
+          ...(Platform.OS === 'android' && {
+            keyboardHandlingEnabled: false,
+          }),
+        }}
       />
       <Stack.Screen
         name="Artist"

@@ -139,26 +139,50 @@ export const Fonts = Platform.select({
   },
 });
 
+const createShadow = (webShadow: string, nativeShadow: {
+  shadowColor: string;
+  shadowOffset: { width: number; height: number };
+  shadowOpacity: number;
+  shadowRadius: number;
+  elevation: number;
+}) => {
+  return Platform.select({
+    web: {
+      boxShadow: webShadow,
+    },
+    default: nativeShadow,
+  }) || nativeShadow;
+};
+
 export const Shadows = {
-  small: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  medium: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  large: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8,
-  },
+  small: createShadow(
+    "0px 2px 4px rgba(0, 0, 0, 0.1)",
+    {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    }
+  ),
+  medium: createShadow(
+    "0px 4px 8px rgba(0, 0, 0, 0.15)",
+    {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 4,
+    }
+  ),
+  large: createShadow(
+    "0px 8px 16px rgba(0, 0, 0, 0.2)",
+    {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.2,
+      shadowRadius: 16,
+      elevation: 8,
+    }
+  ),
 };

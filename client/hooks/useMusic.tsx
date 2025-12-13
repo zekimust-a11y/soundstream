@@ -20,6 +20,7 @@ export interface Album {
   imageUrl?: string;
   year?: number;
   trackCount?: number;
+  source?: "local" | "qobuz";
 }
 
 export interface Server {
@@ -61,6 +62,7 @@ interface MusicContextType {
   addServer: (server: Omit<Server, "id" | "connected">) => void;
   removeServer: (id: string) => void;
   setActiveServer: (server: Server | null) => void;
+  updateServerConnectionStatus: () => Promise<void>;
   connectQobuz: (email: string, password: string) => Promise<boolean>;
   disconnectQobuz: () => void;
   searchMusic: (query: string, filters?: SearchFilters) => Promise<{ artists: Artist[]; albums: Album[]; tracks: Track[] }>;
@@ -93,13 +95,20 @@ const PLAYLISTS_KEY = "@soundstream_playlists";
 
 const DEFAULT_FAVORITES: Favorites = { artists: [], albums: [], tracks: [] };
 
-const convertLmsArtistToArtist = (lmsArtist: LmsArtist): Artist => ({
-  id: lmsArtist.id,
-  name: lmsArtist.name,
-  albumCount: lmsArtist.albumCount,
-});
+const convertLmsArtistToArtist = (lmsArtist: LmsArtist): Artist => {
+  const artist: Artist = {
+    id: lmsArtist.id,
+    name: lmsArtist.name,
+    albumCount: lmsArtist.albumCount,
+  };
+  // Preserve artworkUrl if it was added to the lmsArtist
+  if ((lmsArtist as any).artworkUrl) {
+    artist.imageUrl = (lmsArtist as any).artworkUrl;
+  }
+  return artist;
+};
 
-const convertLmsAlbumToAlbum = (lmsAlbum: LmsAlbum): Album => ({
+const convertLmsAlbumToAlbum = (lmsAlbum: LmsAlbum, source: "local" | "qobuz" = "local"): Album => ({
   id: lmsAlbum.id,
   name: lmsAlbum.title,
   artist: lmsAlbum.artist,
@@ -107,6 +116,7 @@ const convertLmsAlbumToAlbum = (lmsAlbum: LmsAlbum): Album => ({
   imageUrl: lmsClient.getArtworkUrl(lmsAlbum),
   year: lmsAlbum.year,
   trackCount: lmsAlbum.trackCount,
+  source,
 });
 
 const convertLmsTrackToTrack = (lmsTrack: LmsTrack, serverId: string): Track => ({
@@ -251,6 +261,63 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     saveServers(servers, server?.id);
   }, [servers]);
 
+  const checkServerConnection = useCallback(async (server: Server): Promise<boolean> => {
+    // Store original server settings
+    const originalServer = activeServer ? { host: activeServer.host, port: activeServer.port } : null;
+    
+    try {
+      // Temporarily switch to this server to check connection
+      lmsClient.setServer(server.host, server.port);
+      await lmsClient.getServerStatus();
+      // Restore original server
+      if (originalServer) {
+        lmsClient.setServer(originalServer.host, originalServer.port);
+      }
+      return true;
+    } catch (error) {
+      // Restore original server
+      if (originalServer) {
+        lmsClient.setServer(originalServer.host, originalServer.port);
+      }
+      return false;
+    }
+  }, [activeServer]);
+
+  const updateServerConnectionStatus = useCallback(async () => {
+    if (servers.length === 0) return;
+    
+    const updatedServers = await Promise.all(
+      servers.map(async (server) => {
+        const isConnected = await checkServerConnection(server);
+        return { ...server, connected: isConnected };
+      })
+    );
+    
+    setServers(updatedServers);
+    
+    // If the active server is no longer connected, clear it
+    if (activeServer) {
+      const activeServerUpdated = updatedServers.find(s => s.id === activeServer.id);
+      if (activeServerUpdated && !activeServerUpdated.connected) {
+        setActiveServerState(null);
+        saveServers(updatedServers, undefined);
+      } else {
+        // Keep the active server ID if it's still connected
+        saveServers(updatedServers, activeServer.id);
+      }
+    } else {
+      // If no active server, automatically set the first connected server as active
+      const firstConnected = updatedServers.find(s => s.connected);
+      if (firstConnected) {
+        setActiveServerState(firstConnected);
+        lmsClient.setServer(firstConnected.host, firstConnected.port);
+        saveServers(updatedServers, firstConnected.id);
+      } else {
+        saveServers(updatedServers, undefined);
+      }
+    }
+  }, [servers, activeServer, checkServerConnection]);
+
   const connectQobuz = useCallback(async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -272,23 +339,69 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const searchMusic = useCallback(async (query: string, filters?: SearchFilters) => {
     if (!activeServer) {
+      debugLog.info('No active server for search', 'Returning empty results');
       return { artists: [], albums: [], tracks: [] };
     }
     
     try {
+      // Ensure server is set before searching
+      lmsClient.setServer(activeServer.host, activeServer.port);
+      
       const sourceFilter = filters?.source || "all";
       const typeFilter = filters?.type || "all";
+      
+      debugLog.info('Starting search', { query, sourceFilter, typeFilter, server: `${activeServer.host}:${activeServer.port}` });
+      
+      // When "all sources" is selected, use globalSearch which searches both LMS library and entire Qobuz catalog
+      if (sourceFilter === "all") {
+        try {
+          const result = await lmsClient.globalSearch(query);
+          // Determine source for tracks based on URL or ID
+          const tracksWithSource = result.tracks.map(t => {
+            const url = t.url || '';
+            const id = t.id || '';
+            const source = (url.includes('qobuz') || id.startsWith('qobuz_')) ? 'qobuz' : 'local';
+            return { ...convertLmsTrackToTrack(t, activeServer.id), source };
+          });
+          
+          const albumsWithSource = result.albums.map(album => {
+            const url = album.artwork_url || '';
+            const id = album.id || '';
+            const source = (url.includes('qobuz') || id.startsWith('qobuz_')) ? 'qobuz' : 'local';
+            return convertLmsAlbumToAlbum(album, source);
+          });
+          
+          return {
+            artists: (typeFilter === "all" || typeFilter === "artists") 
+              ? result.artists.map(convertLmsArtistToArtist)
+              : [],
+            albums: (typeFilter === "all" || typeFilter === "albums") 
+              ? albumsWithSource
+              : [],
+            tracks: (typeFilter === "all" || typeFilter === "tracks") 
+              ? tracksWithSource 
+              : [],
+          };
+        } catch (e) {
+          debugLog.info('Global search failed, falling back to separate searches', e instanceof Error ? e.message : String(e));
+          // Fall through to separate searches for both local and qobuz
+        }
+      }
       
       let localResult = { artists: [] as any[], albums: [] as any[], tracks: [] as any[] };
       let qobuzResult = { artists: [] as any[], albums: [] as any[], tracks: [] as any[] };
       
       if (sourceFilter === "local" || sourceFilter === "all") {
-        const result = await lmsClient.search(query);
-        localResult = {
-          artists: result.artists.map(convertLmsArtistToArtist),
-          albums: result.albums.map(convertLmsAlbumToAlbum),
-          tracks: result.tracks.map(t => ({ ...convertLmsTrackToTrack(t, activeServer.id), source: 'local' })),
-        };
+        try {
+          const result = await lmsClient.search(query);
+          localResult = {
+            artists: result.artists.map(convertLmsArtistToArtist),
+            albums: result.albums.map(album => convertLmsAlbumToAlbum(album, 'local')),
+            tracks: result.tracks.map(t => ({ ...convertLmsTrackToTrack(t, activeServer.id), source: 'local' })),
+          };
+        } catch (e) {
+          debugLog.info('Local search failed', e instanceof Error ? e.message : String(e));
+        }
       }
       
       if (sourceFilter === "qobuz" || sourceFilter === "all") {
@@ -296,7 +409,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
           const result = await lmsClient.searchQobuz(query);
           qobuzResult = {
             artists: result.artists.map(convertLmsArtistToArtist),
-            albums: result.albums.map(convertLmsAlbumToAlbum),
+            albums: result.albums.map(album => convertLmsAlbumToAlbum(album, 'qobuz')),
             tracks: result.tracks.map(t => ({ ...convertLmsTrackToTrack(t, activeServer.id), source: 'qobuz' })),
           };
         } catch (e) {
@@ -359,6 +472,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     debugLog.info('Invalidating library cache');
     queryClient.invalidateQueries({ queryKey: ['albums'] });
     queryClient.invalidateQueries({ queryKey: ['artists'] });
+    
+    // Force refetch of radio stations
+    await queryClient.refetchQueries({ queryKey: ['radio'] });
     
     // Also refresh playlist count from LMS
     try {
@@ -559,6 +675,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         addServer,
         removeServer,
         setActiveServer,
+        updateServerConnectionStatus,
         connectQobuz,
         disconnectQobuz,
         searchMusic,

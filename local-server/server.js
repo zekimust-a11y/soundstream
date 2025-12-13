@@ -137,9 +137,12 @@ async function startCasting() {
   // Set flag immediately to prevent duplicate calls
   isCasting = true;
 
-  const nowPlayingUrl = `http://${serverIp}:${PORT}/now-playing?host=${LMS_HOST}&port=${LMS_PORT}&player=${encodeURIComponent(currentPlayerId)}`;
+  // Use preferredPlayerId if set, otherwise use currentPlayerId
+  // This ensures we use the player that the app selected, not an auto-selected one
+  const playerToUse = preferredPlayerId || currentPlayerId;
+  const nowPlayingUrl = `http://${serverIp}:${PORT}/now-playing?host=${LMS_HOST}&port=${LMS_PORT}&player=${encodeURIComponent(playerToUse)}`;
   
-  console.log('Starting cast to:', nowPlayingUrl);
+  console.log(`Starting cast to: ${nowPlayingUrl} (player: ${playerToUse})`);
 
   // Use catt to cast the URL to Chromecast
   const cattCmd = `catt -d "${chromecastIp}" cast_site "${nowPlayingUrl}"`;
@@ -171,23 +174,33 @@ function stopCasting() {
 
 async function pollLmsStatus() {
   try {
-    if (!currentPlayerId) {
-      // Use preferred player if configured
+    // Determine which player to use: prefer preferredPlayerId (set by app), otherwise use currentPlayerId
+    let activePlayerId = preferredPlayerId || currentPlayerId;
+    
+    if (!activePlayerId) {
+      // No player selected yet, try to get one
       if (preferredPlayerId) {
+        activePlayerId = preferredPlayerId;
         currentPlayerId = preferredPlayerId;
         console.log('Using preferred player:', preferredPlayerName || preferredPlayerId);
       } else {
         const players = await getPlayers();
         if (players.length > 0) {
-          currentPlayerId = players[0].playerid;
+          activePlayerId = players[0].playerid;
+          currentPlayerId = activePlayerId;
           console.log('Auto-selected player:', players[0].name);
         } else {
           return;
         }
       }
+    } else if (preferredPlayerId && preferredPlayerId !== currentPlayerId) {
+      // Preferred player changed, update currentPlayerId
+      currentPlayerId = preferredPlayerId;
+      activePlayerId = preferredPlayerId;
+      console.log('Switched to preferred player:', preferredPlayerName || preferredPlayerId);
     }
 
-    const status = await getPlayerStatus(currentPlayerId);
+    const status = await getPlayerStatus(activePlayerId);
     if (!status) return;
 
     const mode = status.mode;
