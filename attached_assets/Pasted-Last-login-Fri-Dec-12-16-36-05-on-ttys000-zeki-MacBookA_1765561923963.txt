@@ -1,0 +1,38 @@
+Last login: Fri Dec 12 16:36:05 on ttys000
+zeki@MacBookAir ~ % cd ~/Downloads/local-server && swiftc -O -o mosaic-volume mosaic-volume.swift && ./mosaic-volume --drag-up 10
+mosaic-volume.swift:145:9: warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+143 |     
+144 |     let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+145 |     let subrole = getStringAttribute(element, kAXSubroleAttribute as String) ?? ""
+    |         `- warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+146 |     let title = (getStringAttribute(element, kAXTitleAttribute as String) ?? "").lowercased()
+147 |     let description = (getStringAttribute(element, kAXDescriptionAttribute as String) ?? "").lowercased()
+{"error":"Mosaic app not found. Please ensure it is running.","success":false}
+zeki@MacBookAir local-server % cd ~/Downloads/local-server && swiftc -O -o mosaic-volume mosaic-volume.swift && ./mosaic-volume --drag-up 10
+mosaic-volume.swift:145:9: warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+143 |     
+144 |     let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+145 |     let subrole = getStringAttribute(element, kAXSubroleAttribute as String) ?? ""
+    |         `- warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+146 |     let title = (getStringAttribute(element, kAXTitleAttribute as String) ?? "").lowercased()
+147 |     let description = (getStringAttribute(element, kAXDescriptionAttribute as String) ?? "").lowercased()
+{"message":"Dragged volume up by 10.0","success":true}
+zeki@MacBookAir local-server % cd ~/Downloads/local-server && swiftc -O -o mosaic-volume mosaic-volume.swift && ./mosaic-volume --drag-up 10
+mosaic-volume.swift:145:9: warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+143 |     
+144 |     let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+145 |     let subrole = getStringAttribute(element, kAXSubroleAttribute as String) ?? ""
+    |         `- warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+146 |     let title = (getStringAttribute(element, kAXTitleAttribute as String) ?? "").lowercased()
+147 |     let description = (getStringAttribute(element, kAXDescriptionAttribute as String) ?? "").lowercased()
+{"message":"Dragged volume up by 10.0","success":true}
+zeki@MacBookAir local-server % cd ~/Downloads/local-server && swiftc -O -o mosaic-volume mosaic-volume.swift && ./mosaic-volume --drag-up 10
+mosaic-volume.swift:145:9: warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+143 |     
+144 |     let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+145 |     let subrole = getStringAttribute(element, kAXSubroleAttribute as String) ?? ""
+    |         `- warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+146 |     let title = (getStringAttribute(element, kAXTitleAttribute as String) ?? "").lowercased()
+147 |     let description = (getStringAttribute(element, kAXDescriptionAttribute as String) ?? "").lowercased()
+{"message":"Dragged volume up by 10.0","success":true}
+zeki@MacBookAir local-server % 

@@ -1,0 +1,40 @@
+    LMS Host: 192.168.0.19
+    LMS Port: 9000
+    Chromecast: (not set)
+    Pause Timeout: 5 seconds
+
+  Environment Variables:
+    LMS_HOST=<ip>        - LMS server IP
+    LMS_PORT=<port>      - LMS port (default: 9000)
+    CHROMECAST_IP=<ip>   - Initial Chromecast IP (can be set via app)
+    PAUSE_TIMEOUT=<ms>   - Pause timeout (default: 5000)
+    ENABLE_KEYBOARD=true - Enable keyboard/IR control
+
+  Now Playing URL:
+    http://192.168.0.21:3000/now-playing
+
+===========================================
+
+Starting LMS status polling...
+Keymap loaded: 14 key mappings
+Keyboard/IR remote control enabled
+  Press keys to control playback (Ctrl+C to exit)
+Auto-selected player: [LG] webOS TV OLED48C26LB
+/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/server.js:487
+  const { host, port, playerId, command } = req.body;
+          ^
+
+TypeError: Cannot destructure property 'host' of 'req.body' as it is undefined.
+    at /Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/server.js:487:11
+    at Layer.handle [as handle_request] (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/express/lib/router/layer.js:95:5)
+    at next (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/express/lib/router/layer.js:95:5)
+    at /Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/express/lib/router/index.js:284:15
+    at router.process_params (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/express/lib/router/index.js:346:12)
+    at next (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/express/lib/router/index.js:280:10)
+    at serveStatic (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/serve-static/index.js:75:16)
+    at Layer.handle [as handle_request] (/Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My Drive/Personal/Audio App/local-server/node_modules/express/lib/router/layer.js:95:5)
+
+Node.js v25.2.1
+zeki@ButtercupMiniM2 local-server % 

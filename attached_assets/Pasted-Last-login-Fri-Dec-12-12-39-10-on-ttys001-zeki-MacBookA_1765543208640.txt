@@ -1,0 +1,18 @@
+Last login: Fri Dec 12 12:39:10 on ttys001
+zeki@MacBookAir ~ % curl -v http://192.168.0.42:16500/e8eab684-2b3b-4521-92cf-7f1a2c4421dd.xml
+*   Trying 192.168.0.42:16500...
+* Connected to 192.168.0.42 (192.168.0.42) port 16500
+> GET /e8eab684-2b3b-4521-92cf-7f1a2c4421dd.xml HTTP/1.1
+> Host: 192.168.0.42:16500
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 200 OK
+< Date: Fri, 12 Dec 2025 12:40:03 GMT
+< Content-Type: text/xml; charset="utf-8"
+< Accept-Ranges: bytes
+< Content-Length: 2775
+< 
+* Connection #0 to host 192.168.0.42 left intact
+<?xml version="1.0" encoding="UTF-8"?><root xmlns="urn:schemas-upnp-org:device-1-0" xmlns:dlna="urn:schemas-dlna-org:device-1-0" xmlns:qq="http://www.tencent.com"><specVersion><major>1</major><minor>0</minor></specVersion><device><qq:X_QPlay_SoftwareCapability>QPlay:2.1</qq:X_QPlay_SoftwareCapability><deviceType>urn:schemas-upnp-org:device:MediaRenderer:2</deviceType><friendlyName>Living room</friendlyName><manufacturer>dCS Audio</manufacturer><manufacturerURL>http://www.dcsaudio.com/</manufacturerURL><modelDescription/><modelName>Varèse Core</modelName><modelNumber/><modelURL>http://www.dcsaudio.com/</modelURL><serialNumber>a765ce93-2992-4ef2-a27f-a2a005665f35</serialNumber><UDN>uuid:e8eab684-2b3b-4521-92cf-7f1a2c4421dd</UDN><iconList><icon><mimetype>image/png</mimetype><width>120</width><height>120</height><depth>24</depth><url>/LibRygelRenderer-120x120x24.png</url></icon><icon><mimetype>image/png</mimetype><width>48</width><height>48</height><depth>24</depth><url>/LibRygelRenderer-48x48x24.png</url></icon><icon><mimetype>image/jpeg</mimetype><width>120</width><height>120</height><depth>24</depth><url>/LibRygelRenderer-120x120x24.jpg</url></icon><icon><mimetype>image/jpeg</mimetype><width>48</width><height>48</height><depth>24</depth><url>/LibRygelRenderer-48x48x24.jpg</url></icon></iconList><serviceList><service><serviceType>urn:schemas-upnp-org:service:ConnectionManager:2</serviceType><serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId><SCPDURL>/xml/ConnectionManager.xml</SCPDURL><controlURL>/Control/LibRygelRenderer/RygelSinkConnectionManager</controlURL><eventSubURL>/Event/LibRygelRenderer/RygelSinkConnectionManager</eventSubURL></service><service><serviceType>urn:schemas-upnp-org:service:AVTransport:2</serviceType><serviceId>urn:upnp-org:serviceId:AVTransport</serviceId><SCPDURL>/xml/AVTransport2.xml</SCPDURL><controlURL>/Control/LibRygelRenderer/RygelAVTransport</controlURL><eventSubURL>/Event/LibRygelRenderer/RygelAVTransport</eventSubURL></service><service><serviceType>urn:schemas-upnp-org:service:RenderingControl:2</serviceType><serviceId>urn:upnp-org:serviceId:RenderingControl</serviceId><SCPDURL>/xml/RenderingControl2.xml</SCPDURL><controlURL>/Control/LibRygelRenderer/RygelRenderingControl</controlURL><eventSubURL>/Event/LibRygelRenderer/RygelRenderingControl</eventSubURL></service><service><serviceType>urn:schemas-tencent-com:service:QPlay:1</serviceType><serviceId>urn:tencent-com:serviceId:QPlay</serviceId><SCPDURL>/xml/QPlayDescription.xml</SCPDURL><controlURL>/Control/LibRygelRenderer/QPlay</controlURL><eventSubURL>/Event/LibRygelRenderer/QPlay</eventSubURL></service></serviceList><presentationURL>http://192.168.0.42:17879/</presentationURL><dlna:X_DLNADOC>DMR-1.51</dlna:X_DLNADOC></device></root>%                         zeki@MacBookAir ~ % 

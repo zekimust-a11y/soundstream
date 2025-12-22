@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Now Playing - SoundStream</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #000;
+      color: white;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    .background-layer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+      background-position: center;
+      opacity: 0;
+      transition: opacity 2s ease-in-out;
+      z-index: 0;
+    }
+    
+    .background-layer.active {
+      opacity: 1;
+    }
+    
+    .background-layer.behind {
+      z-index: 0;
+    }
+    
+    .background-layer.front {
+      z-index: 1;
+    }
+    
+    .background-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, 
+        rgba(0,0,0,0.2) 0%, 
+        rgba(0,0,0,0.1) 30%,
+        rgba(0,0,0,0.3) 70%,
+        rgba(0,0,0,0.8) 100%
+      );
+    }
+    
+    .bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(240, 240, 240, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      z-index: 10;
+    }
+    
+    .thumbnail {
+      width: 96px;
+      height: 96px;
+      border-radius: 4px;
+      object-fit: cover;
+      flex-shrink: 0;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+    }
+    
+    .info {
+      flex: 1;
+      min-width: 0;
+      color: #1a1a1a;
+    }
+    
+    .title {
+      font-size: 1.6rem;
+      font-weight: 600;
+      line-height: 1.2;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .artist {
+      font-size: 1.1rem;
+      font-weight: 400;
+      color: #666;
+      margin-bottom: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .progress-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .time {
+      font-size: 0.85rem;
+      color: #888;
+      font-variant-numeric: tabular-nums;
+      min-width: 42px;
+    }
+    
+    .time.current {
+      text-align: left;
+    }
+    
+    .time.duration {
+      text-align: right;
+    }
+    
+    .waveform-container {
+      flex: 1;
+      height: 32px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    
+    .waveform {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    
+    .waveform-bar {
+      flex: 1;
+      background: #ddd;
+      border-radius: 2px;
+      transition: background-color 0.3s;
+    }
+    
+    .waveform-bar.played {
+      background: #333;
+    }
+    
+    .not-playing-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    }
+    
+    .not-playing {
+      text-align: center;
+    }
+    
+    .not-playing h2 {
+      font-size: 3rem;
+      font-weight: 300;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 16px;
+    }
+    
+    .not-playing p {
+      font-size: 1.25rem;
+      color: rgba(255,255,255,0.4);
+    }
+    
+    .error {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      padding: 30px 50px;
+      border-radius: 16px;
+      text-align: center;
+    }
+    
+    .error h3 {
+      color: #ef4444;
+      margin-bottom: 12px;
+      font-size: 1.5rem;
+    }
+    
+    .error p {
+      color: rgba(255,255,255,0.7);
+    }
+  </style>
+</head>
+<body>
+  <div id="content">
+    <div class="not-playing-container">
+      <div class="not-playing">
+        <h2>Connecting to LMS...</h2>
+        <p>Please wait</p>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Try to get parameters from URL first, fall back to embedded params
+    const params = new URLSearchParams(window.location.search);
+    let host = params.get('host') || '';
+    let port = params.get('port') || '9000';
+    let playerId = params.get('player') || '';
+    
+    // If URL params are missing, try embedded params (for Chromecast compatibility)
+    if ((!host || !playerId) && window.EMBEDDED_PARAMS) {
+      console.log('Using embedded params as fallback');
+      host = window.EMBEDDED_PARAMS.host || host;
+      port = window.EMBEDDED_PARAMS.port || port;
+      playerId = window.EMBEDDED_PARAMS.player || playerId;
+    }
+    
+    // Default fallback if still missing
+    if (!host) host = '192.168.0.19';
+    if (!port) port = '9000';
+    
+    // Use proxy endpoint to avoid CORS issues
+    const proxyUrl = '/api/lms/proxy';
+    
+    // Artist image cycling
+    let artistImages = [];
+    let currentImageIndex = 0;
+    let currentArtist = '';
+    let imageRotationTimer = null;
+    let lastTrackId = '';
+    let activeBackgroundLayer = 0; // 0 or 1 for crossfade
+    
+    // TheAudioDB API (free tier)
+    const AUDIODB_API_KEY = '2';
+    
+    function generateWaveformHeights(count) {
+      const heights = [];
+      for (let i = 0; i < count; i++) {
+        const baseHeight = 20 + Math.random() * 60;
+        heights.push(baseHeight);
+      }
+      return heights;
+    }
+    
+    const waveformHeights = generateWaveformHeights(80);
+    
+    async function lmsRequest(pid, command) {
+      const response = await fetch(proxyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: host,
+          port: parseInt(port) || 9000,
+          playerId: pid,
+          command: command
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      // Handle both direct result and wrapped response
+      return data.result || data;
+    }
+    
+    async function getPlayers() {
+      try {
+        const result = await lmsRequest('', ['players', '0', '100']);
+        return result.players_loop || [];
+      } catch (e) {
+        console.error('Failed to get players:', e);
+        return [];
+      }
+    }
+    
+    async function getPlayerStatus(pid) {
+      try {
+        const result = await lmsRequest(pid, ['status', '-', '1', 'tags:aAlcdegiIKloNrstuwy']);
+        return result;
+      } catch (e) {
+        console.error('Failed to get player status:', e);
+        return null;
+      }
+    }
+    
+    async function fetchArtistImages(artistName) {
+      if (!artistName || artistName === currentArtist) return;
+      
+      currentArtist = artistName;
+      artistImages = [];
+      currentImageIndex = 0;
+      
+      try {
+        const response = await fetch(`https://www.theaudiodb.com/api/v1/json/${AUDIODB_API_KEY}/search.php?s=${encodeURIComponent(artistName)}`);
+        const data = await response.json();
+        
+        if (data.artists && data.artists.length > 0) {
+          const artist = data.artists[0];
+          const images = [];
+          
+          // Collect all available artist images
+          if (artist.strArtistFanart) images.push(artist.strArtistFanart);
+          if (artist.strArtistFanart2) images.push(artist.strArtistFanart2);
+          if (artist.strArtistFanart3) images.push(artist.strArtistFanart3);
+          if (artist.strArtistFanart4) images.push(artist.strArtistFanart4);
+          if (artist.strArtistThumb) images.push(artist.strArtistThumb);
+          if (artist.strArtistWideThumb) images.push(artist.strArtistWideThumb);
+          if (artist.strArtistCutout) images.push(artist.strArtistCutout);
+          
+          artistImages = images.filter(url => url && url.length > 0);
+          console.log(`Found ${artistImages.length} images for ${artistName}`);
+        }
+      } catch (e) {
+        console.error('Failed to fetch artist images:', e);
+      }
+    }
+    
+    function rotateBackgroundImage() {
+      if (artistImages.length === 0) return;
+      
+      const bg0 = document.getElementById('bg-layer-0');
+      const bg1 = document.getElementById('bg-layer-1');
+      
+      if (!bg0 || !bg1) return;
+      
+      const nextImageIndex = currentImageIndex % artistImages.length;
+      const nextImageUrl = artistImages[nextImageIndex];
+      
+      // Preload the next image before transitioning
+      const preloadImg = new Image();
+      preloadImg.onload = () => {
+        // Crossfade: set new image on inactive layer, then swap active states
+        if (activeBackgroundLayer === 0) {
+          bg1.style.backgroundImage = `url('${nextImageUrl}')`;
+          bg1.classList.add('active', 'front');
+          bg1.classList.remove('behind');
+          bg0.classList.remove('active', 'front');
+          bg0.classList.add('behind');
+          activeBackgroundLayer = 1;
+        } else {
+          bg0.style.backgroundImage = `url('${nextImageUrl}')`;
+          bg0.classList.add('active', 'front');
+          bg0.classList.remove('behind');
+          bg1.classList.remove('active', 'front');
+          bg1.classList.add('behind');
+          activeBackgroundLayer = 0;
+        }
+        
+        currentImageIndex = (currentImageIndex + 1) % artistImages.length;
+      };
+      preloadImg.src = nextImageUrl;
+    }
+    
+    function startImageRotation() {
+      if (imageRotationTimer) clearInterval(imageRotationTimer);
+      rotateBackgroundImage();
+      imageRotationTimer = setInterval(rotateBackgroundImage, 25000);
+    }
+    
+    function formatTime(seconds) {
+      if (!seconds || isNaN(seconds)) return '0:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    function getArtworkUrl(track, size) {
+      const sizeParam = size ? `_${size}x${size}` : '';
+      const currentUrl = new URL(window.location.href);
+      const serverUrl = `${currentUrl.protocol}//${currentUrl.host}`;
+      
+      if (track.artwork_url) {
+        if (track.artwork_url.startsWith('http')) {
+          // Use image proxy for LMS images to avoid CORS
+          if (track.artwork_url.includes(`http://${host}:${port}`)) {
+            return `${serverUrl}/api/image-proxy?url=${encodeURIComponent(track.artwork_url)}`;
+          }
+          return track.artwork_url;
+        }
+        const lmsUrl = `http://${host}:${port}${track.artwork_url}`;
+        return `${serverUrl}/api/image-proxy?url=${encodeURIComponent(lmsUrl)}`;
+      }
+      if (track.coverid) {
+        const lmsUrl = `http://${host}:${port}/music/${track.coverid}/cover${sizeParam}.jpg`;
+        return `${serverUrl}/api/image-proxy?url=${encodeURIComponent(lmsUrl)}`;
+      }
+      if (track.id) {
+        const lmsUrl = `http://${host}:${port}/music/${track.id}/cover${sizeParam}.jpg`;
+        return `${serverUrl}/api/image-proxy?url=${encodeURIComponent(lmsUrl)}`;
+      }
+      return '';
+    }
+    
+    function createWaveformBars() {
+      return waveformHeights.map(h => 
+        `<div class="waveform-bar" style="height: ${h}%"></div>`
+      ).join('');
+    }
+    
+    function updateWaveformProgress(progress) {
+      const bars = document.querySelectorAll('.waveform-bar');
+      const playedCount = Math.floor((progress / 100) * bars.length);
+      bars.forEach((bar, i) => {
+        if (i < playedCount) {
+          bar.classList.add('played');
+        } else {
+          bar.classList.remove('played');
+        }
+      });
+    }
+    
+    async function updateDisplay(status) {
+      const content = document.getElementById('content');
+      
+      if (!status || !status.playlist_loop || status.playlist_loop.length === 0) {
+        content.innerHTML = `
+          <div class="not-playing-container">
+            <div class="not-playing">
+              <h2>Nothing Playing</h2>
+              <p>Start playing music on your Squeezebox player</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+      
+      const track = status.playlist_loop[0];
+      const trackId = track.id || track.title;
+      const currentTime = status.time || 0;
+      const duration = track.duration || status.duration || 0;
+      const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+      
+      const thumbnailUrl = getArtworkUrl(track, 300);
+      const albumArtUrl = getArtworkUrl(track);
+      const isTrackChange = trackId !== lastTrackId;
+      
+      // Check if we need to create the persistent structure FIRST
+      const existingBar = document.querySelector('.bottom-bar');
+      if (!existingBar) {
+        // Use album art as initial background
+        content.innerHTML = `
+          <div id="bg-layer-0" class="background-layer active front" style="background-image: url('${albumArtUrl}')"></div>
+          <div id="bg-layer-1" class="background-layer behind"></div>
+          <div class="background-overlay"></div>
+          <div class="bottom-bar">
+            <img class="thumbnail" src="${thumbnailUrl || ''}" alt="Album" onerror="this.style.visibility='hidden'">
+            <div class="info">
+              <h1 class="title">${track.title || 'Unknown Track'}</h1>
+              <p class="artist">${track.artist || 'Unknown Artist'}</p>
+              <div class="progress-row">
+                <span class="time current">${formatTime(currentTime)}</span>
+                <div class="waveform-container">
+                  <div class="waveform">
+                    ${createWaveformBars()}
+                  </div>
+                </div>
+                <span class="time duration" style="margin-left: auto;">${formatTime(duration)}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        // Update only the dynamic parts without recreating backgrounds
+        const titleEl = document.querySelector('.title');
+        const artistEl = document.querySelector('.artist');
+        const currentTimeEl = document.querySelector('.time.current');
+        const durationEl = document.querySelector('.time.duration');
+        const thumbnailEl = document.querySelector('.thumbnail');
+        
+        if (titleEl) titleEl.textContent = track.title || 'Unknown Track';
+        if (artistEl) artistEl.textContent = track.artist || 'Unknown Artist';
+        if (currentTimeEl) currentTimeEl.textContent = formatTime(currentTime);
+        if (durationEl) durationEl.textContent = formatTime(duration);
+        if (thumbnailEl && thumbnailEl.src !== thumbnailUrl) {
+          thumbnailEl.src = thumbnailUrl || '';
+        }
+      }
+      
+      // Handle track changes - fetch new artist images and update background immediately
+      if (isTrackChange) {
+        lastTrackId = trackId;
+        await fetchArtistImages(track.artist);
+        // Immediately show first artist image (or album art if none)
+        if (artistImages.length > 0) {
+          currentImageIndex = 0;
+          rotateBackgroundImage();
+        }
+        startImageRotation();
+      }
+      
+      updateWaveformProgress(progress);
+    }
+    
+    function showError(message) {
+      const content = document.getElementById('content');
+      content.innerHTML = `
+        <div class="not-playing-container">
+          <div class="error">
+            <h3>Connection Error</h3>
+            <p>${message}</p>
+            <p style="margin-top: 16px; font-size: 0.875rem; opacity: 0.7;">
+              Make sure LMS is running at http://${host}:${port}
+            </p>
+          </div>
+        </div>
+      `;
+    }
+    
+    async function init() {
+      try {
+        if (!playerId) {
+          const players = await getPlayers();
+          if (players.length > 0) {
+            playerId = players[0].playerid;
+            console.log('Auto-selected player:', players[0].name, playerId);
+          } else {
+            showError('No players found on LMS server');
+            return;
+          }
+        }
+        
+        async function poll() {
+          try {
+            const status = await getPlayerStatus(playerId);
+            await updateDisplay(status);
+          } catch (e) {
+            console.error('Poll error:', e);
+          }
+        }
+        
+        poll();
+        setInterval(poll, 1000);
+        
+      } catch (e) {
+        showError('Cannot connect to LMS server: ' + e.message);
+      }
+    }
+    
+    init();
+  </script>
+</body>
+</html>

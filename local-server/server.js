@@ -1,0 +1,1031 @@
+const express = require('express');
+const path = require('path');
+const http = require('http');
+const fs = require('fs');
+const readline = require('readline');
+const { exec } = require('child_process');
+
+const app = express();
+app.use(express.json());
+const PORT = process.env.PORT || 3000;
+
+let LMS_HOST = process.env.LMS_HOST || '192.168.0.19';
+let LMS_PORT = process.env.LMS_PORT || '9000';
+const PAUSE_TIMEOUT = parseInt(process.env.PAUSE_TIMEOUT || '5000', 10);
+const ENABLE_KEYBOARD = process.env.ENABLE_KEYBOARD !== 'false';
+
+const CONFIG_FILE = path.join(__dirname, 'config.json');
+let chromecastIp = process.env.CHROMECAST_IP || '';
+let chromecastName = '';
+let chromecastEnabled = true; // Default to enabled
+let preferredPlayerId = '';
+let preferredPlayerName = '';
+
+function loadConfig() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      LMS_HOST = data.lmsHost || LMS_HOST;
+      LMS_PORT = data.lmsPort || LMS_PORT;
+      chromecastIp = data.chromecastIp || chromecastIp;
+      chromecastName = data.chromecastName || '';
+      chromecastEnabled = data.chromecastEnabled !== undefined ? data.chromecastEnabled : true;
+      preferredPlayerId = data.preferredPlayerId || '';
+      preferredPlayerName = data.preferredPlayerName || '';
+      console.log('Loaded config:', { LMS_HOST, LMS_PORT, chromecastIp, chromecastName, chromecastEnabled, preferredPlayerId, preferredPlayerName });
+    }
+  } catch (e) {
+    console.log('No config file found, using defaults');
+  }
+}
+
+function saveConfig() {
+  try {
+    const data = { 
+      lmsHost: LMS_HOST, 
+      lmsPort: LMS_PORT,
+      chromecastIp, 
+      chromecastName, 
+      chromecastEnabled, 
+      preferredPlayerId, 
+      preferredPlayerName 
+    };
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2));
+    console.log('Config saved:', data);
+  } catch (e) {
+    console.error('Error saving config:', e.message);
+  }
+}
+
+loadConfig();
+
+let isCasting = false;
+let pauseTimer = null;
+let currentPlayerId = '';
+let lastMode = '';
+let serverIp = '';
+
+// Check if catt is available for Chromecast casting
+let cattAvailable = false;
+let cattCmd = '/Users/zeki/Library/Python/3.9/bin/catt'; // Use full path to catt
+exec('test -f /Users/zeki/Library/Python/3.9/bin/catt || which catt || python3 -m catt --help 2>&1 | head -1', (error, stdout) => {
+  if (!error || stdout.includes('catt') || stdout.includes('usage')) {
+    cattAvailable = true;
+    // Check if full path exists, otherwise try which catt, then python3 -m catt
+    exec('test -f /Users/zeki/Library/Python/3.9/bin/catt', (pathError) => {
+      if (!pathError) {
+        cattCmd = '/Users/zeki/Library/Python/3.9/bin/catt';
+        console.log('Chromecast support enabled (using /Users/zeki/Library/Python/3.9/bin/catt)');
+      } else {
+        exec('which catt', (cmdError) => {
+          if (cmdError) {
+            cattCmd = 'python3 -m catt';
+            console.log('Chromecast support enabled (using python3 -m catt)');
+          } else {
+            cattCmd = 'catt';
+            console.log('Chromecast support enabled (using catt)');
+          }
+        });
+      }
+    });
+  } else {
+    console.log('Chromecast support disabled (install catt: pip3 install catt)');
+  }
+});
+
+async function lmsRequest(playerId, command) {
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify({
+      id: 1,
+      method: 'slim.request',
+      params: [playerId, command]
+    });
+
+    const options = {
+      hostname: LMS_HOST,
+      port: LMS_PORT,
+      path: '/jsonrpc.js',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          resolve(json.result);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(5000, () => {
+      req.destroy();
+      reject(new Error('Request timeout'));
+    });
+    req.write(postData);
+    req.end();
+  });
+}
+
+async function getPlayers() {
+  try {
+    const result = await lmsRequest('', ['players', '0', '100']);
+    return result.players_loop || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function getPlayerStatus(playerId) {
+  try {
+    return await lmsRequest(playerId, ['status', '-', '1', 'tags:aAlcdegiIKloNrstuwy']);
+  } catch (e) {
+    return null;
+  }
+}
+
+async function startCasting() {
+  if (isCasting) return;
+  if (!cattAvailable) {
+    console.log('Chromecast not available (install catt: pip3 install catt)');
+    return;
+  }
+  if (!chromecastIp) {
+    console.log('Chromecast not configured');
+    return;
+  }
+
+  // Set flag immediately to prevent duplicate calls
+  isCasting = true;
+
+  // Use preferredPlayerId if set, otherwise use currentPlayerId
+  // This ensures we use the player that the app selected, not an auto-selected one
+  const playerToUse = preferredPlayerId || currentPlayerId;
+  const nowPlayingUrl = `http://${serverIp}:${PORT}/now-playing?host=${LMS_HOST}&port=${LMS_PORT}&player=${encodeURIComponent(playerToUse)}`;
+  
+  console.log(`Starting cast to: ${nowPlayingUrl} (player: ${playerToUse})`);
+
+  // Use catt to cast the URL to Chromecast
+  const fullCattCmd = `${cattCmd} -d "${chromecastIp}" cast_site "${nowPlayingUrl}"`;
+  
+  exec(fullCattCmd, (error, stdout, stderr) => {
+    if (error) {
+      console.error('Error starting cast:', error.message);
+      isCasting = false; // Reset on error so it can retry
+      return;
+    }
+    console.log('Cast started successfully');
+  });
+}
+
+function stopCasting() {
+  if (!isCasting) return;
+  if (!cattAvailable || !chromecastIp) return;
+
+  console.log('Stopping cast...');
+  
+  exec(`catt -d "${chromecastIp}" stop`, (error) => {
+    if (error) {
+      console.error('Error stopping cast:', error.message);
+    }
+  });
+  
+  isCasting = false;
+}
+
+async function pollLmsStatus() {
+  try {
+    // Determine which player to use: prefer preferredPlayerId (set by app), otherwise use currentPlayerId
+    let activePlayerId = preferredPlayerId || currentPlayerId;
+    
+    if (!activePlayerId) {
+      // No player selected yet, try to get one
+      if (preferredPlayerId) {
+        activePlayerId = preferredPlayerId;
+        currentPlayerId = preferredPlayerId;
+        console.log('Using preferred player:', preferredPlayerName || preferredPlayerId);
+      } else {
+        const players = await getPlayers();
+        if (players.length > 0) {
+          activePlayerId = players[0].playerid;
+          currentPlayerId = activePlayerId;
+          console.log('Auto-selected player:', players[0].name);
+        } else {
+          return;
+        }
+      }
+    } else if (preferredPlayerId && preferredPlayerId !== currentPlayerId) {
+      // Preferred player changed, update currentPlayerId
+      currentPlayerId = preferredPlayerId;
+      activePlayerId = preferredPlayerId;
+      console.log('Switched to preferred player:', preferredPlayerName || preferredPlayerId);
+    }
+
+    const status = await getPlayerStatus(activePlayerId);
+    if (!status) return;
+
+    const mode = status.mode;
+    const hasTrack = status.playlist_loop && status.playlist_loop.length > 0;
+
+    if (mode === 'play' && hasTrack) {
+      if (pauseTimer) {
+        clearTimeout(pauseTimer);
+        pauseTimer = null;
+      }
+
+      if (!isCasting && chromecastIp && chromecastEnabled) {
+        console.log('Play detected, starting cast...');
+        await startCasting();
+      } else if (!chromecastEnabled) {
+        console.log('Casting disabled, skipping cast');
+      }
+    } else if (mode === 'pause' || mode === 'stop') {
+      if (isCasting && !pauseTimer) {
+        console.log(`Pause/stop detected, will stop cast in ${PAUSE_TIMEOUT/1000} seconds...`);
+        pauseTimer = setTimeout(() => {
+          console.log('Pause timeout reached, stopping cast');
+          stopCasting();
+          pauseTimer = null;
+        }, PAUSE_TIMEOUT);
+      }
+    }
+
+    lastMode = mode;
+  } catch (e) {
+    console.error('Poll error:', e.message);
+  }
+}
+
+function getLocalIp() {
+  const os = require('os');
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
+// ============================================
+// Keyboard / IR Remote Control (Flirc USB)
+// ============================================
+
+let keymap = null;
+let keyboardEnabled = false;
+
+function loadKeymap() {
+  const keymapPath = path.join(__dirname, 'keymap.json');
+  try {
+    if (fs.existsSync(keymapPath)) {
+      const data = fs.readFileSync(keymapPath, 'utf8');
+      keymap = JSON.parse(data);
+      console.log('Keymap loaded:', Object.keys(keymap.mappings || {}).length, 'key mappings');
+      return true;
+    }
+  } catch (e) {
+    console.error('Failed to load keymap.json:', e.message);
+  }
+  return false;
+}
+
+async function executeKeyCommand(mapping) {
+  if (!currentPlayerId) {
+    const players = await getPlayers();
+    if (players.length > 0) {
+      currentPlayerId = players[0].playerid;
+    } else {
+      console.log('No player available for command');
+      return;
+    }
+  }
+
+  const { command, value } = mapping;
+  console.log(`Executing command: ${command}${value !== undefined ? ` (${value})` : ''}`);
+
+  try {
+    switch (command) {
+      case 'pause':
+      case 'play':
+        await lmsRequest(currentPlayerId, ['pause']);
+        break;
+        
+      case 'stop':
+        await lmsRequest(currentPlayerId, ['stop']);
+        break;
+        
+      case 'next':
+        await lmsRequest(currentPlayerId, ['playlist', 'index', '+1']);
+        break;
+        
+      case 'previous':
+        await lmsRequest(currentPlayerId, ['playlist', 'index', '-1']);
+        break;
+        
+      case 'volume_up':
+        await lmsRequest(currentPlayerId, ['mixer', 'volume', `+${value || 5}`]);
+        break;
+        
+      case 'volume_down':
+        await lmsRequest(currentPlayerId, ['mixer', 'volume', `-${value || 5}`]);
+        break;
+        
+      case 'mute':
+        await lmsRequest(currentPlayerId, ['mixer', 'muting', 'toggle']);
+        break;
+        
+      case 'shuffle':
+        const status = await getPlayerStatus(currentPlayerId);
+        const currentShuffle = status['playlist shuffle'] || 0;
+        await lmsRequest(currentPlayerId, ['playlist', 'shuffle', currentShuffle ? '0' : '1']);
+        break;
+        
+      case 'playlist':
+        if (keymap.presets && keymap.presets[value]) {
+          const preset = keymap.presets[value];
+          console.log(`Playing preset: ${preset.name}`);
+          
+          // Get playlists and find matching one
+          const result = await lmsRequest(currentPlayerId, ['playlists', '0', '999']);
+          const playlists = result.playlists_loop || [];
+          const match = playlists.find(p => 
+            p.playlist.toLowerCase().includes(preset.name.toLowerCase())
+          );
+          
+          if (match) {
+            if (preset.shuffle) {
+              await lmsRequest(currentPlayerId, ['playlist', 'shuffle', '1']);
+            }
+            await lmsRequest(currentPlayerId, ['playlistcontrol', 'cmd:load', `playlist_id:${match.id}`]);
+            console.log(`Started playlist: ${match.playlist}`);
+          } else {
+            console.log(`Preset playlist not found: ${preset.name}`);
+          }
+        }
+        break;
+        
+      default:
+        console.log(`Unknown command: ${command}`);
+    }
+  } catch (e) {
+    console.error('Command error:', e.message);
+  }
+}
+
+function handleKeypress(key) {
+  if (!keymap || !keymap.mappings) return;
+  
+  // Normalize key name
+  let keyName = key.name || key.sequence;
+  
+  // Handle special keys
+  if (key.ctrl) keyName = `ctrl+${keyName}`;
+  if (key.alt) keyName = `alt+${keyName}`;
+  if (key.meta) keyName = `meta+${keyName}`;
+  
+  const mapping = keymap.mappings[keyName];
+  if (mapping) {
+    console.log(`Key pressed: ${keyName} -> ${mapping.description || mapping.command}`);
+    executeKeyCommand(mapping);
+  }
+}
+
+function startKeyboardListener() {
+  if (!ENABLE_KEYBOARD) {
+    console.log('Keyboard control disabled (set ENABLE_KEYBOARD=true to enable)');
+    return;
+  }
+
+  if (!loadKeymap()) {
+    console.log('Keyboard control disabled (keymap.json not found)');
+    return;
+  }
+
+  if (!keymap.enabled) {
+    console.log('Keyboard control disabled in keymap.json');
+    return;
+  }
+
+  // Check if running in a TTY (interactive terminal)
+  if (!process.stdin.isTTY) {
+    console.log('Keyboard control: Not running in interactive terminal');
+    console.log('  For IR remote with Flirc, run server in a terminal session');
+    return;
+  }
+
+  try {
+    readline.emitKeypressEvents(process.stdin);
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    
+    process.stdin.on('keypress', (str, key) => {
+      // Exit on Ctrl+C
+      if (key && key.ctrl && key.name === 'c') {
+        console.log('Exiting...');
+        process.exit();
+      }
+      
+      if (key) {
+        handleKeypress(key);
+      }
+    });
+    
+    keyboardEnabled = true;
+    console.log('Keyboard/IR remote control enabled');
+    console.log('  Press keys to control playback (Ctrl+C to exit)');
+    
+  } catch (e) {
+    console.log('Keyboard control unavailable:', e.message);
+  }
+}
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/', (req, res) => {
+  // Auto-redirect to now-playing with configured LMS
+  res.redirect(`/now-playing?host=${LMS_HOST}&port=${LMS_PORT}`);
+});
+
+app.get('/now-playing', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'now-playing.html'));
+});
+
+// LMS proxy endpoint - allows browser to make LMS requests through this server (avoids CORS)
+app.post('/api/lms/proxy', async (req, res) => {
+  const { host, port, playerId, command } = req.body;
+  const lmsHost = host || LMS_HOST;
+  const lmsPort = port || LMS_PORT;
+  
+  try {
+    const response = await fetch(`http://${lmsHost}:${lmsPort}/jsonrpc.js`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 1,
+        method: 'slim.request',
+        params: [playerId || '', command]
+      })
+    });
+    const data = await response.json();
+    res.json(data.result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/status', async (req, res) => {
+  res.json({
+    lmsHost: LMS_HOST,
+    lmsPort: LMS_PORT,
+    chromecastIp: chromecastIp,
+    chromecastName: chromecastName,
+    preferredPlayerId,
+    preferredPlayerName,
+    isCasting,
+    currentPlayerId,
+    lastMode,
+    keyboardEnabled
+  });
+});
+
+// Update LMS server configuration
+app.post('/api/lms', async (req, res) => {
+  const { host, port } = req.body;
+  
+  if (host !== undefined) {
+    if (!host || typeof host !== 'string') {
+      return res.status(400).json({ error: 'Valid host/IP address is required' });
+    }
+    LMS_HOST = host;
+    console.log(`LMS Host updated to: ${LMS_HOST}`);
+  }
+  
+  if (port !== undefined) {
+    const portNum = parseInt(port);
+    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      return res.status(400).json({ error: 'Valid port number (1-65535) is required' });
+    }
+    LMS_PORT = String(portNum);
+    console.log(`LMS Port updated to: ${LMS_PORT}`);
+  }
+  
+  // Reset player selection when LMS changes
+  preferredPlayerId = '';
+  preferredPlayerName = '';
+  currentPlayerId = '';
+  
+  saveConfig();
+  
+  res.json({ 
+    success: true, 
+    message: `LMS server updated to ${LMS_HOST}:${LMS_PORT}`,
+    lmsHost: LMS_HOST,
+    lmsPort: LMS_PORT
+  });
+});
+
+// List available LMS players
+app.get('/api/players', async (req, res) => {
+  try {
+    const players = await getPlayers();
+    res.json({ 
+      players,
+      preferredPlayerId,
+      preferredPlayerName
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Set preferred player
+app.post('/api/player', async (req, res) => {
+  const { playerId, playerName } = req.body;
+  
+  preferredPlayerId = playerId || '';
+  preferredPlayerName = playerName || '';
+  currentPlayerId = preferredPlayerId; // Update current player immediately
+  
+  saveConfig();
+  
+  if (preferredPlayerId) {
+    console.log(`Preferred player set: ${preferredPlayerName} (${preferredPlayerId})`);
+    res.json({ 
+      success: true, 
+      message: `Player set to ${preferredPlayerName || preferredPlayerId}`,
+      preferredPlayerId,
+      preferredPlayerName
+    });
+  } else {
+    console.log('Preferred player cleared, will auto-select');
+    res.json({ 
+      success: true, 
+      message: 'Player preference cleared, will auto-select',
+      preferredPlayerId: '',
+      preferredPlayerName: ''
+    });
+  }
+});
+
+app.post('/api/chromecast', async (req, res) => {
+  const { ip, name, enabled } = req.body;
+  
+  if (ip !== undefined) {
+    if (!ip) {
+      return res.status(400).json({ error: 'IP address is required' });
+    }
+    
+    const oldIp = chromecastIp;
+    chromecastIp = ip;
+    chromecastName = name || '';
+    
+    if (isCasting) {
+      stopCasting();
+    }
+    
+    if (chromecastIp) {
+      console.log(`Chromecast configured: ${chromecastName} (${chromecastIp})`);
+    }
+  }
+  
+  // Update enabled state if provided
+  if (enabled !== undefined) {
+    chromecastEnabled = enabled;
+    console.log(`Chromecast enabled set to: ${chromecastEnabled}`);
+    
+    // Stop casting if disabled
+    if (!chromecastEnabled && isCasting) {
+      stopCasting();
+    }
+  }
+  
+  saveConfig();
+  
+  res.json({ 
+    success: true, 
+    message: chromecastIp ? `Configured ${chromecastName || chromecastIp}` : 'Chromecast disabled',
+    chromecastIp,
+    chromecastName,
+    chromecastEnabled
+  });
+});
+
+app.delete('/api/chromecast', (req, res) => {
+  chromecastIp = '';
+  chromecastName = '';
+  saveConfig();
+  
+  if (isCasting) {
+    stopCasting();
+  }
+  
+  res.json({ success: true, message: 'Chromecast disabled' });
+});
+
+let mdns;
+try {
+  mdns = require('mdns-js');
+  console.log('mDNS discovery available');
+} catch (e) {
+  console.log('mDNS discovery unavailable (install mdns-js to enable)');
+}
+
+// ============================================
+// UPnP Volume Control (dCS DAC)
+// ============================================
+
+const DAC_IP = process.env.DAC_IP || '192.168.0.42';
+const DAC_PORT = process.env.DAC_PORT || 80;
+
+function sendUpnpCommand(ip, port, action, body) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: ip,
+      port: port,
+      path: '/RenderingControl/ctrl',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset="utf-8"',
+        'Content-Length': Buffer.byteLength(body),
+        'SOAPAction': `"urn:schemas-upnp-org:service:RenderingControl:1#${action}"`
+      }
+    };
+
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve({ status: res.statusCode, data }));
+    });
+
+    req.on('error', reject);
+    req.setTimeout(5000, () => {
+      req.destroy();
+      reject(new Error('UPnP request timeout'));
+    });
+    req.write(body);
+    req.end();
+  });
+}
+
+function parseVolumeFromResponse(xml) {
+  // Try to extract CurrentVolume value from UPnP response
+  const match = xml.match(/<CurrentVolume>([^<]+)<\/CurrentVolume>/i);
+  if (match) {
+    const value = match[1].trim();
+    // Check if it's a dB value (negative number with decimal)
+    const dbMatch = value.match(/^-?\d+(\.\d+)?$/);
+    if (dbMatch) {
+      const num = parseFloat(value);
+      // If it looks like dB (negative or small positive), convert to percentage
+      // dCS uses -80dB to 0dB range typically
+      if (num <= 0 && num >= -80) {
+        // Convert dB to percentage: -80dB = 0%, 0dB = 100%
+        const percent = Math.round(((num + 80) / 80) * 100);
+        console.log(`Volume: ${value}dB = ${percent}%`);
+        return percent;
+      }
+      // Otherwise treat as 0-100 percentage
+      return Math.round(Math.max(0, Math.min(100, num)));
+    }
+  }
+  return null;
+}
+
+function percentToDb(percent) {
+  // Convert 0-100% to -80dB to 0dB
+  // 0% = -80dB, 100% = 0dB
+  const clamped = Math.max(0, Math.min(100, percent));
+  const db = ((clamped / 100) * 80) - 80;
+  return db.toFixed(1);
+}
+
+app.post('/api/upnp/volume', async (req, res) => {
+  const { action, ip, port, volume, mute, useDb } = req.body;
+  const targetIp = ip || DAC_IP;
+  const targetPort = port || DAC_PORT;
+
+  try {
+    if (action === 'get') {
+      const soapBody = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:GetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+    </u:GetVolume>
+  </s:Body>
+</s:Envelope>`;
+
+      console.log(`UPnP GetVolume from ${targetIp}:${targetPort}`);
+      const result = await sendUpnpCommand(targetIp, targetPort, 'GetVolume', soapBody);
+      console.log('UPnP raw response:', result.data);
+      
+      const volumeValue = parseVolumeFromResponse(result.data);
+      
+      if (volumeValue !== null) {
+        res.json({ volume: volumeValue, raw: result.data });
+      } else {
+        res.json({ volume: 50, raw: result.data, warning: 'Could not parse volume' });
+      }
+
+    } else if (action === 'set') {
+      // Determine volume value - use dB for dCS DACs
+      let volumeValue;
+      if (useDb) {
+        volumeValue = percentToDb(volume);
+      } else {
+        // For dCS, always convert to dB
+        volumeValue = percentToDb(volume);
+      }
+
+      const soapBody = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+      <DesiredVolume>${volumeValue}</DesiredVolume>
+    </u:SetVolume>
+  </s:Body>
+</s:Envelope>`;
+
+      console.log(`UPnP SetVolume to ${targetIp}:${targetPort}: ${volume}% (${volumeValue}dB)`);
+      const result = await sendUpnpCommand(targetIp, targetPort, 'SetVolume', soapBody);
+      console.log('UPnP SetVolume response:', result.status);
+      
+      res.json({ success: result.status === 200, volumePercent: volume, volumeDb: volumeValue });
+
+    } else if (action === 'mute') {
+      const muteValue = mute ? '1' : '0';
+      const soapBody = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetMute xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+      <DesiredMute>${muteValue}</DesiredMute>
+    </u:SetMute>
+  </s:Body>
+</s:Envelope>`;
+
+      console.log(`UPnP SetMute to ${targetIp}:${targetPort}: ${mute}`);
+      const result = await sendUpnpCommand(targetIp, targetPort, 'SetMute', soapBody);
+      
+      res.json({ success: result.status === 200 });
+
+    } else {
+      res.status(400).json({ error: 'Invalid action. Use: get, set, or mute' });
+    }
+
+  } catch (error) {
+    console.error('UPnP error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/chromecasts', (req, res) => {
+  if (!mdns) {
+    return res.status(503).json({ 
+      error: 'mDNS not available',
+      devices: [] 
+    });
+  }
+
+  const timeout = parseInt(req.query.timeout) || 5000;
+  const devices = [];
+  const seen = new Set();
+  
+  const browser = mdns.createBrowser(mdns.tcp('googlecast'));
+  
+  browser.on('ready', () => {
+    browser.discover();
+  });
+  
+  browser.on('update', (data) => {
+    if (data.addresses && data.addresses.length > 0) {
+      const ip = data.addresses.find(addr => addr.includes('.')) || data.addresses[0];
+      const key = `${ip}:${data.port}`;
+      
+      if (!seen.has(key)) {
+        seen.add(key);
+        
+        let name = data.fullname || data.host || 'Unknown';
+        if (name.includes('._googlecast')) {
+          name = name.split('._googlecast')[0];
+        }
+        name = name.replace(/-/g, ' ').replace(/\._tcp\.local$/, '');
+        
+        const txtRecord = data.txt || [];
+        let friendlyName = name;
+        let model = '';
+        
+        txtRecord.forEach(entry => {
+          if (typeof entry === 'string') {
+            if (entry.startsWith('fn=')) {
+              friendlyName = entry.substring(3);
+            } else if (entry.startsWith('md=')) {
+              model = entry.substring(3);
+            }
+          }
+        });
+        
+        devices.push({
+          name: friendlyName,
+          model: model,
+          ip: ip,
+          port: data.port || 8009
+        });
+      }
+    }
+  });
+  
+  setTimeout(() => {
+    try {
+      browser.stop();
+    } catch (e) {}
+    
+    res.json({
+      devices: devices.sort((a, b) => a.name.localeCompare(b.name))
+    });
+  }, timeout);
+});
+
+// ============================================
+// Mosaic Volume Control (via macOS Accessibility)
+// ============================================
+
+const MOSAIC_VOLUME_SCRIPT = path.join(__dirname, 'mosaic-volume.swift');
+const MOSAIC_VOLUME_BINARY = path.join(__dirname, 'mosaic-volume');
+let mosaicVolumeAvailable = false;
+
+// Check if mosaic-volume binary exists (compiled version is faster)
+if (fs.existsSync(MOSAIC_VOLUME_BINARY)) {
+  mosaicVolumeAvailable = true;
+  console.log('Mosaic volume control enabled (compiled binary)');
+} else if (fs.existsSync(MOSAIC_VOLUME_SCRIPT)) {
+  mosaicVolumeAvailable = true;
+  console.log('Mosaic volume control enabled (Swift script - compile for faster execution)');
+  console.log('  swiftc -O -o mosaic-volume mosaic-volume.swift');
+}
+
+function executeMosaicVolume(args) {
+  return new Promise((resolve, reject) => {
+    // Use compiled binary if available, otherwise use swift interpreter
+    const command = fs.existsSync(MOSAIC_VOLUME_BINARY) 
+      ? `"${MOSAIC_VOLUME_BINARY}" ${args}`
+      : `swift "${MOSAIC_VOLUME_SCRIPT}" ${args}`;
+    
+    exec(command, { timeout: 10000 }, (error, stdout, stderr) => {
+      if (error) {
+        // Try to parse JSON error from script
+        try {
+          const result = JSON.parse(stdout || stderr);
+          reject(new Error(result.error || error.message));
+        } catch {
+          reject(new Error(error.message));
+        }
+        return;
+      }
+      
+      try {
+        const result = JSON.parse(stdout);
+        resolve(result);
+      } catch (e) {
+        reject(new Error(`Invalid JSON response: ${stdout}`));
+      }
+    });
+  });
+}
+
+app.get('/api/mosaic/volume', async (req, res) => {
+  if (!mosaicVolumeAvailable) {
+    return res.status(503).json({ 
+      success: false, 
+      error: 'Mosaic volume control not available',
+      hint: 'Ensure mosaic-volume.swift exists in local-server directory'
+    });
+  }
+  
+  try {
+    const result = await executeMosaicVolume('--get');
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/mosaic/volume', async (req, res) => {
+  if (!mosaicVolumeAvailable) {
+    return res.status(503).json({ 
+      success: false, 
+      error: 'Mosaic volume control not available'
+    });
+  }
+  
+  const { action, value } = req.body;
+  
+  try {
+    let args;
+    switch (action) {
+      case 'get':
+        args = '--get';
+        break;
+      case 'set':
+        if (value === undefined) {
+          return res.status(400).json({ success: false, error: 'Volume value required for set action' });
+        }
+        args = `--set ${value}`;
+        break;
+      case 'up':
+        args = value !== undefined ? `--up ${value}` : '--up';
+        break;
+      case 'down':
+        args = value !== undefined ? `--down ${value}` : '--down';
+        break;
+      case 'mute':
+        args = '--mute';
+        break;
+      default:
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Invalid action. Use: get, set, up, down, or mute' 
+        });
+    }
+    
+    const result = await executeMosaicVolume(args);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.get('/api/mosaic/sliders', async (req, res) => {
+  if (!mosaicVolumeAvailable) {
+    return res.status(503).json({ 
+      success: false, 
+      error: 'Mosaic volume control not available'
+    });
+  }
+  
+  try {
+    const result = await executeMosaicVolume('--list');
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  serverIp = getLocalIp();
+  
+  console.log('');
+  console.log('===========================================');
+  console.log('  SoundStream Display Server');
+  console.log('===========================================');
+  console.log('');
+  console.log(`  Server running on port ${PORT}`);
+  console.log(`  Local IP: ${serverIp}`);
+  console.log('');
+  console.log('  Configuration:');
+  console.log(`    LMS Host: ${LMS_HOST}`);
+  console.log(`    LMS Port: ${LMS_PORT}`);
+  console.log(`    Chromecast: ${chromecastName ? `${chromecastName} (${chromecastIp})` : chromecastIp || '(not set)'}`);
+  console.log(`    Pause Timeout: ${PAUSE_TIMEOUT/1000} seconds`);
+  console.log('');
+  console.log('  Environment Variables:');
+  console.log('    LMS_HOST=<ip>        - LMS server IP');
+  console.log('    LMS_PORT=<port>      - LMS port (default: 9000)');
+  console.log('    CHROMECAST_IP=<ip>   - Initial Chromecast IP (can be set via app)');
+  console.log('    PAUSE_TIMEOUT=<ms>   - Pause timeout (default: 5000)');
+  console.log('    ENABLE_KEYBOARD=true - Enable keyboard/IR control');
+  console.log('');
+  console.log('  Now Playing URL:');
+  console.log(`    http://${serverIp}:${PORT}/now-playing`);
+  console.log('');
+  console.log('===========================================');
+  console.log('');
+
+  // Always start LMS polling for automatic Chromecast casting
+  console.log('Starting LMS status polling...');
+  setInterval(pollLmsStatus, 2000);
+  pollLmsStatus();
+  
+  if (!cattAvailable) {
+    console.log('');
+    console.log('Install catt for Chromecast auto-casting:');
+    console.log('  pip3 install catt');
+  }
+
+  // Start keyboard/IR remote listener
+  startKeyboardListener();
+});

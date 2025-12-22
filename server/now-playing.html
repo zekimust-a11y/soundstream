@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Now Playing - SoundStream</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f1a 100%);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      max-width: 1200px;
+      width: 100%;
+    }
+    
+    .artwork-container {
+      position: relative;
+      width: min(70vh, 600px);
+      height: min(70vh, 600px);
+      margin-bottom: 48px;
+    }
+    
+    .artwork {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 16px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+    }
+    
+    .artwork-placeholder {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #2d2d44 0%, #1a1a2e 100%);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .artwork-placeholder svg {
+      width: 120px;
+      height: 120px;
+      opacity: 0.3;
+    }
+    
+    .track-info {
+      text-align: center;
+      max-width: 800px;
+    }
+    
+    .track-title {
+      font-size: 48px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      line-height: 1.2;
+      text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    .track-artist {
+      font-size: 32px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.8);
+      margin-bottom: 8px;
+    }
+    
+    .track-album {
+      font-size: 24px;
+      font-weight: 300;
+      color: rgba(255, 255, 255, 0.5);
+    }
+    
+    .progress-container {
+      width: 100%;
+      max-width: 600px;
+      margin-top: 40px;
+    }
+    
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      border-radius: 3px;
+      transition: width 1s linear;
+    }
+    
+    .time-info {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      font-size: 18px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+    
+    .status {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.3);
+    }
+    
+    .status.connected {
+      color: rgba(100, 255, 100, 0.5);
+    }
+    
+    .status.error {
+      color: rgba(255, 100, 100, 0.5);
+    }
+    
+    .idle-state {
+      text-align: center;
+      color: rgba(255, 255, 255, 0.5);
+    }
+    
+    .idle-state h1 {
+      font-size: 36px;
+      font-weight: 300;
+      margin-bottom: 16px;
+    }
+    
+    .idle-state p {
+      font-size: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .artwork-container {
+        width: min(80vw, 400px);
+        height: min(80vw, 400px);
+        margin-bottom: 32px;
+      }
+      
+      .track-title {
+        font-size: 28px;
+      }
+      
+      .track-artist {
+        font-size: 20px;
+      }
+      
+      .track-album {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="app">
+    <div class="idle-state" id="idle">
+      <h1>SoundStream</h1>
+      <p>Waiting for playback...</p>
+    </div>
+    
+    <div id="playing" style="display: none; width: 100%;">
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <div class="artwork-container">
+          <img id="artwork" class="artwork" style="display: none;" alt="Album Artwork">
+          <div id="artwork-placeholder" class="artwork-placeholder">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+            </svg>
+          </div>
+        </div>
+        
+        <div class="track-info">
+          <div class="track-title" id="title">-</div>
+          <div class="track-artist" id="artist">-</div>
+          <div class="track-album" id="album">-</div>
+        </div>
+        
+        <div class="progress-container">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress" style="width: 0%"></div>
+          </div>
+          <div class="time-info">
+            <span id="current-time">0:00</span>
+            <span id="total-time">0:00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="status" id="status">Connecting...</div>
+
+  <script>
+    // Debug: Log the current URL and search params
+    console.log('Current URL:', window.location.href);
+    console.log('Search params:', window.location.search);
+    console.log('Embedded params:', window.EMBEDDED_PARAMS);
+    
+    // Try to get parameters from URL first, fall back to embedded params
+    const params = new URLSearchParams(window.location.search);
+    let lmsHost = params.get('host') || '';
+    let lmsPort = params.get('port') || '9000';
+    let playerId = params.get('player') || '';
+    
+    // If URL params are missing, try embedded params (for Chromecast compatibility)
+    if ((!lmsHost || !playerId) && window.EMBEDDED_PARAMS) {
+      console.log('Using embedded params as fallback');
+      lmsHost = window.EMBEDDED_PARAMS.host || lmsHost;
+      lmsPort = window.EMBEDDED_PARAMS.port || lmsPort;
+      playerId = window.EMBEDDED_PARAMS.player || playerId;
+    }
+    
+    // Debug: Log parsed parameters
+    console.log('Final params - host:', lmsHost, 'port:', lmsPort, 'player:', playerId);
+    
+    const statusEl = document.getElementById('status');
+    const idleEl = document.getElementById('idle');
+    const playingEl = document.getElementById('playing');
+    const artworkEl = document.getElementById('artwork');
+    const artworkPlaceholderEl = document.getElementById('artwork-placeholder');
+    const titleEl = document.getElementById('title');
+    const artistEl = document.getElementById('artist');
+    const albumEl = document.getElementById('album');
+    const progressEl = document.getElementById('progress');
+    const currentTimeEl = document.getElementById('current-time');
+    const totalTimeEl = document.getElementById('total-time');
+    
+    let lastArtworkUrl = '';
+    
+    function formatTime(seconds) {
+      if (!seconds || isNaN(seconds)) return '0:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    async function fetchPlayerStatus() {
+      if (!lmsHost || !playerId) {
+        statusEl.textContent = 'Missing host or player ID in URL';
+        statusEl.className = 'status error';
+        return;
+      }
+      
+      try {
+        // Use proxy endpoint to avoid CORS and network access issues
+        const currentUrl = new URL(window.location.href);
+        const proxyUrl = `${currentUrl.protocol}//${currentUrl.host}/api/lms/proxy`;
+        
+        const response = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            host: lmsHost,
+            port: lmsPort,
+            playerId: playerId,
+            command: ['status', '-', '1', 'tags:aAlKcd']
+          })
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to fetch status: ${response.status} ${errorText}`);
+        }
+        
+        const data = await response.json();
+        statusEl.textContent = 'Connected';
+        statusEl.className = 'status connected';
+        
+        // Handle both direct result and wrapped response
+        const result = data.result || data;
+        updateDisplay(result);
+      } catch (error) {
+        console.error('Fetch error:', error);
+        statusEl.textContent = 'Connection error: ' + (error.message || 'Unknown error');
+        statusEl.className = 'status error';
+      }
+    }
+    
+    function updateDisplay(status) {
+      const mode = status.mode;
+      const playlist = status.playlist_loop || [];
+      const currentTrack = playlist[0];
+      
+      if (mode === 'stop' || !currentTrack) {
+        idleEl.style.display = 'block';
+        playingEl.style.display = 'none';
+        return;
+      }
+      
+      idleEl.style.display = 'none';
+      playingEl.style.display = 'block';
+      
+      titleEl.textContent = currentTrack.title || 'Unknown Track';
+      artistEl.textContent = currentTrack.artist || 'Unknown Artist';
+      albumEl.textContent = currentTrack.album || '';
+      
+      // Use proxy for artwork to avoid CORS issues
+      const currentUrl = new URL(window.location.href);
+      let artworkUrl = currentTrack.artwork_url || 
+        (currentTrack.coverid ? `http://${lmsHost}:${lmsPort}/music/${currentTrack.coverid}/cover.jpg` : '');
+      
+      // If artwork URL is from LMS, use image proxy
+      if (artworkUrl && artworkUrl.includes(`http://${lmsHost}:${lmsPort}`)) {
+        artworkUrl = `${currentUrl.protocol}//${currentUrl.host}/api/image-proxy?url=${encodeURIComponent(artworkUrl)}`;
+      }
+      
+      if (artworkUrl && artworkUrl !== lastArtworkUrl) {
+        lastArtworkUrl = artworkUrl;
+        artworkEl.onload = () => {
+          artworkEl.style.display = 'block';
+          artworkPlaceholderEl.style.display = 'none';
+        };
+        artworkEl.onerror = () => {
+          artworkEl.style.display = 'none';
+          artworkPlaceholderEl.style.display = 'flex';
+        };
+        artworkEl.src = artworkUrl;
+      } else if (!artworkUrl) {
+        artworkEl.style.display = 'none';
+        artworkPlaceholderEl.style.display = 'flex';
+      }
+      
+      const time = parseFloat(status.time) || 0;
+      const duration = parseFloat(status.duration) || parseFloat(currentTrack.duration) || 0;
+      
+      if (duration > 0) {
+        const progress = (time / duration) * 100;
+        progressEl.style.width = `${progress}%`;
+        currentTimeEl.textContent = formatTime(time);
+        totalTimeEl.textContent = formatTime(duration);
+      }
+    }
+    
+    if (lmsHost && playerId) {
+      fetchPlayerStatus();
+      setInterval(fetchPlayerStatus, 2000);
+    } else {
+      idleEl.innerHTML = `
+        <h1>SoundStream Now Playing</h1>
+        <p style="margin-bottom: 20px;">Add these parameters to the URL:</p>
+        <p style="font-family: monospace; background: rgba(255,255,255,0.1); padding: 16px; border-radius: 8px;">
+          ?host=YOUR_LMS_IP&port=9000&player=PLAYER_MAC
+        </p>
+      `;
+    }
+  </script>
+</body>
+</html>

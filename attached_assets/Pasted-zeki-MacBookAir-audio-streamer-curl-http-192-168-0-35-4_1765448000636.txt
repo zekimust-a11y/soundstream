@@ -1,0 +1,48 @@
+zeki@MacBookAir audio-streamer % curl "http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml" | xmllint --format -
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  2441  100  2441    0     0   151k      0 --:--:-- --:--:-- --:--:--  158k
+<?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>1</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+    <friendlyName>OLADRAplayer-UPnP/AV</friendlyName>
+    <manufacturer>JF Light Industries</manufacturer>
+    <manufacturerURL>https://framagit.org/medoc92</manufacturerURL>
+    <modelDescription>UPnP front-end to MPD</modelDescription>
+    <modelName>UpMPD</modelName>
+    <modelNumber>42</modelNumber>
+    <modelURL>https://framagit.org/medoc92/upmpdcli/code/</modelURL>
+    <serialNumber>upmpdcli version 1.5.12 libupnpp 0.21.0</serialNumber>
+    <presentationURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/presentation.html</presentationURL>
+    <UDN>uuid:938555d3-b45d-cdb9-7a3b-00e04c68c799</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
+        <SCPDURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/urn-schemas-upnp-org-service-AVTransport-1.xml</SCPDURL>
+        <controlURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-AVTransport-1</controlURL>
+        <eventSubURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/evt-urn-schemas-upnp-org-service-AVTransport-1</eventSubURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:RenderingControl</serviceId>
+        <SCPDURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/urn-schemas-upnp-org-service-RenderingControl-1.xml</SCPDURL>
+        <controlURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-RenderingControl-1</controlURL>
+        <eventSubURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/evt-urn-schemas-upnp-org-service-RenderingControl-1</eventSubURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
+        <SCPDURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/urn-schemas-upnp-org-service-ConnectionManager-1.xml</SCPDURL>
+        <controlURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-ConnectionManager-1</controlURL>
+        <eventSubURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/evt-urn-schemas-upnp-org-service-ConnectionManager-1</eventSubURL>
+      </service>
+    </serviceList>
+  </device>
+</root>
+zeki@MacBookAir audio-streamer % 

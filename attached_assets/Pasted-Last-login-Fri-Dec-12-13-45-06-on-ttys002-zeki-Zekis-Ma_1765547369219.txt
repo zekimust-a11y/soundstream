@@ -1,0 +1,72 @@
+Last login: Fri Dec 12 13:45:06 on ttys002
+zeki@Zekis-MacBook-Air ~ % sudo tcpdump -i en0 -w /tmp/mosaic_capture.pcap &
+# Now change volume in Mosaic
+# Then stop with: sudo killall tcpdump
+# Then analyze: tcpdump -r /tmp/mosaic_capture.pcap | grep -i "192.168.0"
+[1] 87908
+zsh: command not found: #
+zsh: command not found: #
+zsh: command not found: #
+zeki@Zekis-MacBook-Air ~ % Password:
+
+[1]  + suspended (tty input)  sudo tcpdump -i en0 -w /tmp/mosaic_capture.pcap
+zeki@Zekis-MacBook-Air ~ % sudo tcpdump -i en0 -w /tmp/mosaic.pcap
+Password:
+tcpdump: listening on en0, link-type EN10MB (Ethernet), snapshot length 524288 bytes
+^C1121 packets captured
+1121 packets received by filter
+0 packets dropped by kernel
+zeki@Zekis-MacBook-Air ~ % tcpdump -r /tmp/mosaic.pcap | grep "192.168.0" | head -50
+reading from file /tmp/mosaic.pcap, link-type EN10MB (Ethernet)
+13:48:55.270194 IP oladraserver.home.cslistener > 192.168.0.65.49217: Flags [P.], seq 65862652:65863672, ack 3540897027, win 501, options [nop,nop,TS val 317761807 ecr 4004127767], length 1020
+13:48:55.270794 IP 192.168.0.65.49217 > oladraserver.home.cslistener: Flags [.], ack 1020, win 2033, options [nop,nop,TS val 4004130939 ecr 317761807], length 0
+13:48:55.270797 IP 192.168.0.65.49245 > 235.109.160.34.bc.googleusercontent.com.https: Flags [.], ack 4150634848, win 8151, length 0
+13:48:55.284314 IP 235.109.160.34.bc.googleusercontent.com.https > 192.168.0.65.49245: Flags [.], ack 1, win 2896, options [nop,nop,TS val 1922767322 ecr 3716679543], length 0
+13:48:55.293960 IP 192.168.0.65.49218 > oladraserver.home.cslistener: Flags [P.], seq 606945943:606946724, ack 742563478, win 2048, options [nop,nop,TS val 954999859 ecr 317752064], length 781
+13:48:55.294158 IP 192.168.0.65.49218 > oladraserver.home.cslistener: Flags [P.], seq 781:875, ack 1, win 2048, options [nop,nop,TS val 954999859 ecr 317752064], length 94
+13:48:55.308190 IP oladraserver.home.cslistener > 192.168.0.65.49218: Flags [.], ack 875, win 501, options [nop,nop,TS val 317761845 ecr 954999859], length 0
+13:48:55.389381 IP 192.168.0.65.51943 > a172-224-61-5.source.akaquill.net.https: quic, protected
+13:48:55.427580 IP a172-224-61-5.source.akaquill.net.https > 192.168.0.65.51943: quic, protected
+13:48:55.432967 IP buttercupminim2.home.rfb > 192.168.0.65.59790: Flags [P.], seq 1015596790:1015596824, ack 2486122888, win 2048, options [nop,nop,TS val 1183959923 ecr 1180374012], length 34
+13:48:55.433194 IP 192.168.0.65.59790 > buttercupminim2.home.rfb: Flags [.], ack 34, win 47694, options [nop,nop,TS val 1180376103 ecr 1183959923], length 0
+13:48:55.607687 IP varese-interface-501e2d68ee7a.home.mdns > mdns.mcast.net.mdns: 0*- [0q] 4/0/0 PTR VarM-CM-(se-Core-ae04ea608ad930203aa073e6cadc29a2._googlecast._tcp.local., (Cache flush) TXT "id=ae04ea608ad930203aa073e6cadc29a2" "cd=28AA0C4D4657250977621E58AD331DCF" "rm=" "ve=05" "md=VarM-CM-(se Core" "ic=/setup/icon.png" "fn=Living room" "ca=199172" "st=0" "bs=FA8FCA6A0F32" "nf=1" "rs=", (Cache flush) SRV ae04ea60-8ad9-3020-3aa0-73e6cadc29a2.local.:8009 0 0, (Cache flush) A 192.168.0.42 (351)
+13:48:55.610108 IP varese-interface-501e2d68ee7a.home.mdns > mdns.mcast.net.mdns: 0*- [0q] 4/0/0 PTR ae04ea60-8ad9-3020-3aa0-73e6cadc29a2._googlezone._tcp.local., (Cache flush) TXT "id=28AA0C4D4657250977621E58AD331DCF" "CGS", (Cache flush) SRV ae04ea60-8ad9-3020-3aa0-73e6cadc29a2.local.:10001 700 0, (Cache flush) A 192.168.0.42 (210)
+13:48:55.647845 IP 192.168.0.65.59790 > buttercupminim2.home.rfb: Flags [.], ack 34, win 47694, length 0
+13:48:55.653385 IP buttercupminim2.home.rfb > 192.168.0.65.59790: Flags [.], ack 1, win 2048, options [nop,nop,TS val 1183960143 ecr 1180376103], length 0
+13:48:55.672412 IP 104.18.35.46.https > 192.168.0.65.49238: Flags [P.], seq 1777359502:1777359670, ack 28727117, win 16, options [nop,nop,TS val 3580153623 ecr 4142828939], length 168
+13:48:55.672965 IP 192.168.0.65.49238 > 104.18.35.46.https: Flags [.], ack 168, win 2046, options [nop,nop,TS val 4142831435 ecr 3580153623], length 0
+13:48:55.675064 IP 192.168.0.65.49238 > 104.18.35.46.https: Flags [P.], seq 1:173, ack 168, win 2048, options [nop,nop,TS val 4142831437 ecr 3580153623], length 172
+13:48:55.688817 IP 104.18.35.46.https > 192.168.0.65.49238: Flags [.], ack 173, win 16, options [nop,nop,TS val 3580153640 ecr 4142831437], length 0
+13:48:56.012446 IP 235.109.160.34.bc.googleusercontent.com.https > 192.168.0.65.49250: Flags [P.], seq 220990266:220991020, ack 3803109864, win 608, options [nop,nop,TS val 2750558684 ecr 3369135455], length 754
+13:48:56.013035 IP 192.168.0.65.49250 > 235.109.160.34.bc.googleusercontent.com.https: Flags [.], ack 754, win 11608, options [nop,nop,TS val 3369137322 ecr 2750558684], length 0
+13:48:56.056576 IP 192.168.0.65.49245 > 235.109.160.34.bc.googleusercontent.com.https: Flags [P.], seq 1:48, ack 1, win 8152, options [nop,nop,TS val 3716680547 ecr 1922767322], length 47
+13:48:56.070521 IP 235.109.160.34.bc.googleusercontent.com.https > 192.168.0.65.49245: Flags [.], ack 48, win 2896, options [nop,nop,TS val 1922768108 ecr 3716680547], length 0
+13:48:56.075764 IP 192.168.0.65.49250 > 235.109.160.34.bc.googleusercontent.com.https: Flags [.], ack 754, win 11607, length 0
+13:48:56.089516 IP 235.109.160.34.bc.googleusercontent.com.https > 192.168.0.65.49250: Flags [.], ack 1, win 608, options [nop,nop,TS val 2750558831 ecr 3369137322], length 0
+13:48:56.124198 IP 192.168.0.65.51943 > a172-224-61-5.source.akaquill.net.https: quic, protected
+13:48:56.137759 IP a172-224-61-5.source.akaquill.net.https > 192.168.0.65.51943: quic, protected
+13:48:56.220159 IP 235.109.160.34.bc.googleusercontent.com.https > 192.168.0.65.49245: Flags [P.], seq 1:44, ack 48, win 2896, options [nop,nop,TS val 1922768258 ecr 3716680547], length 43
+13:48:56.220727 IP 192.168.0.65.49245 > 235.109.160.34.bc.googleusercontent.com.https: Flags [.], ack 44, win 8152, options [nop,nop,TS val 3716680711 ecr 1922768258], length 0
+13:48:56.425880 IP 235.109.160.34.bc.googleusercontent.com.https > 192.168.0.65.49250: Flags [P.], seq 754:889, ack 1, win 608, options [nop,nop,TS val 2750559163 ecr 3369137322], length 135
+13:48:56.426465 IP 192.168.0.65.49245 > 235.109.160.34.bc.googleusercontent.com.https: Flags [.], ack 44, win 8151, length 0
+13:48:56.426468 IP 192.168.0.65.49250 > 235.109.160.34.bc.googleusercontent.com.https: Flags [.], ack 889, win 11608, options [nop,nop,TS val 3369137735 ecr 2750559163], length 0
+13:48:56.428688 IP 192.168.0.65.49250 > 235.109.160.34.bc.googleusercontent.com.https: Flags [P.], seq 1:140, ack 889, win 11608, options [nop,nop,TS val 3369137738 ecr 2750559163], length 139
+13:48:56.431992 IP 192.168.0.65.51943 > a172-224-61-5.source.akaquill.net.https: quic, protected
+13:48:56.439568 IP 235.109.160.34.bc.googleusercontent.com.https > 192.168.0.65.49245: Flags [.], ack 48, win 2896, options [nop,nop,TS val 1922768477 ecr 3716680711], length 0
+13:48:56.445426 IP 235.109.160.34.bc.googleusercontent.com.https > 192.168.0.65.49250: Flags [.], ack 140, win 608, options [nop,nop,TS val 2750559187 ecr 3369137738], length 0
+13:48:56.471544 IP a172-224-61-5.source.akaquill.net.https > 192.168.0.65.51943: quic, protected
+13:48:56.534307 IP 104.18.35.46.https > 192.168.0.65.49244: Flags [P.], seq 3197285937:3197285996, ack 4266925238, win 15, options [nop,nop,TS val 2611320328 ecr 1350955275], length 59
+13:48:56.534904 IP 192.168.0.65.49244 > 104.18.35.46.https: Flags [.], ack 59, win 5887, options [nop,nop,TS val 1350957723 ecr 2611320328], length 0
+13:48:56.536900 IP 192.168.0.65.49244 > 104.18.35.46.https: Flags [P.], seq 1:51, ack 59, win 5887, options [nop,nop,TS val 1350957725 ecr 2611320328], length 50
+13:48:56.548241 IP 192.168.0.65.59795 > varese-core-8c1f64aa609c.home.7878: Flags [P.], seq 488539260:488539288, ack 1182011593, win 2048, options [nop,nop,TS val 1897177291 ecr 1241131104], length 28
+13:48:56.549730 IP 104.18.35.46.https > 192.168.0.65.49244: Flags [.], ack 51, win 15, options [nop,nop,TS val 2611320344 ecr 1350957725], length 0
+13:48:56.553855 IP varese-core-8c1f64aa609c.home.7878 > 192.168.0.65.59795: Flags [P.], seq 1:25, ack 28, win 1161, options [nop,nop,TS val 1241136047 ecr 1897177291], length 24
+13:48:56.554043 IP 192.168.0.65.59795 > varese-core-8c1f64aa609c.home.7878: Flags [.], ack 25, win 2048, options [nop,nop,TS val 1897177297 ecr 1241136047], length 0
+13:48:56.613873 IP 192.168.0.65.59795 > varese-core-8c1f64aa609c.home.7878: Flags [.], ack 25, win 2048, length 0
+13:48:56.619153 IP varese-core-8c1f64aa609c.home.7878 > 192.168.0.65.59795: Flags [.], ack 28, win 1161, options [nop,nop,TS val 1241136112 ecr 1897177297], length 0
+13:48:57.138316 IP 192.168.0.65.51943 > a172-224-61-5.source.akaquill.net.https: quic, protected
+13:48:57.165402 IP a172-224-61-5.source.akaquill.net.https > 192.168.0.65.51943: quic, protected
+13:48:57.222949 IP 192.168.0.65.49245 > 235.109.160.34.bc.googleusercontent.com.https: Flags [P.], seq 48:95, ack 44, win 8152, options [nop,nop,TS val 3716681713 ecr 1922768477], length 47
+13:48:57.241317 IP oladraserver.home.37740 > 192.168.0.255.32412: UDP, length 21
+tcpdump: Unable to write output: Broken pipe
+zeki@Zekis-MacBook-Air ~ % 

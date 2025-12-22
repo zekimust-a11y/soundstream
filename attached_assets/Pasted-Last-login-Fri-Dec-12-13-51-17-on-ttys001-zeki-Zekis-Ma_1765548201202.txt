@@ -1,0 +1,238 @@
+Last login: Fri Dec 12 13:51:17 on ttys001
+zeki@Zekis-MacBook-Air ~ % curl -v --connect-timeout 5 http://192.168.0.17/description.xml
+curl -v --connect-timeout 5 http://192.168.0.17/upnp/
+curl -v --connect-timeout 5 http://192.168.0.17/api/
+*   Trying 192.168.0.17:80...
+* Connected to 192.168.0.17 (192.168.0.17) port 80
+> GET /description.xml HTTP/1.1
+> Host: 192.168.0.17
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Server: nginx/1.20.1
+< Date: Fri, 12 Dec 2025 14:02:21 GMT
+< Content-Length: 0
+< Connection: keep-alive
+< 
+* Connection #0 to host 192.168.0.17 left intact
+*   Trying 192.168.0.17:80...
+* Connected to 192.168.0.17 (192.168.0.17) port 80
+> GET /upnp/ HTTP/1.1
+> Host: 192.168.0.17
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Server: nginx/1.20.1
+< Date: Fri, 12 Dec 2025 14:02:21 GMT
+< Content-Length: 0
+< Connection: keep-alive
+< 
+* Connection #0 to host 192.168.0.17 left intact
+*   Trying 192.168.0.17:80...
+* Connected to 192.168.0.17 (192.168.0.17) port 80
+> GET /api/ HTTP/1.1
+> Host: 192.168.0.17
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Server: nginx/1.20.1
+< Date: Fri, 12 Dec 2025 14:02:21 GMT
+< Content-Length: 0
+< Connection: keep-alive
+< 
+* Connection #0 to host 192.168.0.17 left intact
+zeki@Zekis-MacBook-Air ~ % 
+zeki@Zekis-MacBook-Air ~ % 
+zeki@Zekis-MacBook-Air ~ % 
+zeki@Zekis-MacBook-Air ~ % 
+zeki@Zekis-MacBook-Air ~ % curl -s http://192.168.0.17/static/updates.js | head -100
+curl -s http://192.168.0.17/static/translate.js | head -50
+curl -v --connect-timeout 5 http://192.168.0.17/status
+curl -v --connect-timeout 5 http://192.168.0.17/volume
+const DONE = 4;
+let uploadInProgress = 0;
+
+setInterval(getUpdateStatus, 2000);
+
+function getUpdateStatus() {
+	fetch("/update_status")
+		.then(response => {
+			if (!response.ok) {
+				return Promise.reject("could not fetch update status: " + response.status);
+			}
+
+			return response.json();
+		})
+		.then(data => {
+			handleUpdateStatus(data);
+		})
+		.catch(console.log);
+}
+
+function handleUpdateStatus(data) {
+	showElement("update-status-divider");
+
+	hideElement("update-check-container");
+	hideElement("update-download-container");
+	hideElement("update-install-container");
+
+	hideElement("update-status-idle");
+	hideElement("update-status-checking");
+	hideElement("update-status-available");
+	hideElement("update-status-downloading");
+	hideElement("update-status-downloaded");
+	hideElement("update-status-installing");
+	hideElement("update-status-error");
+
+	disableButton("update-download");
+	disableButton("update-install");
+	disableButton("firmware-submit");
+
+	switch (data.state) {
+		case "idle":
+			showElement("update-status-idle");
+			showElement("update-check-container");
+			if (!uploadInProgress) {
+				enableButton("firmware-submit");
+			}
+			break;
+		case "checking":
+			showElement("update-status-checking");
+			showElement("update-download-container");
+			break;
+		case "available":
+			showElement("update-status-available");
+			showElement("update-download-container");
+			enableButton("update-download");
+			enableButton("firmware-submit");
+			break;
+		case "downloading":
+			showElement("update-status-downloading");
+			showElement("update-install-container");
+			break;
+		case "downloaded":
+			showElement("update-status-downloaded");
+			showElement("update-install-container");
+			enableButton("update-install");
+			break;
+		case "installing":
+			showElement("update-status-installing");
+			showElement("update-install-container");
+			break;
+		case "error":
+			showElement("update-status-error");
+			showElement("update-check-container");
+			enableButton("update-check");
+			enableButton("firmware-submit");
+			break;
+		default:
+			console.error("unexpected update status: " + text);
+			showElement("update-check-container");
+			enableButton("firmware-submit");
+	}
+
+	var availableVersionElem = document.getElementById("available-version");
+	if (data.version != null) {
+		showElement("update-version");
+		availableVersionElem.innerText = data.version;
+	} else {
+		hideElement("update-version");
+		availableVersionElem.innerText = "";
+	}
+
+	var progressElem = document.getElementById("progress-value");
+	if (data.progress != null) {
+		showElement("download-progress");
+		progressElem.innerText = data.progress + "%";
+	} else {
+		hideElement("download-progress");
+		progressElem.innerText = "";
+	}
+}
+addEventListener("DOMContentLoaded", (event) => run());
+
+function run() {
+	const lang = navigator.language;
+
+	if (lang === null || lang === undefined) {
+		console.log("could not get browser language from navigator property");
+		return;
+	}
+
+	// don't translate english, it's the default
+	if (lang == "en" || lang.startsWith("en-")) {
+		console.log("browser language is set to English, no translation will be applied");
+		return;
+	}
+
+	if (lang.length < 2) {
+		console.log("invalid language specifier: " + lang);
+		return;
+	}
+
+	const langId = lang.slice(0, 2);
+	const translationFile = "translations/" + langId + ".json";
+
+	console.log("loading translations for " + langId);
+
+	fetch(translationFile)
+		.then(response => {
+			if (!response.ok) {
+				console.log("could not load translations for "
+					+ langId
+					+ ", HTTP status "
+					+ response.status);
+				return Promise.reject("no translations available");
+			}
+
+			return response.json();
+		})
+		.then(data => {
+			console.log("loaded translations for " + langId);
+
+			const shadowDocument = document.getElementById("upload-popup").shadowRoot;
+			[...document.querySelectorAll(".translatable"), ...shadowDocument.querySelectorAll(".translatable")]
+				.forEach(function(elem) {
+					const key = elem.dataset.translationKey;
+					console.debug("looking for translation for key " + key);
+
+					if (data.hasOwnProperty(key)) {
+						elem.innerText = data[key];
+						console.debug("found and applied translation for key " + key);
+*   Trying 192.168.0.17:80...
+* Connected to 192.168.0.17 (192.168.0.17) port 80
+> GET /status HTTP/1.1
+> Host: 192.168.0.17
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Server: nginx/1.20.1
+< Date: Fri, 12 Dec 2025 14:03:11 GMT
+< Content-Length: 0
+< Connection: keep-alive
+< 
+* Connection #0 to host 192.168.0.17 left intact
+*   Trying 192.168.0.17:80...
+* Connected to 192.168.0.17 (192.168.0.17) port 80
+> GET /volume HTTP/1.1
+> Host: 192.168.0.17
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Server: nginx/1.20.1
+< Date: Fri, 12 Dec 2025 14:03:11 GMT
+< Content-Length: 0
+< Connection: keep-alive
+< 
+* Connection #0 to host 192.168.0.17 left intact
+zeki@Zekis-MacBook-Air ~ % 

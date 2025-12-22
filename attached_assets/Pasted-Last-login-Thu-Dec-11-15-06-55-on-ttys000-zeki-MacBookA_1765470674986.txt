@@ -1,0 +1,120 @@
+Last login: Thu Dec 11 15:06:55 on ttys000
+zeki@MacBookAir ~ % node ~/ssdp-bridge.js
+=== SoundStream SSDP Bridge ===
+Discovering UPnP devices on your network...
+
+
+Press Ctrl+C to stop.
+
+[SSDP] Listening on 239.255.255.250:1900
+[Bridge] HTTP server listening on http://0.0.0.0:3847
+[Bridge] Endpoints: /devices, /renderers, /servers, /discover, /health
+[SSDP] Found device: bc329e00-1dd8-11b2-8601-14337548ae22
+       Location: http://192.168.0.1:49152/description.xml
+[SSDP] Found device: bc329e00-1dd8-11b2-8601-14337548ae22
+       Location: http://192.168.0.1:49152/description.xml
+[SSDP] Found device: RINCON_7828CAE3A2FA01400
+       Location: http://192.168.0.217:1400/xml/device_description.xml
+[SSDP] Found device: RINCON_7828CAE3A2FA01400
+       Location: http://192.168.0.217:1400/xml/device_description.xml
+[SSDP] Device: 192.168.0.217 - Sonos One - RINCON_7828CAE3A2FA01400
+       AVTransport: http://192.168.0.217:1400/MediaRenderer/AVTransport/Control
+       ContentDirectory: http://192.168.0.217:1400/MediaServer/ContentDirectory/Control
+[SSDP] Device: 192.168.0.217 - Sonos One - RINCON_7828CAE3A2FA01400
+       AVTransport: http://192.168.0.217:1400/MediaRenderer/AVTransport/Control
+       ContentDirectory: http://192.168.0.217:1400/MediaServer/ContentDirectory/Control
+[SSDP] Device: EconetAPS
+[SSDP] Device: EconetAPS
+[SSDP] Sent M-SEARCH requests
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Found device: 40460550-e6f7-4cbb-5db9-a7b1661ab315
+       Location: http://192.168.0.239:8008/ssdp/device-desc.xml
+[SSDP] Found device: 40460550-e6f7-4cbb-5db9-a7b1661ab315
+       Location: http://192.168.0.239:8008/ssdp/device-desc.xml
+[SSDP] Found device: 40460550-e6f7-4cbb-5db9-a7b1661ab315
+       Location: http://192.168.0.239:8008/ssdp/device-desc.xml
+[SSDP] Found device: 40460550-e6f7-4cbb-5db9-a7b1661ab315
+       Location: http://192.168.0.239:8008/ssdp/device-desc.xml
+[SSDP] Device: Google chromecast
+[SSDP] Device: Google chromecast
+[SSDP] Device: Google chromecast
+[SSDP] Device: Google chromecast
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Found device: RINCON_7828CAE3A2FA01400_MR
+       Location: http://192.168.0.217:1400/xml/device_description.xml
+[SSDP] Found device: RINCON_7828CAE3A2FA01400_MS
+       Location: http://192.168.0.217:1400/xml/device_description.xml
+[SSDP] Device: 192.168.0.217 - Sonos One - RINCON_7828CAE3A2FA01400
+       AVTransport: http://192.168.0.217:1400/MediaRenderer/AVTransport/Control
+       ContentDirectory: http://192.168.0.217:1400/MediaServer/ContentDirectory/Control
+[SSDP] Device: 192.168.0.217 - Sonos One - RINCON_7828CAE3A2FA01400
+       AVTransport: http://192.168.0.217:1400/MediaRenderer/AVTransport/Control
+       ContentDirectory: http://192.168.0.217:1400/MediaServer/ContentDirectory/Control
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Found device: com.victronenergy.ccgx.C0
+       Location: http://192.168.0.150:44543/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+[SSDP] Found device: com.victronenergy.ccgx.C0
+       Location: http://192.168.0.150:44543/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+[SSDP] Device: Cerbo GX (c0619ab53308)
+[SSDP] Device: Cerbo GX (c0619ab53308)
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Found device: 88f1207c-ffc2-4070-940e-ca5af99aa4d3
+       Location: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Device: MinimServer[OLADRAserver]
+       ContentDirectory: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control
+[SSDP] Found device: c9ffe739-7b45-47ed-b17e-11027fa89689
+       Location: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+[SSDP] Device: Monitor Service 2
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Found device: e8eab684-2b3b-4521-92cf-7f1a2c4421dd
+       Location: http://192.168.0.42:16500/e8eab684-2b3b-4521-92cf-7f1a2c4421dd.xml
+[SSDP] Device: Living room
+       AVTransport: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelAVTransport
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device e8eab684-2b3b-4521-92cf-7f1a2c4421dd to update services
+[SSDP] Re-fetching device 88f1207c-ffc2-4070-940e-ca5af99aa4d3 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device e8eab684-2b3b-4521-92cf-7f1a2c4421dd to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device e8eab684-2b3b-4521-92cf-7f1a2c4421dd to update services
+[SSDP] Re-fetching device 88f1207c-ffc2-4070-940e-ca5af99aa4d3 to update services
+[SSDP] Re-fetching device e8eab684-2b3b-4521-92cf-7f1a2c4421dd to update services
+[SSDP] Re-fetching device e8eab684-2b3b-4521-92cf-7f1a2c4421dd to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device c9ffe739-7b45-47ed-b17e-11027fa89689 to update services
+[SSDP] Re-fetching device 88f1207c-ffc2-4070-940e-ca5af99aa4d3 to update services
+[SSDP] Re-fetching device c9ffe739-7b45-47ed-b17e-11027fa89689 to update services
+[SSDP] Re-fetching device 88f1207c-ffc2-4070-940e-ca5af99aa4d3 to update services
+[SSDP] Re-fetching device c9ffe739-7b45-47ed-b17e-11027fa89689 to update services
+[SSDP] Re-fetching device com.victronenergy.ccgx.C0 to update services
+[SSDP] Re-fetching device e8eab684-2b3b-4521-92cf-7f1a2c4421dd to update services
+[SSDP] Re-fetching device com.victronenergy.ccgx.C0 to update services
+[SSDP] Re-fetching device 88f1207c-ffc2-4070-940e-ca5af99aa4d3 to update services
+[SSDP] Re-fetching device 88f1207c-ffc2-4070-940e-ca5af99aa4d3 to update services
+[SSDP] Re-fetching device com.victronenergy.ccgx.C0 to update services
+[SSDP] Re-fetching device com.victronenergy.ccgx.C0 to update services
+[SSDP] Re-fetching device e8eab684-2b3b-4521-92cf-7f1a2c4421dd to update services
+[SSDP] Re-fetching device c9ffe739-7b45-47ed-b17e-11027fa89689 to update services
+[SSDP] Re-fetching device e8eab684-2b3b-4521-92cf-7f1a2c4421dd to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+[SSDP] Re-fetching device bc329e00-1dd8-11b2-8601-14337548ae22 to update services
+

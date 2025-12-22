@@ -1,0 +1,30 @@
+<svg width="980" height="980" viewBox="0 0 980 980" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="490" cy="490" r="490" fill="#000"/>
+  <g fill="#fff">
+    <!-- Sound wave bars -->
+    <rect x="200" y="400" width="20" height="80" rx="2"/>
+    <rect x="230" y="380" width="20" height="120" rx="2"/>
+    <rect x="260" y="360" width="20" height="160" rx="2"/>
+    <rect x="290" y="340" width="20" height="200" rx="2"/>
+    <rect x="320" y="320" width="20" height="240" rx="2"/>
+    <rect x="350" y="340" width="20" height="200" rx="2"/>
+    <rect x="380" y="360" width="20" height="160" rx="2"/>
+    <rect x="410" y="380" width="20" height="120" rx="2"/>
+    <!-- Cloud shape -->
+    <path d="M 450 420 Q 480 400 520 400 Q 560 400 590 420 Q 620 400 660 400 Q 700 400 730 430 Q 760 400 800 400 Q 840 400 870 430 Q 880 440 880 450 Q 880 460 870 470 Q 840 500 800 500 Q 760 500 730 470 Q 700 500 660 500 Q 620 500 590 480 Q 560 500 520 500 Q 480 500 450 470 Z" fill="#fff"/>
+  </g>
+  <text x="490" y="750" font-family="Arial, sans-serif" font-size="120" font-weight="bold" fill="#fff" text-anchor="middle">SOUNDCLOUD</text>
+</svg>
+
+
+
+
+
+
+
+
+
+
+
+
+

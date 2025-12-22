@@ -1,0 +1,926 @@
+Last login: Thu Dec 11 09:04:02 on ttys006
+zeki@MacBookAir ~ % cd documents/audio-streamer
+zeki@MacBookAir audio-streamer % git stash
+git pull origin main
+git stash pop
+Saved working directory and index state WIP on main: 2c6b477 Add music renderer selection and network discovery timer
+fatal: 'origin' does not appear to be a git repository
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   package-lock.json
+	modified:   package.json
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.local/
+
+no changes added to commit (use "git add" and/or "git commit -a")
+Dropped refs/stash@{0} (e714c865892310aaf5060cf947313f50dfa2fcff)
+zeki@MacBookAir audio-streamer % curl -v http://192.168.0.19:9790/
+*   Trying 192.168.0.19:9790...
+* Connected to 192.168.0.19 (192.168.0.19) port 9790
+> GET / HTTP/1.1
+> Host: 192.168.0.19:9790
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 200 OK
+< Date: Thu, 11 Dec 2025 09:55:10 GMT
+< Last-Modified: Thu, 11 Dec 2025 09:55:10 GMT
+< Content-Length: 4049
+< Content-Type: text/html; charset=utf-8
+< Connection: keep-alive
+< Cache-Control: no-cache
+< 
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MinimServer Status</title>
+<link rel="icon" href="/favicon2.659dcab4.ico" type="image/x-icon" />
+<script>
+var tsSite = "site2.63a0d322.css";
+var tsSiteWin = "site2-win.639dadfa.css";
+var tsSiteMac = "site2-mac.63a0dc62.css";
+var tsIconStarting = "favicon-starting.65a5ad2e.ico";
+var tsIconRunning = "favicon-running.65a5ad42.ico";
+var tsIconStopped = "favicon-stopped.65a5ad1e.ico";
+var tsIconError = "favicon-error.65a5ad5c.ico";
+var tsMinim = "minim.5dbf5922.png";
+</script>
+<script>var eventOptions = 'lastRescan,prop-contentDir';</script>
+<script type="text/javascript" src="page-script.67894b04.js"></script>
+<script type="text/javascript" src="status-script.67df24e6.js"></script>
+<script type="text/javascript" src="relaunch-script.661a6a3c.js"></script>
+<script>
+function licenseDetails(key) {
+  document.getElementById("details_key").value = key;
+  document.getElementById("details_form").submit();
+  return false;
+}
+function bodyOnLoad() {
+  debugLog('bodyOnLoad1');
+  debugLogDiv = document.getElementById('debug_log');
+  debugLog('bodyOnLoad2');
+}
+</script>
+</head>
+<body onload="bodyOnLoad()">
+<div class="outer">
+<script>writeStatusHeader('MinimServer[OLADRAserver]');</script>
+<p class="prenote">MinimServer 2.2 update 263, Copyright (c) 2012-2025 Simon Nash. All rights reserved.</p>
+<p class="note">Your license type is Trial.
+For more information, select the License tab.</p>
+<p class="note" style="color:red"><span id="status_message"></span></p>
+<p class="prenote">Media server status for MinimServer[OLADRAserver]: <span id="server_status">Running</span>
+<div id="error_div" style="display: none"><p id="error_info" class="note" style="color:red"></p></div>
+<p>Your last rescan was at <span id="rescan_time">05:40:58 on 11 Dec 2025</span>
+<button type="button" onclick="doRescan()" style="margin-left: 15px">Rescan</button></p>
+<div id="set_contentdir" style="display: none">
+<p class="prenote">You have no content directory (music folder) selected.</p>
+<p class="note">Enter the full path to your content directory in the field below and click Save.</p>
+<form name="contentdirform" action="" method="post">
+<p class="note">&nbsp;&nbsp;&nbsp;Content directory:&nbsp;&nbsp;<input id="contentdir_value" type="text" size="30" name="dir">&nbsp;&nbsp;&nbsp;<button type="submit" name="sub" value="save">&nbsp;&nbsp;Save&nbsp;&nbsp;</button></p>
+</form>
+</div>
+<div id="show_contentdirs" style="display: block">
+<p class="prenote">You have selected the following content <span id="directories">directory</span>:</p>
+<div id="contentdir_list">
+<p class="note">&nbsp;&nbsp;&nbsp;/storage/music</p>
+</div>
+<p class="note">To change this, select the Properties tab and update the contentDir property.</p>
+</div>
+<p>For more information about using MinimServer, see the <a href="https://minimserver.com/quickstart.html" target="_blank">Quick start</a> page.</p>
+<form id="details_form" action="https://minimworld.com/license-details.php" method="post" target="_blank" style="display: none">
+<input id="details_key" type="hidden" name="key">
+<input type="hidden" name="sub" value="show_details">
+</form>
+<div id="modal_background" class="modal">
+  <div class="modal-content">
+    <span class="close">&times;</span>
+    <p class="modal-text">
+    To install <span id=package_span>???</span> and relaunch MinimServer, click the OK button below.
+    To cancel and return to the configuration page, click Cancel.
+    </p><p>
+    <form name="install_form" action="" method="post">
+      <input id="package_name" type="hidden" name="packagename" value="???">
+      <input id="package_title" type="hidden" name="packagetitle" value="???">
+      <button class="medium" type="submit" name="sub" value="install" style="margin-left: 10px">OK</button>
+      <button class="medium" type="submit" name="sub" value="cancel" style="margin-left: 40px">Cancel</button>
+    </form>
+</p>
+  </div>
+</div>
+</div>
+</body>
+</html>
+* Connection #0 to host 192.168.0.19 left intact
+zeki@MacBookAir audio-streamer % curl -v -X POST -H "Content-Type: text/xml; charset=utf-8" -H 'SOAPAction: "urn:schemas-upnp-org:service:ContentDirectory:1#Browse"' -d '<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1"><ObjectID>0</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter><StartingIndex>0</StartingIndex><RequestedCount>10</RequestedCount><SortCriteria></SortCriteria></u:Browse></s:Body></s:Envelope>' http://192.168.0.19:9791/ctl/ContentDirectory
+Note: Unnecessary use of -X or --request, POST is already inferred.
+*   Trying 192.168.0.19:9791...
+* Connected to 192.168.0.19 (192.168.0.19) port 9791
+> POST /ctl/ContentDirectory HTTP/1.1
+> Host: 192.168.0.19:9791
+> User-Agent: curl/8.7.1
+> Accept: */*
+> Content-Type: text/xml; charset=utf-8
+> SOAPAction: "urn:schemas-upnp-org:service:ContentDirectory:1#Browse"
+> Content-Length: 375
+> 
+* upload completely sent off: 375 bytes
+< HTTP/1.1 412 Precondition Failed
+< Connection: close
+< 
+* Closing connection
+zeki@MacBookAir audio-streamer % curl http://192.168.0.19:9790/DeviceDescription.xml
+Requested resource not found%                                                                     zeki@MacBookAir audio-streamer % curl http://192.168.0.19:9790/description.xml
+Requested resource not found%                                                                     zeki@MacBookAir audio-streamer % curl http://192.168.0.19:9791/
+zeki@MacBookAir audio-streamer % curl http://192.168.0.19:9791/Ds/device.xml
+zeki@MacBookAir audio-streamer % curl http://192.168.0.19:9790/upnp
+Requested resource not found%                                                                     zeki@MacBookAir audio-streamer % echo -e "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 3\r\nST: urn:schemas-upnp-org:service:ContentDirectory:1\r\n\r\n" | nc -u -w 5 239.255.255.250 1900
+zeki@MacBookAir audio-streamer % curl "http://192.168.0.19:9791/$(curl -s http://192.168.0.19:9790/ | grep -o '[a-f0-9\-]\{36\}' | head -1)/Upnp/device.xml"
+zeki@MacBookAir audio-streamer % pip3 install ssdpy && python3 -m ssdpy.cli discover
+
+[notice] A new release of pip is available: 24.2 -> 25.3
+[notice] To update, run: python3.12 -m pip install --upgrade pip
+error: externally-managed-environment
+
+× This environment is externally managed
+╰─> To install Python packages system-wide, try brew install
+    xyz, where xyz is the package you are trying to
+    install.
+    
+    If you wish to install a Python library that isn't in Homebrew,
+    use a virtual environment:
+    
+    python3 -m venv path/to/venv
+    source path/to/venv/bin/activate
+    python3 -m pip install xyz
+    
+    If you wish to install a Python application that isn't in Homebrew,
+    it may be easiest to use 'pipx install xyz', which will manage a
+    virtual environment for you. You can install pipx with
+    
+    brew install pipx
+    
+    You may restore the old behavior of pip by passing
+    the '--break-system-packages' flag to pip, or by adding
+    'break-system-packages = true' to your pip.conf file. The latter
+    will permanently disable this error.
+    
+    If you disable this error, we STRONGLY recommend that you additionally
+    pass the '--user' flag to pip, or set 'user = true' in your pip.conf
+    file. Failure to do this can result in a broken Homebrew installation.
+    
+    Read more about this behavior here: <https://peps.python.org/pep-0668/>
+
+note: If you believe this is a mistake, please contact your Python installation or OS distribution provider. You can override this, at the risk of breaking your Python installation or OS, by passing --break-system-packages.
+hint: See PEP 668 for the detailed specification.
+zeki@MacBookAir audio-streamer % brew install gupnp-tools && gssdp-discover -i en0 --timeout=5
+✔︎ JSON API cask.jws.json                                             [Downloaded   15.1MB/ 15.1MB]
+✔︎ JSON API formula.jws.json                                          [Downloaded   31.7MB/ 31.7MB]
+==> Fetching downloads for: gupnp-tools
+✔︎ Bottle Manifest gupnp-tools (0.12.2_1)                             [Downloaded   76.1KB/ 76.1KB]
+✔︎ Bottle Manifest pcre2 (10.47)                                      [Downloaded   10.4KB/ 10.4KB]
+✔︎ Bottle pcre2 (10.47)                                               [Downloaded    2.4MB/  2.4MB]
+✔︎ Bottle Manifest libunistring (1.4.1)                               [Downloaded    7.3KB/  7.3KB]
+✔︎ Bottle Manifest gettext (0.26_1)                                   [Downloaded   13.8KB/ 13.8KB]
+✔︎ Bottle Manifest glib (2.86.3)                                      [Downloaded   20.2KB/ 20.2KB]
+✔︎ Bottle Manifest jpeg-turbo (3.1.2)                                 [Downloaded   10.7KB/ 10.7KB]
+✔︎ Bottle jpeg-turbo (3.1.2)                                          [Downloaded    1.1MB/  1.1MB]
+✔︎ Bottle Manifest libpng (1.6.53)                                    [Downloaded    8.5KB/  8.5KB]
+✔︎ Bottle libpng (1.6.53)                                             [Downloaded  459.1KB/459.1KB]
+✔︎ Bottle Manifest xz (5.8.1)                                         [Downloaded   14.5KB/ 14.5KB]
+✔︎ Bottle xz (5.8.1)                                                  [Downloaded  746.8KB/746.8KB]
+✔︎ Bottle Manifest lz4 (1.10.0)                                       [Downloaded   13.8KB/ 13.8KB]
+✔︎ Bottle lz4 (1.10.0)                                                [Downloaded  279.7KB/279.7KB]
+✔︎ Bottle Manifest zstd (1.5.7)                                       [Downloaded   16.2KB/ 16.2KB]
+✔︎ Bottle zstd (1.5.7)                                                [Downloaded  793.5KB/793.5KB]
+✔︎ Bottle Manifest libtiff (4.7.1)                                    [Downloaded   12.5KB/ 12.5KB]
+✔︎ Bottle Manifest gdk-pixbuf (2.44.4)                                [Downloaded   22.0KB/ 22.0KB]
+✔︎ Bottle gdk-pixbuf (2.44.4)                                         [Downloaded  783.6KB/783.6KB]
+✔︎ Bottle Manifest gmp (6.3.0)                                        [Downloaded   13.3KB/ 13.3KB]
+✔︎ Bottle gmp (6.3.0)                                                 [Downloaded    1.0MB/  1.0MB]
+✔︎ Bottle Manifest libidn2 (2.3.8)                                    [Downloaded   12.8KB/ 12.8KB]
+✔︎ Bottle libidn2 (2.3.8)                                             [Downloaded  309.8KB/309.8KB]
+✔︎ Bottle Manifest libtasn1 (4.20.0)                                  [Downloaded   10.1KB/ 10.1KB]
+✔︎ Bottle libtasn1 (4.20.0)                                           [Downloaded  166.8KB/166.8KB]
+✔︎ Bottle Manifest nettle (3.10.2)                                    [Downloaded   11.9KB/ 11.9KB]
+✔︎ Bottle Manifest p11-kit (0.25.10)                                  [Downloaded    9.9KB/  9.9KB]
+✔︎ Bottle Manifest libevent (2.1.12_1)                                [Downloaded   17.0KB/ 17.0KB]
+✔︎ Bottle Manifest libnghttp2 (1.68.0)                                [Downloaded    7.3KB/  7.3KB]
+✔︎ Bottle Manifest unbound (1.24.2)                                   [Downloaded   14.0KB/ 14.0KB]
+✔︎ Bottle Manifest gnutls (3.8.11)                                    [Downloaded   19.5KB/ 19.5KB]
+✔︎ Bottle libunistring (1.4.1)                                        [Downloaded    1.9MB/  1.9MB]
+✔︎ Bottle p11-kit (0.25.10)                                           [Downloaded  938.5KB/938.5KB]
+✔︎ Bottle Manifest gsettings-desktop-schemas (49.1)                   [Downloaded   16.8KB/ 16.8KB]
+✔︎ Bottle libnghttp2 (1.68.0)                                         [Downloaded  220.7KB/220.7KB]
+✔︎ Bottle Manifest glib-networking (2.80.1)                           [Downloaded   32.6KB/ 32.6KB]
+✔︎ Bottle Manifest libpsl (0.21.5_2)                                  [Downloaded   12.5KB/ 12.5KB]
+✔︎ Bottle libevent (2.1.12_1)                                         [Downloaded  738.7KB/738.7KB]
+✔︎ Bottle libtiff (4.7.1)                                             [Downloaded    1.9MB/  1.9MB]
+✔︎ Bottle Manifest readline (8.3.1)                                   [Downloaded   12.3KB/ 12.3KB]
+✔︎ Bottle Manifest sqlite (3.51.1)                                    [Downloaded   11.4KB/ 11.4KB]
+✔︎ Bottle nettle (3.10.2)                                             [Downloaded  987.6KB/987.6KB]
+✔︎ Bottle Manifest libsoup (3.6.5)                                    [Downloaded   33.5KB/ 33.5KB]
+✔︎ Bottle libpsl (0.21.5_2)                                           [Downloaded   75.4KB/ 75.4KB]
+✔︎ Bottle glib-networking (2.80.1)                                    [Downloaded  179.7KB/179.7KB]
+✔︎ Bottle Manifest dbus (1.16.2_1)                                    [Downloaded   14.3KB/ 14.3KB]
+✔︎ Bottle glib (2.86.3)                                               [Downloaded    9.2MB/  9.2MB]
+✔︎ Bottle Manifest gssdp (1.6.4)                                      [Downloaded   38.3KB/ 38.3KB]
+✔︎ Bottle Manifest xorgproto (2024.1)                                 [Downloaded   20.6KB/ 20.6KB]
+✔︎ Bottle readline (8.3.1)                                            [Downloaded  757.7KB/757.7KB]
+✔︎ Bottle Manifest libxau (1.0.12)                                    [Downloaded   10.3KB/ 10.3KB]
+✔︎ Bottle gssdp (1.6.4)                                               [Downloaded   63.3KB/ 63.3KB]
+✔︎ Bottle Manifest libxdmcp (1.1.5)                                   [Downloaded   12.0KB/ 12.0KB]
+✔︎ Bottle Manifest libxcb (1.17.0)                                    [Downloaded   19.2KB/ 19.2KB]
+✔︎ Bottle libxau (1.0.12)                                             [Downloaded   33.4KB/ 33.4KB]
+✔︎ Bottle libxdmcp (1.1.5)                                            [Downloaded   36.8KB/ 36.8KB]
+✔︎ Bottle Manifest libx11 (1.8.12)                                    [Downloaded   18.3KB/ 18.3KB]
+✔︎ Bottle Manifest libxext (1.3.6)                                    [Downloaded   16.8KB/ 16.8KB]
+✔︎ Bottle libsoup (3.6.5)                                             [Downloaded  503.9KB/503.9KB]
+✔︎ Bottle gsettings-desktop-schemas (49.1)                            [Downloaded    1.8MB/  1.8MB]
+✔︎ Bottle Manifest libxfixes (6.0.2)                                  [Downloaded   14.9KB/ 14.9KB]
+✔︎ Bottle dbus (1.16.2_1)                                             [Downloaded  559.0KB/559.0KB]
+✔︎ Bottle xorgproto (2024.1)                                          [Downloaded  717.1KB/717.1KB]
+✔︎ Bottle unbound (1.24.2)                                            [Downloaded    3.0MB/  3.0MB]
+✔︎ Bottle Manifest libxi (1.8.2)                                      [Downloaded   19.8KB/ 19.8KB]
+✔︎ Bottle Manifest libxtst (1.2.5)                                    [Downloaded   20.5KB/ 20.5KB]
+✔︎ Bottle Manifest at-spi2-core (2.58.2)                              [Downloaded   25.9KB/ 25.9KB]
+✔︎ Bottle sqlite (3.51.1)                                             [Downloaded    2.4MB/  2.4MB]
+✔︎ Bottle libxext (1.3.6)                                             [Downloaded  108.4KB/108.4KB]
+✔︎ Bottle libxfixes (6.0.2)                                           [Downloaded   32.1KB/ 32.1KB]
+✔︎ Bottle Manifest freetype (2.14.1_1)                                [Downloaded    9.2KB/  9.2KB]
+✔︎ Bottle libxtst (1.2.5)                                             [Downloaded   40.6KB/ 40.6KB]
+✔︎ Bottle Manifest fontconfig (2.17.1)                                [Downloaded   17.3KB/ 17.3KB]
+✔︎ Bottle Manifest libxrender (0.9.12)                                [Downloaded   14.2KB/ 14.2KB]
+✔︎ Bottle gnutls (3.8.11)                                             [Downloaded    3.3MB/  3.3MB]
+✔︎ Bottle libxi (1.8.2)                                               [Downloaded  159.3KB/159.3KB]
+✔︎ Bottle Manifest lzo (2.10)                                         [Downloaded   16.7KB/ 16.7KB]
+✔︎ Bottle Manifest pixman (0.46.4)                                    [Downloaded    9.3KB/  9.3KB]
+✔︎ Bottle Manifest cairo (1.18.4)                                     [Downloaded   37.0KB/ 37.0KB]
+✔︎ Bottle libxrender (0.9.12)                                         [Downloaded   54.6KB/ 54.6KB]
+✔︎ Bottle Manifest fribidi (1.0.16)                                   [Downloaded   10.0KB/ 10.0KB]
+✔︎ Bottle Manifest graphite2 (1.3.14)                                 [Downloaded    8.0KB/  8.0KB]
+✔︎ Bottle Manifest icu4c@78 (78.1)                                    [Downloaded    9.7KB/  9.7KB]
+✔︎ Bottle freetype (2.14.1_1)                                         [Downloaded  991.0KB/991.0KB]
+✔︎ Bottle lzo (2.10)                                                  [Downloaded  149.6KB/149.6KB]
+✔︎ Bottle fontconfig (2.17.1)                                         [Downloaded  400.1KB/400.1KB]
+✔︎ Bottle pixman (0.46.4)                                             [Downloaded  416.2KB/416.2KB]
+✔︎ Bottle Manifest harfbuzz (12.2.0_1)                                [Downloaded   29.9KB/ 29.9KB]
+✔︎ Bottle fribidi (1.0.16)                                            [Downloaded   99.0KB/ 99.0KB]
+✔︎ Bottle graphite2 (1.3.14)                                          [Downloaded   92.6KB/ 92.6KB]
+✔︎ Bottle Manifest hicolor-icon-theme (0.18)                          [Downloaded    1.9KB/  1.9KB]
+✔︎ Bottle cairo (1.18.4)                                              [Downloaded    1.6MB/  1.6MB]
+✔︎ Bottle hicolor-icon-theme (0.18)                                   [Downloaded   16.1KB/ 16.1KB]
+✔︎ Bottle at-spi2-core (2.58.2)                                       [Downloaded  825.2KB/825.2KB]
+✔︎ Bottle Manifest libepoxy (1.5.10)                                  [Downloaded   24.5KB/ 24.5KB]
+✔︎ Bottle libx11 (1.8.12)                                             [Downloaded    2.3MB/  2.3MB]
+✔︎ Bottle gettext (0.26_1)                                            [Downloaded    9.6MB/  9.6MB]
+✔︎ Bottle libxcb (1.17.0)                                             [Downloaded  999.8KB/999.8KB]
+✔︎ Bottle Manifest pango (1.57.0_1)                                   [Downloaded   31.5KB/ 31.5KB]
+✔︎ Bottle Manifest libxml2 (2.15.1_1)                                 [Downloaded    9.5KB/  9.5KB]
+✔︎ Bottle Manifest gtk+3 (3.24.51)                                    [Downloaded   58.5KB/ 58.5KB]
+✔︎ Bottle Manifest gtksourceview4 (4.8.4_2)                           [Downloaded   56.6KB/ 56.6KB]
+✔︎ Bottle Manifest mpdecimal (4.0.1)                                  [Downloaded   11.9KB/ 11.9KB]
+✔︎ Bottle Manifest python@3.14 (3.14.2)                               [Downloaded   29.5KB/ 29.5KB]
+✔︎ Bottle Manifest gupnp (1.6.9_1)                                    [Downloaded   36.9KB/ 36.9KB]
+✔︎ Bottle Manifest gupnp-av (0.14.4_1)                                [Downloaded   17.3KB/ 17.3KB]
+✔︎ Bottle libepoxy (1.5.10)                                           [Downloaded  393.3KB/393.3KB]
+✔︎ Bottle mpdecimal (4.0.1)                                           [Downloaded  186.2KB/186.2KB]
+✔︎ Bottle gupnp (1.6.9_1)                                             [Downloaded  160.9KB/160.9KB]
+✔︎ Bottle pango (1.57.0_1)                                            [Downloaded  886.2KB/886.2KB]
+✔︎ Bottle gupnp-av (0.14.4_1)                                         [Downloaded  136.9KB/136.9KB]
+✔︎ Bottle libxml2 (2.15.1_1)                                          [Downloaded  644.2KB/644.2KB]
+✔︎ Bottle gupnp-tools (0.12.2_1)                                      [Downloaded  310.4KB/310.4KB]
+✔︎ Bottle harfbuzz (12.2.0_1)                                         [Downloaded    3.3MB/  3.3MB]
+✔︎ Bottle gtksourceview4 (4.8.4_2)                                    [Downloaded    1.3MB/  1.3MB]
+✔︎ Bottle icu4c@78 (78.1)                                             [Downloaded   31.8MB/ 31.8MB]
+✔︎ Bottle gtk+3 (3.24.51)                                             [Downloaded   17.0MB/ 17.0MB]
+✔︎ Bottle python@3.14 (3.14.2)                                        [Downloaded   18.8MB/ 18.8MB]
+==> Installing dependencies for gupnp-tools: pcre2, libunistring, gettext, glib, jpeg-turbo, libpng, xz, lz4, zstd, libtiff, gdk-pixbuf, gmp, libidn2, libtasn1, nettle, p11-kit, libevent, libnghttp2, unbound, gnutls, gsettings-desktop-schemas, glib-networking, libpsl, readline, sqlite, libsoup, gssdp, dbus, xorgproto, libxau, libxdmcp, libxcb, libx11, libxext, libxfixes, libxi, libxtst, at-spi2-core, freetype, fontconfig, libxrender, lzo, pixman, cairo, fribidi, graphite2, icu4c@78, harfbuzz, hicolor-icon-theme, libepoxy, pango, gtk+3, gtksourceview4, libxml2, mpdecimal, python@3.14, gupnp and gupnp-av
+==> Installing gupnp-tools dependency: pcre2
+==> Pouring pcre2--10.47.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/pcre2/10.47: 244 files, 7.3MB
+==> Installing gupnp-tools dependency: libunistring
+==> Pouring libunistring--1.4.1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libunistring/1.4.1: 59 files, 5.8MB
+==> Installing gupnp-tools dependency: gettext
+==> Pouring gettext--0.26_1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/gettext/0.26_1: 2,428 files, 29.5MB
+==> Installing gupnp-tools dependency: glib
+==> Pouring glib--2.86.3.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/glib/2.86.3: 504 files, 39.6MB
+==> Installing gupnp-tools dependency: jpeg-turbo
+==> Pouring jpeg-turbo--3.1.2.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/jpeg-turbo/3.1.2: 47 files, 3.7MB
+==> Installing gupnp-tools dependency: libpng
+==> Pouring libpng--1.6.53.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libpng/1.6.53: 28 files, 1.4MB
+==> Installing gupnp-tools dependency: xz
+==> Pouring xz--5.8.1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/xz/5.8.1: 96 files, 2.6MB
+==> Installing gupnp-tools dependency: lz4
+==> Pouring lz4--1.10.0.arm64_tahoe.bottle.1.tar.gz
+🍺  /opt/homebrew/Cellar/lz4/1.10.0: 24 files, 768.9KB
+==> Installing gupnp-tools dependency: zstd
+==> Pouring zstd--1.5.7.arm64_tahoe.bottle.1.tar.gz
+🍺  /opt/homebrew/Cellar/zstd/1.5.7: 32 files, 2.3MB
+==> Installing gupnp-tools dependency: libtiff
+==> Pouring libtiff--4.7.1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libtiff/4.7.1: 488 files, 9.0MB
+==> Installing gupnp-tools dependency: gdk-pixbuf
+==> Pouring gdk-pixbuf--2.44.4.arm64_tahoe.bottle.tar.gz
+==> /opt/homebrew/Cellar/gdk-pixbuf/2.44.4/bin/gdk-pixbuf-query-loaders --update-cache
+🍺  /opt/homebrew/Cellar/gdk-pixbuf/2.44.4: 151 files, 4.2MB
+==> Installing gupnp-tools dependency: gmp
+==> Pouring gmp--6.3.0.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/gmp/6.3.0: 22 files, 3.4MB
+==> Installing gupnp-tools dependency: libidn2
+==> Pouring libidn2--2.3.8.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libidn2/2.3.8: 80 files, 946.1KB
+==> Installing gupnp-tools dependency: libtasn1
+==> Pouring libtasn1--4.20.0.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libtasn1/4.20.0: 63 files, 704.1KB
+==> Installing gupnp-tools dependency: nettle
+==> Pouring nettle--3.10.2.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/nettle/3.10.2: 96 files, 2.9MB
+==> Installing gupnp-tools dependency: p11-kit
+==> Pouring p11-kit--0.25.10.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/p11-kit/0.25.10: 33 files, 4.5MB
+==> Installing gupnp-tools dependency: libevent
+==> Pouring libevent--2.1.12_1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libevent/2.1.12_1: 58 files, 2.4MB
+==> Installing gupnp-tools dependency: libnghttp2
+==> Pouring libnghttp2--1.68.0.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libnghttp2/1.68.0: 14 files, 787.9KB
+==> Installing gupnp-tools dependency: unbound
+==> Pouring unbound--1.24.2.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/unbound/1.24.2: 59 files, 6.5MB
+==> Installing gupnp-tools dependency: gnutls
+==> Pouring gnutls--3.8.11.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/gnutls/3.8.11: 1,303 files, 12MB
+==> Installing gupnp-tools dependency: gsettings-desktop-schemas
+==> Pouring gsettings-desktop-schemas--49.1.arm64_tahoe.bottle.tar.gz
+==> /opt/homebrew/opt/glib/bin/glib-compile-schemas /opt/homebrew/share/glib-2.0/schemas
+🍺  /opt/homebrew/Cellar/gsettings-desktop-schemas/49.1: 108 files, 6MB
+==> Installing gupnp-tools dependency: glib-networking
+==> Pouring glib-networking--2.80.1.arm64_tahoe.bottle.tar.gz
+==> /opt/homebrew/opt/glib/bin/gio-querymodules /opt/homebrew/lib/gio/modules
+🍺  /opt/homebrew/Cellar/glib-networking/2.80.1: 79 files, 789.7KB
+==> Installing gupnp-tools dependency: libpsl
+==> Pouring libpsl--0.21.5_2.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libpsl/0.21.5_2: 16 files, 244.4KB
+==> Installing gupnp-tools dependency: readline
+==> Pouring readline--8.3.1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/readline/8.3.1: 56 files, 2.7MB
+==> Installing gupnp-tools dependency: sqlite
+==> Pouring sqlite--3.51.1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/sqlite/3.51.1: 13 files, 5.2MB
+==> Installing gupnp-tools dependency: libsoup
+==> Pouring libsoup--3.6.5.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libsoup/3.6.5: 125 files, 2.3MB
+==> Installing gupnp-tools dependency: gssdp
+==> Pouring gssdp--1.6.4.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/gssdp/1.6.4: 21 files, 334KB
+==> Installing gupnp-tools dependency: dbus
+==> Pouring dbus--1.16.2_1.arm64_tahoe.bottle.tar.gz
+==> /opt/homebrew/Cellar/dbus/1.16.2_1/bin/dbus-uuidgen --ensure=/opt/homebrew/var/lib/dbus/machin
+🍺  /opt/homebrew/Cellar/dbus/1.16.2_1: 79 files, 2.2MB
+==> Installing gupnp-tools dependency: xorgproto
+==> Pouring xorgproto--2024.1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/xorgproto/2024.1: 268 files, 4.1MB
+==> Installing gupnp-tools dependency: libxau
+==> Pouring libxau--1.0.12.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libxau/1.0.12: 21 files, 137.4KB
+==> Installing gupnp-tools dependency: libxdmcp
+==> Pouring libxdmcp--1.1.5.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libxdmcp/1.1.5: 12 files, 143.0KB
+==> Installing gupnp-tools dependency: libxcb
+==> Pouring libxcb--1.17.0.arm64_tahoe.bottle.1.tar.gz
+🍺  /opt/homebrew/Cellar/libxcb/1.17.0: 2,498 files, 7.9MB
+==> Installing gupnp-tools dependency: libx11
+==> Pouring libx11--1.8.12.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libx11/1.8.12: 1,043 files, 7.4MB
+==> Installing gupnp-tools dependency: libxext
+==> Pouring libxext--1.3.6.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libxext/1.3.6: 88 files, 468.6KB
+==> Installing gupnp-tools dependency: libxfixes
+==> Pouring libxfixes--6.0.2.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libxfixes/6.0.2: 13 files, 151.8KB
+==> Installing gupnp-tools dependency: libxi
+==> Pouring libxi--1.8.2.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libxi/1.8.2: 86 files, 715.4KB
+==> Installing gupnp-tools dependency: libxtst
+==> Pouring libxtst--1.2.5.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libxtst/1.2.5: 23 files, 199.1KB
+==> Installing gupnp-tools dependency: at-spi2-core
+==> Pouring at-spi2-core--2.58.2.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/at-spi2-core/2.58.2: 203 files, 4.6MB
+==> Installing gupnp-tools dependency: freetype
+==> Pouring freetype--2.14.1_1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/freetype/2.14.1_1: 68 files, 2.7MB
+==> Installing gupnp-tools dependency: fontconfig
+==> Pouring fontconfig--2.17.1.arm64_tahoe.bottle.1.tar.gz
+==> Regenerating font cache, this may take a while
+==> /opt/homebrew/Cellar/fontconfig/2.17.1/bin/fc-cache --force --really-force --verbose
+🍺  /opt/homebrew/Cellar/fontconfig/2.17.1: 98 files, 1.6MB
+==> Installing gupnp-tools dependency: libxrender
+==> Pouring libxrender--0.9.12.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libxrender/0.9.12: 13 files, 230.5KB
+==> Installing gupnp-tools dependency: lzo
+==> Pouring lzo--2.10.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/lzo/2.10: 32 files, 579.8KB
+==> Installing gupnp-tools dependency: pixman
+==> Pouring pixman--0.46.4.arm64_tahoe.bottle.1.tar.gz
+🍺  /opt/homebrew/Cellar/pixman/0.46.4: 11 files, 1.4MB
+==> Installing gupnp-tools dependency: cairo
+==> Pouring cairo--1.18.4.arm64_tahoe.bottle.1.tar.gz
+🍺  /opt/homebrew/Cellar/cairo/1.18.4: 58 files, 4.7MB
+==> Installing gupnp-tools dependency: fribidi
+==> Pouring fribidi--1.0.16.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/fribidi/1.0.16: 68 files, 581.2KB
+==> Installing gupnp-tools dependency: graphite2
+==> Pouring graphite2--1.3.14.arm64_tahoe.bottle.2.tar.gz
+🍺  /opt/homebrew/Cellar/graphite2/1.3.14: 19 files, 277.5KB
+==> Installing gupnp-tools dependency: icu4c@78
+==> Pouring icu4c@78--78.1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/icu4c@78/78.1: 279 files, 87.7MB
+==> Installing gupnp-tools dependency: harfbuzz
+==> Pouring harfbuzz--12.2.0_1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/harfbuzz/12.2.0_1: 77 files, 12.4MB
+==> Installing gupnp-tools dependency: hicolor-icon-theme
+==> Pouring hicolor-icon-theme--0.18.all.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/hicolor-icon-theme/0.18: 8 files, 82.7KB
+==> Installing gupnp-tools dependency: libepoxy
+==> Pouring libepoxy--1.5.10.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/libepoxy/1.5.10: 11 files, 2.7MB
+==> Installing gupnp-tools dependency: pango
+==> Pouring pango--1.57.0_1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/pango/1.57.0_1: 69 files, 3.7MB
+==> Installing gupnp-tools dependency: gtk+3
+==> Pouring gtk+3--3.24.51.arm64_tahoe.bottle.tar.gz
+==> /opt/homebrew/opt/glib/bin/glib-compile-schemas /opt/homebrew/share/glib-2.0/schemas
+==> /opt/homebrew/Cellar/gtk+3/3.24.51/bin/gtk3-update-icon-cache -f -t /opt/homebrew/share/icons/
+==> /opt/homebrew/Cellar/gtk+3/3.24.51/bin/gtk-query-immodules-3.0 > /opt/homebrew/lib/gtk-3.0/3.0
+🍺  /opt/homebrew/Cellar/gtk+3/3.24.51: 749 files, 60.0MB
+==> Installing gupnp-tools dependency: gtksourceview4
+==> Pouring gtksourceview4--4.8.4_2.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/gtksourceview4/4.8.4_2: 321 files, 6MB
+==> Installing gupnp-tools dependency: libxml2
+==> Pouring libxml2--2.15.1_1.arm64_tahoe.bottle.1.tar.gz
+🍺  /opt/homebrew/Cellar/libxml2/2.15.1_1: 59 files, 1.9MB
+==> Installing gupnp-tools dependency: mpdecimal
+==> Pouring mpdecimal--4.0.1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/mpdecimal/4.0.1: 22 files, 660.9KB
+==> Installing gupnp-tools dependency: python@3.14
+==> Pouring python@3.14--3.14.2.arm64_tahoe.bottle.1.tar.gz
+Warning: These files were overwritten during the `brew link` step:
+/opt/homebrew/bin/idle3
+/opt/homebrew/bin/pip3
+/opt/homebrew/bin/pydoc3
+/opt/homebrew/bin/python3
+/opt/homebrew/bin/python3-config
+/opt/homebrew/bin/wheel3
+/opt/homebrew/share/man/man1/python3.1
+/opt/homebrew/lib/pkgconfig/python3-embed.pc
+/opt/homebrew/lib/pkgconfig/python3.pc
+/opt/homebrew/Frameworks/Python.framework/Headers
+/opt/homebrew/Frameworks/Python.framework/Python
+/opt/homebrew/Frameworks/Python.framework/Resources
+/opt/homebrew/Frameworks/Python.framework/Versions/Current
+
+They have been backed up to: /Users/zeki/Library/Caches/Homebrew/Backup
+==> Summary
+🍺  /opt/homebrew/Cellar/python@3.14/3.14.2: 3,772 files, 73.2MB
+==> Installing gupnp-tools dependency: gupnp
+==> Pouring gupnp--1.6.9_1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/gupnp/1.6.9_1: 36 files, 868KB
+==> Installing gupnp-tools dependency: gupnp-av
+==> Pouring gupnp-av--0.14.4_1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/gupnp-av/0.14.4_1: 39 files, 882KB
+==> Installing gupnp-tools
+==> Pouring gupnp-tools--0.12.2_1.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/gupnp-tools/0.12.2_1: 59 files, 1.2MB
+==> Running `brew cleanup gupnp-tools`...
+Disable this behaviour by setting `HOMEBREW_NO_INSTALL_CLEANUP=1`.
+Hide these hints with `HOMEBREW_NO_ENV_HINTS=1` (see `man brew`).
+Using network interface en0
+Scanning for all resources
+Showing "available" messages
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::upnp:rootdevice
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::urn:schemas-wifialliance-org:device:WFADevice:1
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::upnp:rootdevice
+  Location: http://192.168.0.1:49153/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22
+  Location: http://192.168.0.1:49153/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::urn:schemas-wifialliance-org:device:WFADevice:1
+  Location: http://192.168.0.1:49153/description.xml
+resource available
+  USN:      uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08
+  Location: http://192.168.0.150:44543/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+resource available
+  USN:      uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08::urn:schemas-upnp-org:device:Basic:1
+  Location: http://192.168.0.150:44543/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+resource available
+  USN:      uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08::upnp:rootdevice
+  Location: http://192.168.0.150:44543/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+resource available
+  USN:      uuid:c9ffe739-7b45-47ed-b17e-11027fa89689::upnp:rootdevice
+  Location: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+resource available
+  USN:      uuid:938555d3-b45d-cdb9-7a3b-00e04c68c799::upnp:rootdevice
+  Location: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+resource available
+  USN:      uuid:938555d3-b45d-cdb9-7a3b-00e04c68c799
+  Location: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+resource available
+  USN:      uuid:938555d3-b45d-cdb9-7a3b-00e04c68c799::urn:schemas-upnp-org:device:MediaRenderer:1
+  Location: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+resource available
+  USN:      uuid:938555d3-b45d-cdb9-7a3b-00e04c68c799::urn:schemas-upnp-org:service:AVTransport:1
+  Location: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+resource available
+  USN:      uuid:938555d3-b45d-cdb9-7a3b-00e04c68c799::urn:schemas-upnp-org:service:RenderingControl:1
+  Location: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+resource available
+  USN:      uuid:938555d3-b45d-cdb9-7a3b-00e04c68c799::urn:schemas-upnp-org:service:ConnectionManager:1
+  Location: http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml
+resource available
+  USN:      uuid:88f1207c-ffc2-4070-940e-ca5af99aa4d3::upnp:rootdevice
+  Location: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+resource available
+  USN:      uuid:88f1207c-ffc2-4070-940e-ca5af99aa4d3
+  Location: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+resource available
+  USN:      uuid:88f1207c-ffc2-4070-940e-ca5af99aa4d3::urn:schemas-upnp-org:device:MediaServer:1
+  Location: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:device:ZonePlayer:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400::upnp:rootdevice
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MS
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MS::urn:schemas-upnp-org:device:MediaServer:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MR
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:device:MediaRenderer:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:AlarmClock:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:MusicServices:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:DeviceProperties:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:SystemProperties:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:ZoneGroupTopology:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400::urn:schemas-upnp-org:service:GroupManagement:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400::urn:schemas-tencent-com:service:QPlay:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MS::urn:schemas-upnp-org:service:ContentDirectory:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MS::urn:schemas-upnp-org:service:ConnectionManager:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:service:RenderingControl:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:service:ConnectionManager:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:service:AVTransport:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-sonos-com:service:Queue:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:service:GroupRenderingControl:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:RINCON_7828CAE3A2FA01400_MR::urn:schemas-upnp-org:service:VirtualLineIn:1
+  Location: http://192.168.0.217:1400/xml/device_description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::urn:schemas-wifialliance-org:service:WFAWLANConfig:1
+  Location: http://192.168.0.1:49153/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::urn:schemas-wifialliance-org:service:WFAWLANConfig:1
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08
+  Location: http://169.254.11.158:44271/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+resource available
+  USN:      uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08::urn:schemas-upnp-org:device:Basic:1
+  Location: http://169.254.11.158:44271/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+resource available
+  USN:      uuid:com.victronenergy.ccgx.C0:61:9A:B5:33:08::upnp:rootdevice
+  Location: http://169.254.11.158:44271/com.victronenergy.ccgx.C0:61:9A:B5:33:08.xml
+resource available
+  USN:      uuid:c9ffe739-7b45-47ed-b17e-11027fa89689
+  Location: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+resource available
+  USN:      uuid:40460550-e6f7-4cbb-5db9-a7b1661ab315::upnp:rootdevice
+  Location: http://192.168.0.239:8008/ssdp/device-desc.xml
+resource available
+  USN:      uuid:40460550-e6f7-4cbb-5db9-a7b1661ab315
+  Location: http://192.168.0.239:8008/ssdp/device-desc.xml
+resource available
+  USN:      uuid:40460550-e6f7-4cbb-5db9-a7b1661ab315::urn:dial-multiscreen-org:device:dial:1
+  Location: http://192.168.0.239:8008/ssdp/device-desc.xml
+resource available
+  USN:      uuid:40460550-e6f7-4cbb-5db9-a7b1661ab315::urn:dial-multiscreen-org:service:dial:1
+  Location: http://192.168.0.239:8008/ssdp/device-desc.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::upnp:rootdevice
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::urn:schemas-wifialliance-org:device:WFADevice:1
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:88f1207c-ffc2-4070-940e-ca5af99aa4d3::urn:schemas-upnp-org:service:ConnectionManager:1
+  Location: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+resource available
+  USN:      uuid:e0ff2779-54cd-e967-4ad7-00e04c68c799::upnp:rootdevice
+  Location: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+resource available
+  USN:      uuid:e0ff2779-54cd-e967-4ad7-00e04c68c799
+  Location: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+resource available
+  USN:      uuid:e0ff2779-54cd-e967-4ad7-00e04c68c799::urn:av-openhome-org:device:Source:1
+  Location: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+resource available
+  USN:      uuid:e0ff2779-54cd-e967-4ad7-00e04c68c799::urn:av-openhome-org:service:Time:1
+  Location: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+resource available
+  USN:      uuid:e0ff2779-54cd-e967-4ad7-00e04c68c799::urn:av-openhome-org:service:Volume:1
+  Location: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+resource available
+  USN:      uuid:e0ff2779-54cd-e967-4ad7-00e04c68c799::urn:av-openhome-org:service:Credentials:1
+  Location: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+resource available
+  USN:      uuid:e0ff2779-54cd-e967-4ad7-00e04c68c799::urn:av-openhome-org:service:Playlist:1
+  Location: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+resource available
+  USN:      uuid:e0ff2779-54cd-e967-4ad7-00e04c68c799::urn:av-openhome-org:service:Radio:1
+  Location: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+resource available
+  USN:      uuid:e0ff2779-54cd-e967-4ad7-00e04c68c799::urn:av-openhome-org:service:Info:1
+  Location: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+resource available
+  USN:      uuid:e0ff2779-54cd-e967-4ad7-00e04c68c799::urn:av-openhome-org:service:Product:2
+  Location: http://192.168.0.35:49152/uuid-e0ff2779-54cd-e967-4ad7-00e04c68c799/description.xml
+resource available
+  USN:      uuid:c9ffe739-7b45-47ed-b17e-11027fa89689::urn:jminim-org:device:Monitor2:1
+  Location: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::urn:schemas-wifialliance-org:service:WFAWLANConfig:1
+  Location: http://192.168.0.1:49153/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::urn:schemas-wifialliance-org:service:WFAWLANConfig:1
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:c9ffe739-7b45-47ed-b17e-11027fa89689::urn:jminim-org:service:Monitor2:2
+  Location: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::upnp:rootdevice
+  Location: http://192.168.0.1:49153/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22
+  Location: http://192.168.0.1:49153/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::urn:schemas-wifialliance-org:device:WFADevice:1
+  Location: http://192.168.0.1:49153/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::upnp:rootdevice
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::urn:schemas-wifialliance-org:device:WFADevice:1
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:88f1207c-ffc2-4070-940e-ca5af99aa4d3::urn:schemas-upnp-org:service:ContentDirectory:1
+  Location: http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::urn:schemas-wifialliance-org:service:WFAWLANConfig:1
+  Location: http://192.168.0.1:49153/description.xml
+resource available
+  USN:      uuid:bc329e00-1dd8-11b2-8601-14337548ae22::urn:schemas-wifialliance-org:service:WFAWLANConfig:1
+  Location: http://192.168.0.1:49152/description.xml
+resource available
+  USN:      uuid:c9ffe739-7b45-47ed-b17e-11027fa89689::urn:jminim-org:service:Log2:1
+  Location: http://192.168.0.19:9791/c9ffe739-7b45-47ed-b17e-11027fa89689/Upnp/device.xml
+zeki@MacBookAir audio-streamer % curl "http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml"
+<?xml version="1.0" encoding="utf-8"?><root xmlns="urn:schemas-upnp-org:device-1-0"><specVersion><major>1</major><minor>0</minor></specVersion><device><deviceType>urn:schemas-upnp-org:device:MediaServer:1</deviceType><iconList><icon><mimetype>image/png</mimetype><width>120</width><height>120</height><depth>24</depth><url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-120.png</url></icon><icon><mimetype>image/png</mimetype><width>48</width><height>48</height><depth>24</depth><url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-48.png</url></icon><icon><mimetype>image/jpeg</mimetype><width>120</width><height>120</height><depth>24</depth><url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-120.jpg</url></icon><icon><mimetype>image/jpeg</mimetype><width>48</width><height>48</height><depth>24</depth><url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-48.jpg</url></icon></iconList><friendlyName>MinimServer[OLADRAserver]</friendlyName><manufacturer>minimserver.com</manufacturer><modelName>MinimServer</modelName><UDN>uuid:88f1207c-ffc2-4070-940e-ca5af99aa4d3</UDN><serviceList><service><serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType><serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId><SCPDURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/upnp.org-ConnectionManager-1/service.xml</SCPDURL><controlURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ConnectionManager-1/control</controlURL><eventSubURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ConnectionManager-1/event</eventSubURL></service><service><serviceType>urn:schemas-upnp-org:service:ContentDirectory:1</serviceType><serviceId>urn:upnp-org:serviceId:ContentDirectory</serviceId><SCPDURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/upnp.org-ContentDirectory-1/service.xml</SCPDURL><controlURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control</controlURL><eventSubURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/event</eventSubURL></service></serviceList><presentationURL>http://192.168.0.19:9790/</presentationURL></device></root>%             zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % curl "http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml"
+<?xml version="1.0" encoding="utf-8"?><root xmlns="urn:schemas-upnp-org:device-1-0"><specVersion><major>1</major><minor>0</minor></specVersion><device><deviceType>urn:schemas-upnp-org:device:MediaServer:1</deviceType><iconList><icon><mimetype>image/png</mimetype><width>120</width><height>120</height><depth>24</depth><url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-120.png</url></icon><icon><mimetype>image/png</mimetype><width>48</width><height>48</height><depth>24</depth><url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-48.png</url></icon><icon><mimetype>image/jpeg</mimetype><width>120</width><height>120</height><depth>24</depth><url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-120.jpg</url></icon><icon><mimetype>image/jpeg</mimetype><width>48</width><height>48</height><depth>24</depth><url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-48.jpg</url></icon></iconList><friendlyName>MinimServer[OLADRAserver]</friendlyName><manufacturer>minimserver.com</manufacturer><modelName>MinimServer</modelName><UDN>uuid:88f1207c-ffc2-4070-940e-ca5af99aa4d3</UDN><serviceList><service><serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType><serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId><SCPDURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/upnp.org-ConnectionManager-1/service.xml</SCPDURL><controlURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ConnectionManager-1/control</controlURL><eventSubURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ConnectionManager-1/event</eventSubURL></service><service><serviceType>urn:schemas-upnp-org:service:ContentDirectory:1</serviceType><serviceId>urn:upnp-org:serviceId:ContentDirectory</serviceId><SCPDURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/upnp.org-ContentDirectory-1/service.xml</SCPDURL><controlURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control</controlURL><eventSubURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/event</eventSubURL></service></serviceList><presentationURL>http://192.168.0.19:9790/</presentationURL></device></root>%             zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % curl "http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml" | xmllint --format -
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  2142  100  2142    0     0   219k      0 --:--:-- --:--:-- --:--:--  232k
+<?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaServer:1</deviceType>
+    <iconList>
+      <icon>
+        <mimetype>image/png</mimetype>
+        <width>120</width>
+        <height>120</height>
+        <depth>24</depth>
+        <url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-120.png</url>
+      </icon>
+      <icon>
+        <mimetype>image/png</mimetype>
+        <width>48</width>
+        <height>48</height>
+        <depth>24</depth>
+        <url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-48.png</url>
+      </icon>
+      <icon>
+        <mimetype>image/jpeg</mimetype>
+        <width>120</width>
+        <height>120</height>
+        <depth>24</depth>
+        <url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-120.jpg</url>
+      </icon>
+      <icon>
+        <mimetype>image/jpeg</mimetype>
+        <width>48</width>
+        <height>48</height>
+        <depth>24</depth>
+        <url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-48.jpg</url>
+      </icon>
+    </iconList>
+    <friendlyName>MinimServer[OLADRAserver]</friendlyName>
+    <manufacturer>minimserver.com</manufacturer>
+    <modelName>MinimServer</modelName>
+    <UDN>uuid:88f1207c-ffc2-4070-940e-ca5af99aa4d3</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
+        <SCPDURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/upnp.org-ConnectionManager-1/service.xml</SCPDURL>
+        <controlURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ConnectionManager-1/control</controlURL>
+        <eventSubURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ConnectionManager-1/event</eventSubURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:ContentDirectory:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:ContentDirectory</serviceId>
+        <SCPDURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/upnp.org-ContentDirectory-1/service.xml</SCPDURL>
+        <controlURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control</controlURL>
+        <eventSubURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/event</eventSubURL>
+      </service>
+    </serviceList>
+    <presentationURL>http://192.168.0.19:9790/</presentationURL>
+  </device>
+</root>
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % curl -v -X POST \
+  -H 'Content-Type: text/xml;charset="utf-8"' \
+  -H 'SOAPAction: "urn:schemas-upnp-org:service:ContentDirectory:1#Browse"' \
+  -d '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1"><ObjectID>0</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter><StartingIndex>0</StartingIndex><RequestedCount>10</RequestedCount><SortCriteria></SortCriteria></u:Browse></s:Body></s:Envelope>' \
+  "http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control"
+Note: Unnecessary use of -X or --request, POST is already inferred.
+*   Trying 192.168.0.19:9791...
+* Connected to 192.168.0.19 (192.168.0.19) port 9791
+> POST /88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control HTTP/1.1
+> Host: 192.168.0.19:9791
+> User-Agent: curl/8.7.1
+> Accept: */*
+> Content-Type: text/xml;charset="utf-8"
+> SOAPAction: "urn:schemas-upnp-org:service:ContentDirectory:1#Browse"
+> Content-Length: 452
+> 
+* upload completely sent off: 452 bytes
+< HTTP/1.1 200 OK
+< Ext: 
+< Content-Type: text/xml; charset="utf-8"
+< SERVER: Posix/200809.0 UPnP/1.1 ohNet/1.0
+< Transfer-Encoding: chunked
+< Connection: close
+< 
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:BrowseResponse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1"><Result>&lt;DIDL-Lite xmlns=&quot;urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/&quot; xmlns:dc=&quot;http://purl.org/dc/elements/1.1/&quot; xmlns:upnp=&quot;urn:schemas-upnp-org:metadata-1-0/upnp/&quot; xmlns:dlna=&quot;urn:schemas-dlna-org:metadata-1-0/&quot;&gt;
+&lt;container id=&quot;0$albums&quot; parentID=&quot;0&quot; restricted=&quot;1&quot; searchable=&quot;1&quot;&gt;&lt;dc:title&gt;235 albums&lt;/dc:title&gt;&lt;upnp:albumArtURI dlna:profileID=&quot;JPEG_MED&quot;&gt;http://192.168.0.19:9790/minimserver/*/music/Dr_Dre-2001/01-01-Not_Applicable-Lolo-LLS.flac/$!picture-619-20466.jpg&lt;/upnp:albumArtURI&gt;&lt;upnp:class&gt;object.container&lt;/upnp:class&gt;&lt;/container&gt;&lt;container id=&quot;0$items&quot; parentID=&quot;0&quot; restricted=&quot;1&quot; searchable=&quot;1&quot;&gt;&lt;dc:title&gt;3419 items&lt;/dc:title&gt;&lt;upnp:albumArtURI dlna:profileID=&quot;JPEG_MED&quot;&gt;http://192.168.0.19:9790/minimserver/*/music/Nils*20Frahm/All*20Melody/1/8-*232.flac/$!picture-1460-46139.jpg&lt;/upnp:albumArtURI&gt;&lt;upnp:class&gt;object.container&lt;/upnp:class&gt;&lt;/container&gt;&lt;container id=&quot;0$=Artist&quot; parentID=&quot;0&quot; restricted=&quot;1&quot; searchable=&quot;1&quot;&gt;&lt;dc:title&gt;Artist&lt;/dc:title&gt;&lt;upnp:albumArtURI dlna:profileID=&quot;JPEG_LRG&quot;&gt;http://192.168.0.19:9790/minimserver/*/music/2Pac/Loyal*20to*20the*20Game/05*202Pac*20-*20Black*20Cotton.flac/$!picture-1510-395168.jpg&lt;/upnp:albumArtURI&gt;&lt;upnp:class&gt;object.container&lt;/upnp:class&gt;&lt;/container&gt;&lt;container id=&quot;0$=Date&quot; parentID=&quot;0&quot; restricted=&quot;1&quot; searchable=&quot;1&quot;&gt;&lt;dc:title&gt;Date&lt;/dc:title&gt;&lt;upnp:albumArtURI dlna:profileID=&quot;JPEG_MED&quot;&gt;http://192.168.0.19:9790/minimserver/*/music/Piano*20Piano*20Piano*20-*202XHDFT1265/DSD*20512fs*20-*202ch/17.*20A*20Fine*20Romance*20DSD*20512fs*20-*202ch.dsf/$!picture-1726112061-143735.jpg&lt;/upnp:albumArtURI&gt;&lt;upnp:class&gt;object.container&lt;/upnp:class&gt;&lt;/container&gt;&lt;container id=&quot;0$=Genre&quot; parentID=&quot;0&quot; restricted=&quot;1&quot; searchable=&quot;1&quot;&gt;&lt;dc:title&gt;Genre&lt;/dc:title&gt;&lt;upnp:albumArtURI dlna:profileID=&quot;JPEG_MED&quot;&gt;http://192.168.0.19:9790/minimserver/*/music/Adrianne*20Lenker/Bright*20Future/09*20-*20Adrianne*20Lenker*20-*20Already*20Lost.flac/$!picture-886-46268.jpg&lt;/upnp:albumArtURI&gt;&lt;upnp:class&gt;object.container&lt;/upnp:class&gt;&lt;/container&gt;&lt;container id=&quot;0$=All Artists&quot; parentID=&quot;0&quot; restricted=&quot;1&quot; searchable=&quot;1&quot;&gt;&lt;dc:title&gt;All Artists&lt;/dc:title&gt;&lt;upnp:albumArtURI dlna:profileID=&quot;JPEG_LRG&quot;&gt;http://192.168.0.19:9790/minimserver/*/music/2Pac/Loyal*20to*20the*20Game/05*202Pac*20-*20Black*20Cotton.flac/$!picture-1510-395168.jpg&lt;/upnp:albumArtURI&gt;&lt;upnp:class&gt;object.container&lt;/upnp:class&gt;&lt;/container&gt;&lt;container id=&quot;0$=Composer&quot; parentID=&quot;0&quot; restricted=&quot;1&quot; searchable=&quot;1&quot;&gt;&lt;dc:title&gt;Composer&lt;/dc:title&gt;&lt;upnp:albumArtURI dlna:profileID=&quot;JPEG_LRG&quot;&gt;http://192.168.0.19:9790/minimserver/*/music/Daft*20Punk/Discovery/01*20Daft*20Punk*20-*20One*20More*20Time.flac/$!picture-1469-267408.jpg&lt;/upnp:albumArtURI&gt;&lt;upnp:class&gt;object.container&lt;/upnp:class&gt;&lt;/container&gt;&lt;container id=&quot;0$recentadd&quot; parentID=&quot;0&quot; restricted=&quot;1&quot; searchable=&quot;1&quot;&gt;&lt;dc:title&gt;Recently Added&lt;/dc:title&gt;&lt;upnp:albumArtURI dlna:profileID=&quot;JPEG_LRG&quot;&gt;http://192.168.0.19:9790/minimserver/*/music/Various*20Artists/Pure...*2080s*20Dance*20Party/09*20Fiction*20Factory*20-*20(Feels*20Like)*20Heaven.flac/$!picture-1252-105804.jpg&lt;/upnp:albumArtURI&gt;&lt;upnp:class&gt;object.container&lt;/upnp:class&gt;&lt;/container&gt;&lt;container id=&quot;0$recentplay&quot; parentID=&quot;0&quot; restricted=&quot;1&quot; searchable=&quot;1&quot;&gt;&lt;dc:title&gt;Recently Played&lt;/dc:title&gt;&lt;upnp:albumArtURI dlna:profileID=&quot;JPEG_MED&quot;&gt;http://192.168.0.19:9790/minimserver/*/music/Adrianne*20Lenker/Bright*20Future/09*20-*20Adrianne*20Lenker*20-*20Already*20Lost.flac/$!picture-886-46268.jpg&lt;/upnp:albumArtURI&gt;&lt;upnp:class&gt;object.container* Closing connection
+&lt;/upnp:class&gt;&lt;/container&gt;&lt;container id=&quot;0$=#AudioData&quot; parentID=&quot;0&quot; restricted=&quot;1&quot; searchable=&quot;1&quot;&gt;&lt;dc:title&gt;Audio Data&lt;/dc:title&gt;&lt;upnp:albumArtURI dlna:profileID=&quot;JPEG_MED&quot;&gt;http://192.168.0.19:9790/minimserver/*/music/Piano*20Piano*20Piano*20-*202XHDFT1265/DSD*20512fs*20-*202ch/17.*20A*20Fine*20Romance*20DSD*20512fs*20-*202ch.dsf/$!picture-1726112061-143735.jpg&lt;/upnp:albumArtURI&gt;&lt;upnp:class&gt;object.container&lt;/upnp:class&gt;&lt;/container&gt;&lt;/DIDL-Lite&gt;</Result><NumberReturned>10</NumberReturned><TotalMatches>13</TotalMatches><UpdateID>32</UpdateID></u:BrowseResponse></s:Body></s:Envelope>%                                                                                 zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % curl "http://192.168.0.35:49152/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/description.xml" | xmllint --format -
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  2441  100  2441    0     0   151k      0 --:--:-- --:--:-- --:--:--  158k
+<?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>1</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+    <friendlyName>OLADRAplayer-UPnP/AV</friendlyName>
+    <manufacturer>JF Light Industries</manufacturer>
+    <manufacturerURL>https://framagit.org/medoc92</manufacturerURL>
+    <modelDescription>UPnP front-end to MPD</modelDescription>
+    <modelName>UpMPD</modelName>
+    <modelNumber>42</modelNumber>
+    <modelURL>https://framagit.org/medoc92/upmpdcli/code/</modelURL>
+    <serialNumber>upmpdcli version 1.5.12 libupnpp 0.21.0</serialNumber>
+    <presentationURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/presentation.html</presentationURL>
+    <UDN>uuid:938555d3-b45d-cdb9-7a3b-00e04c68c799</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
+        <SCPDURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/urn-schemas-upnp-org-service-AVTransport-1.xml</SCPDURL>
+        <controlURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-AVTransport-1</controlURL>
+        <eventSubURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/evt-urn-schemas-upnp-org-service-AVTransport-1</eventSubURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:RenderingControl</serviceId>
+        <SCPDURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/urn-schemas-upnp-org-service-RenderingControl-1.xml</SCPDURL>
+        <controlURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-RenderingControl-1</controlURL>
+        <eventSubURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/evt-urn-schemas-upnp-org-service-RenderingControl-1</eventSubURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
+        <SCPDURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/urn-schemas-upnp-org-service-ConnectionManager-1.xml</SCPDURL>
+        <controlURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/ctl-urn-schemas-upnp-org-service-ConnectionManager-1</controlURL>
+        <eventSubURL>/uuid-938555d3-b45d-cdb9-7a3b-00e04c68c799/evt-urn-schemas-upnp-org-service-ConnectionManager-1</eventSubURL>
+      </service>
+    </serviceList>
+  </device>
+</root>
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % 
+zeki@MacBookAir audio-streamer % curl -s -X POST \
+  -H 'Content-Type: text/xml;charset="utf-8"' \
+  -H 'SOAPAction: "urn:schemas-upnp-org:service:ContentDirectory:1#Browse"' \
+  -d '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1"><ObjectID>0$albums</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter><StartingIndex>0</StartingIndex><RequestedCount>3</RequestedCount><SortCriteria></SortCriteria></u:Browse></s:Body></s:Envelope>' \
+  "http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control" | python3 -c "import sys,html; print(html.unescape(sys.stdin.read()))"
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:BrowseResponse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1"><Result><DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns:dlna="urn:schemas-dlna-org:metadata-1-0/">
+<container id="0$albums$*a0" parentID="0$albums" childCount="22" restricted="1" searchable="1"><dc:title>2001</dc:title><upnp:genre>Rap - Hip Hop</upnp:genre><dc:date>2008-01-01</dc:date><upnp:artist>Dr. Dre</upnp:artist><dc:creator>Dr. Dre</dc:creator><upnp:artist role="AlbumArtist">Dr. Dre</upnp:artist><upnp:albumArtURI dlna:profileID="JPEG_MED">http://192.168.0.19:9790/minimserver/*/music/Dr_Dre-2001/01-01-Not_Applicable-Lolo-LLS.flac/$!picture-619-20466.jpg</upnp:albumArtURI><upnp:class>object.container.album.musicAlbum</upnp:class></container><container id="0$albums$*a1" parentID="0$albums" childCount="8" restricted="1" searchable="1"><dc:title>90125</dc:title><upnp:genre>Rock</upnp:genre><dc:date>1983-01-01</dc:date><upnp:artist>Yes</upnp:artist><dc:creator>Yes</dc:creator><upnp:artist role="AlbumArtist">Yes</upnp:artist><upnp:artist role="Composer">Jon Anderson, Trevor Rabin, Chris Squire, Trevor Horn, Chris Anderson, Alan White, Tony Kaye</upnp:artist><upnp:albumArtURI dlna:profileID="JPEG_LRG">http://192.168.0.19:9790/minimserver/*/music/Yes/90125/01*20Yes*20-*20Owner*20of*20a*20Lonely*20Heart.flac/$!picture-1273-175237.jpg</upnp:albumArtURI><upnp:class>object.container.album.musicAlbum</upnp:class></container><container id="0$albums$*a2" parentID="0$albums" childCount="16" restricted="1" searchable="1"><dc:title>A Collection (2000 - 2012)</dc:title><upnp:genre>Pop Rock</upnp:genre><dc:date>2012-01-01</dc:date><upnp:artist>The Be Good Tanyas</upnp:artist><dc:creator>The Be Good Tanyas</dc:creator><upnp:artist role="AlbumArtist">The Be Good Tanyas</upnp:artist><upnp:albumArtURI dlna:profileID="JPEG_MED">http://192.168.0.19:9790/minimserver/*/music/The_Be_Good_Tanyas-A_Collection_2000-2012/01-01-The_Be_Good_Tanyas-Draft_Daughter_s_Blues_aka_Ootischenia-LLS.flac/$!picture-556-68700.jpg</upnp:albumArtURI><upnp:class>object.container.album.musicAlbum</upnp:class></container></DIDL-Lite></Result><NumberReturned>3</NumberReturned><TotalMatches>236</TotalMatches><UpdateID>32</UpdateID></u:BrowseResponse></s:Body></s:Envelope>
+zeki@MacBookAir audio-streamer % 
