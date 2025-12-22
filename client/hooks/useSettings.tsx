@@ -10,7 +10,6 @@ interface Settings {
   hardwareVolumeControl: boolean;
   chromecastIp: string;
   chromecastEnabled: boolean;
-  qobuzEnabled: boolean;
   tidalEnabled: boolean;
   soundcloudEnabled: boolean;
   spotifyEnabled: boolean;
@@ -24,7 +23,6 @@ interface SettingsContextType extends Settings {
   setHardwareVolumeControl: (value: boolean) => void;
   setChromecastIp: (value: string) => void;
   setChromecastEnabled: (value: boolean) => void;
-  setQobuzEnabled: (value: boolean) => void;
   setTidalEnabled: (value: boolean) => void;
   setSoundcloudEnabled: (value: boolean) => void;
   setSpotifyEnabled: (value: boolean) => void;
@@ -39,7 +37,6 @@ const defaultSettings: Settings = {
   hardwareVolumeControl: false,
   chromecastIp: "",
   chromecastEnabled: false,
-  qobuzEnabled: false,
   tidalEnabled: false,
   soundcloudEnabled: false,
   spotifyEnabled: false,
@@ -74,7 +71,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           hardwareVolumeControl: parsed.hardwareVolumeControl ?? defaultSettings.hardwareVolumeControl,
           chromecastIp: parsed.chromecastIp ?? defaultSettings.chromecastIp,
           chromecastEnabled: parsed.chromecastEnabled ?? defaultSettings.chromecastEnabled,
-          qobuzEnabled: parsed.qobuzEnabled ?? defaultSettings.qobuzEnabled,
           tidalEnabled: parsed.tidalEnabled ?? defaultSettings.tidalEnabled,
           soundcloudEnabled: parsed.soundcloudEnabled ?? defaultSettings.soundcloudEnabled,
           spotifyEnabled: parsed.spotifyEnabled ?? defaultSettings.spotifyEnabled,
@@ -120,10 +116,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings(prev => ({ ...prev, chromecastEnabled: value }));
   }, []);
 
-  const setQobuzEnabled = useCallback((value: boolean) => {
-    setSettings(prev => ({ ...prev, qobuzEnabled: value }));
-  }, []);
-
   const setTidalEnabled = useCallback((value: boolean) => {
     setSettings(prev => ({ ...prev, tidalEnabled: value }));
   }, []);
@@ -150,7 +142,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setHardwareVolumeControl,
         setChromecastIp,
         setChromecastEnabled,
-        setQobuzEnabled,
         setTidalEnabled,
         setSoundcloudEnabled,
         setSpotifyEnabled,

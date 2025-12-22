@@ -122,6 +122,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const lastSuccessfulSyncRef = useRef<number>(Date.now()); // Track last successful sync
   const syncInProgressRef = useRef<boolean>(false); // Prevent parallel sync operations
   const isPlayingRef = useRef(false);
+  const lastPlayTimeRef = useRef(0);
   const lastSystemVolumeRef = useRef<number | null>(null);
   const volumeManagerRef = useRef<any>(null);
   const previousTrackIdRef = useRef<string | null>(null);
@@ -1276,21 +1277,23 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       return;
     }
     
-    if (isPlayingRef.current) {
-      debugLog.info('Play already in progress', 'Ignoring duplicate call');
+    // Use a small cooldown to avoid double-clicks
+    if (isPlayingRef.current && (Date.now() - lastPlayTimeRef.current < 1000)) {
+      debugLog.info('Play already in progress (cooldown)', 'Ignoring duplicate call');
       return;
     }
     
     isPlayingRef.current = true;
+    lastPlayTimeRef.current = Date.now();
     
     try {
       if (track.lmsTrackId || track.uri) {
         // Ensure player is powered on
         await lmsClient.setPower(activePlayer.id, true);
 
-        // Handle Tidal tracks using URI
-        if (track.source === 'tidal' && track.uri) {
-          debugLog.info('Playing Tidal track', `URI: ${track.uri}`);
+        // Handle Tidal tracks using URI - only if playing a single track without a queue
+        if (track.source === 'tidal' && track.uri && (!tracks || tracks.length <= 1)) {
+          debugLog.info('Playing single Tidal track', `URI: ${track.uri}`);
           await lmsClient.playUrl(activePlayer.id, track.uri);
           setCurrentTrack(track);
           setIsPlaying(true);
@@ -1310,22 +1313,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           // Add all tracks to the playlist
           for (let i = 0; i < tracks.length; i++) {
             const t = tracks[i];
-            if (t.lmsTrackId || t.uri) {
-              if (i === trackIndex) {
-                // For the track we want to play, use playTrack which handles transcoding settings
-                // But we need to add it first, then jump to it
-                if (t.lmsTrackId) {
-                  await lmsClient.addTrackToPlaylist(activePlayer.id, t.lmsTrackId);
-                } else if (t.uri) {
-                  // For URI-based tracks (Tidal), we can't add to playlist the same way
-                  // Just play the current track directly
-                }
-              } else {
-                // For other tracks, just add them to the queue
-                if (t.lmsTrackId) {
-                  await lmsClient.addTrackToPlaylist(activePlayer.id, t.lmsTrackId);
-                }
-              }
+            const trackIdOrUri = t.uri || t.lmsTrackId;
+            if (trackIdOrUri) {
+              await lmsClient.addTrackToPlaylist(activePlayer.id, trackIdOrUri);
             }
           }
           
@@ -1416,8 +1406,17 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       await lmsClient.setPower(activePlayer.id, true);
       // Ensure repeat mode is not "one" so playlist can advance
       await lmsClient.setRepeat(activePlayer.id, 2); // 2 = repeat all
-      // Let LMS handle format/transcoding automatically based on player capabilities
-      await lmsClient.playPlaylist(activePlayer.id, playlistId);
+      
+      // Handle Tidal playlists
+      if (playlistId.startsWith('tidal-')) {
+        const tidalUri = `tidal://playlist:${playlistId.replace('tidal-', '')}`;
+        debugLog.info('Playing Tidal playlist', `URI: ${tidalUri}`);
+        await lmsClient.playUrl(activePlayer.id, tidalUri);
+      } else {
+        // Let LMS handle format/transcoding automatically based on player capabilities
+        await lmsClient.playPlaylist(activePlayer.id, playlistId);
+      }
+      
       await lmsClient.play(activePlayer.id);
       setIsPlaying(true);
       

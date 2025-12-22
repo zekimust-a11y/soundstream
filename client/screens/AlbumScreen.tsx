@@ -62,7 +62,7 @@ export default function AlbumScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [albumYear, setAlbumYear] = useState<number | undefined>();
   const [albumImageUrl, setAlbumImageUrl] = useState<string | undefined>();
-  const [albumSource, setAlbumSource] = useState<"local" | "qobuz" | undefined>();
+  const [albumSource, setAlbumSource] = useState<"local"  | "tidal" | undefined>();
   const [filter, setFilter] = useState<FilterType>("all");
 
   useEffect(() => {
@@ -70,17 +70,20 @@ export default function AlbumScreen() {
       setIsLoading(true);
       try {
         // Use source from route params if available, otherwise detect from albumId
-        const source = route.params.source || (route.params.id.includes('qobuz') ? "qobuz" : undefined);
-        const albumTracks = await getAlbumTracks(route.params.id, source);
+        const source = route.params.source || 
+                      (route.params.id.startsWith('tidal-') ? "tidal" : 
+                      undefined);
+        
+        const albumTracks = await getAlbumTracks(route.params.id, source as any);
         setAllTracks(albumTracks);
         if (albumTracks.length > 0) {
-          if (albumTracks[0].albumArt) {
-            setAlbumImageUrl(albumTracks[0].albumArt);
+          if (albumTracks[0].albumArt || albumTracks[0].artwork_url) {
+            setAlbumImageUrl(albumTracks[0].albumArt || albumTracks[0].artwork_url);
           }
           if (albumTracks[0].source) {
-            setAlbumSource(albumTracks[0].source);
+            setAlbumSource(albumTracks[0].source as any);
           } else if (source) {
-            setAlbumSource(source);
+            setAlbumSource(source as any);
           }
         }
       } catch (error) {

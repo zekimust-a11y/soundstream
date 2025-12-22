@@ -34,7 +34,7 @@ export function getApiUrl(): string {
   const protocol = isLocalhost ? 'http:' : (typeof window !== 'undefined' ? window.location.protocol : 'http:');
   let url = new URL(`${protocol}//${host}`);
 
-  return url.href;
+  return url.href.replace(/\/$/, "");
 }
 
 async function throwIfResNotOk(res: Response) {

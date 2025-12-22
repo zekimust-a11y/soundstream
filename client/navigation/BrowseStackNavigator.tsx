@@ -20,7 +20,7 @@ import { useScreenOptions } from "@/hooks/useScreenOptions";
 export type BrowseStackParamList = {
   Browse: undefined;
   Artist: { id: string; name: string };
-  Album: { id: string; name: string; artistName: string; source?: "qobuz" | "local" };
+  Album: { id: string; name: string; artistName: string; source?: "qobuz" | "local" | "tidal" };
   AllAlbums: undefined;
   AllArtists: undefined;
   QobuzBestsellers: undefined;

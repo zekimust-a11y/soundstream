@@ -196,8 +196,6 @@ const AlbumListRow = memo(({ album, onPress, onPlay }: {
 });
 
 export default function AllAlbumsScreen() {
-  console.log('🎵 AllAlbumsScreen rendering - should show ALBUMS!');
-  console.trace('AllAlbumsScreen call stack');
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
@@ -222,11 +220,6 @@ export default function AllAlbumsScreen() {
     });
   }, []);
 
-  // Get base URL for constructing image URLs
-  const baseUrl = activeServer
-    ? `http://${activeServer.host}:${activeServer.port}`
-    : 'http://192.168.0.19:9000';
-
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
     AsyncStorage.setItem(VIEW_MODE_KEY, mode);
@@ -234,28 +227,13 @@ export default function AllAlbumsScreen() {
 
   const allAlbums = data?.pages.flatMap(page => page.albums) || [];
   const total = data?.pages[0]?.total || 0;
+  
+  console.log(`🎵 AllAlbumsScreen: allAlbums.length=${allAlbums.length}, total=${total}, hasNextPage=${hasNextPage}`);
 
   const handlePlayAlbum = useCallback(async (album: Album) => {
-    console.log('🎵 [DEBUG] handlePlayAlbum called with:', {
-      albumName: album.name,
-      albumId: album.id,
-      albumSource: album.source,
-      activePlayer: activePlayer?.id,
-      activeServer: activeServer?.host
-    });
-
-    if (!activePlayer || !activeServer) {
-      console.log('❌ [DEBUG] Cannot play album: missing player or server', {
-        hasPlayer: !!activePlayer,
-        hasServer: !!activeServer,
-        albumName: album.name
-      });
-      return;
-    }
+    if (!activePlayer || !activeServer) return;
 
     try {
-      console.log('🚀 [DEBUG] Starting album playback process');
-
       // Set a temporary current track so mini player appears immediately
       const tempTrack: Track = {
         id: `album-${album.id}`,
@@ -266,151 +244,75 @@ export default function AllAlbumsScreen() {
         duration: 0,
         source: album.source || 'local'
       };
-      console.log('🎼 [DEBUG] Setting temporary current track:', tempTrack);
       setCurrentTrack(tempTrack);
 
-      console.log('🔌 [DEBUG] Setting LMS server');
       lmsClient.setServer(activeServer.host, activeServer.port);
 
       // Ensure player is powered on
-      console.log('🔋 [DEBUG] Powering on player');
       await lmsClient.setPower(activePlayer.id, true);
-      console.log('✅ [DEBUG] Player powered on');
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Clear playlist first
-      console.log('🧹 [DEBUG] Clearing playlist');
-      const clearResult = await lmsClient.request(activePlayer.id, ['playlist', 'clear']);
-      console.log('✅ [DEBUG] Playlist cleared:', clearResult);
+      await lmsClient.request(activePlayer.id, ['playlist', 'clear']);
 
       // Add album to playlist
-      console.log('➕ [DEBUG] Adding album to playlist:', album.id);
-      const addResult = await lmsClient.addAlbumToPlaylist(activePlayer.id, album.id);
-      console.log('✅ [DEBUG] Album added to playlist:', addResult);
+      await lmsClient.addAlbumToPlaylist(activePlayer.id, album.id);
 
       // Give LMS time to process the album addition
-      console.log('⏳ [DEBUG] Waiting for LMS to process album addition');
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Check playlist status
-      console.log('📋 [DEBUG] Checking playlist status');
-      const playlistStatus = await lmsClient.request(activePlayer.id, ['playlist', 'tracks', '0', '10']);
-      console.log('📋 [DEBUG] Playlist tracks result:', playlistStatus);
-
       // Start playback from the beginning
-      console.log('▶️ [DEBUG] Setting playlist index to 0');
-      const indexResult = await lmsClient.request(activePlayer.id, ['playlist', 'index', '0']);
-      console.log('✅ [DEBUG] Playlist index set:', indexResult);
-
-      console.log('🎵 [DEBUG] Starting playback');
-      const playResult = await lmsClient.play(activePlayer.id);
-      console.log('✅ [DEBUG] Play command sent:', playResult);
+      await lmsClient.request(activePlayer.id, ['playlist', 'index', '0']);
+      await lmsClient.play(activePlayer.id);
 
       // Trigger sync to get real track info
-      console.log('🔄 [DEBUG] Triggering player status sync in 1 second');
       setTimeout(() => {
-        console.log('🔄 [DEBUG] Syncing player status now');
         syncPlayerStatus();
       }, 1000);
-
-      console.log('🎉 [DEBUG] Album play command sequence completed successfully');
     } catch (error) {
-      console.error('❌ [DEBUG] Failed to play album:', error);
-      if (error instanceof Error) {
-        console.error('❌ [DEBUG] Error details:', error.message, error.stack);
-      }
+      console.error('Failed to play album:', error);
     }
   }, [activePlayer, activeServer, setCurrentTrack, syncPlayerStatus]);
 
   const handleShuffleAlbum = useCallback(async (album: Album) => {
-    console.log('🎵 [DEBUG] handleShuffleAlbum called with:', {
-      albumName: album.name,
-      albumId: album.id,
-      albumSource: album.source,
-      activePlayer: activePlayer?.id,
-      activeServer: activeServer?.host
-    });
-
-    if (!activePlayer || !activeServer) {
-      console.log('❌ [DEBUG] Cannot shuffle album: missing player or server');
-      return;
-    }
+    if (!activePlayer || !activeServer) return;
 
     try {
-      console.log('🚀 [DEBUG] Starting album shuffle process');
-
-      console.log('🔌 [DEBUG] Setting LMS server');
       lmsClient.setServer(activeServer.host, activeServer.port);
 
       // Ensure player is powered on
-      console.log('🔋 [DEBUG] Powering on player');
       await lmsClient.setPower(activePlayer.id, true);
-      console.log('✅ [DEBUG] Player powered on');
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Get all album tracks
-      console.log('📀 [DEBUG] Fetching album tracks');
-      const albumTracks = await lmsClient.getAlbumTracks(album.id, album.source as "qobuz" | "local");
-      console.log('✅ [DEBUG] Retrieved album tracks:', albumTracks.length, 'tracks');
+      const albumTracks = await lmsClient.getAlbumTracks(album.id);
 
-      if (albumTracks.length === 0) {
-        console.error('❌ [DEBUG] No tracks found in album');
-        return;
-      }
+      if (albumTracks.length === 0) return;
 
       // Shuffle the tracks array
-      console.log('🔀 [DEBUG] Shuffling tracks');
       const shuffledTracks = [...albumTracks].sort(() => Math.random() - 0.5);
-      console.log('✅ [DEBUG] Tracks shuffled, first 3:', shuffledTracks.slice(0, 3).map(t => t.title));
 
       // Clear playlist first
-      console.log('🧹 [DEBUG] Clearing playlist');
-      const clearResult = await lmsClient.request(activePlayer.id, ['playlist', 'clear']);
-      console.log('✅ [DEBUG] Playlist cleared:', clearResult);
+      await lmsClient.request(activePlayer.id, ['playlist', 'clear']);
 
       // Add shuffled tracks individually
-      console.log('➕ [DEBUG] Adding shuffled tracks to playlist');
-      let addedCount = 0;
       for (const track of shuffledTracks) {
         await lmsClient.addTrackToPlaylist(activePlayer.id, track.id);
-        addedCount++;
-        if (addedCount % 5 === 0) {
-          console.log(`✅ [DEBUG] Added ${addedCount}/${shuffledTracks.length} tracks`);
-        }
       }
-      console.log('✅ [DEBUG] All shuffled tracks added to playlist');
 
       // Give LMS time to process all track additions
-      console.log('⏳ [DEBUG] Waiting for LMS to process track additions');
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Check playlist status
-      console.log('📋 [DEBUG] Checking final playlist status');
-      const playlistStatus = await lmsClient.request(activePlayer.id, ['playlist', 'tracks', '0', '5']);
-      console.log('📋 [DEBUG] Final playlist tracks:', playlistStatus);
-
       // Start playback from the beginning
-      console.log('▶️ [DEBUG] Setting playlist index to 0');
-      const indexResult = await lmsClient.request(activePlayer.id, ['playlist', 'index', '0']);
-      console.log('✅ [DEBUG] Playlist index set:', indexResult);
-
-      console.log('🎵 [DEBUG] Starting shuffle playback');
-      const playResult = await lmsClient.play(activePlayer.id);
-      console.log('✅ [DEBUG] Shuffle play command sent:', playResult);
+      await lmsClient.request(activePlayer.id, ['playlist', 'index', '0']);
+      await lmsClient.play(activePlayer.id);
 
       // Trigger sync to get real track info
-      console.log('🔄 [DEBUG] Triggering player status sync in 1 second');
       setTimeout(() => {
-        console.log('🔄 [DEBUG] Syncing player status now');
         syncPlayerStatus();
       }, 1000);
-
-      console.log('🎉 [DEBUG] Album shuffle command sequence completed successfully');
     } catch (error) {
-      console.error('❌ [DEBUG] Failed to shuffle album:', error);
-      if (error instanceof Error) {
-        console.error('❌ [DEBUG] Error details:', error.message, error.stack);
-      }
+      console.error('Failed to shuffle album:', error);
     }
   }, [activePlayer, activeServer, syncPlayerStatus]);
 
@@ -418,7 +320,12 @@ export default function AllAlbumsScreen() {
     <AlbumGridCard
       album={item}
       onPress={() => {
-        navigation.navigate("Album", { id: item.id, name: item.name, artistName: item.artist });
+        navigation.navigate("Album", { 
+          id: item.id, 
+          name: item.name, 
+          artistName: item.artist,
+          source: item.source
+        });
       }}
       onPlay={() => handlePlayAlbum(item)}
       onShuffle={() => handleShuffleAlbum(item)}
@@ -429,7 +336,12 @@ export default function AllAlbumsScreen() {
     <AlbumListRow
       album={item}
       onPress={() => {
-        navigation.navigate("Album", { id: item.id, name: item.name, artistName: item.artist });
+        navigation.navigate("Album", { 
+          id: item.id, 
+          name: item.name, 
+          artistName: item.artist,
+          source: item.source
+        });
       }}
       onPlay={() => handlePlayAlbum(item)}
     />
@@ -451,7 +363,6 @@ export default function AllAlbumsScreen() {
 
   // Handle errors gracefully instead of crashing
   if (error) {
-    console.error('Albums query error:', error);
     return (
       <ThemedView style={styles.centered}>
         <ThemedText style={styles.errorTitle}>Error Loading Albums</ThemedText>
@@ -520,21 +431,21 @@ export default function AllAlbumsScreen() {
             No albums found
           </ThemedText>
         </View>
-      ) : viewMode === "grid" ? (
+      ) : (
         <FlatList
-          key="grid"
+          key={viewMode}
           data={allAlbums}
-          renderItem={renderGridItem}
+          renderItem={viewMode === "grid" ? renderGridItem : renderListItem}
           keyExtractor={keyExtractor}
-          numColumns={NUM_COLUMNS}
+          numColumns={viewMode === "grid" ? NUM_COLUMNS : 1}
           contentContainerStyle={[
-            styles.gridContent,
+            viewMode === "grid" ? styles.gridContent : styles.listContent,
             {
               paddingTop: Spacing.md,
               paddingBottom: tabBarHeight + Spacing["5xl"]
             },
           ]}
-          columnWrapperStyle={styles.gridRow}
+          columnWrapperStyle={viewMode === "grid" ? styles.gridRow : undefined}
           onEndReached={() => {
             if (hasNextPage && !isFetchingNextPage) {
               fetchNextPage();
@@ -546,34 +457,6 @@ export default function AllAlbumsScreen() {
           maxToRenderPerBatch={20}
           windowSize={10}
           initialNumToRender={20}
-          {...(Platform.OS === 'ios' && { contentInsetAdjustmentBehavior: 'automatic' })}
-        />
-      ) : (
-        <FlatList
-          key="list"
-          data={allAlbums}
-          renderItem={renderListItem}
-          keyExtractor={keyExtractor}
-          contentContainerStyle={[
-            styles.listContent,
-            {
-              paddingTop: Spacing.md,
-              paddingBottom: tabBarHeight + Spacing["5xl"]
-            },
-          ]}
-          ItemSeparatorComponent={ItemSeparator}
-          onEndReached={() => {
-            if (hasNextPage && !isFetchingNextPage) {
-              fetchNextPage();
-            }
-          }}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={isFetchingNextPage ? <ActivityIndicator /> : null}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={20}
-          windowSize={10}
-          initialNumToRender={20}
-          {...(Platform.OS === 'ios' && { contentInsetAdjustmentBehavior: 'automatic' })}
         />
       )}
     </ThemedView>
@@ -591,11 +474,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: Colors.light.backgroundRoot,
   },
-  filterRow: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    marginTop: Spacing.xs,
-  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -604,16 +482,9 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
   },
   headerTitle: {
-    fontSize: 22.4, // 30% smaller than Typography.display (32px * 0.7)
+    fontSize: 22.4,
     fontWeight: "700",
     color: Colors.light.text,
-    textAlign: "left",
-    alignSelf: "flex-start",
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
   },
   viewToggle: {
     flexDirection: "row",
@@ -689,11 +560,6 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     marginTop: Spacing.xs,
   },
-  gridSubtitle: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    marginTop: 2,
-  },
   listContent: {
     paddingHorizontal: Spacing.lg,
   },
@@ -709,9 +575,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  listImageContainer: {
-    marginRight: Spacing.md,
-  },
   listImage: {
     width: 56,
     height: 56,
@@ -719,6 +582,7 @@ const styles = StyleSheet.create({
   },
   listInfo: {
     flex: 1,
+    marginLeft: Spacing.md,
   },
   listTitle: {
     ...Typography.body,
@@ -730,124 +594,48 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
-  listActions: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-  },
   actionButton: {
     padding: Spacing.sm,
   },
-  footer: {
-    padding: Spacing.xl,
-    alignItems: "center",
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.light.border,
   },
-  filterModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  filterModalContent: {
-    backgroundColor: Colors.light.backgroundDefault,
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    maxHeight: "70%",
-  },
-  filterModalTitle: {
-    ...Typography.title,
-    marginBottom: Spacing.md,
+  errorTitle: {
+    ...Typography.headline,
     color: Colors.light.text,
-  },
-  filterOptionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-  },
-  filterOptionText: {
-    ...Typography.body,
-    color: Colors.light.text,
-  },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing["2xl"],
-    paddingVertical: Spacing.sm,
-    borderRadius: 999,
-    backgroundColor: Colors.light.backgroundSecondary,
-    marginRight: Spacing.sm,
-  },
-  filterChipActive: {
-    backgroundColor: Colors.light.text,
-  },
-  filterChipText: {
-    ...Typography.body,
-    color: Colors.light.text,
-  },
-  filterLoading: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.lg,
-  },
-  filterLoadingText: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    marginTop: Spacing.sm,
-  },
-  filterDoneButton: {
-    marginTop: Spacing.md,
     marginBottom: Spacing.sm,
-    alignSelf: "center",
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.light.text,
   },
-  filterDoneButtonText: {
+  errorMessage: {
     ...Typography.body,
-    color: Colors.dark.text,
-    fontWeight: "600",
+    color: Colors.light.textSecondary,
+    marginBottom: Spacing.lg,
+    textAlign: "center",
   },
   retryButton: {
     backgroundColor: Colors.light.accent,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
-    marginTop: Spacing.lg,
   },
   retryText: {
-    color: Colors.light.buttonText,
+    color: "#fff",
     fontWeight: "600",
-    textAlign: "center",
   },
-  albumItem: {
+  emptyState: {
     flex: 1,
-    margin: Spacing.xs,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.xl,
   },
-  albumImage: {
-    width: '100%',
-    aspectRatio: 1,
+  emptyTitle: {
+    ...Typography.headline,
+    marginTop: Spacing.md,
+    color: Colors.light.text,
   },
-  albumInfo: {
-    padding: Spacing.sm,
-  },
-  albumTitle: {
+  emptyText: {
     ...Typography.body,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-  },
-  albumArtist: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.sm,
   },
 });

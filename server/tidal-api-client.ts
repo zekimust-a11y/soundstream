@@ -61,14 +61,39 @@ export interface TidalPlaylist {
   lastUpdated?: string;
 }
 
+// Fallback client IDs for rotation if needed
+const TIDAL_FALLBACK_IDS = [
+  'pUlCxd80DuDSem4J', // Default
+  '7m7Ap0JC9j1cOM3n', // Alternative 1
+  'zU4XHVVkc2tDP8X',  // Alternative 2
+  'OmDtrzFZSg8Ff2e',  // Alternative 3
+  'KMZrGg3rJQJcZz9',  // Alternative 4
+];
+
 export class TidalApiClient {
   private config: TidalConfig;
   private authenticated: boolean = false;
   private codeVerifier: string | null = null;
   private codeChallenge: string | null = null;
+  private currentClientIdIndex: number = 0;
 
   constructor(config: TidalConfig) {
     this.config = config;
+    // Set to the primary client ID by default
+    this.currentClientIdIndex = 0; // Use 'pUlCxd80DuDSem4J'
+    this.config.clientId = TIDAL_FALLBACK_IDS[this.currentClientIdIndex];
+    console.log(`[TidalApiClient] Initialized with Client ID: ${this.config.clientId}`);
+  }
+
+  public cycleClientId(): string {
+    this.currentClientIdIndex = (this.currentClientIdIndex + 1) % TIDAL_FALLBACK_IDS.length;
+    this.config.clientId = TIDAL_FALLBACK_IDS[this.currentClientIdIndex];
+    console.log(`[TidalApiClient] Cycled to Client ID: ${this.config.clientId} (index: ${this.currentClientIdIndex})`);
+    return this.config.clientId;
+  }
+
+  public getClientId(): string {
+    return this.config.clientId;
   }
 
   async authenticate(): Promise<boolean> {
@@ -349,18 +374,25 @@ export class TidalApiClient {
   }
 
   // OAuth flow helpers with PKCE
-  generateAuthUrl(): string {
+  generateAuthUrl(redirectUri: string = 'soundstream://callback'): string {
     // Generate PKCE code verifier and challenge
     this.codeVerifier = this.generateCodeVerifier();
     this.codeChallenge = this.generateCodeChallenge(this.codeVerifier);
+    
+    // State parameter for security
+    const state = crypto.randomBytes(16).toString('hex');
+
+    // Modern Tidal scopes required by the new API
+    const scope = 'user.read collection.read collection.write playlists.read playlists.write search.read search.write playback recommendations.read entitlements.read';
 
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: this.config.clientId,
-      redirect_uri: 'soundstream://callback',
-      scope: 'r_usr+w_usr+w_sub',
+      redirect_uri: redirectUri,
+      scope: scope,
       code_challenge: this.codeChallenge,
       code_challenge_method: 'S256',
+      state: state,
     });
 
     const authUrl = `https://login.tidal.com/authorize?${params.toString()}`;
@@ -376,7 +408,7 @@ export class TidalApiClient {
     return hash.toString('base64url');
   }
 
-  async exchangeCodeForTokens(code: string): Promise<{ accessToken: string; refreshToken: string; userId?: string }> {
+  async exchangeCodeForTokens(code: string, redirectUri: string = 'soundstream://callback'): Promise<{ accessToken: string; refreshToken: string; userId?: string }> {
     if (!this.codeVerifier) {
       throw new Error('No code verifier available. Please generate auth URL first.');
     }
@@ -386,7 +418,7 @@ export class TidalApiClient {
       grant_type: 'authorization_code',
       code: code,
       client_id: this.config.clientId,
-      redirect_uri: 'soundstream://callback',
+      redirect_uri: redirectUri,
       code_verifier: this.codeVerifier,
     });
 

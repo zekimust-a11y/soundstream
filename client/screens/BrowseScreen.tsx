@@ -48,7 +48,7 @@ export default function BrowseScreen() {
     isLoading: musicLoading,
   } = useMusic();
   const { playTrack, playPlaylist, activePlayer, syncPlayerStatus } = usePlayback();
-  const { qobuzEnabled, tidalEnabled } = useSettings();
+  const {  tidalEnabled } = useSettings();
   const { data: artistsData, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteArtists();
   
   // Flatten all artists from all pages safely
@@ -75,7 +75,7 @@ export default function BrowseScreen() {
         const apiUrl = getApiUrl();
         
         // Load albums
-        fetch(`${apiUrl}api/tidal/albums?limit=20`)
+        fetch(`${apiUrl}/api/tidal/albums?limit=20`)
           .then(res => res.ok ? res.json() : null)
           .then(data => data && setTidalAlbums(data.items.map((a: any) => ({
             id: `tidal-album-${a.id}`,
@@ -89,7 +89,7 @@ export default function BrowseScreen() {
           }))));
 
         // Load playlists
-        fetch(`${apiUrl}api/tidal/playlists?limit=20`)
+        fetch(`${apiUrl}/api/tidal/playlists?limit=20`)
           .then(res => res.ok ? res.json() : null)
           .then(data => data && setTidalPlaylists(data.items.map((p: any) => ({
             id: `tidal-playlist-${p.id}`,
@@ -101,7 +101,7 @@ export default function BrowseScreen() {
           }))));
 
         // Load mixes
-        fetch(`${apiUrl}api/tidal/mixes`)
+        fetch(`${apiUrl}/api/tidal/mixes`)
           .then(res => res.ok ? res.json() : null)
           .then(data => data && setTidalMixes(data.items));
 
@@ -378,7 +378,7 @@ export default function BrowseScreen() {
       }
       try {
         const { getApiUrl } = await import('@/lib/query-client');
-        const response = await fetch(`${getApiUrl()}api/tidal/albums?limit=30`);
+        const response = await fetch(`${getApiUrl()}/api/tidal/albums?limit=30`);
         if (response.ok) {
           const data = await response.json();
           const albums = (data.items || []).map((album: any) => ({

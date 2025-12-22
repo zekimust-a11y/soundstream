@@ -28,9 +28,9 @@ export default function PlaylistDetailScreen() {
   const route = useRoute<RouteType>();
   const navigation = useNavigation<NavigationType>();
   const { playlist } = route.params;
-  const { activeServer } = useMusic();
+  const { activeServer, getPlaylistTracks } = useMusic();
   const { activePlayer, playPlaylist } = usePlayback();
-  const [tracks, setTracks] = useState<LmsTrack[]>([]);
+  const [tracks, setTracks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -38,14 +38,16 @@ export default function PlaylistDetailScreen() {
     if (!activeServer) return;
     
     try {
-      lmsClient.setServer(activeServer.host, activeServer.port);
-      // Pass playlist.url and playlist.name to enable Qobuz/SoundCloud playlist track fetching
-      const fetchedTracks = await lmsClient.getPlaylistTracks(playlist.id, playlist.url, playlist.name);
+      // Use source if available, otherwise detect from playlist.id
+      const source = playlist.id.startsWith('tidal-') ? 'tidal' : 
+                     undefined;
+      
+      const fetchedTracks = await getPlaylistTracks(playlist.id, source);
       setTracks(fetchedTracks);
     } catch (error) {
       console.error("Failed to load playlist tracks:", error);
     }
-  }, [activeServer, playlist.id, playlist.url]);
+  }, [activeServer, playlist.id, getPlaylistTracks]);
 
   const displayName = playlist.name.replace(/^Qobuz\s*:?\s*/i, '').trim();
 

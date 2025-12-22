@@ -179,9 +179,8 @@ class LmsClient {
         
         // Use server proxy endpoint
         const apiUrl = getApiUrl();
-        // Remove trailing slash if present to avoid double slashes
-        const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
-        const proxyUrl = `${baseUrl}/api/lms/proxy`;
+        const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+        const proxyUrl = `${cleanApiUrl}/api/lms/proxy`;
         
         console.log('[LMS Client] Web proxy request:', { host, port, command: command.join(' '), playerId });
         
@@ -459,119 +458,55 @@ class LmsClient {
     // Ensure limit is at least 1 to avoid requesting 0 albums
     const actualLimit = Math.max(1, limit);
 
-    // For local library only, we need to browse the music folder specifically
-    // Instead of using the global 'albums' command which includes all sources,
-    // we'll browse the 'my music' -> 'music folder' section
-
-    debugLog.info('getAlbumsPage', `Requesting LOCAL albums only: start=${start}, limit=${actualLimit}, artistId=${artistId || 'none'}`);
+    debugLog.info('getAlbumsPage', `Requesting albums: start=${start}, limit=${actualLimit}, artistId=${artistId || 'none'}`);
 
     try {
-      // First, get the music folder contents by browsing to the local music folder
-      // The music folder is typically at path "music" under "my music"
-      const musicFolderCommand = ['browse', 'music', String(start), String(actualLimit), 'tags:aajlyST'];
+      // Use standard albums command with library_id:0 to get only local library content
+      // This matches how getLibraryTotals counts albums
+      const command = [
+        'albums',
+        String(start),
+        String(actualLimit),
+        'library_id:0',
+        'tags:aajlyST'
+      ];
+
       if (artistId) {
-        musicFolderCommand.push(`artist_id:${artistId}`);
+        command.push(`artist_id:${artistId}`);
       }
 
-      debugLog.info('getAlbumsPage', `Using music folder command: ${musicFolderCommand.join(' ')}`);
-      const result = await this.request('', musicFolderCommand);
-
-      // LMS returns different structures for browse vs albums commands
-      const albumsLoop = (result.albums_loop || result.loop_loop || result.items_loop || []) as Array<Record<string, unknown>>;
-      const total = Number(result.count) || albumsLoop.length;
-
-      debugLog.info('getAlbumsPage', `Music folder returned ${albumsLoop.length} albums, total=${total}`);
-
-      // If no albums returned from music folder browse, fall back to filtered global albums
-      if (albumsLoop.length === 0) {
-        debugLog.info('getAlbumsPage', 'Music folder returned no albums, falling back to filtered global albums');
-        throw new Error('Music folder browse returned no albums');
-      }
-
-      const albums = albumsLoop
-        .filter((a) => {
-          // Filter out any remaining plugin content (double-check)
-          const url = String(a.url || '').toLowerCase();
-          const id = String(a.id || '').toLowerCase();
-          const artworkUrl = String(a.artwork_url || '').toLowerCase();
-
-          // Skip if it contains plugin identifiers
-          const isPluginContent = url.includes('tidal') || id.includes('tidal') || artworkUrl.includes('tidal') ||
-                                 url.includes('qobuz') || id.includes('qobuz') || artworkUrl.includes('qobuz') ||
-                                 url.includes('spotify') || id.includes('spotify') || artworkUrl.includes('spotify') ||
-                                 url.includes('soundcloud') || id.includes('soundcloud') || artworkUrl.includes('soundcloud');
-
-          if (isPluginContent) {
-            debugLog.info('getAlbumsPage', `Filtering out plugin content: ${String(a.album || a.title || '')}`);
-            return false;
-          }
-
-          return true;
-        })
-        .map((a) => ({
-          id: String(a.id || ''),
-          title: String(a.album || a.title || ''),
-          artist: String(a.artist || ''),
-          artistId: a.artist_id ? String(a.artist_id) : undefined,
-          artwork_url: a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` :
-            (a.artwork_url ? (String(a.artwork_url).startsWith('http') ? String(a.artwork_url) : `${this.baseUrl}${a.artwork_url}`) : undefined),
-          year: a.year ? Number(a.year) : undefined,
-          trackCount: a.track_count ? Number(a.track_count) : undefined,
-          url: a.url ? String(a.url) : undefined,
-        }));
-
-      debugLog.info('getAlbumsPage', `After filtering plugin content: ${albums.length} local albums`);
-      return { albums, total: albums.length };
-
-    } catch (error) {
-      debugLog.info('getAlbumsPage', `Music folder browse failed: ${error}, falling back to filtered global albums`);
-
-      // Fallback: use global albums command but filter out plugin content
-      const command = artistId
-        ? ['albums', String(start), String(actualLimit), `artist_id:${artistId}`, 'tags:aajlyST']
-        : ['albums', String(start), String(actualLimit), 'tags:aajlyST'];
-
+      debugLog.info('getAlbumsPage', `Using command: ${command.join(' ')}`);
       const result = await this.request('', command);
+
       const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
       const total = Number(result.count) || 0;
 
-      debugLog.info('getAlbumsPage', `Fallback: Received ${albumsLoop.length} albums from global command, total=${total}`);
+      debugLog.info('getAlbumsPage', `Returned ${albumsLoop.length} albums, total=${total}`);
 
-      const albums = albumsLoop
-        .filter((a) => {
-          // Filter out plugin content
-          const url = String(a.url || '').toLowerCase();
-          const id = String(a.id || '').toLowerCase();
-          const artworkUrl = String(a.artwork_url || '').toLowerCase();
+      const albums = albumsLoop.map((a) => ({
+        id: String(a.id || ''),
+        title: String(a.album || a.title || ''),
+        artist: String(a.artist || ''),
+        artistId: a.artist_id ? String(a.artist_id) : undefined,
+        artwork_url: a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` :
+          (a.artwork_url ? (String(a.artwork_url).startsWith('http') ? String(a.artwork_url) : `${this.baseUrl}${a.artwork_url}`) : undefined),
+        year: a.year ? Number(a.year) : undefined,
+        trackCount: a.track_count ? Number(a.track_count) : undefined,
+        url: a.url ? String(a.url) : undefined,
+      }));
 
-          const isPluginContent = url.includes('tidal') || id.includes('tidal') || artworkUrl.includes('tidal') ||
-                                 url.includes('qobuz') || id.includes('qobuz') || artworkUrl.includes('qobuz') ||
-                                 url.includes('spotify') || id.includes('spotify') || artworkUrl.includes('spotify') ||
-                                 url.includes('soundcloud') || id.includes('soundcloud') || artworkUrl.includes('soundcloud');
+      return { albums, total };
 
-          return !isPluginContent;
-        })
-        .map((a) => ({
-          id: String(a.id || ''),
-          title: String(a.album || a.title || ''),
-          artist: String(a.artist || ''),
-          artistId: a.artist_id ? String(a.artist_id) : undefined,
-          artwork_url: a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` :
-            (a.artwork_url ? (String(a.artwork_url).startsWith('http') ? String(a.artwork_url) : `${this.baseUrl}${a.artwork_url}`) : undefined),
-          year: a.year ? Number(a.year) : undefined,
-          trackCount: a.track_count ? Number(a.track_count) : undefined,
-          url: a.url ? String(a.url) : undefined,
-        }));
-
-      debugLog.info('getAlbumsPage', `After filtering: ${albums.length} local albums from ${albumsLoop.length} total`);
-      return { albums, total: albums.length };
+    } catch (error) {
+      debugLog.error('getAlbumsPage failed', error instanceof Error ? error.message : String(error));
+      return { albums: [], total: 0 };
     }
   }
 
   async getAlbums(artistId?: string): Promise<LmsAlbum[]> {
     const command = artistId
-      ? ['albums', '0', '100', `artist_id:${artistId}`, 'tags:aajlyST']
-      : ['albums', '0', '100', 'tags:aajlyST'];
+      ? ['albums', '0', '100', `artist_id:${artistId}`, 'library_id:0', 'tags:aajlyST']
+      : ['albums', '0', '100', 'library_id:0', 'tags:aajlyST'];
 
     const result = await this.request('', command);
     const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
@@ -2238,7 +2173,7 @@ class LmsClient {
     }
     
     // Default: use standard titles command for local albums
-    const result = await this.request('', ['titles', '0', '100', `album_id:${albumId}`, 'tags:acdlKNuTsSp', 'sort:tracknum']);
+    const result = await this.request('', ['titles', '0', '100', `album_id:${albumId}`, 'library_id:0', 'tags:acdlKNuTsSp', 'sort:tracknum']);
     const titlesLoop = (result.titles_loop || []) as Array<Record<string, unknown>>;
     
     return titlesLoop.map((t, i) => this.parseTrack(t, i));
@@ -2259,7 +2194,7 @@ class LmsClient {
         const start = i * batchSize;
         const count = Math.min(batchSize, limit - start);
         
-        const result = await this.request('', ['titles', String(start), String(count), 'tags:acdlKNuTsSp']);
+        const result = await this.request('', ['titles', String(start), String(count), 'library_id:0', 'tags:acdlKNuTsSp']);
         const titlesLoop = (result.titles_loop || []) as Array<Record<string, unknown>>;
         
         const tracks = titlesLoop.map((t, index) => this.parseTrack(t, start + index));
@@ -3466,14 +3401,27 @@ class LmsClient {
   }
 
   async playAlbum(playerId: string, albumId: string): Promise<void> {
-    // For albums, we can't check individual track formats before loading
-    // But we can ensure transcoding is enabled as a fallback
-    // LMS will handle format/transcoding automatically based on player capabilities
-    await this.request(playerId, ['playlistcontrol', 'cmd:load', `album_id:${albumId}`]);
+    // For Tidal/Qobuz albums, we might need to use the URL format
+    if (albumId.includes('tidal') || albumId.includes('qobuz')) {
+      // Extract clean numeric ID if it has a prefix
+      const cleanId = albumId.replace(/^(tidal|qobuz)[-:]/, '');
+      const prefix = albumId.includes('tidal') ? 'tidal' : 'qobuz';
+      const uri = `${prefix}://album:${cleanId}`;
+      await this.request(playerId, ['playlistcontrol', 'cmd:load', `url:${uri}`]);
+    } else {
+      await this.request(playerId, ['playlistcontrol', 'cmd:load', `album_id:${albumId}`]);
+    }
   }
 
   async addAlbumToPlaylist(playerId: string, albumId: string): Promise<void> {
-    await this.request(playerId, ['playlistcontrol', 'cmd:add', `album_id:${albumId}`]);
+    if (albumId.includes('tidal') || albumId.includes('qobuz')) {
+      const cleanId = albumId.replace(/^(tidal|qobuz)[-:]/, '');
+      const prefix = albumId.includes('tidal') ? 'tidal' : 'qobuz';
+      const uri = `${prefix}://album:${cleanId}`;
+      await this.request(playerId, ['playlistcontrol', 'cmd:add', `url:${uri}`]);
+    } else {
+      await this.request(playerId, ['playlistcontrol', 'cmd:add', `album_id:${albumId}`]);
+    }
   }
 
   /**
@@ -3551,7 +3499,11 @@ class LmsClient {
     }
     
     // Load track - LMS will use native format if supported, or transcode automatically if not
-    await this.request(playerId, ['playlistcontrol', 'cmd:load', `track_id:${trackId}`]);
+    if (trackId.includes('://')) {
+      await this.request(playerId, ['playlistcontrol', 'cmd:load', `url:${trackId}`]);
+    } else {
+      await this.request(playerId, ['playlistcontrol', 'cmd:load', `track_id:${trackId}`]);
+    }
     
     // Reset transcoding preference after a delay for formats that needed it
     if (needsTranscoding) {
@@ -3612,7 +3564,11 @@ class LmsClient {
   }
 
   async addTrackToPlaylist(playerId: string, trackId: string): Promise<void> {
-    await this.request(playerId, ['playlistcontrol', 'cmd:add', `track_id:${trackId}`]);
+    if (trackId.includes('://')) {
+      await this.request(playerId, ['playlistcontrol', 'cmd:add', `url:${trackId}`]);
+    } else {
+      await this.request(playerId, ['playlistcontrol', 'cmd:add', `track_id:${trackId}`]);
+    }
   }
 
   async addUrlToPlaylist(playerId: string, url: string): Promise<void> {
@@ -4659,92 +4615,80 @@ class LmsClient {
 
   async getLibraryTotals(includeTidal: boolean = false): Promise<{ albums: number; artists: number; tracks: number; radioStations: number; playlists: number }> {
     try {
-      console.log("getLibraryTotals called");
-      // Get local library counts from serverstatus command
+      console.log("getLibraryTotals called, includeTidal:", includeTidal);
+      
+      // 1. Get LMS totals (library_id:0 for local content)
       let localAlbums = 0;
       let localArtists = 0;
       let localTracks = 0;
       try {
-        const statusResult = await this.request('', ['serverstatus', '0', '1']);
+        const statusResult = await this.request('', ['serverstatus', '0', '1', 'library_id:0']);
         localAlbums = Number(statusResult['info total albums'] || 0);
         localArtists = Number(statusResult['info total artists'] || 0);
         localTracks = Number(statusResult['info total songs'] || 0);
-        console.log("LMS status result:", {
-          albums: localAlbums,
-          artists: localArtists,
-          tracks: localTracks
-        });
+        console.log("LMS local totals:", { albums: localAlbums, artists: localArtists, tracks: localTracks });
       } catch (e) {
-        debugLog.info('Failed to get LMS server status', e instanceof Error ? e.message : String(e));
+        console.warn("Failed to get LMS local totals:", e instanceof Error ? e.message : String(e));
       }
+
+      // 2. Get Tidal totals from backend API
+      let tidalAlbums = 0;
+      let tidalArtists = 0;
+      let tidalTracks = 0;
+      let tidalPlaylists = 0;
       
-    // Count Tidal albums and tracks from Tidal API if available
-    let tidalAlbumsCount = 0;
-    let tidalTracksCount = 0;
-    let tidalArtistsCount = 0;
-    let tidalPlaylistsCount = 0;
-    if (includeTidal) {
-      try {
-        // Fetch Tidal totals from our new backend endpoint
-        const apiUrl = getApiUrl();
-        const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
-        console.log(`[getLibraryTotals] Fetching Tidal totals from: ${cleanApiUrl}/api/tidal/totals`);
-        const response = await fetch(`${cleanApiUrl}/api/tidal/totals`);
-        console.log(`[getLibraryTotals] Tidal totals response status: ${response.status}`);
-        if (response.ok) {
-          const totals = await response.json();
-          console.log("[getLibraryTotals] Tidal totals data:", totals);
-          tidalAlbumsCount = totals.albums || 0;
-          tidalTracksCount = totals.tracks || 0;
-          tidalArtistsCount = totals.artists || 0;
-          tidalPlaylistsCount = totals.playlists || 0;
-        } else {
-          console.warn("[getLibraryTotals] Tidal totals API returned error:", response.status);
+      if (includeTidal) {
+        try {
+          const apiUrl = getApiUrl();
+          const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+          const response = await fetch(`${cleanApiUrl}/api/tidal/totals`, {
+            signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(5000) : undefined
+          });
+          if (response.ok) {
+            const data = await response.json();
+            tidalAlbums = data.albums || 0;
+            tidalArtists = data.artists || 0;
+            tidalTracks = data.tracks || 0;
+            tidalPlaylists = data.playlists || 0;
+            console.log("Tidal totals from API:", data);
+          }
+        } catch (e) {
+          console.warn("Failed to fetch Tidal totals:", e instanceof Error ? e.message : String(e));
         }
-      } catch (e) {
-        console.error('[getLibraryTotals] Tidal totals fetch failed:', e);
-        debugLog.info('Tidal totals not available from API', e instanceof Error ? e.message : String(e));
       }
-    }
-    
-    // Count radio stations
-    let radioCount = 0;
-    try {
-      const radios = await this.getFavoriteRadios();
-      radioCount = radios.length;
-    } catch (e) {
-      debugLog.info('Failed to count radio stations', e instanceof Error ? e.message : String(e));
-    }
-    
-    // Count playlists (LMS only)
-    let playlistCount = 0;
-    try {
-      const playlists = await this.getPlaylists(false, false, false, false); 
-      playlistCount = playlists.length;
-    } catch (e) {
-      debugLog.info('Failed to count playlists', e instanceof Error ? e.message : String(e));
-    }
-    
-    const result = {
-      albums: localAlbums + tidalAlbumsCount,
-      artists: localArtists + tidalArtistsCount,
-      tracks: localTracks + tidalTracksCount,
-      radioStations: radioCount,
-      playlists: playlistCount + tidalPlaylistsCount,
-    };
-    console.log("getLibraryTotals returning combined:", result);
-    return result;
-  } catch (e) {
-      console.error('getLibraryTotals failed:', e instanceof Error ? e.message : String(e));
-      debugLog.error('Failed to get library totals', e instanceof Error ? e.message : String(e));
-      // Return zeros if everything fails
-      return {
-        albums: 0,
-        artists: 0,
-        tracks: 0,
-        radioStations: 0,
-        playlists: 0,
+
+      // 3. Get Radio count
+      let radioCount = 0;
+      try {
+        const radios = await this.getFavoriteRadios();
+        radioCount = radios.length;
+      } catch (e) {
+        console.warn("Failed to count radio stations:", e instanceof Error ? e.message : String(e));
+      }
+
+      // 4. Get LMS Playlists count
+      let lmsPlaylistCount = 0;
+      try {
+        // Fetch only local playlists
+        const result = await this.request('', ['playlists', '0', '1', 'tags:u']);
+        lmsPlaylistCount = Number(result.count || 0);
+      } catch (e) {
+        console.warn("Failed to count LMS playlists:", e instanceof Error ? e.message : String(e));
+      }
+
+      const result = {
+        albums: localAlbums + tidalAlbums,
+        artists: Math.max(localArtists, tidalArtists),
+        tracks: localTracks + tidalTracks,
+        radioStations: radioCount,
+        playlists: lmsPlaylistCount + tidalPlaylists,
       };
+      
+      console.log("getLibraryTotals returning combined:", result);
+      return result;
+    } catch (e) {
+      console.error("getLibraryTotals failed:", e instanceof Error ? e.message : String(e));
+      return { albums: 0, artists: 0, tracks: 0, radioStations: 0, playlists: 0 };
     }
   }
 

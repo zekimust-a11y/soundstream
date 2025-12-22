@@ -470,6 +470,7 @@ async function discoverServerContent(host: string, port: number): Promise<Browse
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  console.log('🚀 registerRoutes initialized from server/routes.ts');
   // Health check endpoint for proxy server availability
   app.get('/api/health', (req: Request, res: Response) => {
     res.json({ 
@@ -2337,8 +2338,26 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         return res.status(503).json({ error: 'Tidal API client not initialized' });
       }
 
-      const authUrl = globalTidalClient.generateAuthUrl();
-      res.json({ authUrl });
+      // Dynamic redirect URI for web vs mobile
+      const platform = req.query.platform || (req.headers.origin ? 'web' : 'mobile');
+      const requestHost = req.headers.host || '192.168.0.21:3000';
+      const protocol = req.protocol || 'http';
+      
+      let redirectUri;
+      if (platform === 'web') {
+        // ALWAYS use the redirect URI registered in Tidal Developer Portal for web
+        redirectUri = `http://192.168.0.21:3000/api/tidal/callback`;
+      } else {
+        redirectUri = 'soundstream://callback';
+      }
+
+      console.log(`[Routes] Generating Tidal auth URL for platform: ${platform}, redirect: ${redirectUri}`);
+      const authUrl = globalTidalClient.generateAuthUrl(redirectUri);
+      
+      // Store redirect URI for token exchange
+      (global as any).tidalRedirectUri = redirectUri;
+
+      res.json({ authUrl, redirectUri });
     } catch (error) {
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Failed to generate auth URL'
@@ -2358,14 +2377,91 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Authorization code required' });
       }
 
-      const tokens = await globalTidalClient.exchangeCodeForTokens(code);
+      const redirectUri = (global as any).tidalRedirectUri || 'soundstream://callback';
+      console.log(`[Routes] Exchanging code for Tidal tokens, redirect: ${redirectUri}`);
+      
+      const tokens = await globalTidalClient.exchangeCodeForTokens(code, redirectUri);
       // Set the tokens in the client for future use
       globalTidalClient.setTokens(tokens.accessToken, tokens.refreshToken, tokens.userId);
+      
+      // Clean up
+      delete (global as any).tidalRedirectUri;
+      
       res.json({ success: true, tokens });
     } catch (error) {
+      console.error('[Routes] Tidal authenticate error:', error);
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Failed to authenticate with Tidal'
       });
+    }
+  });
+
+  app.get('/api/tidal/callback', async (req: Request, res: Response) => {
+    try {
+      const { code, error } = req.query;
+
+      if (error) {
+        return res.send(`
+          <html>
+            <head><title>Tidal Auth Error</title></head>
+            <body style="font-family: sans-serif; padding: 20px; text-align: center;">
+              <h1>Authentication Error</h1>
+              <p>${error}</p>
+              <p>You can close this window now.</p>
+            </body>
+          </html>
+        `);
+      }
+
+      if (!code || typeof code !== 'string') {
+        return res.status(400).send('No code received');
+      }
+
+      if (!globalTidalClient) {
+        return res.status(503).send('Tidal client not initialized');
+      }
+
+      const redirectUri = (global as any).tidalRedirectUri || 'http://192.168.0.21:3000/api/tidal/callback';
+      console.log(`[Routes] Handling Tidal callback, exchanging code, redirect: ${redirectUri}`);
+
+      const tokens = await globalTidalClient.exchangeCodeForTokens(code, redirectUri);
+      globalTidalClient.setTokens(tokens.accessToken, tokens.refreshToken, tokens.userId);
+
+      // Clean up
+      delete (global as any).tidalRedirectUri;
+
+      res.send(`
+        <html>
+          <head>
+            <title>Tidal Auth Success</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+          </head>
+          <body style="font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #121212; color: white;">
+            <div style="text-align: center; padding: 40px; border-radius: 20px; background: #1e1e1e; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+              <div style="font-size: 64px; margin-bottom: 20px;">✅</div>
+              <h1 style="margin: 0 0 10px 0;">Authentication Successful!</h1>
+              <p style="color: #aaa; margin-bottom: 30px;">Your Tidal account is now connected.</p>
+              <button onclick="window.close()" style="background: #2196F3; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px;">
+                Close This Window
+              </button>
+              <p style="margin-top: 20px; font-size: 14px; color: #666;">You can now return to the SoundStream app.</p>
+            </div>
+            <script>
+              // Try to notify the opener if possible
+              if (window.opener) {
+                window.opener.postMessage({ type: 'TIDAL_AUTH_SUCCESS' }, '*');
+              }
+              // Auto-close after 5 seconds if not closed manually
+              setTimeout(() => {
+                try { window.close(); } catch(e) {}
+              }, 5000);
+            </script>
+          </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error('[Routes] Tidal callback error:', error);
+      res.status(500).send(`Authentication failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   });
 
@@ -2402,11 +2498,42 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
       res.json({
         authenticated,
         hasTokens: !!tokens?.accessToken,
-        userId: tokens?.userId
+        userId: tokens?.userId,
+        clientId: globalTidalClient.getClientId()
       });
     } catch (error) {
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Failed to get Tidal status'
+      });
+    }
+  });
+
+  app.get('/api/tidal/cycle-client-id', (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
+      }
+
+      const newClientId = globalTidalClient.cycleClientId();
+      res.json({ success: true, clientId: newClientId });
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to cycle Tidal client ID'
+      });
+    }
+  });
+
+  app.post('/api/tidal/cycle-client-id', (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
+      }
+
+      const newClientId = globalTidalClient.cycleClientId();
+      res.json({ success: true, clientId: newClientId });
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to cycle Tidal client ID'
       });
     }
   });
@@ -2531,453 +2658,6 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
       });
     }
   });
-
-  // Initialize Tidal API client
-  globalTidalClient = new TidalApiClient({
-    clientId: 'pUlCxd80DuDSem4J', // Third-party client ID provided by user
-  });
-
-  // Tidal API Routes
-  app.get('/api/tidal/auth-url', (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const authUrl = globalTidalClient.generateAuthUrl();
-      res.json({ authUrl });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to generate auth URL'
-      });
-    }
-  });
-
-  app.post('/api/tidal/authenticate', async (req: Request, res: Response) => {
-    try {
-      const { code } = req.body;
-
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      if (!code) {
-        return res.status(400).json({ error: 'Authorization code required' });
-      }
-
-      const tokens = await globalTidalClient.exchangeCodeForTokens(code);
-      // Set the tokens in the client for future use
-      globalTidalClient.setTokens(tokens.accessToken, tokens.refreshToken, tokens.userId);
-      res.json({ success: true, tokens });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to authenticate with Tidal'
-      });
-    }
-  });
-
-  app.post('/api/tidal/set-tokens', (req: Request, res: Response) => {
-    try {
-      const { accessToken, refreshToken, userId } = req.body;
-
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      if (!accessToken || !refreshToken) {
-        return res.status(400).json({ error: 'Access token and refresh token required' });
-      }
-
-      globalTidalClient.setTokens(accessToken, refreshToken, userId);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to set Tidal tokens'
-      });
-    }
-  });
-
-  app.get('/api/tidal/status', (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const authenticated = globalTidalClient.isAuthenticated();
-      const tokens = authenticated ? globalTidalClient.getTokens() : null;
-
-      res.json({
-        authenticated,
-        hasTokens: !!tokens?.accessToken,
-        userId: tokens?.userId
-      });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal status'
-      });
-    }
-  });
-
-  app.get('/api/tidal/albums', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyAlbums(limit, offset);
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal albums'
-      });
-    }
-  });
-
-  app.get('/api/tidal/playlists', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyPlaylists(limit, offset);
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal playlists'
-      });
-    }
-  });
-
-  app.get('/api/tidal/artists', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyArtists(limit, offset);
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal artists'
-      });
-    }
-  });
-
-  app.get('/api/tidal/albums/:albumId/tracks', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const { albumId } = req.params;
-      const tracks = await globalTidalClient.getAlbumTracks(albumId);
-      res.json({ tracks });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get album tracks'
-      });
-    }
-  });
-
-  app.get('/api/tidal/playlists/:playlistId/tracks', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const { playlistId } = req.params;
-      const tracks = await globalTidalClient.getPlaylistTracks(playlistId);
-      res.json({ tracks });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get playlist tracks'
-      });
-    }
-  });
-
-  app.get('/api/tidal/search', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const { q: query, type = 'albums', limit = 20 } = req.query;
-
-      if (!query || typeof query !== 'string') {
-        return res.status(400).json({ error: 'Search query required' });
-      }
-
-      let results;
-      switch (type) {
-        case 'albums':
-          results = await globalTidalClient.searchAlbums(query, Number(limit));
-          break;
-        case 'artists':
-          results = await globalTidalClient.searchArtists(query, Number(limit));
-          break;
-        case 'tracks':
-          results = await globalTidalClient.searchTracks(query, Number(limit));
-          break;
-        default:
-          return res.status(400).json({ error: 'Invalid search type' });
-      }
-
-      res.json({ results });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Search failed'
-      });
-    }
-  });
-
-  // Initialize Tidal API client
-  globalTidalClient = new TidalApiClient({
-    clientId: 'pUlCxd80DuDSem4J', // Third-party client ID provided by user
-  });
-
-  // Tidal API Routes
-  app.get('/api/tidal/status', (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const authenticated = globalTidalClient.isAuthenticated();
-      const tokens = authenticated ? globalTidalClient.getTokens() : null;
-
-      res.json({
-        authenticated,
-        hasTokens: !!tokens?.accessToken,
-        userId: tokens?.userId
-      });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal status'
-      });
-    }
-  });
-
-  app.post('/api/tidal/set-tokens', (req: Request, res: Response) => {
-    try {
-      const { accessToken, refreshToken, userId } = req.body;
-
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      if (!accessToken) {
-        return res.status(400).json({ error: 'Access token required' });
-      }
-
-      globalTidalClient.setTokens(accessToken, refreshToken, userId);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to set Tidal tokens'
-      });
-    }
-  });
-
-  app.get('/api/tidal/albums', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyAlbums(limit, offset);
-      res.json(result);
-    } catch (error) {
-      console.error('[Tidal API] Failed to get albums:', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal albums'
-      });
-    }
-  });
-
-  // Initialize Tidal API client
-  globalTidalClient = new TidalApiClient({
-    clientId: 'pUlCxd80DuDSem4J', // Third-party client ID provided by user
-  });
-
-  // Tidal API Routes
-  app.get('/api/tidal/status', (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const authenticated = globalTidalClient.isAuthenticated();
-      const tokens = authenticated ? globalTidalClient.getTokens() : null;
-
-      res.json({
-        authenticated,
-        hasTokens: !!tokens?.accessToken,
-        userId: tokens?.userId
-      });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal status'
-      });
-    }
-  });
-
-  app.post('/api/tidal/set-tokens', (req: Request, res: Response) => {
-    try {
-      const { accessToken, refreshToken, userId } = req.body;
-
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      if (!accessToken) {
-        return res.status(400).json({ error: 'Access token required' });
-      }
-
-      globalTidalClient.setTokens(accessToken, refreshToken, userId);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to set Tidal tokens'
-      });
-    }
-  });
-
-  app.get('/api/tidal/albums', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyAlbums(limit, offset);
-      res.json(result);
-    } catch (error) {
-      console.error('[Tidal API] Failed to get albums:', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal albums'
-      });
-    }
-  });
-
-  // Simple Tidal API routes for testing (mock data)
-  app.get('/api/tidal/status', (req: Request, res: Response) => {
-    res.json({
-      authenticated: false,
-      hasTokens: false,
-      userId: null
-    });
-  });
-
-  app.get('/api/tidal/albums', async (req: Request, res: Response) => {
-    // Return mock Tidal album data for testing
-    const mockAlbums = [
-      {
-        id: 'tidal-12345',
-        title: 'Mock Tidal Album',
-        artist: { id: 'tidal-artist-1', name: 'Mock Artist' },
-        cover: null,
-        year: 2024,
-        numberOfTracks: 10,
-        duration: 2400,
-        lmsUri: 'tidal://album:12345'
-      }
-    ];
-
-    res.json({
-      items: mockAlbums,
-      total: 1
-    });
-  });
-
-  // Initialize relay server (Chromecast, IR control, display pages, etc.)
-  // initializeRelayServer(app); // Temporarily disabled - issue with relay-server.ts
-
-  // LMS server connection endpoint (for web platform)
-  app.post('/api/lms/connect', async (req: Request, res: Response) => {
-    try {
-      const { url, host, port, protocol } = req.body;
-
-      // Support both full URL format (for remote access) and host:port format (for local)
-      let lmsUrl: string;
-      let lmsHost: string;
-      let lmsPort: number;
-
-      if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-        // Full URL provided (for remote access)
-        try {
-          const parsedUrl = new URL(url);
-          lmsHost = parsedUrl.hostname;
-          lmsPort = parsedUrl.port ? parseInt(parsedUrl.port, 10) : (parsedUrl.protocol === 'https:' ? 443 : 9000);
-          lmsUrl = `${parsedUrl.protocol}//${parsedUrl.hostname}${parsedUrl.port ? `:${parsedUrl.port}` : ''}`;
-        } catch (error) {
-          return res.status(400).json({ error: `Invalid LMS URL: ${url}` });
-        }
-      } else if (host && port) {
-        // Legacy format: host and port (for local connections)
-        lmsHost = String(host);
-        lmsPort = parseInt(String(port)) || 9000;
-        const lmsProtocol = protocol || 'http';
-        lmsUrl = `${lmsProtocol}://${lmsHost}:${lmsPort}`;
-      } else {
-        return res.status(400).json({ error: 'Either url or both host and port are required' });
-      }
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-      const response = await fetch(`${lmsUrl}/jsonrpc.js`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: 1,
-          method: 'slim.request',
-          params: ['', ['serverstatus', '0', '0']],
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.result) {
-          res.json({
-            id: `lms-${lmsHost}:${lmsPort}`,
-            name: 'Logitech Media Server',
-            host: lmsHost,
-            port: lmsPort,
-            version: String(data.result.version || 'unknown'),
-          });
-        } else {
-          res.status(404).json({ error: 'Server responded but no result' });
-        }
-      } else {
-        res.status(response.status).json({ error: `LMS server returned ${response.status}` });
-      }
-    } catch (error) {
-      console.error('[LMS Connect] Error:', error);
-      if (error instanceof Error && error.name === 'AbortError') {
-        res.status(408).json({ error: 'Connection timeout' });
-      } else {
-        res.status(500).json({ error: error instanceof Error ? error.message : 'Connection failed' });
-      }
-    }
-  });
-
   const httpServer = createServer(app);
 
   return httpServer;
