@@ -71,7 +71,6 @@ const PlaylistGridItem = memo(({
   const overlayOpacity = useSharedValue(1);
   const shuffleScale = useSharedValue(1);
   const playScale = useSharedValue(1);
-  const isQobuz = (item.url || '').includes('qobuz') || item.name.toLowerCase().includes('qobuz');
   const isSoundCloud = (item.url || '').includes('soundcloud') || item.name.toLowerCase().includes('soundcloud');
   const isTidal = (item.url || '').includes('tidal') || (item.id && String(item.id).startsWith('tidal-')) || item.name.toLowerCase().includes('tidal');
   const isSpotify = (item.url || '').includes('spotify') || item.name.toLowerCase().includes('spotify');
@@ -146,15 +145,7 @@ const PlaylistGridItem = memo(({
             <Feather name="play" size={22} color="#fff" style={{ marginLeft: 2 }} />
           </AnimatedPressable>
         </Animated.View>
-        {isQobuz ? (
-          <View style={styles.gridSourceBadge}>
-            <Image
-              source={require("../assets/images/qobuz-icon.png")}
-              style={styles.gridSourceIcon}
-              contentFit="contain"
-            />
-          </View>
-        ) : isSoundCloud ? (
+        {isSoundCloud ? (
           <View style={styles.gridSourceBadge}>
             <Image
               source={require("../assets/images/soundcloud-icon.png")}
@@ -171,7 +162,7 @@ const PlaylistGridItem = memo(({
         ) : null}
       </View>
       <ThemedText style={styles.gridTitle} numberOfLines={2}>
-        {item.name.replace(/^(Qobuz|SoundCloud|Tidal)\s*:?\s*/i, '').trim()}
+        {item.name.replace(/^(SoundCloud|Tidal)\s*:?\s*/i, '').trim()}
       </ThemedText>
       {item.trackCount !== undefined ? (
         <ThemedText style={styles.gridSubtitle}>
@@ -260,7 +251,7 @@ export default function PlaylistsScreen() {
     isLoading: musicLoading 
   } = useMusic();
   const { activePlayer, playPlaylist } = usePlayback();
-  const { qobuzEnabled, soundcloudEnabled, spotifyEnabled, tidalEnabled } = useSettings();
+  const {  soundcloudEnabled, spotifyEnabled, tidalEnabled } = useSettings();
   const { theme } = useTheme();
   
   const [playlistArtworks, setPlaylistArtworks] = useState<Record<string, string[]>>({});
@@ -391,7 +382,7 @@ export default function PlaylistsScreen() {
     try {
       const artworks = playlistArtworks[playlist.id] || [];
       const artwork = artworks.length > 0 ? artworks[0] : undefined;
-      const playlistName = playlist.name.replace(/^(Qobuz|SoundCloud|Tidal)\s*:?\s*/i, '').trim();
+      const playlistName = playlist.name.replace(/^(SoundCloud|Tidal)\s*:?\s*/i, '').trim();
       await playPlaylist(playlist.id, playlistName, artwork);
     } catch (error) {
       console.error('Failed to play playlist:', error);
@@ -405,7 +396,7 @@ export default function PlaylistsScreen() {
       await lmsClient.setShuffle(activePlayer.id, 1);
       const artworks = playlistArtworks[playlist.id] || [];
       const artwork = artworks.length > 0 ? artworks[0] : undefined;
-      const playlistName = playlist.name.replace(/^(Qobuz|SoundCloud|Tidal)\s*:?\s*/i, '').trim();
+      const playlistName = playlist.name.replace(/^(SoundCloud|Tidal)\s*:?\s*/i, '').trim();
       await playPlaylist(playlist.id, playlistName, artwork);
     } catch (error) {
       console.error('Failed to shuffle playlist:', error);
@@ -444,21 +435,9 @@ export default function PlaylistsScreen() {
       >
         <View style={styles.listInfo}>
           <View style={styles.listNameRow}>
-            {item.url?.includes('qobuz') || item.name.toLowerCase().includes('qobuz') ? (
-              <View style={styles.listSourceBadge}>
-                <Image source={require("../assets/images/qobuz-icon.png")} style={styles.listSourceIcon} contentFit="contain" />
-              </View>
-            ) : item.url?.includes('soundcloud') || item.name.toLowerCase().includes('soundcloud') ? (
-              <View style={styles.listSourceBadge}>
-                <Image source={require("../assets/images/soundcloud-icon.png")} style={styles.listSourceIcon} contentFit="contain" />
-              </View>
-            ) : item.url?.includes('tidal') || item.id?.startsWith('tidal-') || item.name.toLowerCase().includes('tidal') ? (
-              <View style={styles.listSourceBadge}>
-                <Feather name="music" size={12} color="#fff" />
-              </View>
-            ) : null}
+            
             <ThemedText style={styles.listName} numberOfLines={1}>
-              {item.name.replace(/^(Qobuz|SoundCloud|Tidal)\s*:?\s*/i, '').trim()}
+              {item.name.replace(/^(SoundCloud|Tidal)\s*:?\s*/i, '').trim()}
             </ThemedText>
           </View>
           {item.trackCount !== undefined ? (

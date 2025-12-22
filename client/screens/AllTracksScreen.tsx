@@ -38,22 +38,23 @@ function formatDuration(duration: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-type LibraryFilterKey = "local" | "qobuz" | "tidal" | "spotify";
+type LibraryFilterKey = "local"  | "tidal" | "spotify";
 
 export default function AllTracksScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
-  const { activeServer, recentlyPlayed } = useMusic();
+  const { activeServer } = useMusic();
   const { activePlayer, playTrack } = usePlayback();
-  const { qobuzEnabled, spotifyEnabled, tidalEnabled } = useSettings();
+  const {  spotifyEnabled, tidalEnabled } = useSettings();
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sortOption, setSortOption] = useState<SortOption>("alphabetical");
   const [activeFilterSheet, setActiveFilterSheet] = useState<"libraries" | null>(null);
   const [libraryFilter, setLibraryFilter] = useState<Record<LibraryFilterKey, boolean>>({
-    local: false,
-    qobuz: false,
+    local: true,
+    tidal: true,
+    spotify: true
   });
 
   useEffect(() => {
@@ -69,8 +70,20 @@ export default function AllTracksScreen() {
         lmsClient.setServer(activeServer.host, activeServer.port);
         
         // Load tracks from standard LMS library
-        const lmsTracks: LmsTrack[] = await lmsClient.getAllLibraryTracks(5000);
-        
+        const fetchedLmsTracks: LmsTrack[] = await lmsClient.getAllLibraryTracks(5000);
+        const lmsTracks: Track[] = fetchedLmsTracks.map(t => ({
+          id: `${activeServer.id}-${t.id}`,
+          title: t.title,
+          artist: t.artist,
+          album: t.album,
+          albumId: t.albumId,
+          duration: t.duration,
+          albumArt: t.artwork_url ? lmsClient.getArtworkUrl(t as any) : undefined,
+          source: 'local' as const,
+          uri: t.url,
+          lmsTrackId: t.id,
+        }));
+
         // Tidal tracks from the Tidal API
         let tidalApiTracks: Track[] = [];
         if (tidalEnabled) {
@@ -79,7 +92,7 @@ export default function AllTracksScreen() {
             const apiUrl = getApiUrl();
             const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
             console.log(`[AllTracksScreen] Fetching Tidal tracks from: ${cleanApiUrl}/api/tidal/tracks`);
-            const response = await fetch(`${cleanApiUrl}/api/tidal/tracks?limit=500`);
+            const response = await fetch(`${cleanApiUrl}/api/tidal/tracks?limit=5000`);
             if (response.ok) {
               const data = await response.json();
               if (data.items) {
@@ -104,19 +117,9 @@ export default function AllTracksScreen() {
         }
 
         // Merge tracks, avoiding duplicates by ID or title+artist
-        const allTracks: Track[] = [...localTracks];
-        const existingIds = new Set(localTracks.map(t => t.lmsTrackId || t.id));
-        const existingKeys = new Set(localTracks.map(t => `${t.title.toLowerCase()}|${t.artist.toLowerCase()}`));
-
-        // Add Qobuz tracks
-        qobuzTracks.forEach(t => {
-          const key = `${t.title.toLowerCase()}|${t.artist.toLowerCase()}`;
-          if (!existingIds.has(t.lmsTrackId || t.id) && !existingKeys.has(key)) {
-            allTracks.push(t);
-            existingIds.add(t.lmsTrackId || t.id);
-            existingKeys.add(key);
-          }
-        });
+        const allTracks: Track[] = [...lmsTracks];
+        const existingIds = new Set(lmsTracks.map(t => t.lmsTrackId || t.id));
+        const existingKeys = new Set(lmsTracks.map(t => `${t.title.toLowerCase()}|${t.artist.toLowerCase()}`));
 
         // Add Tidal API tracks
         tidalApiTracks.forEach(t => {
@@ -128,230 +131,174 @@ export default function AllTracksScreen() {
           }
         });
 
-        console.log(`[AllTracksScreen] Final track count: ${allTracks.length} (Local: ${localTracks.length}, Qobuz: ${qobuzTracks.length}, Tidal: ${tidalApiTracks.length})`);
         setTracks(allTracks);
       } catch (e) {
-        console.error("Failed to load all tracks:", e);
-        setTracks([]);
+        console.error("Failed to load tracks:", e);
       } finally {
         setIsLoading(false);
       }
     };
 
     loadTracks();
-  }, [activeServer, qobuzEnabled, spotifyEnabled, tidalEnabled]);
+  }, [activeServer, tidalEnabled]);
 
-  const hasActiveLibraryFilter = libraryFilter.local || libraryFilter.qobuz;
-
-  const sortedTracks = useMemo(() => {
-    let list = [...tracks];
-
-    // Apply library filter if any selected
-    if (hasActiveLibraryFilter) {
-      const allowedLibs: LibraryFilterKey[] = [];
-      if (libraryFilter.local) allowedLibs.push("local");
-      if (libraryFilter.qobuz) allowedLibs.push("qobuz");
-      if (allowedLibs.length > 0) {
-        list = list.filter((track) => {
-          const src = (track.source || "local") as LibraryFilterKey;
-          return allowedLibs.includes(src);
-        });
-      }
-    }
+  const filteredTracks = useMemo(() => {
+    let result = tracks.filter(t => {
+      if (t.source === 'local' && !libraryFilter.local) return false;
+      if (t.source === 'tidal' && !libraryFilter.tidal) return false;
+      if (t.source === 'spotify' && !libraryFilter.spotify) return false;
+      return true;
+    });
 
     if (sortOption === "alphabetical") {
-      list.sort((a, b) => a.title.localeCompare(b.title));
-    } else if (sortOption === "recently_played") {
-      const map = new Map<string, number>();
-      recentlyPlayed.forEach((t, index) => {
-        if (t.id) {
-          const key = t.id;
-          if (!map.has(key)) {
-            map.set(key, index);
-          }
-        }
-      });
-
-      list.sort((a, b) => {
-        const indexA = map.get(a.id) ?? Infinity;
-        const indexB = map.get(b.id) ?? Infinity;
-        if (indexA === Infinity && indexB === Infinity) {
-          return a.title.localeCompare(b.title);
-        }
-        if (indexA === Infinity) return 1;
-        if (indexB === Infinity) return -1;
-        return indexA - indexB;
-      });
-    } else if (sortOption === "recently_added") {
-      // No created-at metadata; fall back to alphabetical
-      list.sort((a, b) => a.title.localeCompare(b.title));
+      result.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortOption === "artist") {
+      result.sort((a, b) => a.artist.localeCompare(b.artist));
+    } else if (sortOption === "duration") {
+      result.sort((a, b) => (b.duration || 0) - (a.duration || 0));
     }
 
-    return list;
-  }, [tracks, sortOption, recentlyPlayed, hasActiveLibraryFilter, libraryFilter]);
+    return result;
+  }, [tracks, sortOption, libraryFilter]);
 
-  const handlePlayTrack = useCallback(
-    (track: Track) => {
-      if (!activePlayer) return;
-      playTrack(track);
-    },
-    [activePlayer, playTrack],
-  );
-
-  const renderTrack = ({ item }: { item: Track }) => (
+  const renderTrack = useCallback(({ item }: { item: Track }) => (
     <Pressable
       style={({ pressed }) => [
         styles.trackRow,
         { opacity: pressed ? 0.6 : 1 },
       ]}
-      onPress={() => handlePlayTrack(item)}
+      onPress={() => playTrack(item, filteredTracks)}
     >
-      <Image
-        source={
-          item.albumArt || require("../assets/images/placeholder-album.png")
-        }
-        style={styles.trackImage}
-        contentFit="cover"
-      />
+      <View style={styles.trackImageContainer}>
+        {item.albumArt ? (
+          <Image
+            source={item.albumArt}
+            style={styles.trackImage}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={styles.trackImagePlaceholder}>
+            <Feather name="music" size={20} color={Colors.light.textTertiary} />
+          </View>
+        )}
+      </View>
       <View style={styles.trackInfo}>
         <ThemedText style={styles.trackTitle} numberOfLines={1}>
           {item.title}
         </ThemedText>
-        <ThemedText style={styles.trackArtist} numberOfLines={1}>
-          {item.artist}
+        <ThemedText style={styles.trackSubtitle} numberOfLines={1}>
+          {item.artist} • {item.album}
         </ThemedText>
       </View>
       <ThemedText style={styles.trackDuration}>
         {formatDuration(item.duration)}
       </ThemedText>
     </Pressable>
-  );
+  ), [playTrack, filteredTracks]);
+
+  if (isLoading) {
+    return (
+      <ThemedView style={styles.centered}>
+        <ActivityIndicator size="large" color={Colors.light.accent} />
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
-        <ThemedText style={styles.headerTitle}>Tracks</ThemedText>
-        <SortFilter value={sortOption} onChange={setSortOption} />
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+        <ThemedText style={styles.headerTitle}>Tracks ({filteredTracks.length})</ThemedText>
+        <View style={styles.headerActions}>
+          <Pressable 
+            style={styles.headerButton}
+            onPress={() => setActiveFilterSheet("libraries")}
+          >
+            <Feather name="filter" size={20} color={Colors.light.text} />
+          </Pressable>
+        </View>
       </View>
 
-      {/* Track filters: Libraries */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterRow}
-        contentContainerStyle={{ paddingRight: Spacing.lg }}
-      >
-        <Pressable
-          style={({ pressed }) => [
-            styles.filterChip,
-            (hasActiveLibraryFilter || activeFilterSheet === "libraries") && styles.filterChipActive,
-            { opacity: pressed ? 0.7 : 1 },
+      <View style={styles.sortContainer}>
+        <SortFilter
+          currentSort={sortOption}
+          onSortChange={setSortOption}
+          options={[
+            { label: "A-Z", value: "alphabetical" },
+            { label: "Artist", value: "artist" },
+            { label: "Duration", value: "duration" },
           ]}
-          onPress={() => setActiveFilterSheet("libraries")}
-        >
-          <ThemedText style={styles.filterChipText}>Libraries</ThemedText>
-        </Pressable>
-      </ScrollView>
-
-      {isLoading ? (
-        <View style={styles.loader}>
-          <ActivityIndicator size="small" color={Colors.light.accent} />
-        </View>
-      ) : (
-        <FlatList
-          data={sortedTracks}
-          renderItem={renderTrack}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: tabBarHeight + Spacing["5xl"] },
-          ]}
-          {...(Platform.OS === 'ios' && { contentInsetAdjustmentBehavior: 'automatic' })}
         />
-      )}
+      </View>
 
-      {/* Filter selection modal */}
-      {activeFilterSheet && (
-        <Modal
-          visible
-          animationType="slide"
-          transparent
-          onRequestClose={() => setActiveFilterSheet(null)}
-        >
-          <Pressable
-            style={styles.filterModalOverlay}
-            onPress={() => setActiveFilterSheet(null)}
-          >
-            <Pressable
-              style={[styles.filterModalContent, { paddingBottom: insets.bottom + Spacing.lg }]}
-              onPress={(e) => e.stopPropagation()}
-            >
-              <ThemedText style={styles.filterModalTitle}>
-                Filter by Library
-              </ThemedText>
+      <FlatList
+        data={filteredTracks}
+        renderItem={renderTrack}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: tabBarHeight + Spacing.xl },
+        ]}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+      />
 
-              {activeFilterSheet === "libraries" && (
-                <>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.filterOptionRow,
-                      { opacity: pressed ? 0.7 : 1 },
-                    ]}
-                    onPress={() =>
-                      setLibraryFilter((prev) => ({
-                        ...prev,
-                        local: !prev.local,
-                      }))
-                    }
-                  >
-                    <Feather
-                      name={libraryFilter.local ? "check-square" : "square"}
-                      size={18}
-                      color={Colors.light.accent}
-                    />
-                    <ThemedText style={styles.filterOptionText}>
-                      Local (Music Folder)
-                    </ThemedText>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.filterOptionRow,
-                      { opacity: pressed ? 0.7 : 1 },
-                    ]}
-                    onPress={() =>
-                      setLibraryFilter((prev) => ({
-                        ...prev,
-                        qobuz: !prev.qobuz,
-                      }))
-                    }
-                  >
-                    <Feather
-                      name={libraryFilter.qobuz ? "check-square" : "square"}
-                      size={18}
-                      color={Colors.light.accent}
-                    />
-                    <ThemedText style={styles.filterOptionText}>
-                      Qobuz Favorites
-                    </ThemedText>
-                  </Pressable>
-                </>
-              )}
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.filterDoneButton,
-                  { opacity: pressed ? 0.7 : 1 },
-                ]}
-                onPress={() => setActiveFilterSheet(null)}
-              >
-                <ThemedText style={styles.filterDoneButtonText}>
-                  Done
-                </ThemedText>
-              </Pressable>
+      <Modal
+        visible={activeFilterSheet === "libraries"}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setActiveFilterSheet(null)}
+      >
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setActiveFilterSheet(null)} 
+        />
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <ThemedText style={styles.modalTitle}>Filter Libraries</ThemedText>
+            <Pressable onPress={() => setActiveFilterSheet(null)}>
+              <Feather name="x" size={24} color={Colors.light.text} />
             </Pressable>
-          </Pressable>
-        </Modal>
-      )}
+          </View>
+          <ScrollView>
+            <Pressable 
+              style={styles.filterOption}
+              onPress={() => setLibraryFilter(prev => ({ ...prev, local: !prev.local }))}
+            >
+              <ThemedText style={styles.filterText}>Local Library</ThemedText>
+              <Feather 
+                name={libraryFilter.local ? "check-square" : "square"} 
+                size={20} 
+                color={libraryFilter.local ? Colors.light.accent : Colors.light.textTertiary} 
+              />
+            </Pressable>
+            {tidalEnabled && (
+              <Pressable 
+                style={styles.filterOption}
+                onPress={() => setLibraryFilter(prev => ({ ...prev, tidal: !prev.tidal }))}
+              >
+                <ThemedText style={styles.filterText}>Tidal</ThemedText>
+                <Feather 
+                  name={libraryFilter.tidal ? "check-square" : "square"} 
+                  size={20} 
+                  color={libraryFilter.tidal ? Colors.light.accent : Colors.light.textTertiary} 
+                />
+              </Pressable>
+            )}
+            {spotifyEnabled && (
+              <Pressable 
+                style={styles.filterOption}
+                onPress={() => setLibraryFilter(prev => ({ ...prev, spotify: !prev.spotify }))}
+              >
+                <ThemedText style={styles.filterText}>Spotify</ThemedText>
+                <Feather 
+                  name={libraryFilter.spotify ? "check-square" : "square"} 
+                  size={20} 
+                  color={libraryFilter.spotify ? Colors.light.accent : Colors.light.textTertiary} 
+                />
+              </Pressable>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
@@ -359,21 +306,33 @@ export default function AllTracksScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.backgroundRoot,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   header: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.sm,
+    paddingBottom: Spacing.md,
   },
   headerTitle: {
     ...Typography.title,
     color: Colors.light.text,
   },
-  loader: {
-    paddingTop: Spacing["3xl"],
+  headerActions: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  headerButton: {
+    padding: Spacing.sm,
+  },
+  sortContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
@@ -382,94 +341,76 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.light.border,
+  },
+  trackImageContainer: {
+    marginRight: Spacing.md,
   },
   trackImage: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: BorderRadius.xs,
+  },
+  trackImagePlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.xs,
+    backgroundColor: Colors.light.backgroundSecondary,
+    justifyContent: "center",
+    alignItems: "center",
   },
   trackInfo: {
     flex: 1,
-    marginLeft: Spacing.md,
   },
   trackTitle: {
     ...Typography.body,
+    fontWeight: "600",
     color: Colors.light.text,
   },
-  trackArtist: {
+  trackSubtitle: {
     ...Typography.caption,
     color: Colors.light.textSecondary,
+    marginTop: 2,
   },
   trackDuration: {
     ...Typography.caption,
     color: Colors.light.textTertiary,
     marginLeft: Spacing.md,
   },
-  filterRow: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    marginTop: Spacing.xs,
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.light.border,
   },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing["2xl"],
-    paddingVertical: Spacing.sm,
-    borderRadius: 999,
-    backgroundColor: Colors.light.backgroundSecondary,
-    marginRight: Spacing.sm,
-  },
-  filterChipActive: {
-    backgroundColor: Colors.light.text,
-  },
-  filterChipText: {
-    ...Typography.body,
-    color: Colors.light.text,
-  },
-  filterModalOverlay: {
+  modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
-  filterModalContent: {
+  modalContent: {
     backgroundColor: Colors.light.backgroundDefault,
     borderTopLeftRadius: BorderRadius.lg,
     borderTopRightRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    maxHeight: "70%",
+    padding: Spacing.lg,
+    maxHeight: "60%",
   },
-  filterModalTitle: {
-    ...Typography.title,
-    marginBottom: Spacing.md,
-    color: Colors.light.text,
-  },
-  filterOptionRow: {
+  modalHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
   },
-  filterOptionText: {
-    ...Typography.body,
+  modalTitle: {
+    ...Typography.headline,
     color: Colors.light.text,
   },
-  filterDoneButton: {
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-    alignSelf: "center",
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.light.text,
+  filterOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.border,
   },
-  filterDoneButtonText: {
+  filterText: {
     ...Typography.body,
-    color: Colors.dark.text,
-    fontWeight: "600",
+    color: Colors.light.text,
   },
 });
-
-
