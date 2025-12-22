@@ -58,6 +58,59 @@ export default function BrowseScreen() {
   }, [artistsData]);
   const [isShuffling, setIsShuffling] = useState(false);
   const [tidalAlbums, setTidalAlbums] = useState<LmsAlbum[]>([]);
+  const [tidalPlaylists, setTidalPlaylists] = useState<LmsPlaylist[]>([]);
+  const [tidalMixes, setTidalMixes] = useState<any[]>([]);
+
+  // Load Tidal content
+  useEffect(() => {
+    const loadTidalContent = async () => {
+      if (!tidalEnabled || !tidalConnected) {
+        setTidalAlbums([]);
+        setTidalPlaylists([]);
+        setTidalMixes([]);
+        return;
+      }
+      try {
+        const { getApiUrl } = await import('@/lib/query-client');
+        const apiUrl = getApiUrl();
+        
+        // Load albums
+        fetch(`${apiUrl}api/tidal/albums?limit=20`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => data && setTidalAlbums(data.items.map((a: any) => ({
+            id: `tidal-album-${a.id}`,
+            title: a.title,
+            artist: a.artist,
+            artistId: `tidal-artist-${a.artistId}`,
+            artwork_url: a.artwork_url,
+            trackCount: a.numberOfTracks,
+            year: a.year,
+            source: 'tidal'
+          }))));
+
+        // Load playlists
+        fetch(`${apiUrl}api/tidal/playlists?limit=20`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => data && setTidalPlaylists(data.items.map((p: any) => ({
+            id: `tidal-playlist-${p.id}`,
+            name: p.title,
+            url: p.lmsUri,
+            artwork_url: p.cover,
+            trackCount: p.numberOfTracks,
+            source: 'tidal'
+          }))));
+
+        // Load mixes
+        fetch(`${apiUrl}api/tidal/mixes`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => data && setTidalMixes(data.items));
+
+      } catch (error) {
+        console.error('Error loading Tidal content:', error);
+      }
+    };
+    loadTidalContent();
+  }, [tidalEnabled, tidalConnected]);
 
   const recentItems: RecentItem[] = useMemo(() => {
     const items: RecentItem[] = [];
@@ -481,6 +534,49 @@ export default function BrowseScreen() {
                   </Pressable>
                 );
               })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Tidal Custom Mixes Section */}
+        {tidalMixes.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <ThemedText style={styles.sectionTitle}>Custom Mixes</ThemedText>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+            >
+              {tidalMixes.map((mix) => (
+                <Pressable
+                  key={mix.id}
+                  style={({ pressed }) => [
+                    styles.smallCard,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                  onPress={() => {
+                    if (activePlayer && mix.lmsUri) {
+                      lmsClient.playPlaylist(activePlayer.id, mix.lmsUri);
+                    } else if (!activePlayer) {
+                      Alert.alert('No Player', 'Please select a player first.');
+                    }
+                  }}
+                >
+                  <AlbumArtwork
+                    source={mix.artwork_url}
+                    style={styles.smallImage}
+                    contentFit="cover"
+                  />
+                  <ThemedText style={styles.smallTitle} numberOfLines={1}>
+                    {mix.title}
+                  </ThemedText>
+                  <ThemedText style={styles.smallSubtitle} numberOfLines={1}>
+                    {mix.description || 'Tidal Mix'}
+                  </ThemedText>
+                </Pressable>
+              ))}
             </ScrollView>
           </View>
         )}

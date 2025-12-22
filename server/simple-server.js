@@ -400,6 +400,80 @@ app.post('/api/lms/connect', async (req, res) => {
   }
 });
 
+// Server discovery - search for LMS servers on the local network
+app.get('/api/servers/discover', async (req, res) => {
+  console.log('[Discovery] Starting server discovery...');
+  
+  const discoveredServers = [];
+  const timeout = 1500;
+  
+  // Create a list of IPs to probe
+  const ipsToProbe = [];
+  
+  // 1. Add known servers and local interface
+  ipsToProbe.push('192.168.0.19'); // User's LMS
+  ipsToProbe.push('192.168.0.21'); // This server
+  ipsToProbe.push('127.0.0.1');
+  
+  // 2. Add range of IPs on the same subnet (192.168.0.1 to 192.168.0.50 for a quick scan)
+  for (let i = 1; i <= 50; i++) {
+    const ip = `192.168.0.${i}`;
+    if (!ipsToProbe.includes(ip)) {
+      ipsToProbe.push(ip);
+    }
+  }
+
+  // Probing function
+  const probe = async (host) => {
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      
+      const response = await fetch(`http://${host}:9000/jsonrpc.js`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 1,
+          method: 'slim.request',
+          params: ['', ['serverstatus', '0', '1']]
+        }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(id);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.result) {
+          return {
+            name: data.result.version ? `LMS (${host})` : 'Logitech Media Server',
+            host: host,
+            port: 9000,
+            version: data.result.version,
+            type: 'lms'
+          };
+        }
+      }
+    } catch (e) {
+      // Ignore failures
+    }
+    return null;
+  };
+
+  // Run probes in batches to avoid overwhelming the system
+  const batchSize = 10;
+  for (let i = 0; i < ipsToProbe.length; i += batchSize) {
+    const batch = ipsToProbe.slice(i, i + batchSize);
+    const results = await Promise.all(batch.map(probe));
+    results.forEach(s => {
+      if (s) discoveredServers.push(s);
+    });
+  }
+
+  console.log(`[Discovery] Found ${discoveredServers.length} servers`);
+  res.json({ servers: discoveredServers });
+});
+
 // Tidal API endpoints
 // Rate limiting for Tidal auth URL requests (prevent rapid requests that trigger anti-bot)
 const tidalAuthUrlRequests = new Map();
@@ -831,6 +905,70 @@ app.post('/api/tidal/set-env-tokens', (req, res) => {
   }
 });
 
+/**
+ * Helper to fetch all items from a Tidal collection relationship by following cursors
+ */
+async function fetchAllTidalCollectionItems(userId, relationship, include = '', maxItems = 1000) {
+  let allItems = [];
+  let nextUrl = `https://openapi.tidal.com/v2/userCollections/${userId}/relationships/${relationship}?page[size]=100&countryCode=IE${include ? '&include=' + include : ''}`;
+  
+  console.log(`[Tidal] Starting recursive fetch for ${relationship} (maxItems: ${maxItems})...`);
+  let pageCount = 0;
+  
+  while (nextUrl && allItems.length < maxItems) {
+    pageCount++;
+    try {
+      const response = await makeTidalApiCall(nextUrl);
+      if (!response.ok) {
+        const text = await response.text();
+        console.warn(`[Tidal] Failed to fetch page ${pageCount} for ${relationship}: ${response.status} ${text}`);
+        break;
+      }
+      
+      const data = await response.json();
+      
+      if (include) {
+        const included = data.included || [];
+        const typeMap = {
+          'albums': 'albums',
+          'artists': 'artists',
+          'tracks': 'tracks',
+          'playlists': 'playlists',
+          'mixes': 'mixes'
+        };
+        const targetType = typeMap[relationship] || relationship;
+        const pageItems = included.filter(item => item.type === targetType);
+        allItems = allItems.concat(pageItems);
+      } else {
+        const dataItems = data.data || [];
+        allItems = allItems.concat(dataItems);
+      }
+      
+      console.log(`[Tidal] Fetched page ${pageCount} for ${relationship}: ${allItems.length} items so far`);
+      
+      if (data.links?.next) {
+        let path = data.links.next;
+        // Tidal v2 API often returns broken 'next' links that miss the '/v2' prefix
+        if (path.startsWith('/userCollections') || path.startsWith('/albums') || path.startsWith('/playlists') || path.startsWith('/userRecommendations')) {
+          path = '/v2' + path;
+        }
+        nextUrl = path.startsWith('http') ? path : `https://openapi.tidal.com${path}`;
+        
+        // Add a small delay between pages to avoid hitting rate limits too fast
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } else {
+        nextUrl = null;
+      }
+    } catch (error) {
+      console.error(`[Tidal] Error during recursive fetch page ${pageCount} for ${relationship}:`, error);
+      break;
+    }
+  }
+  
+  console.log(`[Tidal] Finished fetching ${relationship}: total ${allItems.length} items found across ${pageCount} pages`);
+  return allItems;
+}
+
 app.get('/api/tidal/status', (req, res) => {
   try {
     const authenticated = !!tidalTokens?.accessToken;
@@ -907,7 +1045,7 @@ app.get('/api/tidal/test-tokens', async (req, res) => {
 });
 
 // Helper function to make Tidal API calls with automatic token refresh
-async function makeTidalApiCall(url, options = {}) {
+async function makeTidalApiCall(url, options = {}, retryCount = 0) {
   if (!tidalTokens?.accessToken) {
     throw new Error('Not authenticated with Tidal');
   }
@@ -929,6 +1067,14 @@ async function makeTidalApiCall(url, options = {}) {
     headers: headers
   });
 
+  // Handle rate limiting (429)
+  if (response.status === 429 && retryCount < 3) {
+    const waitTime = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
+    console.warn(`[Tidal] Rate limited (429). Waiting ${Math.round(waitTime)}ms before retry ${retryCount + 1}...`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+    return makeTidalApiCall(url, options, retryCount + 1);
+  }
+
   // If token expired, try to refresh and retry once
   if (response.status === 401 && tidalTokens.refreshToken) {
     console.log('[Tidal] Token expired, attempting refresh...');
@@ -946,194 +1092,266 @@ async function makeTidalApiCall(url, options = {}) {
   return response;
 }
 
-app.get('/api/tidal/albums', async (req, res) => {
+// Tidal API endpoints
+app.get('/api/tidal/mixes', async (req, res) => {
   try {
     if (!tidalTokens?.accessToken || !tidalTokens?.userId) {
       return res.status(401).json({ error: 'Not authenticated with Tidal' });
     }
 
-    const limit = parseInt(req.query.limit) || 20;
-    const offset = parseInt(req.query.offset) || 0;
-
-    console.log('Fetching Tidal albums using OpenAPI v2 (userCollections)...');
-
-    // Use JSON:API relationships with inclusion to get data without r_usr scope
-    // include=albums (the album data), albums.artists (artist names), albums.coverArt (images)
-    const endpoint = `https://openapi.tidal.com/v2/userCollections/${tidalTokens.userId}/relationships/albums?include=albums,albums.artists,albums.coverArt&page[size]=${limit}&countryCode=US`;
+    console.log('Fetching Tidal custom mixes...');
+    // userRecommendations endpoint for mixes
+    const endpoint = `https://openapi.tidal.com/v2/userRecommendations/${tidalTokens.userId}/relationships/myMixes?include=mixes,mixes.coverArt&countryCode=US`;
     
-    let response;
-    try {
-      response = await makeTidalApiCall(endpoint);
-    } catch (error) {
-      console.error('[Tidal] v2 API call failed:', error);
-      return res.status(500).json({ error: error.message || 'Failed to fetch Tidal albums' });
-    }
-    
+    const response = await makeTidalApiCall(endpoint);
     if (!response.ok) {
       const errorText = await response.text();
-      console.log(`[Tidal] Request failed with status ${response.status}: ${errorText}`);
-      return res.json({ items: [], total: 0, message: 'No albums found' });
+      console.log(`[Tidal] Mixes request failed with status ${response.status}: ${errorText}`);
+      return res.json({ items: [], total: 0 });
     }
 
     const data = await response.json();
     const included = data.included || [];
-    
-    // Transform included items into maps for easy lookup
-    const albumData = included.filter(item => item.type === 'albums');
-    const artistData = included.filter(item => item.type === 'artists');
+    const mixData = included.filter(item => item.type === 'mixes');
     const artworkData = included.filter(item => item.type === 'artworks');
 
-    const albums = albumData.map(album => {
-      // Find artist name from included data
-      const artistRel = album.relationships?.artists?.data?.[0];
-      const artist = artistRel ? artistData.find(a => a.id === artistRel.id) : null;
-      
-      // Find cover artwork from included data
-      const coverRel = album.relationships?.coverArt?.data?.[0];
+    const mixes = mixData.map(mix => {
+      const coverRel = mix.relationships?.coverArt?.data?.[0];
       const artwork = coverRel ? artworkData.find(a => a.id === coverRel.id) : null;
       const coverUrl = artwork?.attributes?.files?.find(f => f.href.includes('320x320'))?.href || 
                        artwork?.attributes?.files?.[0]?.href;
 
       return {
-        id: String(album.id),
-        title: album.attributes?.title || 'Unknown Album',
-        artist: artist?.attributes?.name || 'Unknown Artist',
-        artistId: String(artist?.id || ''),
+        id: String(mix.id),
+        title: mix.attributes?.title || 'Custom Mix',
+        description: mix.attributes?.subTitle || '',
         artwork_url: coverUrl || null,
-        year: album.attributes?.releaseDate ? new Date(album.attributes.releaseDate).getFullYear() : null,
-        numberOfTracks: album.attributes?.numberOfItems,
-        lmsUri: `tidal://album:${album.id}`,
+        lmsUri: `tidal://mix:${mix.id}`,
         source: 'tidal'
       };
     });
 
-    res.json({
-      items: albums,
-      total: data.meta?.totalSize || albums.length
-    });
+    res.json({ items: mixes, total: mixes.length });
   } catch (error) {
-    console.error('Tidal albums error:', error);
-    res.status(500).json({
-      error: error.message || 'Failed to get Tidal albums'
-    });
+    console.error('Tidal mixes error:', error);
+    res.status(500).json({ error: error.message || 'Failed to get Tidal mixes' });
   }
 });
 
-app.get('/api/tidal/artists', async (req, res) => {
-  try {
-    if (!tidalTokens?.accessToken) {
-      return res.status(401).json({ error: 'Not authenticated with Tidal' });
-    }
-
-    const limit = parseInt(req.query.limit) || 20;
-    const offset = parseInt(req.query.offset) || 0;
-
-    // Use Tidal OpenAPI v2 directly
-    const response = await fetch(`https://api.tidal.com/v2/users/${tidalTokens.userId}/favorites/artists?limit=${limit}&offset=${offset}&countryCode=US`, {
-      headers: {
-        'Authorization': `Bearer ${tidalTokens.accessToken}`,
-        'accept': 'application/vnd.tidal.v1+json',
-        'Content-Type': 'application/vnd.tidal.v1+json',
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Tidal API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    const items = data.items || data.data || [];
-
-    // Transform to match our format
-    const artists = items.map(artist => {
-      const pictureId = artist.picture || artist.imageId || artist.coverId;
-      return {
-        id: String(artist.id),
-        name: artist.name || 'Unknown Artist',
-        picture: pictureId ? `https://resources.tidal.com/images/${pictureId.replace(/-/g, '/')}/320x320.jpg` : null
-      };
-    });
-
-    res.json({
-      items: artists,
-      total: data.totalNumberOfItems || data.total || artists.length
-    });
-  } catch (error) {
-    console.error('Tidal artists error:', error);
-    res.status(500).json({
-      error: error.message || 'Failed to get Tidal artists'
-    });
-  }
-});
-
-app.get('/api/tidal/playlists', async (req, res) => {
-  try {
-    if (!tidalTokens?.accessToken || !tidalTokens?.userId) {
-      return res.status(401).json({ error: 'Not authenticated with Tidal' });
-    }
-
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = parseInt(req.query.offset) || 0;
-
-    console.log('Fetching Tidal playlists using OpenAPI v2 (userCollections)...');
-
-    // Use JSON:API relationships with inclusion to get data without r_usr scope
-    // include=playlists (the playlist data), playlists.coverArt (images)
-    const endpoint = `https://openapi.tidal.com/v2/userCollections/${tidalTokens.userId}/relationships/playlists?include=playlists,playlists.coverArt&page[size]=${limit}&countryCode=US`;
-    
-    let response;
+  app.get('/api/tidal/tracks', async (req, res) => {
     try {
-      response = await makeTidalApiCall(endpoint);
+      if (!tidalTokens?.accessToken || !tidalTokens?.userId) {
+        return res.status(401).json({ error: 'Not authenticated with Tidal' });
+      }
+
+      const limit = parseInt(req.query.limit) || 1000;
+      const offset = parseInt(req.query.offset) || 0;
+
+      console.log(`Fetching Tidal tracks using recursive helper for user ${tidalTokens.userId}...`);
+
+      const trackData = await fetchAllTidalCollectionItems(
+        tidalTokens.userId,
+        'tracks',
+        'tracks,tracks.albums,tracks.artists,tracks.albums.coverArt',
+        limit + offset
+      );
+
+      const tracks = trackData.map(track => {
+        const albumRel = track.relationships?.albums?.data?.[0]?.id;
+        return {
+          id: String(track.id),
+          title: track.attributes?.title || 'Unknown Track',
+          artist: track.attributes?.artistName || 'Unknown Artist',
+          album: track.attributes?.albumName || 'Unknown Album',
+          albumId: albumRel,
+          duration: track.attributes?.duration ? (typeof track.attributes.duration === 'string' ? parseIsoDuration(track.attributes.duration) : track.attributes.duration) : 0,
+          artwork_url: null,
+          lmsUri: `tidal://track:${track.id}`,
+          source: 'tidal'
+        };
+      });
+
+      const pagedTracks = tracks.slice(offset, offset + limit);
+      res.json({ items: pagedTracks, total: tracks.length });
     } catch (error) {
-      console.error('[Tidal] Playlists API call failed:', error);
-      return res.status(500).json({ error: error.message || 'Failed to fetch Tidal playlists' });
+      console.error('[Tidal] Failed to fetch tracks:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch Tidal tracks' });
     }
+  });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.log(`[Tidal] Request failed with status ${response.status}: ${errorText}`);
-      return res.json({ items: [], total: 0, message: 'No playlists found' });
+// Helper to parse ISO 8601 duration (e.g. PT3M45S)
+function parseIsoDuration(isoDuration) {
+  const matches = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!matches) return 0;
+  const hours = parseInt(matches[1] || 0);
+  const minutes = parseInt(matches[2] || 0);
+  const seconds = parseInt(matches[3] || 0);
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
+  app.get('/api/tidal/artists', async (req, res) => {
+    try {
+      if (!tidalTokens?.accessToken || !tidalTokens?.userId) {
+        return res.status(401).json({ error: 'Not authenticated with Tidal' });
+      }
+
+      const limit = parseInt(req.query.limit) || 1000;
+      const offset = parseInt(req.query.offset) || 0;
+
+      console.log(`Fetching Tidal artists using recursive helper...`);
+      
+      const artistData = await fetchAllTidalCollectionItems(
+        tidalTokens.userId,
+        'artists',
+        'artists',
+        limit + offset
+      );
+
+      const artists = artistData.map(artist => ({
+        id: String(artist.id),
+        name: artist.attributes?.name || 'Unknown Artist',
+        picture: artist.attributes?.picture?.[0]?.url || null,
+        imageUrl: artist.attributes?.picture?.[0]?.url || null,
+        source: 'tidal'
+      }));
+
+      const pagedArtists = artists.slice(offset, offset + limit);
+      res.json({ items: pagedArtists, total: artists.length });
+    } catch (error) {
+      console.error('[Tidal] Failed to fetch artists:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch Tidal artists' });
     }
+  });
 
-    const data = await response.json();
-    const included = data.included || [];
-    
-    // Transform included items into maps for easy lookup
-    const playlistData = included.filter(item => item.type === 'playlists');
-    const artworkData = included.filter(item => item.type === 'artworks');
+let tidalTotalsCache = {
+  data: null,
+  timestamp: 0
+};
 
-    const playlists = playlistData.map(playlist => {
-      // Find cover artwork from included data
-      const coverRel = playlist.relationships?.coverArt?.data?.[0];
-      const artwork = coverRel ? artworkData.find(a => a.id === coverRel.id) : null;
-      const coverUrl = artwork?.attributes?.files?.find(f => f.href.includes('320x320'))?.href || 
-                       artwork?.attributes?.files?.[0]?.href;
+  app.get('/api/tidal/totals', async (req, res) => {
+    try {
+      if (!tidalTokens?.accessToken || !tidalTokens?.userId) {
+        return res.json({ albums: 0, artists: 0, tracks: 0, playlists: 0 });
+      }
 
-      return {
+      // Return cache if it's less than 30 minutes old
+      const now = Date.now();
+      if (tidalTotalsCache.data && (now - tidalTotalsCache.timestamp < 30 * 60 * 1000)) {
+        console.log('[Tidal] Returning cached library totals');
+        return res.json(tidalTotalsCache.data);
+      }
+
+      console.log('[Tidal] Fetching library totals (cache expired or missing)...');
+      
+      const relationships = ['albums', 'artists', 'tracks', 'playlists'];
+      const totals = {};
+      
+      // Fetch sequentially to avoid rate limits
+      for (const rel of relationships) {
+        try {
+          const items = await fetchAllTidalCollectionItems(tidalTokens.userId, rel, '', 5000); 
+          totals[rel] = items.length;
+          // Add a small delay between relationships
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (err) {
+          console.warn(`[Tidal Totals] Failed to get count for ${rel}:`, err.message);
+          totals[rel] = 0;
+        }
+      }
+
+      console.log('[Tidal] Library totals updated:', totals);
+      tidalTotalsCache = {
+        data: totals,
+        timestamp: now
+      };
+      
+      res.json(totals);
+    } catch (error) {
+      console.error('[Tidal] Failed to fetch library totals:', error);
+      res.status(500).json({ error: 'Failed to fetch Tidal library totals' });
+    }
+  });
+
+  app.get('/api/tidal/albums', async (req, res) => {
+    try {
+      if (!tidalTokens?.accessToken || !tidalTokens?.userId) {
+        return res.status(401).json({ error: 'Not authenticated with Tidal' });
+      }
+
+      const limit = parseInt(req.query.limit) || 1000;
+      const offset = parseInt(req.query.offset) || 0;
+
+      console.log(`Fetching Tidal albums using recursive helper for user ${tidalTokens.userId} with max limit ${limit}...`);
+
+      const albumData = await fetchAllTidalCollectionItems(
+        tidalTokens.userId, 
+        'albums', 
+        'albums,albums.artists,albums.coverArt',
+        limit + offset
+      );
+      
+      const albums = albumData.map(album => {
+        // In recursive fetch, included data mapping is hard without full 'included' map
+        // but for now we'll use what's in attributes
+        return {
+          id: String(album.id),
+          title: album.attributes?.title || 'Unknown Album',
+          artist: album.attributes?.artistName || 'Unknown Artist',
+          artistId: album.relationships?.artists?.data?.[0]?.id || null,
+          cover: album.attributes?.imageCover?.[0]?.url || null,
+          artwork_url: album.attributes?.imageCover?.[0]?.url || null,
+          year: album.attributes?.releaseDate ? new Date(album.attributes.releaseDate).getFullYear() : null,
+          numberOfTracks: album.attributes?.trackCount || 0,
+          lmsUri: `tidal://album:${album.id}`,
+          source: 'tidal'
+        };
+      });
+
+      const pagedAlbums = albums.slice(offset, offset + limit);
+      res.json({ items: pagedAlbums, total: albums.length });
+    } catch (error) {
+      console.error('[Tidal] Failed to fetch albums:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch Tidal albums' });
+    }
+  });
+
+  app.get('/api/tidal/playlists', async (req, res) => {
+    try {
+      if (!tidalTokens?.accessToken || !tidalTokens?.userId) {
+        return res.status(401).json({ error: 'Not authenticated with Tidal' });
+      }
+
+      const limit = parseInt(req.query.limit) || 1000;
+      const offset = parseInt(req.query.offset) || 0;
+
+      console.log(`Fetching Tidal playlists using recursive helper for user ${tidalTokens.userId}...`);
+
+      const playlistData = await fetchAllTidalCollectionItems(
+        tidalTokens.userId,
+        'playlists',
+        'playlists,playlists.coverArt',
+        limit + offset
+      );
+
+      const playlists = playlistData.map(playlist => ({
         id: String(playlist.id),
         title: playlist.attributes?.name || 'Unknown Playlist',
         description: playlist.attributes?.description || '',
-        creator: 'Me', // Relationship to ownerProfiles would be needed for actual name
-        numberOfTracks: playlist.attributes?.numberOfItems,
-        cover: coverUrl || null,
-        lastUpdated: playlist.attributes?.lastModifiedAt,
+        creator: 'Me',
+        numberOfTracks: playlist.attributes?.numberOfItems || 0,
+        cover: playlist.attributes?.imageCover?.[0]?.url || null,
+        lastUpdated: playlist.attributes?.lastModifiedAt || null,
         lmsUri: `tidal://playlist:${playlist.id}`,
         source: 'tidal'
-      };
-    });
+      }));
 
-    res.json({
-      items: playlists,
-      total: data.meta?.totalSize || playlists.length
-    });
-  } catch (error) {
-    console.error('Tidal playlists error:', error);
-    res.status(500).json({
-      error: error.message || 'Failed to get Tidal playlists'
-    });
-  }
-});
+      const pagedPlaylists = playlists.slice(offset, offset + limit);
+      res.json({ items: pagedPlaylists, total: playlists.length });
+    } catch (error) {
+      console.error('[Tidal] Failed to fetch playlists:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch Tidal playlists' });
+    }
+  });
 
 // Get album tracks
 app.get('/api/tidal/albums/:albumId/tracks', async (req, res) => {

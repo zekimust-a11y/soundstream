@@ -237,7 +237,7 @@ export default function AllAlbumsScreen() {
 
   const handlePlayAlbum = useCallback(async (album: Album) => {
     console.log('🎵 [DEBUG] handlePlayAlbum called with:', {
-      albumTitle: album.title,
+      albumName: album.name,
       albumId: album.id,
       albumSource: album.source,
       activePlayer: activePlayer?.id,
@@ -248,7 +248,7 @@ export default function AllAlbumsScreen() {
       console.log('❌ [DEBUG] Cannot play album: missing player or server', {
         hasPlayer: !!activePlayer,
         hasServer: !!activeServer,
-        albumTitle: album.title
+        albumName: album.name
       });
       return;
     }
@@ -259,9 +259,9 @@ export default function AllAlbumsScreen() {
       // Set a temporary current track so mini player appears immediately
       const tempTrack: Track = {
         id: `album-${album.id}`,
-        title: album.title,
+        title: album.name,
         artist: album.artist,
-        album: album.title,
+        album: album.name,
         albumArt: album.imageUrl,
         duration: 0,
         source: album.source || 'local'
@@ -324,7 +324,7 @@ export default function AllAlbumsScreen() {
 
   const handleShuffleAlbum = useCallback(async (album: Album) => {
     console.log('🎵 [DEBUG] handleShuffleAlbum called with:', {
-      albumTitle: album.title,
+      albumName: album.name,
       albumId: album.id,
       albumSource: album.source,
       activePlayer: activePlayer?.id,
@@ -418,7 +418,7 @@ export default function AllAlbumsScreen() {
     <AlbumGridCard
       album={item}
       onPress={() => {
-        navigation.navigate("Album", { id: item.id, name: item.title, artistName: item.artist });
+        navigation.navigate("Album", { id: item.id, name: item.name, artistName: item.artist });
       }}
       onPlay={() => handlePlayAlbum(item)}
       onShuffle={() => handleShuffleAlbum(item)}
@@ -429,7 +429,7 @@ export default function AllAlbumsScreen() {
     <AlbumListRow
       album={item}
       onPress={() => {
-        navigation.navigate("Album", { id: item.id, name: item.title, artistName: item.artist });
+        navigation.navigate("Album", { id: item.id, name: item.name, artistName: item.artist });
       }}
       onPlay={() => handlePlayAlbum(item)}
     />

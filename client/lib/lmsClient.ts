@@ -4679,128 +4679,62 @@ class LmsClient {
       }
       
     // Count Tidal albums and tracks from Tidal API if available
-    let tidalAlbums = 0;
-    let tidalTracks = 0;
+    let tidalAlbumsCount = 0;
+    let tidalTracksCount = 0;
+    let tidalArtistsCount = 0;
+    let tidalPlaylistsCount = 0;
     if (includeTidal) {
       try {
-        // Fetch Tidal albums count from API
-        const tidalAlbumsResponse = await fetch(`${getApiUrl()}/api/tidal/albums?limit=1&offset=0`);
-        if (tidalAlbumsResponse.ok) {
-          const tidalAlbumsResult = await tidalAlbumsResponse.json();
-          tidalAlbums = tidalAlbumsResult.total || 0;
+        // Fetch Tidal totals from our new backend endpoint
+        const apiUrl = getApiUrl();
+        const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+        console.log(`[getLibraryTotals] Fetching Tidal totals from: ${cleanApiUrl}/api/tidal/totals`);
+        const response = await fetch(`${cleanApiUrl}/api/tidal/totals`);
+        console.log(`[getLibraryTotals] Tidal totals response status: ${response.status}`);
+        if (response.ok) {
+          const totals = await response.json();
+          console.log("[getLibraryTotals] Tidal totals data:", totals);
+          tidalAlbumsCount = totals.albums || 0;
+          tidalTracksCount = totals.tracks || 0;
+          tidalArtistsCount = totals.artists || 0;
+          tidalPlaylistsCount = totals.playlists || 0;
+        } else {
+          console.warn("[getLibraryTotals] Tidal totals API returned error:", response.status);
         }
       } catch (e) {
-        debugLog.info('Tidal albums count not available', e instanceof Error ? e.message : String(e));
-      }
-
-      try {
-        // For tracks, we'd need to implement a tracks endpoint or estimate
-        // For now, estimate based on albums (rough approximation)
-        tidalTracks = tidalAlbums * 10; // Rough estimate of 10 tracks per album
-      } catch (e) {
-        debugLog.info('Tidal tracks count not available', e instanceof Error ? e.message : String(e));
+        console.error('[getLibraryTotals] Tidal totals fetch failed:', e);
+        debugLog.info('Tidal totals not available from API', e instanceof Error ? e.message : String(e));
       }
     }
     
+    // Count radio stations
+    let radioCount = 0;
     try {
-      // Fetch tracks in batches to count Tidal tracks
-      const batchSize = 10000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const tracksBatch = await this.request('', ['tracks', offset.toString(), batchSize.toString(), 'tags:al']);
-        const tracksLoop = (tracksBatch.tracks_loop || []) as Array<Record<string, unknown>>;
-        
-        if (tracksLoop.length === 0) {
-          hasMore = false;
-          break;
-        }
-        
-        for (const track of tracksLoop) {
-          const url = String(track.url || '').toLowerCase();
-          const id = String(track.id || '').toLowerCase();
-          if (url.includes('tidal') || id.includes('tidal')) {
-            tidalTracks++;
-          }
-        }
-        
-        if (tracksLoop.length < batchSize) {
-          hasMore = false;
-        } else {
-          offset += batchSize;
-        }
-      }
+      const radios = await this.getFavoriteRadios();
+      radioCount = radios.length;
     } catch (e) {
-      debugLog.info('Tidal tracks not available for counting', e instanceof Error ? e.message : String(e));
+      debugLog.info('Failed to count radio stations', e instanceof Error ? e.message : String(e));
     }
-      
-      // Count unique artists from albums (including Qobuz and Tidal albums)
-      const uniqueArtists = new Set<string>();
-      
-      // Count artists from all albums (local + Tidal) in batches
-      try {
-        const batchSize = 10000;
-        let offset = 0;
-        let hasMore = true;
-        
-        while (hasMore) {
-          const albumsBatch = await this.request('', ['albums', offset.toString(), batchSize.toString(), 'tags:al']);
-          const albumsLoop = (albumsBatch.albums_loop || []) as Array<Record<string, unknown>>;
-          
-          if (albumsLoop.length === 0) {
-            hasMore = false;
-            break;
-          }
-          
-          for (const album of albumsLoop) {
-            const artistName = String(album.artist || album.albumartist || '').trim();
-            // Only count valid artists (non-empty name, not dashes)
-            if (artistName && artistName !== '-' && artistName !== '') {
-              uniqueArtists.add(artistName);
-            }
-          }
-          
-          if (albumsLoop.length < batchSize) {
-            hasMore = false;
-          } else {
-            offset += batchSize;
-          }
-        }
-      } catch (e) {
-        debugLog.info('Failed to get albums for artist counting', e instanceof Error ? e.message : String(e));
-      }
-      
-      const artistCount = uniqueArtists.size;
-      
-      // Count favorite radio stations
-      let radioCount = 0;
-      try {
-        const radios = await this.getFavoriteRadios();
-        radioCount = radios.length;
-      } catch (e) {
-        debugLog.info('Failed to count radio stations', e instanceof Error ? e.message : String(e));
-      }
-      
-      // Count playlists (includes both LMS and SoundCloud/Tidal playlists)
-      let playlistCount = 0;
-      try {
-        const playlists = await this.getPlaylists(false, false, false, includeTidal); // SoundCloud and Spotify not supported yet
-        playlistCount = playlists.length;
-      } catch (e) {
-        debugLog.info('Failed to count playlists', e instanceof Error ? e.message : String(e));
-      }
-      
-      const result = {
-        albums: localAlbums + (includeTidal ? tidalAlbums : 0),
-        artists: localArtists, // Use the actual artist count from LMS
-        tracks: localTracks + (includeTidal ? tidalTracks : 0),
-        radioStations: radioCount,
-        playlists: playlistCount,
-      };
-      console.log("getLibraryTotals returning:", result);
-      return result;
+    
+    // Count playlists (LMS only)
+    let playlistCount = 0;
+    try {
+      const playlists = await this.getPlaylists(false, false, false, false); 
+      playlistCount = playlists.length;
     } catch (e) {
+      debugLog.info('Failed to count playlists', e instanceof Error ? e.message : String(e));
+    }
+    
+    const result = {
+      albums: localAlbums + tidalAlbumsCount,
+      artists: localArtists + tidalArtistsCount,
+      tracks: localTracks + tidalTracksCount,
+      radioStations: radioCount,
+      playlists: playlistCount + tidalPlaylistsCount,
+    };
+    console.log("getLibraryTotals returning combined:", result);
+    return result;
+  } catch (e) {
       console.error('getLibraryTotals failed:', e instanceof Error ? e.message : String(e));
       debugLog.error('Failed to get library totals', e instanceof Error ? e.message : String(e));
       // Return zeros if everything fails

@@ -26,6 +26,10 @@ export function SourceBadge({ source, size = 24 }: SourceBadgeProps) {
           style={[styles.icon, { width: size - 4, height: size - 4 }]}
           contentFit="contain"
         />
+      ) : source === "tidal" ? (
+        <View style={[styles.libraryIconContainer, { width: size - 4, height: size - 4 }]}>
+          <Feather name="music" size={size - 8} color="#ffffff" />
+        </View>
       ) : (
         <View style={[styles.libraryIconContainer, { width: size - 4, height: size - 4 }]}>
           <Feather name="folder" size={size - 8} color="#ffffff" />
@@ -66,5 +70,3 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
-
-

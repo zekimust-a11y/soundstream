@@ -39,7 +39,7 @@ start_backend() {
     nvm use 20 >/dev/null 2>&1
 
     cd "$SCRIPT_DIR"
-    /usr/local/bin/node server/simple-server.js >> "$LOG_FILE" 2>&1 &
+    npx tsx server/simple-server.js >> "$LOG_FILE" 2>&1 &
     echo $! > /tmp/soundstream_backend.pid
     sleep 3
 }
