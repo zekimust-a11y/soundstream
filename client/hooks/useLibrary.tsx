@@ -5,7 +5,7 @@ import { getApiUrl } from '@/lib/query-client';
 import { useMusic } from './useMusic';
 import { useSettings } from './useSettings';
 
-const PAGE_SIZE = 1000;
+const PAGE_SIZE = 100;
 
 export interface Album {
   id: string;
@@ -290,33 +290,43 @@ export function useInfiniteAlbums(artistId?: string) {
   return useInfiniteQuery({
     queryKey: ['albums', 'infinite', activeServer?.id, artistId, qobuzEnabled, spotifyEnabled, tidalEnabled, localLibraryEnabled],
     queryFn: async ({ pageParam = 0 }) => {
-      console.log('useInfiniteAlbums queryFn called');
+      console.log(`[useInfiniteAlbums] queryFn called for page ${pageParam}, tidalEnabled: ${tidalEnabled}`);
       if (!activeServer) return { albums: [], total: 0, nextPage: undefined };
 
       lmsClient.setServer(activeServer.host, activeServer.port);
 
       // Fetch LMS albums
       const result = await lmsClient.getAlbumsPage(pageParam, PAGE_SIZE, artistId);
+      
+      // Convert LMS albums to our Album format immediately
+      const convertedLmsAlbums = result.albums.map(album => convertLmsAlbumToAlbum(album, 'local'));
 
       // Add Tidal albums if Tidal is enabled
       let tidalAlbums: Album[] = [];
       if (tidalEnabled && !artistId) { // Only fetch Tidal albums for all albums view, not artist-specific
         try {
-          const tidalResponse = await fetch(`${getApiUrl()}/api/tidal/albums?limit=${PAGE_SIZE}&offset=${pageParam}`);
+          const apiUrl = getApiUrl();
+          // Remove trailing slash if present to avoid double slashes
+          const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+          const tidalResponse = await fetch(`${cleanApiUrl}/api/tidal/albums?limit=${PAGE_SIZE}&offset=${pageParam}`);
+          console.log('[useInfiniteAlbums] Tidal response status:', tidalResponse.status);
           if (tidalResponse.ok) {
             const tidalResult = await tidalResponse.json();
+            console.log('[useInfiniteAlbums] Tidal items found:', tidalResult.items?.length || 0);
             if (tidalResult.items) {
               tidalAlbums = tidalResult.items.map((album: any) => ({
                 id: `tidal-${album.id}`,
                 name: album.title,
-                artist: album.artist.name,
-                artistId: `tidal-artist-${album.artist.id}`,
-                imageUrl: album.cover ? `https://resources.tidal.com/images/${album.cover.replace(/-/g, '/')}/640x640.jpg` : undefined,
+                artist: album.artist, // Backend already provides artist name
+                artistId: `tidal-artist-${album.artistId}`,
+                imageUrl: album.artwork_url, // Backend already provides artwork_url
                 year: album.year,
                 trackCount: album.numberOfTracks,
                 source: 'tidal' as const,
               }));
             }
+          } else {
+            console.warn('[useInfiniteAlbums] Failed to fetch Tidal albums:', tidalResponse.status);
           }
         } catch (e) {
           console.warn('Tidal albums not available:', e);
@@ -324,58 +334,34 @@ export function useInfiniteAlbums(artistId?: string) {
       }
       
       // Combine LMS and Tidal albums
-      const allAlbums = [...result.albums, ...tidalAlbums];
+      const allAlbums = [...convertedLmsAlbums, ...tidalAlbums];
+      
+      // Remove duplicates by ID and Name+Artist
+      const uniqueAlbumsMap = new Map();
+      allAlbums.forEach(album => {
+        const key = album.id.startsWith('tidal-') ? album.id : `${album.name.toLowerCase()}|${album.artist.toLowerCase()}`;
+        if (!uniqueAlbumsMap.has(key)) {
+          uniqueAlbumsMap.set(key, album);
+        }
+      });
+      let albums = Array.from(uniqueAlbumsMap.values());
 
-      // Filter out disabled service albums, and identify source
-      let albums = allAlbums
-        .filter(album => {
-          const id = (album.id || '').toLowerCase();
-          const artworkUrl = (album.artwork_url || '').toLowerCase();
-          const url = (album as any).url ? String((album as any).url).toLowerCase() : '';
+      console.log(`[useInfiniteAlbums] Merged albums: ${albums.length} (LMS: ${convertedLmsAlbums.length}, Tidal: ${tidalAlbums.length})`);
 
-          // Check if this is a Spotify album
-          const isSpotify = id.includes('spotify') || artworkUrl.includes('spotify') || url.includes('spotify');
-          if (isSpotify && !spotifyEnabled) {
-            return false;
-          }
+      // Sort albums by name
+      albums.sort((a, b) => a.name.localeCompare(b.name));
 
-          // Check if this is a Tidal album
-          const isTidal = id.includes('tidal') || artworkUrl.includes('tidal') || url.includes('tidal');
-          if (isTidal && !tidalEnabled) {
-            return false;
-          }
+      // Filter based on integration settings
+      albums = albums.filter(album => {
+        if (album.source === 'tidal' && !tidalEnabled) return false;
+        if (album.source === 'spotify' && !spotifyEnabled) return false;
+        if (album.source === 'qobuz' && !qobuzEnabled) return false;
+        if (album.source === 'local' && !localLibraryEnabled) return false;
+        return true;
+      });
 
-          // Check if this is a local album (not from streaming services)
-          const isLocal = !isSpotify && !isTidal && !id.includes('qobuz') && !artworkUrl.includes('qobuz');
-          if (isLocal && !localLibraryEnabled) {
-            return false;
-          }
-
-          return true;
-        })
-        .map(album => {
-          const id = (album.id || '').toLowerCase();
-          const artworkUrl = (album.artwork_url || '').toLowerCase();
-          const url = (album as any).url ? String((album as any).url).toLowerCase() : '';
-          
-          // Determine source
-          let source: "local" | "qobuz" | "tidal" | "spotify" | "soundcloud" = "local";
-          if (id.includes('tidal') || artworkUrl.includes('tidal') || url.includes('tidal')) {
-            source = 'tidal';
-          } else if (id.includes('spotify') || artworkUrl.includes('spotify') || url.includes('spotify')) {
-            source = 'spotify';
-          } else if (id.includes('qobuz') || artworkUrl.includes('qobuz') || url.includes('qobuz')) {
-            source = 'qobuz';
-          } else if (id.includes('soundcloud') || artworkUrl.includes('soundcloud') || url.includes('soundcloud')) {
-            source = 'soundcloud';
-          }
-          
-          return convertLmsAlbumToAlbum(album, source);
-        });
-
-      // When not scoped to a specific artist, also merge in Qobuz and Tidal "My Favorites" albums (if enabled)
+      // When not scoped to a specific artist, also merge in Qobuz "My Favorites" albums (if enabled)
       let qobuzAlbumsCount = 0;
-      let tidalAlbumsCount = 0;
       if (!artistId) {
         // Check if Qobuz is enabled
         let qobuzEnabled = true;
@@ -407,16 +393,10 @@ export function useInfiniteAlbums(artistId?: string) {
             // If Qobuz isn't available, just show local albums
           }
         }
-        
-        // Tidal albums are fetched separately from the API and added to the albums array
-        // Count Tidal albums from the tidalAlbums we added
-        if (tidalEnabled && !artistId) {
-          tidalAlbumsCount = tidalAlbums.length;
-        }
       }
 
       // Total includes local, Qobuz, and Tidal albums
-      const totalAlbums = result.total + qobuzAlbumsCount + tidalAlbumsCount;
+      const totalAlbums = result.total + qobuzAlbumsCount + tidalAlbums.length;
       const nextPage = pageParam + PAGE_SIZE < totalAlbums ? pageParam + PAGE_SIZE : undefined;
       return { albums, total: totalAlbums, nextPage };
     },
@@ -463,10 +443,12 @@ export function useInfiniteArtists() {
           console.warn('Tidal artists not available:', e);
         }
       }
-        console.log('[useInfiniteArtists] Got result:', result.artists.length, 'artists, total:', result.total, 'tidal artists:', tidalArtists.length);
+        // Convert all to Artist objects first
+        const lmsArtists = result.artists.map(a => convertLmsArtistToArtist(a));
+        const allArtists = [...lmsArtists, ...tidalArtists];
 
-        // Combine LMS and Tidal artists
-        const allArtists = [...result.artists, ...tidalArtists];
+        // Sort artists by name
+        allArtists.sort((a, b) => a.name.localeCompare(b.name));
 
         // Filter out artists based on integration settings
         let filteredArtists = allArtists;
@@ -480,17 +462,18 @@ export function useInfiniteArtists() {
           });
         }
 
-        // Fetch artist images (portraits) from TheAudioDB
+        // Fetch artist images (portraits) from TheAudioDB for local artists if they don't have one
         const artists = await Promise.all(
-          filteredArtists.map(async (lmsArtist) => {
-            const artist = convertLmsArtistToArtist(lmsArtist);
-            try {
-              const artistImage = await lmsClient.getArtistImage(lmsArtist.name);
-              if (artistImage) {
-                artist.imageUrl = artistImage;
+          filteredArtists.map(async (artist) => {
+            if (!artist.imageUrl) {
+              try {
+                const artistImage = await lmsClient.getArtistImage(artist.name);
+                if (artistImage) {
+                  artist.imageUrl = artistImage;
+                }
+              } catch (e) {
+                // Ignore errors
               }
-            } catch (e) {
-              // Ignore errors - artist will have no image
             }
             return artist;
           })

@@ -209,11 +209,12 @@ export default function SettingsScreen() {
   }, [dacConfig]);
 
   useEffect(() => {
+    console.log("SettingsScreen: activeServer or tidalEnabled changed", { hasServer: !!activeServer, tidalEnabled });
     if (activeServer) {
       refreshPlayers();
       loadLibraryStats();
     }
-  }, []);
+  }, [activeServer, refreshPlayers, tidalEnabled]); // Added tidalEnabled to refresh stats when service is enabled
   
   // Update local DAC state when dacConfig changes
   useEffect(() => {

@@ -44,6 +44,8 @@ export interface Playlist {
   tracks: Track[];
   createdAt: number;
   updatedAt: number;
+  url?: string;
+  artwork?: string;
 }
 
 export interface Favorites {
@@ -1046,82 +1048,74 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     
     // Also refresh playlist count from LMS
     try {
-      lmsClient.setServer(activeServer.host, activeServer.port);
+    lmsClient.setServer(activeServer.host, activeServer.port);
 
-      // Filter out Qobuz, SoundCloud, Spotify, and Tidal playlists if disabled
-      let qobuzEnabled = true;
-      let soundcloudEnabled = true;
-      let spotifyEnabled = true;
-      let tidalEnabled = true;
+    const lmsPlaylists = await lmsClient.getPlaylists(qobuzEnabled, soundcloudEnabled, spotifyEnabled, false); // Don't include Tidal from LMS
+
+    // Add Tidal playlists if enabled
+    let tidalPlaylists: any[] = [];
+    if (tidalEnabled) {
       try {
-        const settings = await AsyncStorage.getItem("@soundstream_settings");
-        if (settings) {
-          const parsed = JSON.parse(settings);
-          qobuzEnabled = parsed.qobuzEnabled !== false;
-          soundcloudEnabled = parsed.soundcloudEnabled !== false;
-          spotifyEnabled = parsed.spotifyEnabled !== false;
-          tidalEnabled = parsed.tidalEnabled !== false;
+        const { getApiUrl } = await import('@/lib/query-client');
+        const apiUrl = getApiUrl();
+        // Remove trailing slash
+        const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+        const tidalResponse = await fetch(`${cleanApiUrl}/api/tidal/playlists?limit=50&offset=0`);
+        if (tidalResponse.ok) {
+          const tidalResult = await tidalResponse.json();
+          if (tidalResult.items) {
+            tidalPlaylists = tidalResult.items.map((playlist: any) => ({
+              id: `tidal-${playlist.id}`,
+              name: playlist.title,
+              url: playlist.lmsUri,
+              artwork: playlist.cover,
+              type: 'playlist',
+              creator: playlist.creator || 'Tidal',
+              source: 'tidal'
+            }));
+          }
         }
       } catch (e) {
-        // Use defaults if settings can't be loaded
+        console.warn('Tidal playlists not available:', e);
       }
-
-      const lmsPlaylists = await lmsClient.getPlaylists(qobuzEnabled, soundcloudEnabled, spotifyEnabled, false); // Don't include Tidal from LMS
-
-      // Add Tidal playlists if enabled
-      let tidalPlaylists: any[] = [];
-      if (tidalEnabled) {
-        try {
-          const tidalResponse = await fetch(`${getApiUrl()}api/tidal/playlists?limit=50&offset=0`);
-          if (tidalResponse.ok) {
-            const tidalResult = await tidalResponse.json();
-            if (tidalResult.items) {
-              tidalPlaylists = tidalResult.items.map((playlist: any) => ({
-                id: `tidal-${playlist.id}`,
-                name: playlist.title,
-                url: `tidal:playlist:${playlist.id}`,
-                artwork: playlist.cover ? `https://resources.tidal.com/images/${playlist.cover.replace(/-/g, '/')}/640x640.jpg` : undefined,
-                type: 'playlist',
-                creator: playlist.creator?.name || 'Tidal',
-              }));
-            }
-          }
-        } catch (e) {
-          console.warn('Tidal playlists not available:', e);
-        }
-      }
-
-      const allPlaylists = [...lmsPlaylists, ...tidalPlaylists];
-
-        const filteredPlaylists = allPlaylists.filter(playlist => {
-          const name = playlist.name.toLowerCase();
-          const url = (playlist.url || '').toLowerCase();
-          const isQobuz = name.includes('qobuz:') || name.startsWith('qobuz') || url.includes('qobuz');
-          const isSoundCloud = name.includes('soundcloud:') || name.startsWith('soundcloud') || url.includes('soundcloud');
-          const isSpotify = name.includes('spotify:') || name.startsWith('spotify') || url.includes('spotify');
-          const isTidal = name.includes('tidal:') || name.startsWith('tidal') || url.includes('tidal') || playlist.id.startsWith('tidal-');
-
-          if (isQobuz && !qobuzEnabled) return false;
-          if (isSoundCloud && !soundcloudEnabled) return false;
-          if (isSpotify && !spotifyEnabled) return false;
-          if (isTidal && !tidalEnabled) return false;
-          return true;
-        });
-      
-      // Convert to internal playlist format for count
-      const playlistData: Playlist[] = filteredPlaylists.map(p => ({
-        id: p.id,
-        name: p.name,
-        tracks: [],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      }));
-      setPlaylists(playlistData);
-      await AsyncStorage.setItem(PLAYLISTS_KEY, JSON.stringify(playlistData));
-    } catch (e) {
-      debugLog.error('Failed to refresh playlists', e instanceof Error ? e.message : String(e));
     }
-  }, [activeServer, queryClient]);
+
+    const allPlaylists = [...lmsPlaylists, ...tidalPlaylists];
+    console.log(`[useMusic] Total playlists before filtering: ${allPlaylists.length} (LMS: ${lmsPlaylists.length}, Tidal API: ${tidalPlaylists.length})`);
+
+    const filteredPlaylists = allPlaylists.filter(playlist => {
+      const name = (playlist.name || '').toLowerCase();
+      const url = (playlist.url || '').toLowerCase();
+      const isQobuz = name.includes('qobuz:') || name.startsWith('qobuz') || url.includes('qobuz');
+      const isSoundCloud = name.includes('soundcloud:') || name.startsWith('soundcloud') || url.includes('soundcloud');
+      const isSpotify = name.includes('spotify:') || name.startsWith('spotify') || url.includes('spotify');
+      const isTidal = name.includes('tidal:') || name.startsWith('tidal') || url.includes('tidal') || (playlist.id && String(playlist.id).startsWith('tidal-')) || playlist.source === 'tidal';
+
+      if (isQobuz && !qobuzEnabled) return false;
+      if (isSoundCloud && !soundcloudEnabled) return false;
+      if (isSpotify && !spotifyEnabled) return false;
+      if (isTidal && !tidalEnabled) return false;
+      return true;
+    });
+    
+    console.log(`[useMusic] Final playlists count: ${filteredPlaylists.length}`);
+    
+    // Convert to internal playlist format for count
+    const playlistData: Playlist[] = filteredPlaylists.map(p => ({
+      id: p.id,
+      name: p.name,
+      tracks: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      url: p.url,
+      artwork: p.artwork || (p as any).artwork_url,
+    }));
+    setPlaylists(playlistData);
+    await AsyncStorage.setItem(PLAYLISTS_KEY, JSON.stringify(playlistData));
+  } catch (e) {
+    debugLog.error('Failed to refresh playlists', e instanceof Error ? e.message : String(e));
+  }
+}, [activeServer, queryClient, qobuzEnabled, spotifyEnabled, tidalEnabled, soundcloudEnabled]);
 
   // Watch for integration setting changes and refresh library
   useEffect(() => {
