@@ -1,0 +1,66 @@
+Last login: Fri Dec 12 14:03:52 on ttys001
+zeki@MacBookAir ~ % curl -v --connect-timeout 5 http://192.168.0.42:16500/DeviceDescription.xml
+curl -v --connect-timeout 5 http://192.168.0.42:16500/rootDesc.xml
+curl -v --connect-timeout 5 http://192.168.0.42:16500/dmr.xml
+curl -v --connect-timeout 5 http://192.168.0.42:16500/MediaRenderer/desc.xml
+*   Trying 192.168.0.42:16500...
+* ipv4 connect timeout after 4999ms, move on!
+* Failed to connect to 192.168.0.42 port 16500 after 5006 ms: Timeout was reached
+* Closing connection
+curl: (28) Failed to connect to 192.168.0.42 port 16500 after 5006 ms: Timeout was reached
+*   Trying 192.168.0.42:16500...
+* ipv4 connect timeout after 4998ms, move on!
+* Failed to connect to 192.168.0.42 port 16500 after 5006 ms: Timeout was reached
+* Closing connection
+curl: (28) Failed to connect to 192.168.0.42 port 16500 after 5006 ms: Timeout was reached
+*   Trying 192.168.0.42:16500...
+* Connected to 192.168.0.42 (192.168.0.42) port 16500
+> GET /dmr.xml HTTP/1.1
+> Host: 192.168.0.42:16500
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Date: Fri, 12 Dec 2025 14:17:56 GMT
+< Content-Length: 0
+< 
+* Connection #0 to host 192.168.0.42 left intact
+*   Trying 192.168.0.42:16500...
+* Connected to 192.168.0.42 (192.168.0.42) port 16500
+> GET /MediaRenderer/desc.xml HTTP/1.1
+> Host: 192.168.0.42:16500
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Date: Fri, 12 Dec 2025 14:17:56 GMT
+< Content-Length: 0
+< 
+* Connection #0 to host 192.168.0.42 left intact
+zeki@MacBookAir ~ % curl -v --connect-timeout 10 "http://192.168.0.42:16500/e8eab684-2b3b-4521-92cf-7f1a2c4421dd.xml"
+curl -v --connect-timeout 10 "http://192.168.0.42:16500/uuid:e8eab684-2b3b-4521-92cf-7f1a2c4421dd/desc.xml"
+*   Trying 192.168.0.42:16500...
+* ipv4 connect timeout after 9998ms, move on!
+* Failed to connect to 192.168.0.42 port 16500 after 10003 ms: Timeout was reached
+* Closing connection
+curl: (28) Failed to connect to 192.168.0.42 port 16500 after 10003 ms: Timeout was reached
+*   Trying 192.168.0.42:16500...
+* ipv4 connect timeout after 9998ms, move on!
+* Failed to connect to 192.168.0.42 port 16500 after 10006 ms: Timeout was reached
+* Closing connection
+curl: (28) Failed to connect to 192.168.0.42 port 16500 after 10006 ms: Timeout was reached
+zeki@MacBookAir ~ % curl -v --connect-timeout 10 "http://192.168.0.42:16500/e8eab684-2b3b-4521-92cf-7f1a2c4421dd.xml"
+curl -v --connect-timeout 10 "http://192.168.0.42:16500/uuid:e8eab684-2b3b-4521-92cf-7f1a2c4421dd/desc.xml"
+*   Trying 192.168.0.42:16500...
+* ipv4 connect timeout after 9999ms, move on!
+* Failed to connect to 192.168.0.42 port 16500 after 10006 ms: Timeout was reached
+* Closing connection
+curl: (28) Failed to connect to 192.168.0.42 port 16500 after 10006 ms: Timeout was reached
+*   Trying 192.168.0.42:16500...
+* ipv4 connect timeout after 9998ms, move on!
+* Failed to connect to 192.168.0.42 port 16500 after 10006 ms: Timeout was reached
+* Closing connection
+curl: (28) Failed to connect to 192.168.0.42 port 16500 after 10006 ms: Timeout was reached
+zeki@MacBookAir ~ % 

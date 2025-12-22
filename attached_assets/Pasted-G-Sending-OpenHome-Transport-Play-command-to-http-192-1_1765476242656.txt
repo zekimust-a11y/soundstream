@@ -1,0 +1,46 @@
+G  Sending OpenHome Transport Play command to: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelAVTransport
+ LOG  === SETTING VOLUME ===
+ LOG  Volume percent: 61
+ LOG  Trying standard UPnP SetVolume at: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ LOG  SetVolume SOAP request to: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ LOG  === SETTING VOLUME ===
+ LOG  Volume percent: 31
+ LOG  Trying standard UPnP SetVolume at: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ LOG  SetVolume SOAP request to: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ LOG  === SETTING VOLUME ===
+ LOG  Volume percent: 47
+ LOG  Trying standard UPnP SetVolume at: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ LOG  SetVolume SOAP request to: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ LOG  === SETTING VOLUME ===
+ LOG  Volume percent: 75
+ LOG  Trying standard UPnP SetVolume at: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ LOG  SetVolume SOAP request to: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ LOG  SetVolume response status: 200
+ LOG  SetVolume response: <?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetVolumeResponse xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1"></u:SetVolumeResponse></s:Body></s:Envelope>
+ LOG  SetVolume succeeded
+ LOG  Volume set successfully to: 75
+ LOG  Transport Play response status: 500
+ LOG  Transport Play response: <?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><s:Fault><faultcode>s:Client</faultcode><faultstring>UPnPError</faultstring><detail><UPnPError xmlns="urn:schemas-upnp-org:control-1-0"><errorCode>402</errorCode><errorDescription>Invalid argument</errorDescription></UPnPError></detail></s:Fault></s:Body></s:Envelope>
+ ERROR  Failed to play on Varese: [Error: Transport Play failed: 500 - <?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><s:Fault><faultcode>s:Client</faultcode><faultstring>UPnPError</faultstring><detail><UPnPError xmlns="urn:schemas-upnp-org:control-1-0"><errorCode>402</errorCode><errorDescription>Invalid argument</errorDescription></UPnPError></detail></s:Fault></s:Body></s:Envelope>]
+ ERROR  SetVolume error: [TypeError: Network request timed out]
+ ERROR  Standard UPnP volume failed, trying OpenHome: [TypeError: Network request timed out]
+ LOG  Setting OpenHome volume to: 61 at: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ ERROR  OpenHome volume also failed: [Error: OpenHome SetVolume failed: 500 - <?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><s:Fault><faultcode>s:Client</faultcode><faultstring>UPnPError</faultstring><detail><UPnPError xmlns="urn:schemas-upnp-org:control-1-0"><errorCode>402</errorCode><errorDescription>Invalid argument</errorDescription></UPnPError></detail></s:Fault></s:Body></s:Envelope>]
+ ERROR  Error message: OpenHome SetVolume failed: 500 - <?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><s:Fault><faultcode>s:Client</faultcode><faultstring>UPnPError</faultstring><detail><UPnPError xmlns="urn:schemas-upnp-org:control-1-0"><errorCode>402</errorCode><errorDescription>Invalid argument</errorDescription></UPnPError></detail></s:Fault></s:Body></s:Envelope>
+ LOG  SetVolume response status: 200
+ LOG  SetVolume response: <?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetVolumeResponse xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1"></u:SetVolumeResponse></s:Body></s:Envelope>
+ LOG  SetVolume succeeded
+ LOG  Volume set successfully to: 47
+ ERROR  SetVolume error: [TypeError: Network request timed out]
+ ERROR  Standard UPnP volume failed, trying OpenHome: [TypeError: Network request timed out]
+ LOG  Setting OpenHome volume to: 31 at: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ LOG  === SETTING VOLUME ===
+ LOG  Volume percent: 46
+ LOG  Trying standard UPnP SetVolume at: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ LOG  SetVolume SOAP request to: http://192.168.0.42:16500/Control/LibRygelRenderer/RygelRenderingControl
+ LOG  SetVolume response status: 200
+ LOG  SetVolume response: <?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetVolumeResponse xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1"></u:SetVolumeResponse></s:Body></s:Envelope>
+ LOG  SetVolume succeeded
+ LOG  Volume set successfully to: 46
+ ERROR  OpenHome volume also failed: [Error: OpenHome SetVolume failed: 500 - <?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><s:Fault><faultcode>s:Client</faultcode><faultstring>UPnPError</faultstring><detail><UPnPError xmlns="urn:schemas-upnp-org:control-1-0"><errorCode>402</errorCode><errorDescription>Invalid argument</errorDescription></UPnPError></detail></s:Fault></s:Body></s:Envelope>]
+ ERROR  Error message: OpenHome SetVolume failed: 500 - <?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><s:Fault><faultcode>s:Client</faultcode><faultstring>UPnPError</faultstring><detail><UPnPError xmlns="urn:schemas-upnp-org:control-1-0"><errorCode>402</errorCode><errorDescription>Invalid argument</errorDescription></UPnPError></detail></s:Fault></s:Body></s:Envelope>

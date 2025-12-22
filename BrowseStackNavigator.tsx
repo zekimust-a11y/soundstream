@@ -1,0 +1,124 @@
+import React from "react";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import BrowseScreen from "@/screens/BrowseScreen";
+console.log('BrowseStackNavigator file loaded - importing BrowseScreen from: @/screens/BrowseScreen');
+console.log('BrowseScreen imported:', BrowseScreen);
+console.log('BrowseScreen type:', typeof BrowseScreen);
+import ArtistScreen from "@/screens/ArtistScreen";
+import AlbumScreen from "@/screens/AlbumScreen";
+import AllAlbumsScreen from "@/screens/AllAlbumsScreen";
+import AllArtistsScreen from "@/screens/AllArtistsScreen";
+import TidalBrowseScreen from "@/screens/TidalBrowseScreen";
+import TidalAlbumScreen from "@/screens/TidalAlbumScreen";
+import TidalArtistScreen from "@/screens/TidalArtistScreen";
+import TidalLoginScreen from "@/screens/TidalLoginScreen";
+import NowPlayingScreen from "@/screens/NowPlayingScreen";
+import SettingsScreen from "@/screens/SettingsScreen";
+import DebugScreen from "@/screens/DebugScreen";
+import HistoryScreen from "@/screens/HistoryScreen";
+import { useScreenOptions } from "@/hooks/useScreenOptions";
+
+export type BrowseStackParamList = {
+  Browse: undefined;
+  Artist: { id: string; name: string };
+  Album: { id: string; name: string; artistName: string; source?: "local" | "tidal" };
+  AllAlbums: undefined;
+  AllArtists: undefined;
+  TidalBrowse: undefined;
+  TidalAlbum: { id: string; name: string; artistName: string; source?: "tidal" };
+  TidalArtist: { id: string; name: string };
+  TidalLogin: undefined;
+  NowPlaying: undefined;
+  Settings: undefined;
+  History: undefined;
+  Debug: undefined;
+};
+
+const Stack = createNativeStackNavigator<BrowseStackParamList>();
+
+export default function BrowseStackNavigator() {
+  console.log('BrowseStackNavigator is being executed');
+  const screenOptions = useScreenOptions();
+
+  return (
+    <Stack.Navigator screenOptions={screenOptions}>
+      <Stack.Screen
+        name="Browse"
+        component={BrowseScreen}
+        options={{ headerShown: false }}
+      />
+      {console.log('Browse screen registered in stack')}
+      <Stack.Screen
+        name="Artist"
+        component={ArtistScreen}
+        options={({ route }) => ({
+          headerTitle: route.params.name,
+        })}
+      />
+      <Stack.Screen
+        name="Album"
+        component={AlbumScreen}
+        options={({ route }) => ({
+          headerTitle: route.params.name,
+        })}
+      />
+      <Stack.Screen
+        name="AllAlbums"
+        component={AllAlbumsScreen}
+        options={{ headerTitle: "All Albums" }}
+      />
+      <Stack.Screen
+        name="AllArtists"
+        component={AllArtistsScreen}
+        options={{ headerTitle: "All Artists" }}
+      />
+      <Stack.Screen
+        name="TidalBrowse"
+        component={TidalBrowseScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="TidalAlbum"
+        component={TidalAlbumScreen}
+        options={({ route }) => ({
+          headerTitle: route.params.name,
+        })}
+      />
+      <Stack.Screen
+        name="TidalArtist"
+        component={TidalArtistScreen}
+        options={({ route }) => ({
+          headerTitle: route.params.name,
+        })}
+      />
+      <Stack.Screen
+        name="TidalLogin"
+        component={TidalLoginScreen}
+        options={{ headerTitle: "Tidal" }}
+      />
+      <Stack.Screen
+        name="NowPlaying"
+        component={NowPlayingScreen}
+        options={{
+          headerShown: false,
+          presentation: "modal",
+        }}
+      />
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ headerTitle: "Settings" }}
+      />
+      <Stack.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Debug"
+        component={DebugScreen}
+        options={{ headerTitle: "Debug Console" }}
+      />
+    </Stack.Navigator>
+  );
+}

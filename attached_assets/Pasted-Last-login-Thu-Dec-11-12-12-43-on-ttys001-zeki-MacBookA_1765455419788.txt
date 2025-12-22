@@ -1,0 +1,36 @@
+Last login: Thu Dec 11 12:12:43 on ttys001
+zeki@MacBookAir ~ % sudo tcpdump -i en0 -vvv host 192.168.0.35
+Password:
+tcpdump: listening on en0, link-type EN10MB (Ethernet), snapshot length 524288 bytes
+12:16:39.556986 IP (tos 0x0, ttl 64, id 29093, offset 0, flags [none], proto UDP (17), length 126)
+    macbookair.home.53220 > oladraplayer.home.9003: [udp sum ok] UDP, length 98
+12:16:39.561969 IP (tos 0xc0, ttl 64, id 9270, offset 0, flags [none], proto ICMP (1), length 154)
+    oladraplayer.home > macbookair.home: ICMP oladraplayer.home udp port 9003 unreachable, length 134
+	IP (tos 0x0, ttl 64, id 29093, offset 0, flags [none], proto UDP (17), length 126)
+    macbookair.home.53220 > oladraplayer.home.9003: [udp sum ok] UDP, length 98
+12:16:44.724349 IP (tos 0x0, ttl 64, id 15810, offset 0, flags [none], proto UDP (17), length 126)
+    macbookair.home.53220 > oladraplayer.home.9003: [udp sum ok] UDP, length 98
+12:16:44.728011 IP (tos 0xc0, ttl 64, id 11580, offset 0, flags [none], proto ICMP (1), length 154)
+    oladraplayer.home > macbookair.home: ICMP oladraplayer.home udp port 9003 unreachable, length 134
+	IP (tos 0x0, ttl 64, id 15810, offset 0, flags [none], proto UDP (17), length 126)
+    macbookair.home.53220 > oladraplayer.home.9003: [udp sum ok] UDP, length 98
+12:16:49.888118 IP (tos 0x0, ttl 64, id 8273, offset 0, flags [none], proto UDP (17), length 126)
+    macbookair.home.53220 > oladraplayer.home.9003: [udp sum ok] UDP, length 98
+12:16:49.891320 IP (tos 0xc0, ttl 64, id 12187, offset 0, flags [none], proto ICMP (1), length 154)
+    oladraplayer.home > macbookair.home: ICMP oladraplayer.home udp port 9003 unreachable, length 134
+	IP (tos 0x0, ttl 64, id 8273, offset 0, flags [none], proto UDP (17), length 126)
+    macbookair.home.53220 > oladraplayer.home.9003: [udp sum ok] UDP, length 98
+12:16:55.061210 IP (tos 0x0, ttl 64, id 32229, offset 0, flags [none], proto UDP (17), length 126)
+    macbookair.home.53220 > oladraplayer.home.9003: [udp sum ok] UDP, length 98
+12:16:55.064149 IP (tos 0xc0, ttl 64, id 15514, offset 0, flags [none], proto ICMP (1), length 154)
+    oladraplayer.home > macbookair.home: ICMP oladraplayer.home udp port 9003 unreachable, length 134
+	IP (tos 0x0, ttl 64, id 32229, offset 0, flags [none], proto UDP (17), length 126)
+    macbookair.home.53220 > oladraplayer.home.9003: [udp sum ok] UDP, length 98
+
+
+
+
+
+
+
+

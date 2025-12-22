@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tidal Connect Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background: #f8f9fa;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tidal Connect Test</h1>
+    <p>This page tests Tidal authentication using direct tokens or OAuth.</p>
+
+    <h3>Option 1: Direct Token Authentication (Recommended)</h3>
+    <p>If you have Tidal access/refresh tokens, enter them here:</p>
+    <input type="text" id="accessToken" placeholder="Access Token" style="width: 100%; margin: 5px 0;">
+    <input type="text" id="refreshToken" placeholder="Refresh Token (optional)" style="width: 100%; margin: 5px 0;">
+    <input type="text" id="userId" placeholder="User ID (optional)" style="width: 100%; margin: 5px 0;">
+    <button id="setTokensBtn">Set Direct Tokens</button>
+    <button id="testTokensBtn" style="display: none;">Test Tokens</button>
+
+    <h3>Option 2: OAuth Flow (Fallback)</h3>
+    <p>If direct tokens don't work, use the OAuth flow:</p>
+    <button id="cycleClientIdBtn">Try Different Client ID</button>
+    <button id="connectBtn">Connect via OAuth</button>
+    <div id="currentClientId" style="margin: 10px 0; font-size: 12px; color: #666;"></div>
+
+    <div id="status" class="status">Ready to connect...</div>
+
+    <div id="authSection" style="display: none;">
+        <h3>Step 2: Enter Authorization Code</h3>
+        <p>After authorizing in the popup window, copy the authorization code from the URL and paste it here:</p>
+        <input type="text" id="authCode" placeholder="Paste authorization code here">
+        <button id="authenticateBtn">Complete Authentication</button>
+    </div>
+
+    <script>
+        const apiUrl = 'http://192.168.0.21:3000';
+        const connectBtn = document.getElementById('connectBtn');
+        const setTokensBtn = document.getElementById('setTokensBtn');
+        const testTokensBtn = document.getElementById('testTokensBtn');
+        const cycleClientIdBtn = document.getElementById('cycleClientIdBtn');
+        const statusDiv = document.getElementById('status');
+        const authSection = document.getElementById('authSection');
+        const authCodeInput = document.getElementById('authCode');
+        const authenticateBtn = document.getElementById('authenticateBtn');
+        const accessTokenInput = document.getElementById('accessToken');
+        const refreshTokenInput = document.getElementById('refreshToken');
+        const userIdInput = document.getElementById('userId');
+        const currentClientIdDiv = document.getElementById('currentClientId');
+
+        let authWindow = null;
+
+        // Handle direct token setting
+        setTokensBtn.addEventListener('click', async () => {
+            const accessToken = accessTokenInput.value.trim();
+            if (!accessToken) {
+                alert('Please enter an access token');
+                return;
+            }
+
+            try {
+                statusDiv.textContent = 'Setting Tidal tokens...';
+                statusDiv.className = 'status';
+
+                const response = await fetch(`${apiUrl}/api/tidal/set-env-tokens`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        accessToken: accessToken,
+                        refreshToken: refreshTokenInput.value.trim() || undefined,
+                        userId: userIdInput.value.trim() || undefined
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                statusDiv.textContent = `Tokens set successfully! User ID: ${data.userId || 'Unknown'}`;
+                statusDiv.className = 'status success';
+                testTokensBtn.style.display = 'inline-block';
+                setTokensBtn.textContent = 'Update Tokens';
+
+            } catch (error) {
+                statusDiv.textContent = `Failed to set tokens: ${error.message}`;
+                statusDiv.className = 'status error';
+                console.error('Set tokens error:', error);
+            }
+        });
+
+        // Handle client ID cycling
+        cycleClientIdBtn.addEventListener('click', async () => {
+            try {
+                statusDiv.textContent = 'Switching client ID...';
+                statusDiv.className = 'status';
+
+                const response = await fetch(`${apiUrl}/api/tidal/cycle-client-id`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                statusDiv.textContent = `✅ ${data.message}`;
+                statusDiv.className = 'status success';
+                updateCurrentClientId();
+
+            } catch (error) {
+                statusDiv.textContent = `Failed to cycle client ID: ${error.message}`;
+                statusDiv.className = 'status error';
+                console.error('Cycle client ID error:', error);
+            }
+        });
+
+        // Handle token testing
+        testTokensBtn.addEventListener('click', async () => {
+            try {
+                statusDiv.textContent = 'Testing Tidal tokens...';
+                statusDiv.className = 'status';
+
+                const response = await fetch(`${apiUrl}/api/tidal/test-tokens`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    statusDiv.textContent = `✅ Tokens working! User: ${data.user.username || data.user.email || 'Unknown'} (Method: ${data.method})`;
+                    statusDiv.className = 'status success';
+                } else {
+                    throw new Error(data.error || 'Test failed');
+                }
+
+            } catch (error) {
+                statusDiv.textContent = `❌ Token test failed: ${error.message}`;
+                statusDiv.className = 'status error';
+                console.error('Test tokens error:', error);
+            }
+        });
+
+        // Handle OAuth flow
+        connectBtn.addEventListener('click', async () => {
+            try {
+                statusDiv.textContent = 'Getting authorization URL...';
+                statusDiv.className = 'status';
+
+                const response = await fetch(`${apiUrl}/api/tidal/auth-url`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (data.authUrl) {
+                    statusDiv.textContent = 'Opening Tidal authorization page...';
+                    statusDiv.className = 'status success';
+
+                    // Open auth URL in popup with realistic browser settings
+                    authWindow = window.open(
+                        data.authUrl,
+                        'tidal-auth',
+                        'width=800,height=600,scrollbars=yes,resizable=yes,status=yes,toolbar=yes,menubar=yes,location=yes'
+                    );
+
+                    // Show the auth code input section
+                    authSection.style.display = 'block';
+                    connectBtn.disabled = true;
+
+                    statusDiv.textContent = 'Complete authorization in the popup window, then paste the code below.';
+                } else {
+                    throw new Error('No auth URL received');
+                }
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                statusDiv.className = 'status error';
+                console.error('Tidal connect error:', error);
+            }
+        });
+
+        authenticateBtn.addEventListener('click', async () => {
+            const code = authCodeInput.value.trim();
+            if (!code) {
+                alert('Please enter the authorization code');
+                return;
+            }
+
+            try {
+                statusDiv.textContent = 'Authenticating...';
+                statusDiv.className = 'status';
+
+                const response = await fetch(`${apiUrl}/api/tidal/authenticate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ code }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                    throw new Error(errorData.error || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    statusDiv.textContent = 'Successfully connected to Tidal!';
+                    statusDiv.className = 'status success';
+                    authSection.style.display = 'none';
+
+                    // Close auth window if still open
+                    if (authWindow && !authWindow.closed) {
+                        authWindow.close();
+                    }
+
+                    // Test the connection
+                    setTimeout(() => testConnection(), 1000);
+                } else {
+                    throw new Error(data.error || 'Authentication failed');
+                }
+            } catch (error) {
+                statusDiv.textContent = `Authentication failed: ${error.message}`;
+                statusDiv.className = 'status error';
+                console.error('Tidal auth error:', error);
+            }
+        });
+
+        async function testConnection() {
+            try {
+                const response = await fetch(`${apiUrl}/api/tidal/status`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    statusDiv.textContent = `Connection test: ${data.authenticated ? 'Authenticated' : 'Not authenticated'}`;
+                } else {
+                    statusDiv.textContent = 'Connection test failed';
+                    statusDiv.className = 'status error';
+                }
+            } catch (error) {
+                statusDiv.textContent = `Connection test error: ${error.message}`;
+                statusDiv.className = 'status error';
+            }
+        }
+
+        // Update current client ID display
+        async function updateCurrentClientId() {
+            try {
+                const response = await fetch(`${apiUrl}/api/tidal/auth-url`);
+                if (response.ok) {
+                    const data = await response.json();
+                    currentClientIdDiv.textContent = `Current Client ID: ${data.clientId}`;
+                }
+            } catch (error) {
+                console.warn('Could not get current client ID:', error);
+            }
+        }
+
+        // Check current authentication status on page load
+        window.addEventListener('load', async () => {
+            updateCurrentClientId();
+
+            try {
+                const response = await fetch(`${apiUrl}/api/tidal/status`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.authenticated) {
+                        statusDiv.textContent = `✅ Already authenticated (Method: ${data.authMethod})`;
+                        statusDiv.className = 'status success';
+                        testTokensBtn.style.display = 'inline-block';
+                    } else if (data.hasEnvTokens) {
+                        statusDiv.textContent = 'Environment tokens available but not tested yet';
+                        statusDiv.className = 'status';
+                        testTokensBtn.style.display = 'inline-block';
+                    } else {
+                        statusDiv.textContent = 'Not authenticated. Choose a method above.';
+                        statusDiv.className = 'status';
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not check auth status:', error);
+            }
+        });
+    </script>
+</body>
+</html>
+

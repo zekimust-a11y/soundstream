@@ -1,0 +1,58 @@
+Last login: Fri Dec 12 13:09:49 on ttys001
+zeki@MacBookAir ~ % mitmproxy --listen-host 0.0.0.0 -p 8080
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Flow Details
+2025-12-12 13:14:11 GET http://mitm.it/static/images/favicon.ico                             
+                        ← 200 OK image/x-icon 5.3k 4ms
+            Request                         Response                          Detail
+Host:             mitm.it                                                                     
+Referer:          http://mitm.it/                                                             
+User-Agent:       Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWebKit/605.1.15 
+                  (KHTML, like Gecko) Version/18.4 Mobile/15E148 Safari/604.1                 
+Accept:           */*                                                                         
+Accept-Language:  en-GB,en;q=0.9                                                              
+Priority:         u=3, i                                                                      
+Accept-Encoding:  gzip, deflate                                                               
+Connection:       keep-alive                                                                  
+                                                                                        [m:auto]
+No request content
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+⇩  [5/13]                                                                               [*:8080]
+Flow:    e Edit        D Duplicate   r Replay      x Export      d Delete      b Save body   
+Proxy:   ? Help        q Back        E Events      O Options     i Intercept   f Filter      

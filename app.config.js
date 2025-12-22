@@ -1,0 +1,73 @@
+import 'dotenv/config';
+
+export default {
+  expo: {
+    name: "Lyric",
+    slug: "lyric",
+    version: "1.0.0",
+    orientation: "portrait",
+    icon: "./assets/images/icon.png",
+    scheme: "lyric",
+    userInterfaceStyle: "light",
+    newArchEnabled: true,
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: "com.lyric.app",
+      infoPlist: {
+        NSLocalNetworkUsageDescription: "Lyric needs local network access to discover and control your music servers and audio devices like MinimServer and dCS Varese.",
+        NSBonjourServices: [
+          "_upnp._tcp",
+          "_ssdp._udp",
+          "_http._tcp"
+        ],
+        UIBackgroundModes: [
+          "audio"
+        ],
+        NSAppTransportSecurity: {
+          NSAllowsArbitraryLoads: true,
+          NSAllowsLocalNetworking: true
+        }
+      }
+    },
+    android: {
+      adaptiveIcon: {
+        backgroundColor: "#0A0A0C",
+        foregroundImage: "./assets/images/android-icon-foreground.png",
+        backgroundImage: "./assets/images/android-icon-background.png",
+        monochromeImage: "./assets/images/android-icon-monochrome.png"
+      },
+      edgeToEdgeEnabled: true,
+      predictiveBackGestureEnabled: false,
+      package: "com.lyric.app"
+    },
+    web: {
+      output: "single",
+      favicon: "./assets/images/favicon.png"
+    },
+    plugins: [
+      [
+        "expo-splash-screen",
+        {
+          image: "./assets/images/splash-icon.png",
+          imageWidth: 200,
+          resizeMode: "contain",
+          backgroundColor: "#0A0A0C",
+          dark: {
+            backgroundColor: "#0A0A0C"
+          }
+        }
+      ],
+      "expo-web-browser"
+    ],
+    experiments: {
+      reactCompiler: true
+    },
+    extra: {
+      serverUrl: process.env.EXPO_PUBLIC_DOMAIN ? `http://${process.env.EXPO_PUBLIC_DOMAIN}` : "http://192.168.0.65:3000"
+    }
+  }
+};
+
+
+
+

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoundStream</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 375px;
+            margin: 0 auto;
+            background: #1a1a1a;
+            min-height: 100vh;
+        }
+
+        .header {
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .nav-button {
+            flex: 1;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .nav-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .section {
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .card-image {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .card-content {
+            flex: 1;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .card-subtitle {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .tidal-banner {
+            background: linear-gradient(135deg, #000000 0%, #333333 100%);
+            border: 1px solid #666;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .tidal-banner h3 {
+            color: #00ff00;
+            margin-bottom: 5px;
+        }
+
+        .tidal-banner p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+        }
+
+        .settings-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .setting-row:last-child {
+            border-bottom: none;
+        }
+
+        .setting-info {
+            flex: 1;
+        }
+
+        .setting-name {
+            font-size: 16px;
+            margin-bottom: 2px;
+        }
+
+        .setting-description {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .connect-button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .connect-button:hover {
+            background: #0056CC;
+        }
+
+        .status-connected {
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        .status-disconnected {
+            color: rgba(255, 255, 255, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SoundStream</h1>
+
+            <div class="nav-buttons">
+                <button class="nav-button" onclick="navigateTo('browse')">Browse</button>
+                <button class="nav-button" onclick="navigateTo('now-playing')">Now Playing</button>
+                <button class="nav-button" onclick="navigateTo('playlists')">Playlists</button>
+            </div>
+
+            <div class="nav-buttons">
+                <button class="nav-button" onclick="shuffleAll()">🔀 Shuffle All</button>
+                <button class="nav-button" onclick="navigateTo('history')">📚 History</button>
+                <button class="nav-button" onclick="navigateTo('settings')">⚙️ Settings</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Recently Played</h2>
+
+            <div class="card">
+                <div class="card-image">🎵</div>
+                <div class="card-content">
+                    <div class="card-title">Song Title</div>
+                    <div class="card-subtitle">Artist Name</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-image">💿</div>
+                <div class="card-content">
+                    <div class="card-title">Album Name</div>
+                    <div class="card-subtitle">Artist Name</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-image">📀</div>
+                <div class="card-content">
+                    <div class="card-title">Playlist Name</div>
+                    <div class="card-subtitle">Your Favorite Songs</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Artists A-Z</h2>
+
+            <div class="card">
+                <div class="card-image">👤</div>
+                <div class="card-content">
+                    <div class="card-title">Artist Name</div>
+                    <div class="card-subtitle">12 albums</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-image">👤</div>
+                <div class="card-content">
+                    <div class="card-title">Another Artist</div>
+                    <div class="card-subtitle">8 albums</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tidal-banner">
+            <h3>🎵 Tidal Integration Active</h3>
+            <p>Tidal content is available in the app. Connect your Tidal account in Settings.</p>
+        </div>
+
+        <div class="settings-section">
+            <h2 class="section-title">Quick Settings</h2>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <div class="setting-name">Qobuz</div>
+                    <div class="setting-description">Available via LMS plugin</div>
+                </div>
+                <div>✅ Enabled</div>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <div class="setting-name">Tidal</div>
+                    <div class="setting-description" id="tidal-status">Not connected - Click Connect to get started</div>
+                </div>
+                <button class="connect-button" onclick="connectTidal()">Connect</button>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <div class="setting-name">Server</div>
+                    <div class="setting-description">192.168.0.19:9000</div>
+                </div>
+                <div>🟢 Connected</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function navigateTo(page) {
+            alert(`Navigating to ${page}...\n\nThis is a demo interface. The full React Native app will be loaded here once Metro bundler is configured.`);
+        }
+
+        function shuffleAll() {
+            alert('🎵 Shuffling all tracks from your library...\n\nThis will play a random selection of tracks from your LMS server.');
+        }
+
+        function connectTidal() {
+            const status = document.getElementById('tidal-status');
+            const button = event.target;
+
+            // Simulate connection process
+            button.textContent = 'Connecting...';
+            button.disabled = true;
+
+            setTimeout(() => {
+                status.textContent = 'Connected to Tidal API';
+                status.className = 'setting-description status-connected';
+                button.textContent = 'Disconnect';
+                button.disabled = false;
+                button.onclick = disconnectTidal;
+
+                alert('✅ Tidal Connected!\n\nYou can now access your Tidal music library, playlists, and favorites through the SoundStream app.');
+            }, 2000);
+        }
+
+        function disconnectTidal() {
+            const status = document.getElementById('tidal-status');
+            const button = event.target;
+
+            status.textContent = 'Not connected - Click Connect to get started';
+            status.className = 'setting-description status-disconnected';
+            button.textContent = 'Connect';
+            button.onclick = connectTidal;
+        }
+
+        // Show welcome message
+        setTimeout(() => {
+            alert('🎉 Welcome to SoundStream Web!\n\nThis is a preview of the SoundStream app interface. The full React Native app will load here once Metro bundler is properly configured.\n\nFeatures shown:\n• Browse music library\n• Recently played tracks\n• Artists A-Z\n• Tidal integration\n• Quick settings access');
+        }, 1000);
+    </script>
+</body>
+</html>

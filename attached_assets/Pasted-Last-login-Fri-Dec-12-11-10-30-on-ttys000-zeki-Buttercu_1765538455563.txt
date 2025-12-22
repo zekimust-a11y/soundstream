@@ -1,0 +1,53 @@
+Last login: Fri Dec 12 11:10:30 on ttys000
+zeki@ButtercupMiniM2 ~ % pip3 install catt
+Defaulting to user installation because normal site-packages is not writeable
+Collecting catt
+  Downloading catt-0.13.0-py3-none-any.whl (27 kB)
+Collecting requests>=2.23.0
+  Downloading requests-2.32.5-py3-none-any.whl (64 kB)
+     |████████████████████████████████| 64 kB 5.6 MB/s 
+Collecting ifaddr>=0.1.7
+  Downloading ifaddr-0.2.0-py3-none-any.whl (12 kB)
+Collecting click>=7.1.2
+  Downloading click-8.1.8-py3-none-any.whl (98 kB)
+     |████████████████████████████████| 98 kB 20.3 MB/s 
+Collecting yt-dlp>=2023.3.4
+  Downloading yt_dlp-2025.10.14-py3-none-any.whl (3.2 MB)
+     |████████████████████████████████| 3.2 MB 50.1 MB/s 
+Collecting catt
+  Downloading catt-0.12.13-py3-none-any.whl (26 kB)
+  Downloading catt-0.12.12-py3-none-any.whl (26 kB)
+Collecting pychromecast<14,>=13.0.7
+  Downloading PyChromecast-13.1.0-py2.py3-none-any.whl (64 kB)
+     |████████████████████████████████| 64 kB 19.7 MB/s 
+Collecting zeroconf>=0.25.1
+  Downloading zeroconf-0.148.0-cp39-cp39-macosx_11_0_arm64.whl (1.7 MB)
+     |████████████████████████████████| 1.7 MB 34.5 MB/s 
+Collecting protobuf>=3.19.1
+  Downloading protobuf-6.33.2-cp39-abi3-macosx_10_9_universal2.whl (427 kB)
+     |████████████████████████████████| 427 kB 44.5 MB/s 
+Collecting casttube>=0.2.0
+  Downloading casttube-0.2.1-py3-none-any.whl (6.5 kB)
+Collecting urllib3<3,>=1.21.1
+  Downloading urllib3-2.6.2-py3-none-any.whl (131 kB)
+     |████████████████████████████████| 131 kB 68.1 MB/s 
+Collecting certifi>=2017.4.17
+  Downloading certifi-2025.11.12-py3-none-any.whl (159 kB)
+     |████████████████████████████████| 159 kB 67.5 MB/s 
+Collecting charset_normalizer<4,>=2
+  Downloading charset_normalizer-3.4.4-cp39-cp39-macosx_10_9_universal2.whl (209 kB)
+     |████████████████████████████████| 209 kB 65.2 MB/s 
+Collecting idna<4,>=2.5
+  Downloading idna-3.11-py3-none-any.whl (71 kB)
+     |████████████████████████████████| 71 kB 34.2 MB/s 
+Installing collected packages: urllib3, idna, charset-normalizer, certifi, requests, ifaddr, zeroconf, protobuf, casttube, yt-dlp, pychromecast, click, catt
+  WARNING: The script normalizer is installed in '/Users/zeki/Library/Python/3.9/bin' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+  WARNING: The script yt-dlp is installed in '/Users/zeki/Library/Python/3.9/bin' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+  WARNING: The script catt is installed in '/Users/zeki/Library/Python/3.9/bin' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+Successfully installed casttube-0.2.1 catt-0.12.12 certifi-2025.11.12 charset-normalizer-3.4.4 click-8.1.8 idna-3.11 ifaddr-0.2.0 protobuf-6.33.2 pychromecast-13.1.0 requests-2.32.5 urllib3-2.6.2 yt-dlp-2025.10.14 zeroconf-0.148.0
+WARNING: You are using pip version 21.2.4; however, version 25.3 is available.
+You should consider upgrading via the '/Library/Developer/CommandLineTools/usr/bin/python3 -m pip install --upgrade pip' command.
+zeki@ButtercupMiniM2 ~ % 

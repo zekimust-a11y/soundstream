@@ -1,0 +1,53 @@
+Last login: Fri Dec 12 12:40:00 on ttys001
+zeki@MacBookAir ~ % curl --max-time 5 http://192.168.0.42:16500/e8eab684-2b3b-4521-92cf-7f1a2c4421dd.xml
+curl: (28) Connection timed out after 5006 milliseconds
+zeki@MacBookAir ~ % for port in 80 443 1400 5000 8080 8088 16500 49152; do
+  timeout 2 bash -c "echo >/dev/tcp/192.168.0.42/$port" 2>/dev/null && echo "Port $port is OPEN"
+done
+zeki@MacBookAir ~ % nc -zv 192.168.0.42 16500 2>&1
+curl -v --connect-timeout 3 http://192.168.0.42:16500/ 2>&1 | head -20
+Connection to 192.168.0.42 port 16500 [tcp/*] succeeded!
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 192.168.0.42:16500...
+* Connected to 192.168.0.42 (192.168.0.42) port 16500
+> GET / HTTP/1.1
+> Host: 192.168.0.42:16500
+> User-Agent: curl/8.7.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+< Date: Fri, 12 Dec 2025 13:06:06 GMT
+< Content-Length: 0
+< 
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+* Connection #0 to host 192.168.0.42 left intact
+zeki@MacBookAir ~ % curl -v --connect-timeout 3 http://192.168.0.42:16500/description.xml 2>&1 | head -30
+curl -v --connect-timeout 3 http://192.168.0.42:16500/DeviceDescription.xml 2>&1 | head -30
+curl -v --connect-timeout 3 http://192.168.0.42:16500/upnp/description.xml 2>&1 | head -30
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 192.168.0.42:16500...
+  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0* ipv4 connect timeout after 2998ms, move on!
+* Failed to connect to 192.168.0.42 port 16500 after 3002 ms: Timeout was reached
+  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0
+* Closing connection
+curl: (28) Failed to connect to 192.168.0.42 port 16500 after 3002 ms: Timeout was reached
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 192.168.0.42:16500...
+  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0* ipv4 connect timeout after 2998ms, move on!
+* Failed to connect to 192.168.0.42 port 16500 after 3006 ms: Timeout was reached
+  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0
+* Closing connection
+curl: (28) Failed to connect to 192.168.0.42 port 16500 after 3006 ms: Timeout was reached
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 192.168.0.42:16500...
+  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0* ipv4 connect timeout after 2999ms, move on!
+* Failed to connect to 192.168.0.42 port 16500 after 3006 ms: Timeout was reached
+  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0
+* Closing connection
+curl: (28) Failed to connect to 192.168.0.42 port 16500 after 3006 ms: Timeout was reached
+zeki@MacBookAir ~ % 

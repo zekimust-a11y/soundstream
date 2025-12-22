@@ -1,0 +1,103 @@
+Last login: Fri Dec 12 14:17:45 on ttys001
+zeki@MacBookAir ~ % cd /Users/zeki/Library/CloudStorage/GoogleDrive-zekimust@gmail.com/My\ Drive/Personal/Audio\ App/local-server
+zeki@MacBookAir local-server % swift mosaic-accessibility-test.swift
+<unknown>:0: error: error opening input file 'mosaic-accessibility-test.swift' (No such file or directory)
+zeki@MacBookAir local-server % swiftc -o mosaic-test mosaic-accessibility-test.swift
+./mosaic-test
+<unknown>:0: error: error opening input file 'mosaic-accessibility-test.swift' (No such file or directory)
+zsh: no such file or directory: ./mosaic-test
+zeki@MacBookAir local-server % cd local-server
+swiftc -O -o mosaic-volume mosaic-volume.swift
+./mosaic-volume --get
+cd: no such file or directory: local-server
+<unknown>:0: error: error opening input file 'mosaic-volume.swift' (No such file or directory)
+zsh: no such file or directory: ./mosaic-volume
+zeki@MacBookAir local-server % cd downloads
+cd: no such file or directory: downloads
+zeki@MacBookAir local-server % cd ~/Downloads/local-server && swiftc -O -o mosaic-volume mosaic-volume.swift && ./mosaic-volume --get
+{"error":"Volume slider not found in Mosaic. Try bringing the app to foreground.","success":false}
+zeki@MacBookAir local-server % cd ~/Downloads/local-server && swiftc -O -o mosaic-volume mosaic-volume.swift && ./mosaic-volume --get
+{"error":"Could not read volume value","success":false}
+zeki@MacBookAir local-server % cd ~/Downloads/local-server && ./mosaic-volume --list
+{"sliders":[{"title":"","max":0,"min":0,"description":"","value":0}],"success":true}
+zeki@MacBookAir local-server % cd ~/Downloads/local-server && ./mosaic-volume --list
+{"success":true,"sliders":[{"min":0,"max":0,"description":"","title":"","value":0}]}
+zeki@MacBookAir local-server % 
+zeki@MacBookAir local-server % 
+zeki@MacBookAir local-server % 
+zeki@MacBookAir local-server % 
+zeki@MacBookAir local-server % cd ~/Downloads/local-server && swiftc -O -o mosaic-volume mosaic-volume.swift && ./mosaic-volume --list
+{"sliders":[{"description":"","min":0,"title":"","max":0,"value":0}],"success":true}
+zeki@MacBookAir local-server % cd ~/Downloads/local-server && swiftc -O -o mosaic-volume mosaic-volume.swift && ./mosaic-volume --drag-up 10
+mosaic-volume.swift:143:9: warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+141 |     
+142 |     let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+143 |     let subrole = getStringAttribute(element, kAXSubroleAttribute as String) ?? ""
+    |         `- warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+144 |     let title = (getStringAttribute(element, kAXTitleAttribute as String) ?? "").lowercased()
+145 |     let description = (getStringAttribute(element, kAXDescriptionAttribute as String) ?? "").lowercased()
+
+mosaic-volume.swift:452:51: error: extra argument 'message' in call
+450 |         let amount = args.count >= 3 ? (Double(args[2]) ?? 5.0) : 5.0
+451 |         if adjustVolumeByDrag(amount: amount, app: mosaicApp) {
+452 |             output(Result(success: true, message: "Dragged volume up by \(amount)"))
+    |                                                   `- error: extra argument 'message' in call
+453 |         } else {
+454 |             exitWithError("Failed to find Mosaic volume window. Make sure Volume Control panel is open.")
+
+mosaic-volume.swift:460:51: error: extra argument 'message' in call
+458 |         let amount = args.count >= 3 ? (Double(args[2]) ?? 5.0) : 5.0
+459 |         if adjustVolumeByDrag(amount: -amount, app: mosaicApp) {
+460 |             output(Result(success: true, message: "Dragged volume down by \(amount)"))
+    |                                                   `- error: extra argument 'message' in call
+461 |         } else {
+462 |             exitWithError("Failed to find Mosaic volume window. Make sure Volume Control panel is open.")
+zeki@MacBookAir local-server % cd ~/Downloads/local-server && swiftc -O -o mosaic-volume mosaic-volume.swift && ./mosaic-volume --drag-up 10
+mosaic-volume.swift:143:9: warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+141 |     
+142 |     let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+143 |     let subrole = getStringAttribute(element, kAXSubroleAttribute as String) ?? ""
+    |         `- warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+144 |     let title = (getStringAttribute(element, kAXTitleAttribute as String) ?? "").lowercased()
+145 |     let description = (getStringAttribute(element, kAXDescriptionAttribute as String) ?? "").lowercased()
+
+mosaic-volume.swift:452:51: error: extra argument 'message' in call
+450 |         let amount = args.count >= 3 ? (Double(args[2]) ?? 5.0) : 5.0
+451 |         if adjustVolumeByDrag(amount: amount, app: mosaicApp) {
+452 |             output(Result(success: true, message: "Dragged volume up by \(amount)"))
+    |                                                   `- error: extra argument 'message' in call
+453 |         } else {
+454 |             exitWithError("Failed to find Mosaic volume window. Make sure Volume Control panel is open.")
+
+mosaic-volume.swift:460:51: error: extra argument 'message' in call
+458 |         let amount = args.count >= 3 ? (Double(args[2]) ?? 5.0) : 5.0
+459 |         if adjustVolumeByDrag(amount: -amount, app: mosaicApp) {
+460 |             output(Result(success: true, message: "Dragged volume down by \(amount)"))
+    |                                                   `- error: extra argument 'message' in call
+461 |         } else {
+462 |             exitWithError("Failed to find Mosaic volume window. Make sure Volume Control panel is open.")
+zeki@MacBookAir local-server % cd ~/Downloads/local-server && swiftc -O -o mosaic-volume mosaic-volume.swift && ./mosaic-volume --drag-up 10
+mosaic-volume.swift:143:9: warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+141 |     
+142 |     let role = getStringAttribute(element, kAXRoleAttribute as String) ?? ""
+143 |     let subrole = getStringAttribute(element, kAXSubroleAttribute as String) ?? ""
+    |         `- warning: initialization of immutable value 'subrole' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+144 |     let title = (getStringAttribute(element, kAXTitleAttribute as String) ?? "").lowercased()
+145 |     let description = (getStringAttribute(element, kAXDescriptionAttribute as String) ?? "").lowercased()
+
+mosaic-volume.swift:452:51: error: extra argument 'message' in call
+450 |         let amount = args.count >= 3 ? (Double(args[2]) ?? 5.0) : 5.0
+451 |         if adjustVolumeByDrag(amount: amount, app: mosaicApp) {
+452 |             output(Result(success: true, message: "Dragged volume up by \(amount)"))
+    |                                                   `- error: extra argument 'message' in call
+453 |         } else {
+454 |             exitWithError("Failed to find Mosaic volume window. Make sure Volume Control panel is open.")
+
+mosaic-volume.swift:460:51: error: extra argument 'message' in call
+458 |         let amount = args.count >= 3 ? (Double(args[2]) ?? 5.0) : 5.0
+459 |         if adjustVolumeByDrag(amount: -amount, app: mosaicApp) {
+460 |             output(Result(success: true, message: "Dragged volume down by \(amount)"))
+    |                                                   `- error: extra argument 'message' in call
+461 |         } else {
+462 |             exitWithError("Failed to find Mosaic volume window. Make sure Volume Control panel is open.")
+zeki@MacBookAir local-server % 

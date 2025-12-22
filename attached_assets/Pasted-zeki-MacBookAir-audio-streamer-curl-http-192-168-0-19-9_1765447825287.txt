@@ -1,0 +1,66 @@
+zeki@MacBookAir audio-streamer % curl "http://192.168.0.19:9791/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/device.xml" | xmllint --format -
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  2142  100  2142    0     0   219k      0 --:--:-- --:--:-- --:--:--  232k
+<?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaServer:1</deviceType>
+    <iconList>
+      <icon>
+        <mimetype>image/png</mimetype>
+        <width>120</width>
+        <height>120</height>
+        <depth>24</depth>
+        <url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-120.png</url>
+      </icon>
+      <icon>
+        <mimetype>image/png</mimetype>
+        <width>48</width>
+        <height>48</height>
+        <depth>24</depth>
+        <url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-48.png</url>
+      </icon>
+      <icon>
+        <mimetype>image/jpeg</mimetype>
+        <width>120</width>
+        <height>120</height>
+        <depth>24</depth>
+        <url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-120.jpg</url>
+      </icon>
+      <icon>
+        <mimetype>image/jpeg</mimetype>
+        <width>48</width>
+        <height>48</height>
+        <depth>24</depth>
+        <url>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/resource/minimicon-48.jpg</url>
+      </icon>
+    </iconList>
+    <friendlyName>MinimServer[OLADRAserver]</friendlyName>
+    <manufacturer>minimserver.com</manufacturer>
+    <modelName>MinimServer</modelName>
+    <UDN>uuid:88f1207c-ffc2-4070-940e-ca5af99aa4d3</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
+        <SCPDURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/upnp.org-ConnectionManager-1/service.xml</SCPDURL>
+        <controlURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ConnectionManager-1/control</controlURL>
+        <eventSubURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ConnectionManager-1/event</eventSubURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:ContentDirectory:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:ContentDirectory</serviceId>
+        <SCPDURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/Upnp/upnp.org-ContentDirectory-1/service.xml</SCPDURL>
+        <controlURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/control</controlURL>
+        <eventSubURL>/88f1207c-ffc2-4070-940e-ca5af99aa4d3/upnp.org-ContentDirectory-1/event</eventSubURL>
+      </service>
+    </serviceList>
+    <presentationURL>http://192.168.0.19:9790/</presentationURL>
+  </device>
+</root>
+zeki@MacBookAir audio-streamer % 

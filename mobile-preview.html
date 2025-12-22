@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoundStream Mobile Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+        }
+        
+        .phone-container {
+            background: #1a1a1a;
+            border-radius: 40px;
+            padding: 20px 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+        
+        .phone-screen {
+            width: 375px;
+            height: 812px;
+            background: #000;
+            border-radius: 30px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+        
+        .notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 30px;
+            background: #000;
+            border-radius: 0 0 20px 20px;
+            z-index: 10;
+        }
+        
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #fff;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+            color: white;
+        }
+        
+        .device-selector {
+            margin-top: 10px;
+        }
+        
+        select {
+            padding: 8px 15px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        select option {
+            background: #333;
+            color: white;
+        }
+        
+        .info {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <div class="phone-container">
+            <div class="notch"></div>
+            <div class="phone-screen">
+                <iframe id="appFrame" src="http://localhost:8081" allow="camera; microphone; geolocation"></iframe>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="device-selector">
+                <select id="deviceSelect" onchange="changeDevice()">
+                    <option value="393,852" selected>iPhone 15 / 15 Pro (393x852)</option>
+                    <option value="430,932">iPhone 15 Plus / 15 Pro Max (430x932)</option>
+                    <option value="375,812">iPhone 12/13/14 Pro (375x812)</option>
+                    <option value="390,844">iPhone 12/13/14 Pro Max (390x844)</option>
+                    <option value="375,667">iPhone SE (375x667)</option>
+                    <option value="360,800">Samsung Galaxy S20 (360x800)</option>
+                    <option value="393,851">Google Pixel 5 (393x851)</option>
+                    <option value="414,896">iPhone 11 Pro Max (414x896)</option>
+                </select>
+            </div>
+            <div class="info">
+                Preview of SoundStream app running at localhost:8081
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function changeDevice() {
+            const select = document.getElementById('deviceSelect');
+            const [width, height] = select.value.split(',');
+            const screen = document.querySelector('.phone-screen');
+            screen.style.width = width + 'px';
+            screen.style.height = height + 'px';
+        }
+        
+        // Refresh iframe if connection is lost
+        setInterval(() => {
+            const iframe = document.getElementById('appFrame');
+            try {
+                iframe.contentWindow.location;
+            } catch (e) {
+                // Connection lost, reload
+                iframe.src = iframe.src;
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
+

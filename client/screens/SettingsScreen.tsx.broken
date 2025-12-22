@@ -1,0 +1,458 @@
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Switch,
+  ActivityIndicator,
+  Alert,
+  TextInput,
+  Platform,
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const SETTINGS_KEY = "@soundstream_settings";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useHeaderHeight } from "@react-navigation/elements";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Feather } from "@expo/vector-icons";
+import * as Clipboard from 'expo-clipboard';
+
+import { ThemedText } from "@/components/ThemedText";
+import { ThemedView } from "@/components/ThemedView";
+import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { useMusic } from "@/hooks/useMusic";
+import { useTheme } from "@/hooks/useTheme";
+import { useSettings } from "@/hooks/useSettings";
+import { usePlayback } from "@/hooks/usePlayback";
+import { lmsClient } from "@/lib/lmsClient";
+import { roonVolumeClient } from "@/lib/roonVolumeClient";
+import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
+
+type NavigationProp = NativeStackNavigationProp<SettingsStackParamList>;
+
+interface SettingRowProps {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  title: string;
+  subtitle?: string;
+  value?: string;
+  onPress?: () => void;
+  showChevron?: boolean;
+  rightElement?: React.ReactNode;
+  iconColor?: string;
+}
+
+function SettingRow({
+  icon,
+  title,
+  subtitle,
+  value,
+  onPress,
+  showChevron = true,
+  rightElement,
+  iconColor = Colors.light.text,
+}: SettingRowProps) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.settingRow,
+        { opacity: pressed && onPress ? 0.6 : 1 },
+      ]}
+      onPress={onPress}
+      disabled={!onPress}
+    >
+      <View style={[styles.iconContainer, { backgroundColor: iconColor + "20" }]}>
+        <Feather name={icon} size={18} color={iconColor} />
+      </View>
+      <View style={styles.settingContent}>
+        <ThemedText style={styles.settingTitle}>{title}</ThemedText>
+        {subtitle ? (
+          <ThemedText style={styles.settingSubtitle}>{subtitle}</ThemedText>
+        ) : null}
+      </View>
+      {rightElement}
+      {value ? (
+        <ThemedText style={styles.settingValue}>{value}</ThemedText>
+      ) : null}
+      {showChevron && onPress ? (
+        <Feather name="chevron-right" size={20} color={Colors.light.textTertiary} />
+      ) : null}
+    </Pressable>
+  );
+}
+
+export default function SettingsScreen() {
+  const tabBarHeight = useBottomTabBarHeight();
+  const headerHeight = useHeaderHeight();
+  const navigation = useNavigation<NavigationProp>();
+  const { servers, qobuzConnected, tidalConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer, playlists, getTidalAuthUrl, connectTidal, disconnectTidal, checkTidalStatus } = useMusic();
+  const { theme } = useTheme();
+  const { 
+    chromecastIp, setChromecastIp,
+    chromecastEnabled, setChromecastEnabled,
+    gapless, setGapless,
+    crossfade, setCrossfade,
+    normalization, setNormalization,
+    hardwareVolumeControl, setHardwareVolumeControl,
+    qobuzEnabled, setQobuzEnabled,
+    tidalEnabled, setTidalEnabled,
+    soundcloudEnabled, setSoundcloudEnabled,
+    spotifyEnabled, setSpotifyEnabled,
+    isLoaded: settingsLoaded,
+  } = useSettings();
+  const { players, activePlayer, setActivePlayer, refreshPlayers, allPlayers, disabledPlayers, togglePlayerDisabled, dacConfig, setDacConfig, dacVolume } = usePlayback();
+  
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isRefreshingPlayers, setIsRefreshingPlayers] = useState(false);
+  const [roonVolumeEnabled, setRoonVolumeEnabled] = useState(false);
+  const [roonStatus, setRoonStatus] = useState<{ connected: boolean; currentOutput: string | null; currentOutputName?: string | null; outputs: Array<{ output_id: string; display_name: string }> } | null>(null);
+  const [playerSearchQuery, setPlayerSearchQuery] = useState("");
+  
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveredServers, setDiscoveredServers] = useState<Array<{host: string; port: number; name: string}>>([]);
+
+  // Manual server addition
+  const [libraryStats, setLibraryStats] = useState<{ albums: number; artists: number; tracks: number; radioStations: number; playlists: number } | null>(null);
+  
+  const [isChromecastDiscovering, setIsChromecastDiscovering] = useState(false);
+  const [discoveredChromecastDevices, setDiscoveredChromecastDevices] = useState<Array<{ip: string; name: string}>>([]);
+  
+  // DAC configuration state
+  const [dacIp, setDacIp] = useState(dacConfig?.ip || "");
+  const [dacPort, setDacPort] = useState(dacConfig?.port?.toString() || "80");
+  const [dacName, setDacName] = useState(dacConfig?.name || "");
+  const [dacEnabled, setDacEnabled] = useState(dacConfig?.enabled || false);
+  
+  // Update local state when dacConfig changes
+  useEffect(() => {
+    if (dacConfig) {
+      setDacIp(dacConfig.ip || "");
+      setDacPort(dacConfig.port?.toString() || "80");
+      setDacName(dacConfig.name || "");
+      setDacEnabled(dacConfig.enabled || false);
+    }
+  }, [dacConfig]);
+
+  useEffect(() => {
+    if (activeServer) {
+      refreshPlayers();
+      loadLibraryStats();
+    }
+  }, []);
+  
+  // Update local DAC state when dacConfig changes
+  useEffect(() => {
+    if (dacConfig) {
+      setDacIp(dacConfig.ip || "");
+      setDacPort(dacConfig.port?.toString() || "80");
+      setDacName(dacConfig.name || "");
+      setDacEnabled(dacConfig.enabled || false);
+    } else {
+      setDacIp("");
+      setDacPort("80");
+      setDacName("");
+      setDacEnabled(false);
+    }
+  }, [dacConfig]);
+
+  useEffect(() => {
+    if (activeServer) {
+      loadLibraryStats();
+    } else {
+      setLibraryStats(null);
+    }
+  }, [activeServer]);
+
+  // Load Roon volume control config
+  useEffect(() => {
+    roonVolumeClient.loadConfig().then(() => {
+      setRoonVolumeEnabled(roonVolumeClient.isEnabled());
+      if (roonVolumeClient.isEnabled()) {
+        // Retry status check a few times to ensure server is ready
+        const checkStatusWithRetry = async (retries = 5) => {
+          for (let i = 0; i < retries; i++) {
+            try {
+              const status = await roonVolumeClient.checkStatus();
+              if (status.connected && status.currentOutput) {
+                setRoonStatus({
+                  connected: status.connected,
+                  currentOutput: status.currentOutput,
+                  currentOutputName: status.currentOutputName,
+                  outputs: status.outputs,
+                });
+                return;
+              }
+            } catch (error) {
+              console.log(`Roon status check attempt ${i + 1} failed:`, error);
+            }
+            if (i < retries - 1) {
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second between retries
+            }
+          }
+          // If all retries failed but Roon is enabled, assume it's connected
+          // Volume control might still work even if status check fails
+          console.log('All Roon status check attempts failed, but assuming connected since volume control is enabled');
+          setRoonStatus({
+            connected: true,
+            currentOutput: null,
+            currentOutputName: 'Roon (Status unavailable - volume control enabled)',
+            outputs: [],
+          });
+        };
+        checkStatusWithRetry();
+      }
+    });
+  }, []);
+
+  const handleRoonVolumeToggle = async (enabled: boolean) => {
+    try {
+      await roonVolumeClient.setEnabled(enabled);
+      setRoonVolumeEnabled(enabled);
+      if (enabled) {
+        // Check status when enabled - retry a few times to ensure connection is ready
+        let retries = 3;
+        let status = null;
+        while (retries > 0) {
+          try {
+            status = await roonVolumeClient.checkStatus();
+            if (status.connected && status.currentOutput) {
+              break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 500));
+            retries--;
+          } catch (error) {
+            retries--;
+            if (retries > 0) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+        }
+        if (status && status.connected) {
+          setRoonStatus({
+            connected: status.connected,
+            currentOutput: status.currentOutput,
+            currentOutputName: status.currentOutputName,
+            outputs: status.outputs,
+          });
+        } else {
+          // Even if status check fails, assume it's connected since Roon volume control is enabled
+          // The actual volume operations will work even if status check fails
+          console.log('Roon status check failed, but assuming connected since volume control is enabled');
+          setRoonStatus({
+            connected: true,
+            currentOutput: null,
+            currentOutputName: 'Roon (Status check failed - volume control still works)',
+            outputs: [],
+          });
+        }
+      } else {
+        setRoonStatus(null);
+      }
+    } catch (error) {
+      console.error('Failed to toggle Roon volume control:', error);
+      Alert.alert('Error', 'Failed to toggle Roon volume control');
+    }
+  };
+
+  const loadLibraryStats = async () => {
+    try {
+      const stats = await lmsClient.getLibraryTotals();
+      console.log("Library stats loaded:", stats);
+      setLibraryStats(stats);
+    } catch (e) {
+      console.error("Failed to load library stats:", e);
+      // Set zeros on error so UI shows something
+      setLibraryStats({
+        albums: 0,
+        artists: 0,
+        tracks: 0,
+        radioStations: 0,
+        playlists: 0,
+      });
+    }
+  };
+
+
+  const handleAutoDiscover = async () => {
+    setIsDiscovering(true);
+    setConnectionError(null);
+    setDiscoveredServers([]);
+    
+    try {
+      const servers = await lmsClient.autoDiscoverServers();
+      // Filter to only show LMS servers (exclude UPnP devices like Sonos)
+      const lmsServers = servers.filter((s: any) => !s.type || s.type === 'lms');
+      setDiscoveredServers(lmsServers.map(s => ({ host: s.host, port: s.port, name: s.name })));
+      
+      if (lmsServers.length === 0) {
+        setConnectionError("No LMS servers found. Make sure your server is running on this network.");
+      }
+    } catch (error) {
+      setConnectionError("Auto-discovery failed: " + (error instanceof Error ? error.message : "Unknown error"));
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
+
+  const handleSelectDiscoveredServer = async (host: string, port: number) => {
+    setIsConnecting(true);
+    setConnectionError(null);
+    
+    try {
+      const server = await lmsClient.discoverServer(host, port);
+      
+      if (server) {
+        await addServer({
+          name: server.name,
+          host: server.host,
+          port: server.port,
+        });
+        await refreshPlayers();
+        await refreshLibrary();
+        setDiscoveredServers([]);
+        Alert.alert('Connected', `Successfully connected to ${server.name}`);
+      } else {
+        setConnectionError("Could not connect to server. Please try again.");
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : "Connection failed");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleRefreshPlayers = async () => {
+    setIsRefreshingPlayers(true);
+    await refreshPlayers();
+    setIsRefreshingPlayers(false);
+  };
+
+  const handleSelectPlayer = (player: typeof players[0]) => {
+    setActivePlayer(player);
+  };
+
+  const handleRemoveServer = async (serverId: string) => {
+    const confirmRemoval = async () => {
+      await removeServer(serverId);
+    };
+    
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+      if (window.confirm("Are you sure you want to remove this server?")) {
+        await confirmRemoval();
+      }
+    } else {
+      Alert.alert(
+        "Remove Server",
+        "Are you sure you want to remove this server?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Remove", style: "destructive", onPress: confirmRemoval },
+        ]
+      );
+    }
+  };
+
+  const handleDiscoverChromecast = async () => {
+    setIsChromecastDiscovering(true);
+    setConnectionError(null);
+    setDiscoveredChromecastDevices([]);
+    
+    try {
+      const apiUrl = getApiUrl();
+      console.log('[Chromecast] Discovering devices via:', `${apiUrl}/api/chromecast/discover`);
+      
+      const response = await fetch(`${apiUrl}/api/chromecast/discover`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Chromecast] Discovery failed:', response.status, errorText);
+        setConnectionError(`Discovery failed: ${response.status} ${response.statusText}`);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('[Chromecast] Discovery response:', data);
+      
+      // Handle both array response and object with devices property
+      const devices = Array.isArray(data) ? data : (data.devices || []);
+      
+      if (devices.length === 0) {
+        setConnectionError("No Chromecast devices found. Make sure your device is powered on and connected to WiFi.");
+      } else {
+        setDiscoveredChromecastDevices(devices);
+        setConnectionError(null);
+      }
+    } catch (error) {
+      console.error('[Chromecast] Discovery error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setConnectionError(`Discovery failed: ${errorMessage}`);
+    } finally {
+      setIsChromecastDiscovering(false);
+    }
+  };
+
+  const handleSelectChromecast = async (ip: string) => {
+    setChromecastIp(ip);
+    setDiscoveredChromecastDevices([]);
+    
+    // Automatically start casting when a device is selected
+    try {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/chromecast/cast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ip,
+          lmsHost: activeServer?.host,
+          lmsPort: activeServer?.port || 9000,
+          playerId: activePlayer?.id,
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[Chromecast] Cast started:', data);
+      } else {
+        const errorText = await response.text();
+        console.error('[Chromecast] Failed to start cast:', errorText);
+        setConnectionError(`Failed to start casting: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('[Chromecast] Error starting cast:', error);
+      setConnectionError(`Failed to start casting: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const getApiUrl = () => {
+    const domain = process.env.EXPO_PUBLIC_DOMAIN || 'localhost:3000';
+    const protocol = Platform.OS === 'web' ? window.location.protocol : 'http:';
+    return `${protocol}//${domain}`;
+  };
+
+  const isWeb = Platform.OS === 'web';
+
+  return (
+    <ThemedView style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.content,
+          { 
+            paddingTop: headerHeight + Spacing.lg,
+            paddingBottom: tabBarHeight + Spacing["5xl"],
+          },
+        ]}
+      >
+

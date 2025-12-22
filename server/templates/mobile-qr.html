@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SoundStream Mobile QR Code</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+        h1 { color: #333; }
+        .qr-container { margin: 20px auto; display: inline-block; }
+        .instructions { max-width: 400px; margin: 20px auto; text-align: left; }
+    </style>
+</head>
+<body>
+    <h1>📱 SoundStream Mobile Connection</h1>
+
+    <div class="qr-container">
+        <div id="qrcode"></div>
+    </div>
+
+    <div class="instructions">
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Open <strong>Expo Go</strong> on your iPhone</li>
+            <li>Tap <strong>Scan QR Code</strong></li>
+            <li>Scan the QR code above</li>
+            <li>The SoundStream app will load on your phone</li>
+        </ol>
+
+        <p><strong>Manual URL:</strong> exp://192.168.0.21:8081</p>
+        <p><strong>Web Version:</strong> <a href="http://192.168.0.21:8081" target="_blank">http://192.168.0.21:8081</a></p>
+    </div>
+
+    <script>
+        new QRCode(document.getElementById("qrcode"), {
+            text: "exp://192.168.0.21:8081",
+            width: 256,
+            height: 256,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+    </script>
+</body>
+</html>

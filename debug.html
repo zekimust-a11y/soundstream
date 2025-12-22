@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoundStream Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        .error { color: red; }
+        .success { color: green; }
+        input { padding: 8px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>SoundStream Debug Interface</h1>
+
+    <div class="section">
+        <h2>Backend Health Check</h2>
+        <button onclick="checkHealth()">Check Backend Health</button>
+        <div id="health-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>LMS Library Stats</h2>
+        <button onclick="checkLibraryStats()">Get Library Statistics</button>
+        <div id="library-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>LMS Albums Test</h2>
+        <button onclick="testLmsAlbums()">Test LMS Albums</button>
+        <div id="albums-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>Tidal Albums Test</h2>
+        <button onclick="testTidalAlbums()">Test Tidal Albums</button>
+        <div id="tidal-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>Server Discovery</h2>
+        <button onclick="discoverServers()">Discover LMS Servers</button>
+        <div id="discovery-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>Roon Status</h2>
+        <button onclick="checkRoonStatus()">Check Roon Status</button>
+        <div id="roon-result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://192.168.0.21:3000';
+
+        function showResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<pre class="${isError ? 'error' : 'success'}">${content}</pre>`;
+        }
+
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/api/health`);
+                const data = await response.json();
+                showResult('health-result', JSON.stringify(data, null, 2));
+            } catch (error) {
+                showResult('health-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        async function checkLibraryStats() {
+            try {
+                const response = await fetch(`${API_BASE}/api/lms/proxy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        command: ['serverstatus', '0', '1'],
+                        playerId: ''
+                    })
+                });
+                const data = await response.json();
+                if (data.result) {
+                    const stats = {
+                        albums: data.result['info total albums'],
+                        artists: data.result['info total artists'],
+                        tracks: data.result['info total songs']
+                    };
+                    showResult('library-result', JSON.stringify(stats, null, 2));
+                } else {
+                    showResult('library-result', JSON.stringify(data, null, 2), true);
+                }
+            } catch (error) {
+                showResult('library-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        async function testLmsAlbums() {
+            try {
+                const response = await fetch(`${API_BASE}/api/lms/proxy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        command: ['albums', '0', '10'],
+                        playerId: ''
+                    })
+                });
+                const data = await response.json();
+                showResult('albums-result', JSON.stringify(data, null, 2));
+            } catch (error) {
+                showResult('albums-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        async function testTidalAlbums() {
+            try {
+                const response = await fetch(`${API_BASE}/api/tidal/albums?limit=5&offset=0`);
+                const data = await response.json();
+                showResult('tidal-result', JSON.stringify(data, null, 2));
+            } catch (error) {
+                showResult('tidal-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        async function discoverServers() {
+            try {
+                const response = await fetch(`${API_BASE}/api/servers/discover`);
+                const data = await response.json();
+                showResult('discovery-result', JSON.stringify(data, null, 2));
+            } catch (error) {
+                showResult('discovery-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        async function checkRoonStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/roon/status`);
+                const data = await response.json();
+                showResult('roon-result', JSON.stringify(data, null, 2));
+            } catch (error) {
+                showResult('roon-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        // Auto-check on page load
+        window.onload = function() {
+            checkHealth();
+        };
+    </script>
+</body>
+</html>
