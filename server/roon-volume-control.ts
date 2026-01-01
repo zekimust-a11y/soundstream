@@ -42,6 +42,7 @@ class RoonVolumeControl {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private isInitializing: boolean = false;
   private readonly roonConfigPath: string;
+  private volumeQueue: Promise<void> = Promise.resolve();
 
   // Direct connection to Roon Core
   private roonCoreHost: string = process.env.ROON_CORE_IP || '192.168.0.19';
@@ -292,7 +293,7 @@ class RoonVolumeControl {
   /**
    * Get current volume (0-100)
    */
-  async getVolume(): Promise<number> {
+  private async _getVolumeUnlocked(): Promise<number> {
     console.log('[RoonVolumeControl] Getting current volume');
 
     if (!this.isReady()) {
@@ -337,10 +338,23 @@ class RoonVolumeControl {
     return result;
   }
 
+  async getVolume(): Promise<number> {
+    return this._getVolumeUnlocked();
+  }
+
+  private enqueueVolumeOp<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.volumeQueue.then(fn, fn);
+    this.volumeQueue = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  }
+
   /**
    * Set volume (0-100)
    */
-  async setVolume(volume: number): Promise<void> {
+  private async _setVolumeUnlocked(volume: number): Promise<void> {
     const clampedVolume = Math.max(0, Math.min(100, Math.round(volume)));
     console.log(`[RoonVolumeControl] Setting volume to ${clampedVolume}%`);
 
@@ -376,6 +390,10 @@ class RoonVolumeControl {
 
     console.log(`[RoonVolumeControl] Final target value: ${targetValue} (${clampedVolume}%)`);
 
+    // Update cached output volume immediately so rapid successive calls don't re-read stale values.
+    // This makes repeated +/- steps accumulate smoothly even before _refreshOutputs() runs.
+    output.volume.value = targetValue;
+
     return new Promise((resolve, reject) => {
       // Try zone-based control first, fallback to output
       const zone = this.zones.get(this.currentZoneId!);
@@ -391,7 +409,7 @@ class RoonVolumeControl {
             if (!err) {
               console.log(`[RoonVolumeControl] Volume set successfully via zone`);
               // Refresh outputs to get updated volume values
-              setTimeout(() => this._refreshOutputs(), 500);
+              setTimeout(() => this._refreshOutputs(), 150);
               resolve();
             } else {
               console.log(`[RoonVolumeControl] Zone failed, trying output...`);
@@ -422,11 +440,15 @@ class RoonVolumeControl {
         } else {
           console.log(`[RoonVolumeControl] Volume set successfully via output control`);
           // Refresh outputs to get updated volume values
-          setTimeout(() => this._refreshOutputs(), 500);
+          setTimeout(() => this._refreshOutputs(), 150);
           resolve();
         }
       }
     );
+  }
+
+  async setVolume(volume: number): Promise<void> {
+    return this.enqueueVolumeOp(() => this._setVolumeUnlocked(volume));
   }
 
   /**
@@ -460,20 +482,24 @@ class RoonVolumeControl {
    * Volume up by step
    */
   async volumeUp(step: number = 2): Promise<number> {
-    const current = await this.getVolume();
-    const newVolume = Math.min(100, current + step);
-    await this.setVolume(newVolume);
-    return newVolume;
+    return this.enqueueVolumeOp(async () => {
+      const current = await this._getVolumeUnlocked();
+      const newVolume = Math.min(100, current + step);
+      await this._setVolumeUnlocked(newVolume);
+      return newVolume;
+    });
   }
 
   /**
    * Volume down by step
    */
   async volumeDown(step: number = 2): Promise<number> {
-    const current = await this.getVolume();
-    const newVolume = Math.max(0, current - step);
-    await this.setVolume(newVolume);
-    return newVolume;
+    return this.enqueueVolumeOp(async () => {
+      const current = await this._getVolumeUnlocked();
+      const newVolume = Math.max(0, current - step);
+      await this._setVolumeUnlocked(newVolume);
+      return newVolume;
+    });
   }
 
   /**
