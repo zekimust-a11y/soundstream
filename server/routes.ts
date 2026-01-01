@@ -2128,17 +2128,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/chromecast/stop', async (req: Request, res: Response) => {
     try {
-      const { ip } = req.body;
-      
-      if (!ip) {
-        return res.status(400).json({ error: 'Chromecast IP is required' });
-      }
-      
-      // Try to use the relay server on 192.168.0.21:3000
+      // ip is optional; if omitted we will stop the currently configured receiver session.
+      const { ip } = req.body || {};
+
+      // First try: stop the running receiver session via chromecast-service (best-effort).
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const chromecastService = require('./chromecast-service');
       try {
-        // The relay server automatically stops casting when music pauses/stops
-        // But we can also clear the Chromecast config to stop it
-        const relayResponse = await fetch('http://192.168.0.21:3000/api/chromecast', {
+        if (ip) {
+          chromecastService.configure(ip, `Chromecast ${ip}`, true);
+        }
+        await chromecastService.stop();
+      } catch (e) {
+        console.log('[Chromecast] chromecast-service stop failed (continuing):', e instanceof Error ? e.message : String(e));
+      }
+
+      // Second try: disable via relay server config (this also triggers stopCasting()).
+      try {
+        const serverPort = process.env.PORT || '3000';
+        const localBase = `http://127.0.0.1:${serverPort}`;
+
+        const relayResponse = await fetch(`${localBase}/api/chromecast`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
