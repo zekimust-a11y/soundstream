@@ -412,6 +412,18 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
   }
 }
 
+// Send arbitrary messages to the custom receiver (used for volume overlay updates, etc.)
+export function sendCustomMessageToCast(message: any): boolean {
+  try {
+    if (!isCasting || !chromecastService.customChannel) return false;
+    chromecastService.customChannel.send(message);
+    return true;
+  } catch (error) {
+    console.error('[Relay] Error sending custom message to cast:', (error as any)?.message || String(error));
+    return false;
+  }
+}
+
 // LMS status polling
 async function pollLmsStatus(): Promise<void> {
   try {

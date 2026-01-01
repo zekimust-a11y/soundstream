@@ -547,12 +547,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ success: false, error: 'step must be a number (1-100)' });
         }
         const newVolume = action === 'up' ? await (roon as any).volumeUp(step) : await (roon as any).volumeDown(step);
+        try {
+          const { sendCustomMessageToCast } = await import('./relay-server');
+          sendCustomMessageToCast({
+            type: 'VOLUME',
+            payload: { output: { volume: { type: 'number', min: 0, max: 100, value: newVolume } } },
+          });
+        } catch {
+          // ignore cast broadcast errors
+        }
         return res.json({ success: true, volume: newVolume });
       }
 
       const volume = typeof raw === 'number' ? raw : parseFloat(String(raw));
       if (Number.isNaN(volume)) return res.status(400).json({ success: false, error: 'volume must be a number (0-100)' });
       await roon.setVolume(volume);
+      try {
+        const { sendCustomMessageToCast } = await import('./relay-server');
+        sendCustomMessageToCast({
+          type: 'VOLUME',
+          payload: { output: { volume: { type: 'number', min: 0, max: 100, value: volume } } },
+        });
+      } catch {
+        // ignore cast broadcast errors
+      }
       return res.json({ success: true, volume });
     } catch (e) {
       return res.status(500).json({ success: false, error: e instanceof Error ? e.message : String(e) });
