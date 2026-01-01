@@ -302,7 +302,7 @@ export function initializeRelayServer(app: express.Application): void {
         })
       });
       const data = await response.json();
-      res.json(data.result);
+      res.json(data); // Return full JSON-RPC response, not just data.result
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
