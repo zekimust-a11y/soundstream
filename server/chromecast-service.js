@@ -4,8 +4,8 @@ const mdns = require('mdns-js');
 
 // Custom Cast App ID from user's Google Cast Developer Console
 const CUSTOM_APP_ID = '180705D2';
-const CUSTOM_NAMESPACE = 'urn:x-cast:com.google.cast.media';
-const RECEIVER_URL = 'https://zekimust-a11y.github.io/lms-cast/';
+const CUSTOM_NAMESPACE = 'urn:x-cast:com.zeki.rooncast';
+const RECEIVER_URL = 'https://zekimust-a11y.github.io/lms-cast/?v=' + Date.now();
 
 /**
  * Chromecast Service using castv2 with custom receiver app
@@ -34,10 +34,17 @@ class ChromecastService extends EventEmitter {
     this.requestId = 1;
     this.isCasting = false;
     this.currentUrl = null;
+    this.connectedIp = null;
   }
 
   configure(ip, name, enabled) {
-    this.chromecastIp = ip || '';
+    const nextIp = ip || '';
+    if (this.connectedIp && nextIp && this.connectedIp !== nextIp) {
+      // If the target device changes, never reuse an existing TCP connection
+      console.log(`[Chromecast] Target IP changed (${this.connectedIp} -> ${nextIp}), disconnecting`);
+      this.disconnect();
+    }
+    this.chromecastIp = nextIp;
     this.chromecastName = name || '';
     this.chromecastEnabled = enabled;
     console.log(`[ChromecastService] Configured: ${this.chromecastName || this.chromecastIp} (${this.chromecastIp}), Enabled: ${this.chromecastEnabled}`);
@@ -65,8 +72,13 @@ class ChromecastService extends EventEmitter {
       throw new Error('No Chromecast IP configured');
     }
 
-    if (this.client && this.connectionChannel && this.receiverChannel) {
-      console.log('[Chromecast] reuse existing client connection');
+    if (
+      this.client &&
+      this.connectionChannel &&
+      this.receiverChannel &&
+      this.connectedIp === this.chromecastIp
+    ) {
+      console.log(`[Chromecast] reuse existing client connection (${this.connectedIp})`);
       return;
     }
 
@@ -77,6 +89,7 @@ class ChromecastService extends EventEmitter {
       
       this.client.connect(this.chromecastIp, () => {
         console.log('[Chromecast] TCP connected');
+        this.connectedIp = this.chromecastIp;
         
         this.connectionChannel = this.client.createChannel(
           'sender-0',
@@ -256,13 +269,17 @@ class ChromecastService extends EventEmitter {
       const lmsPort = urlObj.searchParams.get('port') || '9000';
       const lmsPlayer = urlObj.searchParams.get('player');
       
+      // Get server URL (the origin of the URL being cast)
+      const serverUrl = `${urlObj.protocol}//${urlObj.host}`;
+      
       // Send LMS parameters to the custom receiver via Cast message
-      console.log(`[Chromecast] Sending LMS params: host=${lmsHost}, port=${lmsPort}, player=${lmsPlayer}`);
+      console.log(`[Chromecast] Sending LMS params: host=${lmsHost}, port=${lmsPort}, player=${lmsPlayer}, serverUrl=${serverUrl}`);
       this.customChannel.send({
         type: 'SET_LMS_PARAMS',
         host: lmsHost,
         port: lmsPort,
-        player: lmsPlayer
+        player: lmsPlayer,
+        serverUrl: serverUrl
       });
 
       this.isCasting = true;
@@ -328,6 +345,7 @@ class ChromecastService extends EventEmitter {
       }
       this.client = null;
     }
+    this.connectedIp = null;
     
     console.log('[Chromecast] Disconnected');
   }
