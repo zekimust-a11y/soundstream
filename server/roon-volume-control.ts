@@ -476,6 +476,27 @@ class RoonVolumeControl {
   }
 
   /**
+   * Select an output to control
+   */
+  selectOutput(outputId: string): void {
+    if (!outputId) throw new Error("Missing outputId");
+    const output = this.outputs.get(outputId);
+    if (!output) {
+      throw new Error(`Output not found: ${outputId}`);
+    }
+    if (!output.volume) {
+      throw new Error(`Output does not support volume control: ${output.display_name}`);
+    }
+
+    this.currentOutputId = output.output_id;
+    this.currentZoneId = output.zone_id;
+    this.currentOutputName = output.display_name;
+    this.isReadyFlag = true;
+    this.isConnected = true;
+    console.log(`[RoonVolumeControl] Selected output via API: ${output.display_name} (${output.output_id})`);
+  }
+
+  /**
    * Shutdown and cleanup
    */
   async shutdown(): Promise<void> {
