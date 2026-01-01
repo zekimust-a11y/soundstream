@@ -191,6 +191,109 @@ async function fetchArtistImagesFromAudioDb(artistNameRaw: string): Promise<stri
   const artistName = (artistNameRaw || '').trim();
   if (!artistName) return [];
 
+  try {
+    const url = `https://www.theaudiodb.com/api/v1/json/${AUDIODB_API_KEY}/search.php?s=${encodeURIComponent(artistName)}`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!resp.ok) return [];
+    const data: any = await resp.json();
+    const artist = data?.artists?.[0];
+    if (!artist) return [];
+
+    const candidates = [
+      artist.strArtistFanart,
+      artist.strArtistFanart2,
+      artist.strArtistFanart3,
+      artist.strArtistFanart4,
+      artist.strArtistThumb,
+      artist.strArtistWideThumb,
+    ].filter((u: any) => typeof u === 'string' && u.length > 0);
+
+    // Deduplicate while preserving order
+    const seen = new Set<string>();
+    return candidates.filter((u: string) => (seen.has(u) ? false : (seen.add(u), true)));
+  } catch (e) {
+    console.warn('[Relay] AudioDB artist image fetch failed:', e instanceof Error ? e.message : String(e));
+    return [];
+  }
+}
+
+async function fetchArtistImagesFromDeezer(artistNameRaw: string): Promise<string[]> {
+  const artistName = (artistNameRaw || '').trim();
+  if (!artistName) return [];
+  try {
+    const url = `https://api.deezer.com/search/artist?q=${encodeURIComponent(artistName)}`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!resp.ok) return [];
+    const data: any = await resp.json();
+    const hit = data?.data?.[0];
+    if (!hit) return [];
+    const candidates = [
+      hit.picture_xl,
+      hit.picture_big,
+      hit.picture_medium,
+      hit.picture,
+      hit.picture_small,
+    ].filter((u: any) => typeof u === 'string' && u.length > 0);
+    return candidates.map((u: string) => u.replace(/^http:\/\//, 'https://'));
+  } catch (e) {
+    console.warn('[Relay] Deezer artist image fetch failed:', e instanceof Error ? e.message : String(e));
+    return [];
+  }
+}
+
+async function fetchArtistImagesFromItunes(artistNameRaw: string): Promise<string[]> {
+  const artistName = (artistNameRaw || '').trim();
+  if (!artistName) return [];
+  try {
+    // iTunes doesn’t reliably provide artist fanart; use album artwork from search.
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&entity=album&limit=25`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!resp.ok) return [];
+    const data: any = await resp.json();
+    const results: any[] = Array.isArray(data?.results) ? data.results : [];
+    const candidates: string[] = [];
+    for (const r of results) {
+      const art = r?.artworkUrl100 || r?.artworkUrl60;
+      if (typeof art === 'string' && art.length > 0) {
+        candidates.push(
+          art
+            .replace(/^http:\/\//, 'https://')
+            .replace(/100x100bb\.(jpg|png)/i, '600x600bb.$1')
+        );
+      }
+    }
+    const seen = new Set<string>();
+    return candidates.filter((u) => (seen.has(u) ? false : (seen.add(u), true)));
+  } catch (e) {
+    console.warn('[Relay] iTunes artist image fetch failed:', e instanceof Error ? e.message : String(e));
+    return [];
+  }
+}
+
+function mergeAndLimitArtistImages(primary: string[], ...rest: string[][]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const pushAll = (arr: string[]) => {
+    for (const u of arr) {
+      if (!u) continue;
+      if (seen.has(u)) continue;
+      seen.add(u);
+      out.push(u);
+      if (out.length >= 12) return;
+    }
+  };
+  pushAll(primary);
+  for (const r of rest) {
+    if (out.length >= 12) break;
+    pushAll(r);
+  }
+  return out;
+}
+
+async function fetchArtistImages(artistNameRaw: string): Promise<string[]> {
+  const artistName = (artistNameRaw || '').trim();
+  if (!artistName) return [];
+
   const cached = artistImageCache.get(artistName);
   if (cached && Date.now() - cached.fetchedAt < ARTIST_IMAGE_CACHE_TTL_MS) {
     return cached.images;
@@ -201,28 +304,14 @@ async function fetchArtistImagesFromAudioDb(artistNameRaw: string): Promise<stri
 
   const p = (async () => {
     try {
-      const url = `https://www.theaudiodb.com/api/v1/json/${AUDIODB_API_KEY}/search.php?s=${encodeURIComponent(artistName)}`;
-      const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
-      if (!resp.ok) return [];
-      const data: any = await resp.json();
-      const artist = data?.artists?.[0];
-      if (!artist) return [];
-
-      const candidates = [
-        artist.strArtistFanart,
-        artist.strArtistFanart2,
-        artist.strArtistFanart3,
-        artist.strArtistFanart4,
-        artist.strArtistThumb,
-        artist.strArtistWideThumb,
-      ].filter((u: any) => typeof u === 'string' && u.length > 0);
-
-      // Deduplicate while preserving order
-      const seen = new Set<string>();
-      const images = candidates.filter((u: string) => (seen.has(u) ? false : (seen.add(u), true)));
-
+      const [a, d, i] = await Promise.all([
+        fetchArtistImagesFromAudioDb(artistName),
+        fetchArtistImagesFromDeezer(artistName),
+        fetchArtistImagesFromItunes(artistName),
+      ]);
+      const images = mergeAndLimitArtistImages(a, d, i);
       artistImageCache.set(artistName, { images, fetchedAt: Date.now() });
-      console.log(`[Relay] Artist images: ${artistName} -> ${images.length}`);
+      console.log(`[Relay] Artist images (merged): ${artistName} -> ${images.length}`);
       return images;
     } catch (e) {
       console.warn('[Relay] Artist image fetch failed:', e instanceof Error ? e.message : String(e));
@@ -299,7 +388,7 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
 
   const track = status?.playlist_loop?.[0];
   const primaryArtist = normalizePrimaryArtist(track?.artist || '');
-  const artistImages = primaryArtist ? await fetchArtistImagesFromAudioDb(primaryArtist) : [];
+  const artistImages = primaryArtist ? await fetchArtistImages(primaryArtist) : [];
   const message = formatNowPlayingMessage(status, artistImages);
   if (!message) return;
 
