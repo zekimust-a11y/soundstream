@@ -8,6 +8,8 @@
 
 import RoonApi from 'node-roon-api';
 import RoonApiTransport from 'node-roon-api-transport';
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface RoonVolumeControlConfig {
   enabled: boolean;
@@ -37,6 +39,9 @@ class RoonVolumeControl {
   private currentOutputName: string | null = null;
   private isConnected: boolean = false;
   private isReadyFlag: boolean = false;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private isInitializing: boolean = false;
+  private readonly roonConfigPath: string;
 
   // Direct connection to Roon Core
   private roonCoreHost: string = process.env.ROON_CORE_IP || '192.168.0.19';
@@ -47,6 +52,7 @@ class RoonVolumeControl {
     this.config = config;
     // Use a unique extension ID to force fresh registration
     this.extensionId = 'com.soundstream.roon.volume.v4';
+    this.roonConfigPath = path.resolve(process.cwd(), '.roon-volume-control.json');
   }
 
   /**
@@ -58,31 +64,52 @@ class RoonVolumeControl {
       return;
     }
 
+    if (this.isInitializing) {
+      console.log('[RoonVolumeControl] initialize() called while already initializing; ignoring');
+      return;
+    }
+    this.isInitializing = true;
+
     console.log('[RoonVolumeControl] Initializing persistent connection...');
     console.log(`[RoonVolumeControl] Using extension ID: ${this.extensionId}`);
 
-    // Create unique display name with timestamp to identify current extension
-    const timestamp = new Date().toLocaleTimeString('en-US', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-
-    // Create RoonApi instance using the persistent extension ID
-    this.roon = new RoonApi({
+    // Create RoonApi instance using the persistent extension ID.
+    // IMPORTANT: node-roon-api persists pairing via its "roonstate" store, but its
+    // default implementation writes to "config.json" in CWD. We MUST override this
+    // so we don't clobber the app's own config.json and so pairing is stable.
+    this.roon = new RoonApi(({
       extension_id: this.extensionId,
-      display_name: `Soundstream Volume Control (${timestamp})`,
+      display_name: `Soundstream Volume Control`,
       display_version: '1.0.0',
       publisher: 'Soundstream',
       email: 'support@soundstream.app',
       log_level: 'all',
+      get_persisted_state: () => {
+        try {
+          if (!fs.existsSync(this.roonConfigPath)) return {};
+          const raw = fs.readFileSync(this.roonConfigPath, { encoding: 'utf-8' });
+          return JSON.parse(raw) || {};
+        } catch (e) {
+          console.warn('[RoonVolumeControl] Failed to read persisted state:', e);
+          return {};
+        }
+      },
+      set_persisted_state: (state: any) => {
+        try {
+          fs.writeFileSync(this.roonConfigPath, JSON.stringify(state || {}, null, 2), { encoding: 'utf-8' });
+        } catch (e) {
+          console.warn('[RoonVolumeControl] Failed to write persisted state:', e);
+        }
+      },
       core_paired: (core: any) => {
         console.log(`[RoonVolumeControl] ✅ PAIRED with Roon Core: ${core.display_name}`);
         console.log(`[RoonVolumeControl] Core ID: ${core.core_id}`);
 
-        // Create transport service
-        this.transport = new RoonApiTransport(this.roon);
+        // Transport service is exposed on the paired core
+        this.transport = core.services?.RoonApiTransport || null;
+        if (!this.transport) {
+          console.error('[RoonVolumeControl] No transport service available on paired core');
+        }
 
         // Set moo connection
         const roonAny = this.roon as any;
@@ -106,18 +133,49 @@ class RoonVolumeControl {
         this.currentZoneId = null;
         this.currentOutputName = null;
       },
-    });
+    }) as any);
+
+    // Override node-roon-api's default config store (which writes to "config.json" in CWD).
+    // This MUST be done before connecting so auth tokens are persisted and reused.
+    const roonAny = this.roon as any;
+    roonAny.save_config = (k: string, v: any) => {
+      try {
+        let conf: any = {};
+        try {
+          if (fs.existsSync(this.roonConfigPath)) {
+            conf = JSON.parse(fs.readFileSync(this.roonConfigPath, { encoding: 'utf-8' })) || {};
+          }
+        } catch {
+          conf = {};
+        }
+        if (v === undefined || v === null) delete conf[k];
+        else conf[k] = v;
+        fs.writeFileSync(this.roonConfigPath, JSON.stringify(conf, null, 2), { encoding: 'utf-8' });
+      } catch (e) {
+        console.warn('[RoonVolumeControl] save_config failed:', e);
+      }
+    };
+    roonAny.load_config = (k: string) => {
+      try {
+        if (!fs.existsSync(this.roonConfigPath)) return undefined;
+        const conf = JSON.parse(fs.readFileSync(this.roonConfigPath, { encoding: 'utf-8' })) || {};
+        return conf[k];
+      } catch (e) {
+        console.warn('[RoonVolumeControl] load_config failed:', e);
+        return undefined;
+      }
+    };
 
     // Initialize services BEFORE connecting
     this.roon.init_services({
-      required_services: [RoonApiTransport],
+      required_services: [RoonApiTransport as any],
       optional_services: [],
       provided_services: [],
     });
 
     // Connect directly to specified Roon Core
     console.log(`[RoonVolumeControl] Connecting to ${this.roonCoreHost}:${this.roonCorePort}`);
-    this.roon.ws_connect({
+    (this.roon as any).ws_connect({
       host: this.roonCoreHost,
       port: this.roonCorePort,
       onclose: () => {
@@ -126,7 +184,7 @@ class RoonVolumeControl {
         this.isReadyFlag = false;
         // Attempt to reconnect after a delay
         console.log('[RoonVolumeControl] Scheduling reconnection in 5 seconds...');
-        setTimeout(() => this._initializeConnection(), 5000);
+        this._scheduleReconnect();
       },
       onerror: (moo: any) => {
         console.error('[RoonVolumeControl] Connection error:', moo);
@@ -134,9 +192,26 @@ class RoonVolumeControl {
         this.isReadyFlag = false;
         // Attempt to reconnect after a delay
         console.log('[RoonVolumeControl] Scheduling reconnection in 5 seconds...');
-        setTimeout(() => this._initializeConnection(), 5000);
+        this._scheduleReconnect();
       }
     });
+
+    this.isInitializing = false;
+  }
+
+  private _scheduleReconnect(): void {
+    if (this.reconnectTimer) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      // Recreate the extension instance to get a clean socket + re-init services
+      this.shutdown()
+        .catch(() => {})
+        .finally(() => {
+          this.initialize().catch((e) => {
+            console.error('[RoonVolumeControl] Reconnect initialize failed:', e);
+          });
+        });
+    }, 5000);
   }
 
   private _refreshOutputs(): void {

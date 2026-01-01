@@ -46,3 +46,6 @@ app-example
 *.log
 *.tar.gz
 node_modules/
+
+# Roon extension auth/pairing state (local machine specific)
+.roon-volume-control.json
