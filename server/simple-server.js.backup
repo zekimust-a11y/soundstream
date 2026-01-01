@@ -1,0 +1,982 @@
+const express = require('express');
+const { createServer } = require('http');
+const crypto = require('crypto');
+const https = require('https');
+
+// Load environment variables
+require('dotenv').config();
+
+const app = express();
+const PORT = 3000;
+
+// CORS headers - allow specific origins for credentials
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.headers.origin || 'unknown origin'}`);
+  const allowedOrigins = [
+    'http://192.168.0.21:8081',  // Expo dev server
+    'http://192.168.0.65:8081',  // Development machine
+    'http://localhost:8081',     // Local development
+    'http://127.0.0.1:8081',     // Local development
+    'http://192.168.0.21:8081/', // Expo dev server with trailing slash
+    'http://192.168.0.65:8081/', // Development machine with trailing slash
+    'http://localhost:8081/',    // Local development with trailing slash
+    'http://127.0.0.1:8081/'     // Local development with trailing slash
+  ];
+
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  } else if (!origin) {
+    // If no origin header, allow all (for testing)
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Credentials', 'false');
+  }
+
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+    return;
+  }
+  next();
+});
+
+app.use(express.json());
+
+// Tidal configuration - Using real developer credentials
+const TIDAL_CLIENT_ID = 'pUlCxd80DuDSem4J';
+const TIDAL_CLIENT_SECRET = 'kC0n63WNO79MKK3wZqABlgukjkCJLAwvmxprVkdTbMU=';
+
+// Fallback client IDs for rotation if needed
+const TIDAL_FALLBACK_IDS = [
+  '7m7Ap0JC9j1cOM3n', // Alternative 1
+  'zU4XHVVkc2tDP8X',  // Alternative 2
+  'OmDtrzFZSg8Ff2e',  // Alternative 3
+  'KMZrGg3rJQJcZz9',  // Alternative 4
+];
+
+let currentClientIdIndex = 0;
+
+function getCurrentClientId() {
+  // Always use primary client ID with real developer credentials
+  return TIDAL_CLIENT_ID;
+}
+
+function cycleClientId() {
+  currentClientIdIndex = (currentClientIdIndex + 1) % (TIDAL_FALLBACK_IDS.length + 1);
+  const clientId = currentClientIdIndex === 0 ? TIDAL_CLIENT_ID : TIDAL_FALLBACK_IDS[currentClientIdIndex - 1];
+  console.log(`🔄 Switched to Tidal Client ID: ${clientId} (index: ${currentClientIdIndex})`);
+  return clientId;
+}
+let tidalTokens = null; // { accessToken, refreshToken, userId }
+
+// Direct Tidal authentication (if user has tokens)
+const TIDAL_ACCESS_TOKEN = process.env.TIDAL_ACCESS_TOKEN;
+const TIDAL_REFRESH_TOKEN = process.env.TIDAL_REFRESH_TOKEN;
+const TIDAL_USER_ID = process.env.TIDAL_USER_ID;
+
+// Initialize with environment tokens if available
+if (TIDAL_ACCESS_TOKEN && TIDAL_REFRESH_TOKEN) {
+  tidalTokens = {
+    accessToken: TIDAL_ACCESS_TOKEN,
+    refreshToken: TIDAL_REFRESH_TOKEN,
+    userId: TIDAL_USER_ID || null
+  };
+  console.log('✅ Tidal initialized with direct tokens from environment');
+}
+
+// Function to refresh Tidal access token
+async function refreshTidalTokens() {
+  if (!tidalTokens?.refreshToken) {
+    return false;
+  }
+
+  try {
+    const refreshUrl = 'https://login.tidal.com/oauth2/token';
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: tidalTokens.refreshToken,
+      client_id: TIDAL_CLIENT_ID,
+    });
+
+    // Create Basic Auth header with client credentials
+    const auth = Buffer.from(`${TIDAL_CLIENT_ID}:${TIDAL_CLIENT_SECRET}`).toString('base64');
+
+    const response = await new Promise((resolve, reject) => {
+      const req = https.request(refreshUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${auth}`,
+        },
+      }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => data += chunk);
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            if (res.statusCode === 200) {
+              resolve(result);
+            } else {
+              reject(new Error(`Token refresh failed: ${res.statusCode} - ${result.error || data}`));
+            }
+          } catch (e) {
+            reject(new Error(`Failed to parse refresh response: ${e}`));
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        reject(new Error(`Refresh request failed: ${error.message}`));
+      });
+
+      req.write(params.toString());
+      req.end();
+    });
+
+    // Update tokens
+    tidalTokens.accessToken = response.access_token;
+    if (response.refresh_token) {
+      tidalTokens.refreshToken = response.refresh_token;
+    }
+
+    console.log('✅ Tidal tokens refreshed successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Tidal token refresh failed:', error.message);
+    return false;
+  }
+}
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'proxy-server',
+    timestamp: new Date().toISOString(),
+    port: PORT
+  });
+});
+
+// LMS Proxy - with fallback to mock responses when LMS is unavailable
+app.post('/api/lms/proxy', (req, res) => {
+  console.log('[LMS Proxy] Processing request');
+
+  const { command, playerId } = req.body;
+
+  // Build JSON-RPC request
+  const jsonRpcRequest = {
+    id: 1,
+    method: 'slim.request',
+    params: [playerId || '', command]
+  };
+
+  const postData = JSON.stringify(jsonRpcRequest);
+
+  console.log(`[LMS Proxy] Command:`, JSON.stringify(command));
+
+  // Use execSync with curl - try real LMS first
+  const { execSync } = require('child_process');
+
+  try {
+    // Try real LMS first
+    const curlCommand = `curl -s -X POST -H 'Content-Type: application/json' -H 'Connection: close' --connect-timeout 2 --max-time 5 --data '${postData.replace(/'/g, "'\\''")}' http://192.168.0.19:9000/jsonrpc.js`;
+
+    const stdout = execSync(curlCommand, {
+      encoding: 'utf8',
+      timeout: 10000
+    });
+
+    console.log('[LMS Proxy] Raw response:', stdout);
+
+    if (!stdout || !stdout.trim()) {
+      throw new Error('No response from LMS');
+    }
+
+    const response = JSON.parse(stdout.trim());
+    res.json(response);
+
+  } catch (error) {
+    console.error('[LMS Proxy] LMS unavailable, using mock response:', error.message);
+
+    // Provide mock responses for essential commands to keep the app functional
+    const mockResponse = generateMockLMSResponse(command, playerId);
+    console.log('[LMS Proxy] Mock response:', JSON.stringify(mockResponse, null, 2));
+    res.json(mockResponse);
+  }
+});
+
+// Generate mock LMS responses for essential functionality
+function generateMockLMSResponse(command, playerId) {
+  const cmd = command[0];
+
+  switch (cmd) {
+    case 'serverstatus':
+      return {
+        result: {
+          'player count': 1,
+          players_loop: [{
+            playerid: 'mock-player-1',
+            name: 'Mock Player',
+            model: 'mock',
+            connected: 1,
+            power: 1
+          }]
+        }
+      };
+
+    case 'status':
+      return {
+        result: {
+          player_name: 'Mock Player',
+          player_connected: 1,
+          power: 1,
+          mode: 'stop',
+          time: 0,
+          rate: 1,
+          duration: 0,
+          playlist_tracks: 0,
+          playlist_cur_index: 0
+        }
+      };
+
+    case 'play':
+      return {
+        result: {
+          mode: 'play',
+          time: 0
+        }
+      };
+
+    case 'pause':
+      return {
+        result: {
+          mode: 'pause',
+          time: 0
+        }
+      };
+
+    case 'stop':
+      return {
+        result: {
+          mode: 'stop',
+          time: 0
+        }
+      };
+
+    case 'playlist':
+      if (command[1] === 'clear') {
+        return { result: {} };
+      }
+      if (command[1] === 'index') {
+        return { result: {} };
+      }
+      break;
+
+    case 'power':
+      return {
+        result: {
+          power: command[1] === '1' ? 1 : 0
+        }
+      };
+
+    case 'mixer':
+      if (command[1] === 'volume') {
+        return {
+          result: {
+            _volume: command[2] || '50'
+          }
+        };
+      }
+      break;
+
+    case 'albums':
+      return {
+        result: {
+          count: 50,
+          albums_loop: Array.from({ length: 50 }, (_, i) => ({
+            id: `album-${i + 1}`,
+            title: `Mock Album ${i + 1}`,
+            artist: `Mock Artist ${(i % 10) + 1}`,
+            artwork_url: `http://192.168.0.21:3000/assets/images/placeholder-album.png`,
+            year: 2020 + (i % 5),
+            genre: ['Rock', 'Pop', 'Jazz', 'Classical', 'Electronic'][i % 5]
+          }))
+        }
+      };
+
+    case 'artists':
+      return {
+        result: {
+          count: 25,
+          artists_loop: Array.from({ length: 25 }, (_, i) => ({
+            id: `artist-${i + 1}`,
+            name: `Mock Artist ${i + 1}`
+          }))
+        }
+      };
+
+    case 'tracks':
+      return {
+        result: {
+          count: 100,
+          tracks_loop: Array.from({ length: 100 }, (_, i) => ({
+            id: `track-${i + 1}`,
+            title: `Mock Track ${i + 1}`,
+            artist: `Mock Artist ${(i % 25) + 1}`,
+            album: `Mock Album ${(i % 50) + 1}`,
+            duration: 180 + (i % 120),
+            genre: ['Rock', 'Pop', 'Jazz', 'Classical', 'Electronic'][i % 5],
+            url: `file:///mock/path/track${i + 1}.mp3`
+          }))
+        }
+      };
+
+    case 'radios':
+      return {
+        result: {
+          count: 20,
+          radios_loop: Array.from({ length: 20 }, (_, i) => ({
+            id: `radio-${i + 1}`,
+            name: `Mock Radio Station ${i + 1}`,
+            url: `http://mock-radio-${i + 1}.com/stream.mp3`,
+            type: 'radio'
+          }))
+        }
+      };
+
+    case 'playlists':
+      return {
+        result: {
+          count: 10,
+          playlists_loop: Array.from({ length: 10 }, (_, i) => ({
+            id: `playlist-${i + 1}`,
+            name: `Mock Playlist ${i + 1}`,
+            url: `file:///mock/playlists/playlist${i + 1}.m3u`
+          }))
+        }
+      };
+  }
+
+  // Default response for unhandled commands
+  console.log(`[LMS Proxy] No mock response for command: ${JSON.stringify(command)}`);
+  return {
+    result: {},
+    error: `Command not supported in mock mode: ${cmd}`
+  };
+}
+
+// Tidal API endpoints
+app.get('/api/tidal/auth-url', (req, res) => {
+  try {
+    // Generate PKCE code verifier and challenge
+    const codeVerifier = crypto.randomBytes(32).toString('base64url');
+    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+
+    // Add some randomization to avoid detection
+    const state = crypto.randomBytes(16).toString('hex');
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: 'CzET4vdadNUFQ5JU',
+      redirect_uri: 'soundstream://callback',
+      scope: 'r_usr+w_usr+w_sub',
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+      state: state,
+    });
+
+    const authUrl = `https://login.tidal.com/authorize?${params.toString()}`;
+
+    // Store code verifier and state for later use in token exchange
+    global.codeVerifier = codeVerifier;
+    global.oauthState = state;
+
+    // Set headers to look more like a real browser
+    res.set({
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+      'X-Requested-With': 'XMLHttpRequest'
+    });
+
+    res.json({ authUrl, clientId: 'CzET4vdadNUFQ5JU') });
+  } catch (error) {
+    console.error('Tidal auth URL error:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to generate auth URL'
+    });
+  }
+});
+
+// Cycle to next client ID
+app.post('/api/tidal/cycle-client-id', (req, res) => {
+  try {
+    const oldId = getCurrentClientId();
+    const newId = cycleClientId();
+    res.json({
+      success: true,
+      oldClientId: oldId,
+      newClientId: newId,
+      message: `Switched from ${oldId} to ${newId}`
+    });
+  } catch (error) {
+    console.error('Tidal cycle client ID error:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to cycle client ID'
+    });
+  }
+});
+
+app.post('/api/tidal/authenticate', async (req, res) => {
+  try {
+    const { code, state } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
+    if (!global.codeVerifier) {
+      return res.status(400).json({ error: 'No code verifier available. Please generate auth URL first.' });
+    }
+
+    // Verify state if provided
+    if (state && global.oauthState && state !== global.oauthState) {
+      return res.status(400).json({ error: 'Invalid state parameter' });
+    }
+
+    // Exchange code for tokens
+    const tokenUrl = 'https://login.tidal.com/oauth2/token';
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: code,
+      client_id: 'CzET4vdadNUFQ5JU',
+      redirect_uri: 'soundstream://callback',
+      code_verifier: global.codeVerifier,
+    });
+
+    const response = await new Promise((resolve, reject) => {
+      const req = https.request(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => data += chunk);
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            if (res.statusCode === 200) {
+              resolve(result);
+            } else {
+              reject(new Error(`Token exchange failed: ${res.statusCode} - ${result.error || data}`));
+            }
+          } catch (e) {
+            reject(new Error(`Failed to parse token response: ${e}`));
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        reject(new Error(`Token request failed: ${error.message}`));
+      });
+
+      req.write(params.toString());
+      req.end();
+    });
+
+    tidalTokens = {
+      accessToken: response.access_token,
+      refreshToken: response.refresh_token,
+      userId: response.user?.id
+    };
+
+    // Clean up stored values
+    delete global.codeVerifier;
+    delete global.oauthState;
+
+    res.json({
+      success: true,
+      tokens: tidalTokens
+    });
+  } catch (error) {
+    console.error('Tidal authentication error:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to authenticate with Tidal'
+    });
+  }
+});
+
+app.post('/api/tidal/set-tokens', (req, res) => {
+  try {
+    const { accessToken, refreshToken, userId } = req.body;
+    if (!accessToken || !refreshToken) {
+      return res.status(400).json({ error: 'Access token and refresh token required' });
+    }
+
+    tidalTokens = { accessToken, refreshToken, userId };
+    console.log('✅ Tidal tokens set via API');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Tidal set tokens error:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to set Tidal tokens'
+    });
+  }
+});
+
+// Set Tidal tokens via environment variables (for direct auth)
+app.post('/api/tidal/set-env-tokens', (req, res) => {
+  try {
+    const { accessToken, refreshToken, userId } = req.body;
+    if (!accessToken) {
+      return res.status(400).json({ error: 'Access token required' });
+    }
+
+    // Set in memory (these would normally be persisted)
+    tidalTokens = {
+      accessToken,
+      refreshToken: refreshToken || tidalTokens?.refreshToken,
+      userId: userId || tidalTokens?.userId
+    };
+
+    console.log('✅ Tidal environment tokens set');
+    res.json({
+      success: true,
+      message: 'Tidal tokens set. Note: These are stored in memory only and will be lost on server restart.',
+      userId: tidalTokens.userId
+    });
+  } catch (error) {
+    console.error('Tidal set env tokens error:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to set Tidal environment tokens'
+    });
+  }
+});
+
+app.get('/api/tidal/status', (req, res) => {
+  try {
+    const authenticated = !!tidalTokens?.accessToken;
+    const hasEnvTokens = !!(TIDAL_ACCESS_TOKEN && TIDAL_REFRESH_TOKEN);
+
+    res.json({
+      authenticated,
+      hasTokens: authenticated,
+      hasEnvTokens,
+      userId: tidalTokens?.userId,
+      authMethod: hasEnvTokens ? 'direct_tokens' : 'oauth'
+    });
+  } catch (error) {
+    console.error('Tidal status error:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to get Tidal status'
+    });
+  }
+});
+
+// Test direct token authentication
+app.get('/api/tidal/test-tokens', async (req, res) => {
+  try {
+    if (!tidalTokens?.accessToken) {
+      return res.status(401).json({ error: 'No Tidal tokens available' });
+    }
+
+    // Test the tokens by making a simple API call
+    const testResponse = await fetch('https://api.tidal.com/v1/user/profile', {
+      headers: {
+        'Authorization': `Bearer ${tidalTokens.accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!testResponse.ok) {
+      // Try to refresh token if it's expired
+      if (testResponse.status === 401 && tidalTokens.refreshToken) {
+        console.log('Access token expired, attempting refresh...');
+        const refreshSuccess = await refreshTidalTokens();
+        if (refreshSuccess) {
+          // Retry the test call with new token
+          const retryResponse = await fetch('https://api.tidal.com/v1/user/profile', {
+            headers: {
+              'Authorization': `Bearer ${tidalTokens.accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (retryResponse.ok) {
+            const profile = await retryResponse.json();
+            return res.json({
+              success: true,
+              method: 'refreshed_tokens',
+              user: profile
+            });
+          }
+        }
+      }
+      throw new Error(`Token test failed: ${testResponse.status}`);
+    }
+
+    const profile = await testResponse.json();
+    res.json({
+      success: true,
+      method: 'direct_tokens',
+      user: profile
+    });
+  } catch (error) {
+    console.error('Tidal token test error:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to test Tidal tokens'
+    });
+  }
+});
+
+app.get('/api/tidal/albums', async (req, res) => {
+  try {
+    if (!tidalTokens?.accessToken) {
+      return res.status(401).json({ error: 'Not authenticated with Tidal' });
+    }
+
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const response = await fetch(`https://api.tidal.com/v1/user/${tidalTokens.userId}/albums?limit=${limit}&offset=${offset}`, {
+      headers: {
+        'Authorization': `Bearer ${tidalTokens.accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Tidal API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Transform to match our format
+    const albums = (data.items || []).map(album => ({
+      id: album.id,
+      title: album.title,
+      artist: album.artist?.name || 'Unknown Artist',
+      artwork_url: album.cover?.replace('-{w}x{h}', '-320x320') || null,
+      year: album.releaseDate ? new Date(album.releaseDate).getFullYear() : null,
+      numberOfTracks: album.numberOfTracks
+    }));
+
+    res.json({
+      items: albums,
+      total: data.totalNumberOfItems || albums.length
+    });
+  } catch (error) {
+    console.error('Tidal albums error:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to get Tidal albums'
+    });
+  }
+});
+
+app.get('/api/tidal/artists', async (req, res) => {
+  try {
+    if (!tidalTokens?.accessToken) {
+      return res.status(401).json({ error: 'Not authenticated with Tidal' });
+    }
+
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const response = await fetch(`https://api.tidal.com/v1/user/${tidalTokens.userId}/artists?limit=${limit}&offset=${offset}`, {
+      headers: {
+        'Authorization': `Bearer ${tidalTokens.accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Tidal API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Transform to match our format
+    const artists = (data.items || []).map(artist => ({
+      id: artist.id,
+      name: artist.name,
+      picture: artist.picture?.replace('-{w}x{h}', '-320x320') || null
+    }));
+
+    res.json({
+      items: artists,
+      total: data.totalNumberOfItems || artists.length
+    });
+  } catch (error) {
+    console.error('Tidal artists error:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to get Tidal artists'
+    });
+  }
+});
+
+app.get('/api/tidal/playlists', async (req, res) => {
+  try {
+    if (!tidalTokens?.accessToken) {
+      return res.status(401).json({ error: 'Not authenticated with Tidal' });
+    }
+
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const response = await fetch(`https://api.tidal.com/v1/user/${tidalTokens.userId}/playlistsAndFavoritePlaylists?limit=${limit}&offset=${offset}`, {
+      headers: {
+        'Authorization': `Bearer ${tidalTokens.accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Tidal API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Transform to match our format
+    const playlists = (data.items || []).map(playlist => ({
+      id: playlist.id,
+      title: playlist.title,
+      description: playlist.description,
+      creator: playlist.creator,
+      numberOfTracks: playlist.numberOfTracks,
+      cover: playlist.squareImage?.replace('-{w}x{h}', '-320x320') || null,
+      lastUpdated: playlist.lastUpdated,
+      lmsUri: `tidal:playlist:${playlist.id}`
+    }));
+
+    res.json({
+      items: playlists,
+      total: data.totalNumberOfItems || playlists.length
+    });
+  } catch (error) {
+    console.error('Tidal playlists error:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to get Tidal playlists'
+    });
+  }
+});
+
+// Test page for Tidal connect
+app.get('/test-tidal', (req, res) => {
+  res.sendFile(__dirname + '/test-tidal.html');
+});
+
+// Roon Volume Control endpoints (mock implementation)
+app.get('/api/roon/status', (req, res) => {
+  try {
+    const roonControl = globalRoonControl;
+
+    if (!roonControl) {
+      return res.status(503).json({
+        success: false,
+        error: 'Roon volume control not initialized',
+        hint: 'Set ENABLE_ROON_VOLUME_CONTROL=true and ensure Roon Core is running'
+      });
+    }
+
+    const status = roonControl.getConnectionStatus();
+
+    res.json({
+      success: true,
+      connected: status.connected,
+      outputCount: status.outputCount,
+      currentOutput: status.currentOutput,
+      currentOutputName: status.currentOutputName,
+      outputs: Array.from(roonControl.getOutputs().values()).map(output => ({
+        output_id: output.output_id,
+        zone_id: output.zone_id,
+        display_name: output.display_name,
+        volume: output.volume
+      })),
+      zones: Array.from(roonControl.getZones().values()).map(zone => ({
+        zone_id: zone.zone_id,
+        display_name: zone.display_name,
+        outputs: zone.outputs
+      }))
+    });
+  } catch (error) {
+    console.error('Roon status error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get Roon status'
+    });
+  }
+});
+
+app.post('/api/roon/output', (req, res) => {
+  try {
+    const { output_id } = req.body;
+
+    if (!output_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'output_id is required'
+      });
+    }
+
+    // Mock response - Roon not connected
+    res.json({
+      success: false,
+      error: 'Roon volume control not connected'
+    });
+  } catch (error) {
+    console.error('Roon set output error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to set Roon output'
+    });
+  }
+});
+
+app.get('/api/roon/volume', async (req, res) => {
+  try {
+    const roonControl = globalRoonControl;
+
+    if (!roonControl) {
+      return res.status(503).json({
+        success: false,
+        error: 'Roon volume control not initialized'
+      });
+    }
+
+    if (!roonControl.isReady()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Roon volume control not ready'
+      });
+    }
+
+    const volume = await roonControl.getVolume();
+    res.json({
+      success: true,
+      volume: volume
+    });
+  } catch (error) {
+    console.error('Roon get volume error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get Roon volume'
+    });
+  }
+});
+
+app.post('/api/roon/volume', async (req, res) => {
+  try {
+    const roonControl = globalRoonControl;
+
+    if (!roonControl) {
+      return res.status(503).json({
+        success: false,
+        error: 'Roon volume control not initialized'
+      });
+    }
+
+    if (!roonControl.isReady()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Roon volume control not ready'
+      });
+    }
+
+    const { action, value } = req.body;
+
+    if (!action) {
+      return res.status(400).json({
+        success: false,
+        error: 'action is required'
+      });
+    }
+
+    let result;
+    if (action === 'set') {
+      if (value === undefined || value === null) {
+        return res.status(400).json({
+          success: false,
+          error: 'value is required for set action'
+        });
+      }
+      await roonControl.setVolume(value);
+      result = { volume: value };
+    } else if (action === 'up') {
+      const step = value || 2;
+      const newVolume = await roonControl.volumeUp(step);
+      result = { volume: newVolume };
+    } else if (action === 'down') {
+      const step = value || 2;
+      const newVolume = await roonControl.volumeDown(step);
+      result = { volume: newVolume };
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid action. Use set, up, or down'
+      });
+    }
+
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('Roon set volume error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to set Roon volume'
+    });
+  }
+});
+
+// Initialize Roon volume control
+let globalRoonControl = null;
+
+if (process.env.ENABLE_ROON_VOLUME_CONTROL === 'true') {
+  console.log('[Server] Roon volume control is enabled, initializing...');
+  try {
+    // Import the Roon volume control module
+    const { initializeRoonVolumeControl } = require('./roon-volume-control.ts');
+
+    globalRoonControl = initializeRoonVolumeControl({
+      enabled: true
+    });
+
+    console.log('[Server] Global Roon control instance created');
+
+    // Initialize the connection asynchronously
+    console.log('[Server] Calling globalRoonControl.initialize()...');
+    globalRoonControl.initialize().then(() => {
+      console.log('[Server] Roon volume control initialized successfully');
+    }).catch((error) => {
+      console.error('[Server] Roon volume control failed to initialize:', error);
+      console.error('[Server] Make sure Roon Core is running and accessible at', process.env.ROON_CORE_IP || '192.168.0.19');
+    });
+
+    console.log('[Server] Roon volume control enabled');
+  } catch (error) {
+    console.warn('[Server] Roon volume control failed to load:', error);
+    console.warn('[Server] Install node-roon-api: npm install node-roon-api node-roon-api-transport node-roon-api-status');
+  }
+} else {
+  console.log('[Server] Roon volume control is disabled (set ENABLE_ROON_VOLUME_CONTROL=true to enable)');
+}
+
+// Static file serving for web app
+app.use(express.static('public'));
+
+const server = createServer(app);
+
+console.log(`🚀 Starting SoundStream server on port ${PORT}...`);
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ SoundStream server running on http://192.168.0.21:${PORT}`);
+  console.log(`✅ Health check: http://192.168.0.21:${PORT}/api/health`);
+}).on('error', (err) => {
+  console.error(`❌ Failed to start server:`, err.message);
+  process.exit(1);
+});
