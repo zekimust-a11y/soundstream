@@ -698,6 +698,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   }, [servers, updateServerConnectionStatus]);
 
 
+  // Store latest OAuth state/redirectUri so connectTidal() can pass state for PKCE session lookup.
+  const tidalAuthStateRef = useRef<string | null>(null);
+  const tidalRedirectUriRef = useRef<string | null>(null);
+
   const getTidalAuthUrl = useCallback(async (): Promise<string> => {
     try {
       // Detect platform for appropriate redirect URI
@@ -707,6 +711,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         throw new Error('Failed to get Tidal auth URL');
       }
       const data = await response.json();
+      tidalAuthStateRef.current = typeof data.state === 'string' ? data.state : null;
+      tidalRedirectUriRef.current = typeof data.redirectUri === 'string' ? data.redirectUri : null;
       return data.authUrl;
     } catch (error) {
       console.error('Failed to get Tidal auth URL:', error);
@@ -739,7 +745,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ code: authCode }),
+        body: JSON.stringify({ code: authCode, state: tidalAuthStateRef.current }),
       });
 
       if (!response.ok) {

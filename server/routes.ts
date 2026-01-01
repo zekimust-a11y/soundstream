@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import dgram from "node:dgram";
 import { getRoonVolumeControl } from "./roon-volume-control";
+import { registerTidalRoutes } from "./tidal-routes";
 
 // SSDP discovery for UPnP/OpenHome devices
 interface DiscoveredDevice {
@@ -455,6 +456,9 @@ async function discoverServerContent(host: string, port: number): Promise<Browse
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Direct Tidal API integration (browse via Tidal; playback via LMS using tidal:// URIs)
+  registerTidalRoutes(app);
+
   // Health check endpoint for proxy server availability
   app.get('/api/health', (req: Request, res: Response) => {
     res.json({ 

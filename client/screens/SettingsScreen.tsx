@@ -20,7 +20,9 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Clipboard from 'expo-clipboard';
-import { Linking } from 'react-native';
+import * as WebBrowser from "expo-web-browser";
+import * as ExpoLinking from "expo-linking";
+import { Linking } from "react-native";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -962,39 +964,64 @@ export default function SettingsScreen() {
                         const authUrl = await getTidalAuthUrl();
                         console.log('Got auth URL:', authUrl);
 
-                        // Add another small delay before opening browser
-                        await new Promise(resolve => setTimeout(resolve, 200));
-
                         if (Platform.OS === 'web') {
-                          // For web, open in a new tab
-                          window.open(authUrl, '_blank');
-                          console.log('Opened Tidal auth URL in new tab');
-                        } else {
-                          // For native platforms, use Linking
-                          try {
-                            console.log('Attempting to open URL:', authUrl);
-                            await Linking.openURL(authUrl);
-                            console.log('URL opened successfully');
+                          // For web, open a popup and wait for /api/tidal/callback to postMessage tokens back.
+                          const popup = window.open(authUrl, 'tidal-auth', 'width=520,height=720');
+                          if (!popup) {
+                            await Clipboard.setStringAsync(authUrl);
+                            Alert.alert('Popup blocked', `Tidal login URL copied. Paste into a browser:\n\n${authUrl}`);
+                            return;
+                          }
 
-                            // Show instructions for Expo Go
-                            Alert.alert(
-                              'Complete Tidal Login',
-                              'If Safari didn\'t open automatically, please:\n\n1. Tap "Open" when prompted\n2. Complete Tidal login in Safari\n3. You\'ll be redirected back here automatically\n\nIf you see an error, the URL has been copied to clipboard - paste it in Safari.',
-                              [
-                                {
-                                  text: 'Copy URL to Clipboard',
-                                  style: 'default',
-                                  onPress: async () => {
-                                    await Clipboard.setStringAsync(authUrl);
-                                    Alert.alert('URL Copied', 'Paste this URL in Safari:\n\n' + authUrl);
-                                  }
-                                },
-                                { text: 'OK', style: 'default' }
-                              ]
-                            );
+                          const handler = async (event: MessageEvent) => {
+                            const data: any = event?.data;
+                            if (!data || data.type !== 'TIDAL_AUTH_SUCCESS' || !data.tokens?.accessToken) return;
+                            window.removeEventListener('message', handler as any);
+
+                            try {
+                              await AsyncStorage.setItem('@soundstream_tidal', JSON.stringify({
+                                connected: true,
+                                accessToken: data.tokens.accessToken,
+                                refreshToken: data.tokens.refreshToken,
+                                userId: data.tokens.userId,
+                              }));
+
+                              await fetch(`${getApiUrl()}/api/tidal/set-tokens`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  accessToken: data.tokens.accessToken,
+                                  refreshToken: data.tokens.refreshToken,
+                                  userId: data.tokens.userId,
+                                }),
+                              });
+
+                              await checkTidalStatus();
+                              Alert.alert('Success', 'Connected to Tidal!');
+                            } catch (e) {
+                              Alert.alert('Error', 'Connected, but failed to save tokens.');
+                            }
+                          };
+                          window.addEventListener('message', handler as any);
+                        } else {
+                          try {
+                            // Native: use AuthSession so we get redirected back with ?code=...
+                            const redirectUri = ExpoLinking.createURL('callback');
+                            const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+
+                            if (result.type !== 'success' || !result.url) return;
+                            const parsed = ExpoLinking.parse(result.url);
+                            const code = typeof parsed.queryParams?.code === 'string' ? parsed.queryParams.code : undefined;
+                            if (!code) {
+                              Alert.alert('Error', 'Tidal did not return an authorization code.');
+                              return;
+                            }
+
+                            const success = await connectTidal(code);
+                            if (success) Alert.alert('Success', 'Connected to Tidal!');
+                            else Alert.alert('Error', 'Failed to connect to Tidal');
                           } catch (error) {
                             console.error('Failed to open URL:', error);
-                            // Fallback: copy URL to clipboard
                             await Clipboard.setStringAsync(authUrl);
                             Alert.alert(
                               'Open in Safari',

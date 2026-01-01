@@ -95,7 +95,7 @@ export function useAlbumsPreview(limit: number = 20) {
       let tidalCount = 0;
       if (tidalEnabled) {
         try {
-          const tidalResponse = await fetch(`${getApiUrl()}api/tidal/albums?limit=1&offset=0`);
+          const tidalResponse = await fetch(`${getApiUrl()}/api/tidal/albums?limit=1&offset=0`);
           if (tidalResponse.ok) {
             const tidalResult = await tidalResponse.json();
             tidalCount = tidalResult.total || 0;
@@ -154,7 +154,7 @@ export function useArtistsPreview(limit: number = 20) {
       // Include Tidal favorite artists if enabled
       if (tidalEnabled) {
         try {
-          const tidalResponse = await fetch(`${getApiUrl()}api/tidal/artists?limit=${limit}&offset=0`);
+          const tidalResponse = await fetch(`${getApiUrl()}/api/tidal/artists?limit=${limit}&offset=0`);
           if (tidalResponse.ok) {
             const tidalResult = await tidalResponse.json();
             if (tidalResult.items && tidalResult.items.length > 0) {
@@ -198,7 +198,7 @@ export function useArtistsPreview(limit: number = 20) {
       let tidalArtistCount = 0;
       if (tidalEnabled) {
         try {
-          const tidalResponse = await fetch(`${getApiUrl()}api/tidal/artists?limit=1&offset=0`);
+          const tidalResponse = await fetch(`${getApiUrl()}/api/tidal/artists?limit=1&offset=0`);
           if (tidalResponse.ok) {
             const tidalResult = await tidalResponse.json();
             tidalArtistCount = tidalResult.total || 0;
