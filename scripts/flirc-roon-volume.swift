@@ -7,16 +7,19 @@ import IOKit.hid
 // Env:
 // - SOUNDSTREAM_API_URL (default: http://127.0.0.1:3000)
 // - ROON_STEP (default: 1)               // percent step per tick
-// - ROON_MIN_INTERVAL_MS (default: 60)    // throttle repeated events (helps smooth holds)
+// - ROON_REPEAT_INTERVAL_MS (default: 90) // repeat cadence when holding (ms)
 //
 // Usage:
-//   SOUNDSTREAM_API_URL=http://127.0.0.1:3000 ROON_STEP=1 ROON_MIN_INTERVAL_MS=60 swift scripts/flirc-roon-volume.swift
+//   SOUNDSTREAM_API_URL=http://127.0.0.1:3000 ROON_STEP=1 ROON_REPEAT_INTERVAL_MS=90 swift scripts/flirc-roon-volume.swift
 
 let apiBase = ProcessInfo.processInfo.environment["SOUNDSTREAM_API_URL"] ?? "http://127.0.0.1:3000"
 let step = Int(ProcessInfo.processInfo.environment["ROON_STEP"] ?? "1") ?? 1
-let minIntervalMs = Int(ProcessInfo.processInfo.environment["ROON_MIN_INTERVAL_MS"] ?? "60") ?? 60
-let throttleLock = NSLock()
-var lastActionAt: [String: TimeInterval] = [:] // action -> timestamp
+let repeatIntervalMs = Int(ProcessInfo.processInfo.environment["ROON_REPEAT_INTERVAL_MS"] ?? "90") ?? 90
+
+let stateLock = NSLock()
+var pressedUp = false
+var pressedDown = false
+var repeatTimer: DispatchSourceTimer? = nil
 
 func ts() -> String {
   let f = ISO8601DateFormatter()
@@ -67,18 +70,33 @@ let kUsageConsumerVolumeIncrement: Int = 0xE9
 let kUsageConsumerVolumeDecrement: Int = 0xEA
 
 func fire(action: String, label: String) {
-  let now = Date().timeIntervalSince1970
-  throttleLock.lock()
-  defer { throttleLock.unlock() }
-
-  let last = lastActionAt[action] ?? 0
-  if now - last < (Double(minIntervalMs) / 1000.0) {
-    return
-  }
-  lastActionAt[action] = now
-
   print("[\(ts())] Key: \(label) -> Roon volume \(action) (\(step))")
   postJSON(path: "/api/roon/volume", body: ["action": action, "value": step])
+}
+
+func ensureTimerRunning() {
+  if repeatTimer != nil { return }
+  let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInitiated))
+  t.schedule(deadline: .now() + .milliseconds(repeatIntervalMs), repeating: .milliseconds(repeatIntervalMs))
+  t.setEventHandler {
+    stateLock.lock()
+    let up = pressedUp
+    let down = pressedDown
+    stateLock.unlock()
+
+    if up { fire(action: "up", label: "hold") }
+    if down { fire(action: "down", label: "hold") }
+    if !up && !down { stopTimer() }
+  }
+  repeatTimer = t
+  t.resume()
+}
+
+func stopTimer() {
+  if let t = repeatTimer {
+    repeatTimer = nil
+    t.cancel()
+  }
 }
 
 // IOHID callback
@@ -89,22 +107,61 @@ let callback: IOHIDValueCallback = { _ctx, _result, _sender, value in
 
   let intValue = IOHIDValueGetIntegerValue(value)
   if usage == 0 { return }
-  if usage == 0xFFFFFFFF { return }
-  if intValue <= 0 { return }
+  // Some FLIRC profiles emit this sentinel; treat it as "release all"
+  if usage == 0xFFFFFFFF {
+    stateLock.lock()
+    pressedUp = false
+    pressedDown = false
+    stateLock.unlock()
+    stopTimer()
+    return
+  }
 
   // Map pressed events only. (FLIRC will generate repeats while held.)
-  if page == kPageKeyboard && usage == kUsageArrowUp { fire(action: "up", label: "ArrowUp"); return }
-  if page == kPageKeyboard && usage == kUsageArrowDown { fire(action: "down", label: "ArrowDown"); return }
-  if page == kPageKeyboard && usage == kUsageF10 { fire(action: "up", label: "F10"); return }
-  if page == kPageKeyboard && usage == kUsageF9 { fire(action: "down", label: "F9"); return }
-  if page == kPageConsumer && usage == kUsageConsumerVolumeIncrement { fire(action: "up", label: "ConsumerVolumeIncrement"); return }
-  if page == kPageConsumer && usage == kUsageConsumerVolumeDecrement { fire(action: "down", label: "ConsumerVolumeDecrement"); return }
+  let isUp =
+    (page == kPageKeyboard && (usage == kUsageArrowUp || usage == kUsageF10)) ||
+    (page == kPageConsumer && usage == kUsageConsumerVolumeIncrement)
+  let isDown =
+    (page == kPageKeyboard && (usage == kUsageArrowDown || usage == kUsageF9)) ||
+    (page == kPageConsumer && usage == kUsageConsumerVolumeDecrement)
+
+  if !isUp && !isDown {
+    if intValue > 0 {
+      print("[\(ts())] Key press (unmapped): page=0x\(String(Int(page), radix: 16)) usage=0x\(String(Int(usage), radix: 16))")
+    }
+    return
+  }
+
+  // Treat intValue>0 as press and intValue==0 as release when available.
+  if intValue > 0 {
+    stateLock.lock()
+    let wasUp = pressedUp
+    let wasDown = pressedDown
+    if isUp { pressedUp = true }
+    if isDown { pressedDown = true }
+    stateLock.unlock()
+
+    // Fire once on the initial press (ignore subsequent repeats from FLIRC)
+    if isUp && !wasUp { fire(action: "up", label: "press") }
+    if isDown && !wasDown { fire(action: "down", label: "press") }
+    ensureTimerRunning()
+    return
+  }
+
+  // Release
+  stateLock.lock()
+  if isUp { pressedUp = false }
+  if isDown { pressedDown = false }
+  let up = pressedUp
+  let down = pressedDown
+  stateLock.unlock()
+  if !up && !down { stopTimer() }
 }
 
 print("[\(ts())] Starting FLIRC HID listener")
 print("[\(ts())] API: \(apiBase)")
 print("[\(ts())] Step: \(step)")
-print("[\(ts())] Min interval: \(minIntervalMs)ms")
+print("[\(ts())] Repeat interval: \(repeatIntervalMs)ms")
 
 let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
 
