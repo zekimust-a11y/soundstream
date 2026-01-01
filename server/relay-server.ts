@@ -155,7 +155,7 @@ async function startCasting(): Promise<void> {
     return;
   }
 
-  const nowPlayingUrl = `http://${serverIp}:3000/now-playing?host=${LMS_HOST}&port=${LMS_PORT}&player=${encodeURIComponent(currentPlayerId)}`;
+  const nowPlayingUrl = `http://${serverIp}:3000/now-playing?host=${LMS_HOST}&port=${LMS_PORT}&player=${encodeURIComponent(currentPlayerId)}&v=${Date.now()}`;
 
   console.log(`[Relay] Starting cast to ${chromecastIp}: ${nowPlayingUrl}`);
 
@@ -317,8 +317,7 @@ export function initializeRelayServer(app: express.Application): void {
     console.log(`[Relay] Restored Chromecast configuration: ${chromecastName || chromecastIp} (${chromecastIp})`);
   }
 
-  // Serve display pages
-  app.use('/now-playing', express.static(path.join(process.cwd(), 'server', 'templates')));
+  // Note: /now-playing route is handled by index.ts, not here
 
   // LMS proxy endpoint
   app.post('/api/lms/proxy', async (req, res) => {
