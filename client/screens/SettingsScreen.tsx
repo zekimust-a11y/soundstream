@@ -957,17 +957,15 @@ export default function SettingsScreen() {
                       try {
                         setIsConnecting(true);
                         console.log('Tidal Connect button pressed');
-                        
-                        // Add a small delay to prevent rapid requests
-                        await new Promise(resolve => setTimeout(resolve, 300));
-                        
-                        const authUrl = await getTidalAuthUrl();
-                        console.log('Got auth URL:', authUrl);
 
                         if (Platform.OS === 'web') {
-                          // For web, open a popup and wait for /api/tidal/callback to postMessage tokens back.
-                          const popup = window.open(authUrl, 'tidal-auth', 'width=520,height=720');
+                          // IMPORTANT:
+                          // Many browsers block window.open() if it's called after an await.
+                          // So we open a blank popup synchronously, then navigate it once the auth URL is fetched.
+                          const popup = window.open('about:blank', 'tidal-auth', 'width=520,height=720');
                           if (!popup) {
+                            console.warn('[Tidal] Popup blocked');
+                            const authUrl = await getTidalAuthUrl();
                             await Clipboard.setStringAsync(authUrl);
                             Alert.alert('Popup blocked', `Tidal login URL copied. Paste into a browser:\n\n${authUrl}`);
                             return;
@@ -1003,8 +1001,16 @@ export default function SettingsScreen() {
                             }
                           };
                           window.addEventListener('message', handler as any);
+
+                          // Now fetch the auth URL and navigate the already-opened popup.
+                          const authUrl = await getTidalAuthUrl();
+                          console.log('Got auth URL:', authUrl);
+                          popup.location.href = authUrl;
                         } else {
                           try {
+                            const authUrl = await getTidalAuthUrl();
+                            console.log('Got auth URL:', authUrl);
+
                             // Native: use AuthSession so we get redirected back with ?code=...
                             const redirectUri = ExpoLinking.createURL('callback');
                             const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
