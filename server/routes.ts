@@ -1,22 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import dgram from "node:dgram";
-import { initializeRelayServer } from "./relay-server.js";
-import { initializeRelayServer } from "./relay-server.js";
-import { TidalApiClient } from "./tidal-api-client.js";
-import { TidalApiClient } from "./tidal-api-client.js";
-import { TidalApiClient } from "./tidal-api-client.js";
-// import { TidalApiClient } from "./tidal-api-client.js";
-
-// Global Roon control instance (to avoid issues with dynamic imports)
-let globalRoonControl: any = null;
-
-// Global Tidal API client instance
-// Global Tidal API client instance
-let globalTidalClient: TidalApiClient | null = null;
-
-// Global Tidal API client instance
-// let globalTidalClient: TidalApiClient | null = null;
 
 // SSDP discovery for UPnP/OpenHome devices
 interface DiscoveredDevice {
@@ -120,7 +104,7 @@ async function fetchDeviceDescription(locationUrl: string): Promise<DiscoveredDe
     
     const response = await fetch(locationUrl, {
       headers: {
-        'User-Agent': 'SoundStream/1.0 UPnP/1.0',
+        'User-Agent': 'Lyriq/1.0 UPnP/1.0',
       },
       signal: AbortSignal.timeout(5000),
     });
@@ -238,7 +222,7 @@ async function makeSOAPRequest(controlUrl: string, soapEnvelope: string): Promis
     headers: {
       'Content-Type': 'text/xml; charset=utf-8',
       'SOAPACTION': '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"',
-      'User-Agent': 'SoundStream/1.0 UPnP/1.0',
+      'User-Agent': 'Lyriq/1.0 UPnP/1.0',
     },
     body: soapEnvelope,
   });
@@ -470,7 +454,6 @@ async function discoverServerContent(host: string, port: number): Promise<Browse
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  console.log('🚀 registerRoutes initialized from server/routes.ts');
   // Health check endpoint for proxy server availability
   app.get('/api/health', (req: Request, res: Response) => {
     res.json({ 
@@ -501,62 +484,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // LMS JSON-RPC proxy endpoint for Now Playing display
   // SECURITY: Only allows read-only 'status' command to prevent unauthorized control
-      // Image proxy endpoint to bypass CORS issues
-      app.get('/api/image/proxy', async (req: Request, res: Response) => {
-        const { url } = req.query;
-
-        if (!url || typeof url !== 'string') {
-          return res.status(400).json({ error: 'Missing or invalid url parameter' });
-        }
-
-        try {
-          // Only allow URLs from private networks for security
-          const urlObj = new URL(url);
-          const hostname = urlObj.hostname;
-
-          // Check if it's a private IP or localhost
-          const isPrivateIP = (
-            hostname === 'localhost' ||
-            hostname === '127.0.0.1' ||
-            hostname.startsWith('192.168.') ||
-            hostname.startsWith('10.') ||
-            (hostname.startsWith('172.') && (() => {
-              const octets = hostname.split('.');
-              const second = parseInt(octets[1] || '0', 10);
-              return second >= 16 && second <= 31;
-            })())
-          );
-
-          if (!isPrivateIP) {
-            return res.status(403).json({ error: 'Access to public URLs is not allowed for security reasons' });
-          }
-
-          const response = await fetch(url, {
-            signal: AbortSignal.timeout(10000), // 10 second timeout
-          });
-
-          if (!response.ok) {
-            return res.status(response.status).json({ error: `Failed to fetch image: ${response.status}` });
-          }
-
-          // Get the content type from the response
-          const contentType = response.headers.get('content-type') || 'image/jpeg';
-
-          // Set CORS headers
-          res.header('Access-Control-Allow-Origin', '*');
-          res.header('Access-Control-Allow-Methods', 'GET');
-          res.header('Access-Control-Allow-Headers', 'Content-Type');
-          res.header('Content-Type', contentType);
-
-          // Stream the image data
-          response.body?.pipe(res);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Image proxy failed';
-          console.error('[Image Proxy] Error:', errorMessage);
-          res.status(500).json({ error: errorMessage });
-        }
-      });
-
   app.post('/api/lms/proxy', async (req: Request, res: Response) => {
     const { url, host, port, protocol, playerId, command } = req.body;
     
@@ -639,7 +566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       'status', 'serverstatus', 'players', 'play', 'pause', 'stop', 'next', 'previous',
       'playlist', 'playlistcontrol', 'mixer', 'browse', 'albums', 'artists', 'tracks',
       'genres', 'years', 'playlists', 'favorites', 'info', 'rescan', 'search', 'power',
-      'qobuz', 'tidal', 'spotify', 'soundcloud', 'titles', 'globalsearch', 'playerpref', 'pref', 'squeezecloud'
+      'qobuz', 'titles', 'globalsearch', 'playerpref', 'pref', 'squeezecloud'
     ];
     const baseCommand = String(command[0]).toLowerCase();
     if (!allowedCommands.includes(baseCommand)) {
@@ -655,10 +582,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[LMS Proxy] Attempting to connect to: ${jsonRpcUrl}`);
       console.log(`[LMS Proxy] Command:`, JSON.stringify(command));
       
-      // Qobuz and Tidal commands may take longer, use 30s timeout for them
-      const isPluginCommand = Array.isArray(command) && command.length > 0 && 
-                             ['qobuz', 'tidal', 'spotify', 'soundcloud'].includes(String(command[0]).toLowerCase());
-      const timeoutMs = isPluginCommand ? 30000 : 10000;
+      // Qobuz commands may take longer, use 30s timeout for them
+      const isQobuzCommand = Array.isArray(command) && command.length > 0 && 
+                             String(command[0]).toLowerCase() === 'qobuz';
+      const timeoutMs = isQobuzCommand ? 30000 : 10000;
       
       // Use AbortController for timeout (more compatible than AbortSignal.timeout)
       const controller = new AbortController();
@@ -706,7 +633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (errorStack) {
         console.error('[LMS Proxy] Stack:', errorStack);
       }
-      console.error('[LMS Proxy] Target:', `${lmsUrl}/jsonrpc.js`);
+      console.error('[LMS Proxy] Target:', `http://${host}:${lmsPort}/jsonrpc.js`);
       console.error('[LMS Proxy] Command:', JSON.stringify(command));
       
       // Provide more helpful error messages
@@ -797,7 +724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           method: 'GET',
           signal: controller.signal,
           headers: {
-            'User-Agent': 'SoundStream/1.0',
+            'User-Agent': 'Lyriq/1.0',
           },
         });
         clearTimeout(timeoutId);
@@ -1222,230 +1149,322 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==========================================
-  // Roon Volume Control
+  // UPnP Volume Control for dCS Varese DAC
   // ==========================================
-  // Provides fast programmatic volume control for Roon via Roon API
-  // Requires Roon Core to be running on the network
+  // Controls volume on UPnP/OpenHome devices via RenderingControl service
   
-  // Initialize Roon volume control if enabled
-  console.log('[Server] Checking Roon volume control:', {
-    envVar: process.env.ENABLE_ROON_VOLUME_CONTROL,
-    isTrue: process.env.ENABLE_ROON_VOLUME_CONTROL === 'true',
-    type: typeof process.env.ENABLE_ROON_VOLUME_CONTROL
-  });
-  
-  if (process.env.ENABLE_ROON_VOLUME_CONTROL === 'true') {
-    console.log('[Server] Roon volume control is enabled, initializing...');
-    try {
-      const { initializeRoonVolumeControl, getRoonVolumeControl } = await import('./roon-volume-control');
-      globalRoonControl = initializeRoonVolumeControl({
-        enabled: true,
-        coreIp: process.env.ROON_CORE_IP,
-        corePort: process.env.ROON_CORE_PORT ? parseInt(process.env.ROON_CORE_PORT) : undefined,
-        outputId: process.env.ROON_OUTPUT_ID,
-        zoneId: process.env.ROON_ZONE_ID,
-      });
-
-      console.log('[Server] Global Roon control instance created');
-
-      // Initialize the connection asynchronously
-      console.log('[Server] Calling globalRoonControl.initialize()...');
-      globalRoonControl.initialize().then(() => {
-        console.log('[Server] Roon volume control initialized successfully');
-      }).catch((error) => {
-        console.error('[Server] Roon volume control failed to initialize:', error);
-        console.error('[Server] Make sure Roon Core is running and accessible at', process.env.ROON_CORE_IP || '192.168.0.19');
-      });
-
-      console.log('[Server] Roon volume control enabled');
-    } catch (error) {
-      console.warn('[Server] Roon volume control failed to load:', error);
-      console.warn('[Server] Install node-roon-api: npm install node-roon-api node-roon-api-transport node-roon-api-status');
+  app.post('/api/upnp/volume', async (req: Request, res: Response) => {
+    const { action, ip, port = 80, volume, mute } = req.body;
+    
+    if (!ip || !action) {
+      return res.status(400).json({ error: 'Missing ip or action' });
     }
-  }
-
-  // Get Roon volume control status
-app.get('/api/roon/status', async (req: Request, res: Response) => {
-  console.log('[Routes] Status endpoint called, globalRoonControl:', !!globalRoonControl);
-  try {
-    const roonControl = globalRoonControl;
-      
-      if (!roonControl) {
-        return res.status(503).json({
-          success: false,
-          error: 'Roon volume control not initialized',
-          hint: 'Set ENABLE_ROON_VOLUME_CONTROL=true and ensure Roon Core is running'
-        });
-      }
-
-      const status = roonControl.getConnectionStatus();
-
-      // Return actual outputs and zones from the persistent connection
-      const outputsArray = Array.from(roonControl.getOutputs().values());
-      const zonesArray = Array.from(roonControl.getZones().values());
-
-      console.log(`[Routes] Status: connected=${status.connected}, outputs=${outputsArray.length}, zones=${zonesArray.length}`);
-
-      return res.json({
-        success: true,
-        ...status,
-        outputs: outputsArray,
-        zones: zonesArray,
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+    
+    // Validate IP is a private address
+    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    const ipMatch = String(ip).match(ipv4Regex);
+    if (!ipMatch) {
+      return res.status(403).json({ error: 'Only IPv4 addresses are allowed' });
     }
-  });
-
-  // Set Roon output
-  app.post('/api/roon/output', async (req: Request, res: Response) => {
-    try {
-      const roonControl = globalRoonControl;
-      
-      if (!roonControl) {
-        return res.status(503).json({
-          success: false,
-          error: 'Roon volume control not initialized'
-        });
-      }
-
-      const { output_id } = req.body;
-      if (!output_id) {
-        return res.status(400).json({
-          success: false,
-          error: 'Missing output_id'
-        });
-      }
-
-      const success = roonControl.setOutput(output_id);
-      if (!success) {
-        return res.status(404).json({
-          success: false,
-          error: 'Output not found'
-        });
-      }
-
-      return res.json({ success: true, output_id });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+    
+    const octets = [
+      parseInt(ipMatch[1], 10),
+      parseInt(ipMatch[2], 10),
+      parseInt(ipMatch[3], 10),
+      parseInt(ipMatch[4], 10),
+    ];
+    
+    if (octets.some(o => o < 0 || o > 255)) {
+      return res.status(403).json({ error: 'Invalid IP address' });
     }
-  });
-
-  // Get current volume
-  app.get('/api/roon/volume', async (req: Request, res: Response) => {
-    try {
-      console.log('[Routes] Volume endpoint called');
-      const roonControl = globalRoonControl;
-      console.log(`[Routes] Roon control instance: ${!!roonControl}`);
-
-      if (!roonControl) {
-        console.log('[Routes] Roon volume control not initialized');
-        return res.status(503).json({
-          success: false,
-          error: 'Roon volume control not initialized'
-        });
-      }
-
-      if (!roonControl.isReady()) {
-        console.log('[Routes] Roon volume control not ready');
-        return res.status(503).json({
-          success: false,
-          error: 'Roon volume control not ready',
-          hint: 'Ensure Roon Core is running and extension is authorized'
-        });
-      }
-
-      console.log('[Routes] Calling getVolume...');
-      const volume = await roonControl.getVolume();
-      console.log(`[Routes] Volume result: ${volume}`);
-      return res.json({ success: true, volume });
-    } catch (error) {
-      console.error('[Routes] Error in volume endpoint:', error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get volume'
-      });
+    
+    const isPrivate = (
+      (octets[0] === 10) ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 192 && octets[1] === 168)
+    );
+    
+    if (!isPrivate) {
+      return res.status(403).json({ error: 'Only private network addresses are allowed' });
     }
-  });
-
-  // Set volume
-  app.post('/api/roon/volume', async (req: Request, res: Response) => {
-    console.log('[Routes] === VOLUME POST ENDPOINT HIT ===');
-    console.log('[Routes] Raw request body:', req.body);
-    console.log('[Routes] Request method:', req.method);
-    console.log('[Routes] Content-Type header:', req.headers['content-type']);
-    console.log('[Routes] Content-Length header:', req.headers['content-length']);
+    
+    const devicePort = parseInt(String(port)) || 80;
+    const baseUrl = `http://${ip}:${devicePort}`;
+    
+    // Common RenderingControl control URLs for UPnP devices
+    const controlUrls = [
+      `${baseUrl}/RenderingControl/ctrl`,
+      `${baseUrl}/upnp/control/RenderingControl`,
+      `${baseUrl}/MediaRenderer/RenderingControl/Control`,
+      `${baseUrl}/dev/RenderingControl/ctrl`,
+      `${baseUrl}/RenderingControl`,
+    ];
+    
     try {
-      const roonControl = globalRoonControl;
-
-      if (!roonControl) {
-        console.log('[Routes] Roon control not initialized');
-        return res.status(503).json({
-          success: false,
-          error: 'Roon volume control not initialized'
-        });
-      }
-
-      // Refresh connection status and auto-select outputs if needed
-      console.log('[Routes] Calling getConnectionStatus()');
-      roonControl.getConnectionStatus();
-
-      console.log('[Routes] Checking isReady()');
-      if (!roonControl.isReady()) {
-        console.log('[Routes] Roon control not ready');
-        return res.status(503).json({
-          success: false,
-          error: 'Roon volume control not ready'
-        });
-      }
-
-      console.log('[Routes] Roon control is ready, processing volume action');
-
-      const { action, value } = req.body;
-      console.log('[Routes] Extracted action:', action, 'value:', value);
-
       if (action === 'get') {
-        const volume = await roonControl.getVolume();
-        return res.json({ success: true, volume });
-      } else if (action === 'set') {
-        if (typeof value !== 'number' || value < 0 || value > 100) {
-          return res.status(400).json({
-            success: false,
-            error: 'Volume must be a number between 0 and 100'
-          });
+        // Get current volume
+        const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:GetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+    </u:GetVolume>
+  </s:Body>
+</s:Envelope>`;
+        
+        for (const controlUrl of controlUrls) {
+          try {
+            console.log(`[UPnP] Trying GetVolume at: ${controlUrl}`);
+            const response = await fetch(controlUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'text/xml; charset=utf-8',
+                'SOAPACTION': '"urn:schemas-upnp-org:service:RenderingControl:1#GetVolume"',
+              },
+              body: soapEnvelope,
+              signal: AbortSignal.timeout(5000),
+            });
+            
+            if (response.ok) {
+              const text = await response.text();
+              console.log(`[UPnP] GetVolume response:`, text.substring(0, 500));
+              
+              // Try standard UPnP format first (0-100 integer)
+              let volumeMatch = text.match(/<CurrentVolume>(\d+)<\/CurrentVolume>/i);
+              if (volumeMatch) {
+                const currentVolume = parseInt(volumeMatch[1], 10);
+                console.log(`[UPnP] Got volume (standard): ${currentVolume}`);
+                return res.json({ success: true, volume: currentVolume, format: 'standard' });
+              }
+              
+              // Try dCS/dB format (negative decimals like -34.5)
+              volumeMatch = text.match(/<CurrentVolume>(-?\d+\.?\d*)<\/CurrentVolume>/i);
+              if (volumeMatch) {
+                const dbVolume = parseFloat(volumeMatch[1]);
+                // Convert dB to 0-100 scale: dCS range is typically -80dB to 0dB
+                // Map -80 to 0%, 0 to 100%
+                const percentVolume = Math.round(((dbVolume + 80) / 80) * 100);
+                const clampedVolume = Math.max(0, Math.min(100, percentVolume));
+                console.log(`[UPnP] Got volume (dB): ${dbVolume}dB -> ${clampedVolume}%`);
+                return res.json({ success: true, volume: clampedVolume, dbVolume, format: 'dB' });
+              }
+              
+              // Try Volume tag (some devices use this)
+              volumeMatch = text.match(/<Volume>(-?\d+\.?\d*)<\/Volume>/i);
+              if (volumeMatch) {
+                const vol = parseFloat(volumeMatch[1]);
+                if (vol < 0) {
+                  // dB format
+                  const percentVolume = Math.round(((vol + 80) / 80) * 100);
+                  const clampedVolume = Math.max(0, Math.min(100, percentVolume));
+                  console.log(`[UPnP] Got volume (dB alt): ${vol}dB -> ${clampedVolume}%`);
+                  return res.json({ success: true, volume: clampedVolume, dbVolume: vol, format: 'dB' });
+                } else {
+                  console.log(`[UPnP] Got volume (alt): ${vol}`);
+                  return res.json({ success: true, volume: Math.round(vol), format: 'standard' });
+                }
+              }
+              
+              console.log(`[UPnP] Could not parse volume from response`);
+            }
+          } catch (e) {
+            console.log(`[UPnP] Failed at ${controlUrl}:`, e);
+            continue;
+          }
         }
-
-        await roonControl.setVolume(value);
-        return res.json({ success: true, volume: value });
-      } else if (action === 'up') {
-        const step = typeof value === 'number' ? value : 2;
-        const newVolume = await roonControl.volumeUp(step);
-        return res.json({ success: true, volume: newVolume });
-      } else if (action === 'down') {
-        const step = typeof value === 'number' ? value : 2;
-        const newVolume = await roonControl.volumeDown(step);
-        return res.json({ success: true, volume: newVolume });
+        
+        return res.status(500).json({ error: 'Failed to get volume from device' });
+        
+      } else if (action === 'set') {
+        // Set volume
+        if (volume === undefined || volume < 0 || volume > 100) {
+          return res.status(400).json({ error: 'Volume must be between 0 and 100' });
+        }
+        
+        // Check if device uses dB format (from request body or default to percentage)
+        const useDbFormat = req.body.useDbFormat === true;
+        let volumeValue: string;
+        
+        if (useDbFormat) {
+          // Convert 0-100 to dB scale (-80 to 0)
+          const dbVolume = ((volume / 100) * 80) - 80;
+          volumeValue = dbVolume.toFixed(1);
+          console.log(`[UPnP] Setting volume: ${volume}% -> ${volumeValue}dB`);
+        } else {
+          volumeValue = String(Math.round(volume));
+        }
+        
+        const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+      <DesiredVolume>${volumeValue}</DesiredVolume>
+    </u:SetVolume>
+  </s:Body>
+</s:Envelope>`;
+        
+        for (const controlUrl of controlUrls) {
+          try {
+            console.log(`[UPnP] Trying SetVolume(${volume}) at: ${controlUrl}`);
+            const response = await fetch(controlUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'text/xml; charset=utf-8',
+                'SOAPACTION': '"urn:schemas-upnp-org:service:RenderingControl:1#SetVolume"',
+              },
+              body: soapEnvelope,
+              signal: AbortSignal.timeout(5000),
+            });
+            
+            if (response.ok) {
+              console.log(`[UPnP] Set volume to ${volume} successfully`);
+              return res.json({ success: true, volume });
+            }
+          } catch (e) {
+            console.log(`[UPnP] Failed at ${controlUrl}:`, e);
+            continue;
+          }
+        }
+        
+        return res.status(500).json({ error: 'Failed to set volume on device' });
+        
+      } else if (action === 'mute') {
+        // Set mute state
+        const muteValue = mute ? '1' : '0';
+        
+        const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetMute xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>Master</Channel>
+      <DesiredMute>${muteValue}</DesiredMute>
+    </u:SetMute>
+  </s:Body>
+</s:Envelope>`;
+        
+        for (const controlUrl of controlUrls) {
+          try {
+            console.log(`[UPnP] Trying SetMute(${mute}) at: ${controlUrl}`);
+            const response = await fetch(controlUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'text/xml; charset=utf-8',
+                'SOAPACTION': '"urn:schemas-upnp-org:service:RenderingControl:1#SetMute"',
+              },
+              body: soapEnvelope,
+              signal: AbortSignal.timeout(5000),
+            });
+            
+            if (response.ok) {
+              console.log(`[UPnP] Set mute to ${mute} successfully`);
+              return res.json({ success: true, muted: mute });
+            }
+          } catch (e) {
+            console.log(`[UPnP] Failed at ${controlUrl}:`, e);
+            continue;
+          }
+        }
+        
+        return res.status(500).json({ error: 'Failed to set mute on device' });
+        
       } else {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid action',
-          hint: 'Use: get, set (with value 0-100), up (with optional step), down (with optional step)'
-        });
+        return res.status(400).json({ error: 'Invalid action. Use: get, set, or mute' });
       }
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to control volume'
+      console.error('[UPnP] Error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'UPnP request failed' 
       });
     }
   });
 
+  // Discover UPnP device description and find RenderingControl URL
+  app.get('/api/upnp/discover', async (req: Request, res: Response) => {
+    const { ip, port = 80 } = req.query;
+    
+    if (!ip) {
+      return res.status(400).json({ error: 'Missing ip' });
+    }
+    
+    const devicePort = parseInt(String(port)) || 80;
+    const baseUrl = `http://${ip}:${devicePort}`;
+    
+    // Try common device description URLs
+    const descriptionUrls = [
+      `${baseUrl}/description.xml`,
+      `${baseUrl}/upnp/desc.xml`,
+      `${baseUrl}/DeviceDescription.xml`,
+      `${baseUrl}/dev/desc.xml`,
+      `${baseUrl}/`,
+    ];
+    
+    try {
+      for (const descUrl of descriptionUrls) {
+        try {
+          console.log(`[UPnP] Trying device description at: ${descUrl}`);
+          const response = await fetch(descUrl, {
+            signal: AbortSignal.timeout(5000),
+          });
+          
+          if (response.ok) {
+            const xml = await response.text();
+            
+            // Extract device info
+            const friendlyNameMatch = xml.match(/<friendlyName>([^<]*)<\/friendlyName>/i);
+            const manufacturerMatch = xml.match(/<manufacturer>([^<]*)<\/manufacturer>/i);
+            const modelNameMatch = xml.match(/<modelName>([^<]*)<\/modelName>/i);
+            
+            // Find RenderingControl service URL
+            let renderingControlUrl: string | null = null;
+            const serviceRegex = /<service>([\s\S]*?)<\/service>/gi;
+            let match;
+            
+            while ((match = serviceRegex.exec(xml)) !== null) {
+              const serviceXml = match[1];
+              if (serviceXml.includes('RenderingControl')) {
+                const controlURLMatch = serviceXml.match(/<controlURL>([^<]+)<\/controlURL>/i);
+                if (controlURLMatch) {
+                  let controlURL = controlURLMatch[1];
+                  if (controlURL.startsWith('/')) {
+                    controlURL = baseUrl + controlURL;
+                  } else if (!controlURL.startsWith('http')) {
+                    controlURL = baseUrl + '/' + controlURL;
+                  }
+                  renderingControlUrl = controlURL;
+                  break;
+                }
+              }
+            }
+            
+            return res.json({
+              success: true,
+              device: {
+                ip,
+                port: devicePort,
+                friendlyName: friendlyNameMatch?.[1] || 'Unknown Device',
+                manufacturer: manufacturerMatch?.[1],
+                modelName: modelNameMatch?.[1],
+                renderingControlUrl,
+              }
+            });
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+      
+      return res.status(404).json({ error: 'Could not find device description' });
+    } catch (error) {
+      console.error('[UPnP] Discovery error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Discovery failed' 
+      });
+    }
+  });
 
   // Combined server discovery endpoint (LMS + MinimServer + UPnP)
   app.get('/api/servers/discover', async (req: Request, res: Response) => {
@@ -1457,13 +1476,14 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         (async () => {
           try {
             const port = 9000;
-            const timeoutMs = 500; // Very fast timeout to speed up discovery
+            const timeoutMs = 2000;
             const found: Array<{ id: string; name: string; host: string; port: number; type: string; version?: string }> = [];
-
-            // Only scan the most likely ranges with very limited hosts for speed
+            
             const ipRanges = [
-              { base: [192, 168, 0], maxHost: 10 }, // Focus on most common range
-              { base: [192, 168, 1], maxHost: 5 },
+              { base: [192, 168, 0], maxHost: 30 },
+              { base: [192, 168, 1], maxHost: 30 },
+              { base: [10, 0, 0], maxHost: 30 },
+              { base: [172, 16, 0], maxHost: 30 },
             ];
             
             const promises: Promise<void>[] = [];
@@ -1615,7 +1635,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
                         const timeoutId = setTimeout(() => controller.abort(), 2000);
                         
                         const response = await fetch(descUrl, {
-                          headers: { 'User-Agent': 'SoundStream/1.0 UPnP/1.0' },
+                          headers: { 'User-Agent': 'Lyriq/1.0 UPnP/1.0' },
                           signal: controller.signal,
                         });
                         
@@ -1701,9 +1721,8 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         })(),
       ]);
       
-      // Only return LMS servers (removed MinimServer and UPnP support)
-      const allServers = lmsServers;
-      console.log(`[Servers] LMS discovery complete, found ${allServers.length} server(s)`);
+      const allServers = [...lmsServers, ...minimServers, ...upnpDevices];
+      console.log(`[Servers] Combined discovery complete, found ${allServers.length} server(s) (${lmsServers.length} LMS, ${minimServers.length} MinimServer, ${upnpDevices.length} UPnP)`);
       res.json(allServers);
     } catch (error) {
       console.error('[Servers] Discovery error:', error);
@@ -1800,7 +1819,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
       // Fetch the image
       const imageResponse = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; SoundStream/1.0)',
+          'User-Agent': 'Mozilla/5.0 (compatible; Lyriq/1.0)',
         },
       });
 
@@ -2322,342 +2341,6 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
     }
   });
 
-  // Initialize Tidal API client with stored tokens if available
-  globalTidalClient = new TidalApiClient({
-    clientId: 'pUlCxd80DuDSem4J', // Third-party client ID provided by user
-  });
-
-  // Try to load stored Tidal tokens and authenticate
-  // Note: In a production app, tokens would be stored securely
-  // For now, we'll initialize without tokens and require manual auth
-
-  // Tidal API Routes
-  app.get('/api/tidal/auth-url', (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      // Dynamic redirect URI for web vs mobile
-      const platform = req.query.platform || (req.headers.origin ? 'web' : 'mobile');
-      const requestHost = req.headers.host || '192.168.0.21:3000';
-      const protocol = req.protocol || 'http';
-      
-      let redirectUri;
-      if (platform === 'web') {
-        // ALWAYS use the redirect URI registered in Tidal Developer Portal for web
-        redirectUri = `http://192.168.0.21:3000/api/tidal/callback`;
-      } else {
-        redirectUri = 'soundstream://callback';
-      }
-
-      console.log(`[Routes] Generating Tidal auth URL for platform: ${platform}, redirect: ${redirectUri}`);
-      const authUrl = globalTidalClient.generateAuthUrl(redirectUri);
-      
-      // Store redirect URI for token exchange
-      (global as any).tidalRedirectUri = redirectUri;
-
-      res.json({ authUrl, redirectUri });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to generate auth URL'
-      });
-    }
-  });
-
-  app.post('/api/tidal/authenticate', async (req: Request, res: Response) => {
-    try {
-      const { code } = req.body;
-
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      if (!code) {
-        return res.status(400).json({ error: 'Authorization code required' });
-      }
-
-      const redirectUri = (global as any).tidalRedirectUri || 'soundstream://callback';
-      console.log(`[Routes] Exchanging code for Tidal tokens, redirect: ${redirectUri}`);
-      
-      const tokens = await globalTidalClient.exchangeCodeForTokens(code, redirectUri);
-      // Set the tokens in the client for future use
-      globalTidalClient.setTokens(tokens.accessToken, tokens.refreshToken, tokens.userId);
-      
-      // Clean up
-      delete (global as any).tidalRedirectUri;
-      
-      res.json({ success: true, tokens });
-    } catch (error) {
-      console.error('[Routes] Tidal authenticate error:', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to authenticate with Tidal'
-      });
-    }
-  });
-
-  app.get('/api/tidal/callback', async (req: Request, res: Response) => {
-    try {
-      const { code, error } = req.query;
-
-      if (error) {
-        return res.send(`
-          <html>
-            <head><title>Tidal Auth Error</title></head>
-            <body style="font-family: sans-serif; padding: 20px; text-align: center;">
-              <h1>Authentication Error</h1>
-              <p>${error}</p>
-              <p>You can close this window now.</p>
-            </body>
-          </html>
-        `);
-      }
-
-      if (!code || typeof code !== 'string') {
-        return res.status(400).send('No code received');
-      }
-
-      if (!globalTidalClient) {
-        return res.status(503).send('Tidal client not initialized');
-      }
-
-      const redirectUri = (global as any).tidalRedirectUri || 'http://192.168.0.21:3000/api/tidal/callback';
-      console.log(`[Routes] Handling Tidal callback, exchanging code, redirect: ${redirectUri}`);
-
-      const tokens = await globalTidalClient.exchangeCodeForTokens(code, redirectUri);
-      globalTidalClient.setTokens(tokens.accessToken, tokens.refreshToken, tokens.userId);
-
-      // Clean up
-      delete (global as any).tidalRedirectUri;
-
-      res.send(`
-        <html>
-          <head>
-            <title>Tidal Auth Success</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-          </head>
-          <body style="font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #121212; color: white;">
-            <div style="text-align: center; padding: 40px; border-radius: 20px; background: #1e1e1e; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-              <div style="font-size: 64px; margin-bottom: 20px;">✅</div>
-              <h1 style="margin: 0 0 10px 0;">Authentication Successful!</h1>
-              <p style="color: #aaa; margin-bottom: 30px;">Your Tidal account is now connected.</p>
-              <button onclick="window.close()" style="background: #2196F3; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px;">
-                Close This Window
-              </button>
-              <p style="margin-top: 20px; font-size: 14px; color: #666;">You can now return to the SoundStream app.</p>
-            </div>
-            <script>
-              // Try to notify the opener if possible
-              if (window.opener) {
-                window.opener.postMessage({ type: 'TIDAL_AUTH_SUCCESS' }, '*');
-              }
-              // Auto-close after 5 seconds if not closed manually
-              setTimeout(() => {
-                try { window.close(); } catch(e) {}
-              }, 5000);
-            </script>
-          </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error('[Routes] Tidal callback error:', error);
-      res.status(500).send(`Authentication failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  });
-
-  app.post('/api/tidal/set-tokens', (req: Request, res: Response) => {
-    try {
-      const { accessToken, refreshToken, userId } = req.body;
-
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      if (!accessToken || !refreshToken) {
-        return res.status(400).json({ error: 'Access token and refresh token required' });
-      }
-
-      globalTidalClient.setTokens(accessToken, refreshToken, userId);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to set Tidal tokens'
-      });
-    }
-  });
-
-  app.get('/api/tidal/status', (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const authenticated = globalTidalClient.isAuthenticated();
-      const tokens = authenticated ? globalTidalClient.getTokens() : null;
-
-      res.json({
-        authenticated,
-        hasTokens: !!tokens?.accessToken,
-        userId: tokens?.userId,
-        clientId: globalTidalClient.getClientId()
-      });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal status'
-      });
-    }
-  });
-
-  app.get('/api/tidal/cycle-client-id', (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const newClientId = globalTidalClient.cycleClientId();
-      res.json({ success: true, clientId: newClientId });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to cycle Tidal client ID'
-      });
-    }
-  });
-
-  app.post('/api/tidal/cycle-client-id', (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const newClientId = globalTidalClient.cycleClientId();
-      res.json({ success: true, clientId: newClientId });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to cycle Tidal client ID'
-      });
-    }
-  });
-
-  app.get('/api/tidal/albums', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyAlbums(limit, offset);
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal albums'
-      });
-    }
-  });
-
-  app.get('/api/tidal/playlists', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyPlaylists(limit, offset);
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal playlists'
-      });
-    }
-  });
-
-  app.get('/api/tidal/artists', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyArtists(limit, offset);
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal artists'
-      });
-    }
-  });
-
-  app.get('/api/tidal/albums/:albumId/tracks', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const { albumId } = req.params;
-      const tracks = await globalTidalClient.getAlbumTracks(albumId);
-      res.json({ tracks });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get album tracks'
-      });
-    }
-  });
-
-  app.get('/api/tidal/playlists/:playlistId/tracks', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const { playlistId } = req.params;
-      const tracks = await globalTidalClient.getPlaylistTracks(playlistId);
-      res.json({ tracks });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get playlist tracks'
-      });
-    }
-  });
-
-  app.get('/api/tidal/search', async (req: Request, res: Response) => {
-    try {
-      if (!globalTidalClient) {
-        return res.status(503).json({ error: 'Tidal API client not initialized' });
-      }
-
-      const { q: query, type = 'albums', limit = 20 } = req.query;
-
-      if (!query || typeof query !== 'string') {
-        return res.status(400).json({ error: 'Search query required' });
-      }
-
-      let results;
-      switch (type) {
-        case 'albums':
-          results = await globalTidalClient.searchAlbums(query, Number(limit));
-          break;
-        case 'artists':
-          results = await globalTidalClient.searchArtists(query, Number(limit));
-          break;
-        case 'tracks':
-          results = await globalTidalClient.searchTracks(query, Number(limit));
-          break;
-        default:
-          return res.status(400).json({ error: 'Invalid search type' });
-      }
-
-      res.json({ results });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Search failed'
-      });
-    }
-  });
   const httpServer = createServer(app);
 
   return httpServer;
