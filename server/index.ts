@@ -202,8 +202,12 @@ function configureExpoAndLanding(app: express.Application) {
   );
   
   app.get("/now-playing", (req: Request, res: Response) => {
+    // Read fresh from disk every time (no caching)
     const nowPlayingTemplate = fs.readFileSync(nowPlayingPath, "utf-8");
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     res.status(200).send(nowPlayingTemplate);
   });
 
