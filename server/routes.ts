@@ -1970,153 +1970,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/chromecast/cast', async (req: Request, res: Response) => {
     console.log('[Chromecast] Cast endpoint called');
     try {
-      const { ip, lmsHost, lmsPort, playerId } = req.body;
+      const { ip, name, enabled, lmsHost, lmsPort } = req.body;
       
       if (!ip) {
         return res.status(400).json({ error: 'Chromecast IP is required' });
       }
-      
-      // Get the server's local IP address
-      const os = await import('os');
-      const networkInterfaces = os.networkInterfaces();
-      let serverIp = 'localhost';
-      
-      for (const interfaceName in networkInterfaces) {
-        const interfaces = networkInterfaces[interfaceName];
-        if (interfaces) {
-          for (const iface of interfaces) {
-            if (iface.family === 'IPv4' && !iface.internal) {
-              serverIp = iface.address;
-              break;
-            }
-          }
-        }
-        if (serverIp !== 'localhost') break;
-      }
-      
-      // Construct the now-playing URL
+
       const serverPort = process.env.PORT || '3000';
-      const nowPlayingUrl = `http://${serverIp}:${serverPort}/now-playing${lmsHost ? `?host=${lmsHost}&port=${lmsPort || 9000}${playerId ? `&player=${encodeURIComponent(playerId)}` : ''}` : ''}`;
-      
-      console.log(`[Chromecast] Casting to ${ip}: ${nowPlayingUrl}`);
-      
-      // Try to use the relay server on 192.168.0.21:3000 (the "all cast" server)
-      // The relay server uses catt to cast HTML content to Chromecast
-      try {
-        // First, set the preferred player on the relay server so it uses the correct player
-        if (playerId && lmsHost) {
-          try {
-            // Get player name from LMS to pass to relay server
-            const playerNameResponse = await fetch(`http://${lmsHost}:${lmsPort || 9000}/jsonrpc.js`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                id: 1,
-                method: 'slim.request',
-                params: ['', ['players', '0', '100']]
-              }),
-              signal: AbortSignal.timeout(3000),
-            });
-            
-            let playerName = playerId;
-            if (playerNameResponse.ok) {
-              const playerData = await playerNameResponse.json();
-              const players = playerData.result?.players_loop || [];
-              const player = players.find((p: any) => p.playerid === playerId);
-              if (player) {
-                playerName = player.name || playerId;
-              }
-            }
-            
-            // Set the preferred player on the relay server
-            const playerResponse = await fetch('http://192.168.0.21:3000/api/player', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                playerId,
-                playerName,
-              }),
-              signal: AbortSignal.timeout(5000),
-            });
-            
-            if (playerResponse.ok) {
-              console.log(`[Chromecast] Set preferred player on relay server: ${playerName} (${playerId})`);
-            } else {
-              console.warn('[Chromecast] Failed to set preferred player on relay server');
-            }
-          } catch (playerError) {
-            console.warn('[Chromecast] Could not set preferred player:', playerError instanceof Error ? playerError.message : String(playerError));
-            // Continue anyway - relay server will use its default player
-          }
-        }
-        
-        // First, update LMS server on relay if provided
-        if (lmsHost && lmsPort) {
-          try {
-            const lmsResponse = await fetch('http://192.168.0.21:3000/api/lms', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                host: lmsHost,
-                port: lmsPort,
-              }),
-              signal: AbortSignal.timeout(5000),
-            });
-            
-            if (lmsResponse.ok) {
-              console.log(`[Chromecast] Updated LMS server on relay to ${lmsHost}:${lmsPort}`);
-            } else {
-              console.warn('[Chromecast] Failed to update LMS server on relay');
-            }
-          } catch (lmsError) {
-            console.warn('[Chromecast] Could not update LMS server on relay:', lmsError instanceof Error ? lmsError.message : String(lmsError));
-            // Continue anyway - relay might already be configured
-          }
-        }
-        
-        // Configure the Chromecast on the relay server
-        const configResponse = await fetch('http://192.168.0.21:3000/api/chromecast', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ip,
-            name: `Chromecast ${ip}`,
-          }),
-          signal: AbortSignal.timeout(5000),
-        });
-        
-        if (configResponse.ok) {
-          console.log('[Chromecast] Configured on relay server');
-          
-          // The relay server automatically casts when music plays (it polls LMS)
-          // It will now use the correct player that we just set
-          return res.json({ 
-            success: true, 
-            message: 'Chromecast configured. Casting will start automatically when music plays.',
-            url: nowPlayingUrl,
-            relayServer: '192.168.0.21:3000',
-            playerId,
+      const localBase = `http://127.0.0.1:${serverPort}`;
+
+      // Persist LMS config (optional)
+      if (lmsHost) {
+        try {
+          await fetch(`${localBase}/api/lms`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ host: lmsHost, port: lmsPort || 9000 }),
+            signal: AbortSignal.timeout(5000),
           });
+        } catch (e) {
+          console.warn('[Chromecast] Failed to persist LMS settings:', e instanceof Error ? e.message : String(e));
         }
-      } catch (relayError) {
-        console.log('[Chromecast] Relay server not available:', relayError instanceof Error ? relayError.message : String(relayError));
-        return res.status(503).json({ 
-          error: 'Relay server on 192.168.0.21:3000 is not available',
-          url: nowPlayingUrl 
-        });
       }
-      
-      // If relay server configuration failed, return error
-      console.warn('[Chromecast] Relay server configuration failed');
-      return res.status(503).json({ 
-        error: 'Relay server on 192.168.0.21:3000 is not available or configuration failed',
-        url: nowPlayingUrl 
+
+      const friendlyName = name || `Chromecast ${ip}`;
+
+      // Persist Chromecast config (used by relay server for auto-casting)
+      await fetch(`${localBase}/api/chromecast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip, name: friendlyName, enabled: enabled !== false }),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      // Proactively launch the custom receiver so the TV updates immediately
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const chromecastService = require('./chromecast-service');
+        chromecastService.configure(ip, friendlyName, enabled !== false);
+        await chromecastService.ensureLaunched();
+      } catch (e) {
+        console.warn('[Chromecast] Could not proactively launch receiver:', e instanceof Error ? e.message : String(e));
+      }
+
+      return res.json({
+        success: true,
+        message: 'Chromecast configured (no Dashcast). Receiver will show SoundStream UI while music plays.',
+        chromecastIp: ip,
+        chromecastName: friendlyName,
       });
       
     } catch (error) {
