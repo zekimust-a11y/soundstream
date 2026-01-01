@@ -1,0 +1,10 @@
+# Create a stable path for FLIRC input device so systemd service can open it reliably.
+#
+# This matches common FLIRC USB strings. If your device string differs,
+# update the match after checking:
+#   cat /proc/bus/input/devices
+#   ls -l /dev/input/by-id/
+#
+KERNEL=="event*", SUBSYSTEM=="input", ATTRS{name}=="*FLIRC*", SYMLINK+="input/flirc", MODE="0660", GROUP="input"
+
+

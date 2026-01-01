@@ -1,0 +1,16 @@
+[Unit]
+Description=SoundStream FLIRC -> Roon volume listener
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/soundstream-flirc-roon-volume.env
+ExecStart=/usr/bin/python3 /opt/soundstream-flirc-roon-volume/flirc_roon_volume.py
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target
+
+
