@@ -39,8 +39,9 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# local env files (NEVER commit real envs/secrets)
+.env*
+!.env.example
 
 # typescript
 *.tsbuildinfo
@@ -57,6 +58,9 @@ node_modules/
 
 # Roon extension auth/pairing state (local machine specific)
 .roon-volume-control.json
+
+# node-roon-api legacy config store (can contain auth tokens; NEVER commit)
+config.json
 
 # Tidal tokens (local/server instance specific; NEVER commit)
 .tidal-tokens.json
