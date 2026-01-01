@@ -54,6 +54,9 @@ let kPageConsumer: Int = 0x0C
 // Keyboard usages (page 0x07)
 let kUsageArrowUp: Int = 0x52
 let kUsageArrowDown: Int = 0x51
+// Some FLIRC profiles map remote buttons to function keys
+let kUsageF9: Int = 0x42
+let kUsageF10: Int = 0x43
 
 // Consumer page usages (page 0x0C)
 let kUsageConsumerVolumeIncrement: Int = 0xE9
@@ -67,6 +70,16 @@ func handlePress(page: Int, usage: Int) {
   }
   if page == kPageKeyboard && usage == kUsageArrowDown {
     print("[\(ts())] Key: ArrowDown -> Roon volume down (\(step))")
+    postJSON(path: "/api/roon/volume", body: ["action": "down", "value": step])
+    return
+  }
+  if page == kPageKeyboard && usage == kUsageF10 {
+    print("[\(ts())] Key: F10 -> Roon volume up (\(step))")
+    postJSON(path: "/api/roon/volume", body: ["action": "up", "value": step])
+    return
+  }
+  if page == kPageKeyboard && usage == kUsageF9 {
+    print("[\(ts())] Key: F9 -> Roon volume down (\(step))")
     postJSON(path: "/api/roon/volume", body: ["action": "down", "value": step])
     return
   }
@@ -92,7 +105,8 @@ let callback: IOHIDValueCallback = { _ctx, _result, _sender, value in
 
   // Only act on "pressed" (non-zero) values
   let intValue = IOHIDValueGetIntegerValue(value)
-  if intValue == 0 { return }
+  if intValue <= 0 { return }
+  if usage == 0 { return }
 
   handlePress(page: Int(page), usage: Int(usage))
 }
