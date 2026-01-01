@@ -199,7 +199,7 @@ function configureExpoAndLanding(app: express.Application) {
     process.cwd(),
     "server",
     "templates",
-    "now-playing.html",
+    "now-playing-lms.html",
   );
   
   app.get("/now-playing", (req: Request, res: Response) => {
@@ -209,7 +209,18 @@ function configureExpoAndLanding(app: express.Application) {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
-    res.status(200).send(nowPlayingTemplate);
+    res.send(nowPlayingTemplate);
+  });
+  
+  // Cast receiver endpoint (serves Cast receiver HTML)
+  app.get("/cast-receiver", (req: Request, res: Response) => {
+    const castReceiverPath = path.resolve(process.cwd(), "server", "templates", "now-playing.html");
+    const receiverTemplate = fs.readFileSync(castReceiverPath, "utf-8");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.status(200).send(receiverTemplate);
   });
 
   // Helper function to generate Metro error page HTML
