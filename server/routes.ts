@@ -528,13 +528,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // - { volume: 50 }
     // - { action: 'set', value: 50 }
     // - { value: 50 }
+    // - { action: 'up', value: 2 } / { action: 'down', value: 2 }
+    // - { action: 'up' } / { action: 'down' } (default step)
+    const action = typeof body.action === 'string' ? body.action : undefined;
     const raw =
       body.volume !== undefined ? body.volume :
       body.value !== undefined ? body.value :
       (body.action === 'set' ? body.value : undefined);
-    const volume = typeof raw === 'number' ? raw : parseFloat(String(raw));
-    if (Number.isNaN(volume)) return res.status(400).json({ error: 'volume must be a number (0-100)' });
     try {
+      if (action === 'up' || action === 'down') {
+        const stepRaw = body.value ?? body.step ?? 2;
+        const step = typeof stepRaw === 'number' ? stepRaw : parseFloat(String(stepRaw));
+        if (Number.isNaN(step) || step <= 0 || step > 100) {
+          return res.status(400).json({ success: false, error: 'step must be a number (1-100)' });
+        }
+        const newVolume = action === 'up' ? await (roon as any).volumeUp(step) : await (roon as any).volumeDown(step);
+        return res.json({ success: true, volume: newVolume });
+      }
+
+      const volume = typeof raw === 'number' ? raw : parseFloat(String(raw));
+      if (Number.isNaN(volume)) return res.status(400).json({ success: false, error: 'volume must be a number (0-100)' });
       await roon.setVolume(volume);
       return res.json({ success: true, volume });
     } catch (e) {
