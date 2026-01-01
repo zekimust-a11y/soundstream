@@ -106,7 +106,9 @@ let callback: IOHIDValueCallback = { _ctx, _result, _sender, value in
   // Only act on "pressed" (non-zero) values
   let intValue = IOHIDValueGetIntegerValue(value)
   if intValue <= 0 { return }
+  // Ignore common "key up"/sentinel events we see from some FLIRC profiles
   if usage == 0 { return }
+  if usage == 0xFFFFFFFF { return }
 
   handlePress(page: Int(page), usage: Int(usage))
 }
