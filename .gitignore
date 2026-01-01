@@ -27,6 +27,14 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
+# scratch / temp / backups (should never be committed)
+*.pid
+*.backup
+*.bak
+*.tmp*
+*.broken
+*.debug
+
 # macOS
 .DS_Store
 *.pem
