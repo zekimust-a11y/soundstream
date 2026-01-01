@@ -28,6 +28,7 @@ class ChromecastService extends EventEmitter {
     this.heartbeat = null;
     this.heartbeatInterval = null;
     this.transportId = null;
+    this.sessionId = null;
     this.castStatus = 'idle';
     
     this.pendingLaunch = null;
@@ -56,6 +57,7 @@ class ChromecastService extends EventEmitter {
 
   resetApplicationState() {
     this.transportId = null;
+    this.sessionId = null;
     this.customChannel = null;
     if (this.appConnection) {
       try {
@@ -86,8 +88,24 @@ class ChromecastService extends EventEmitter {
       console.log(`[Chromecast] TCP connecting to ${this.chromecastIp}...`);
       
       this.client = new Client();
+      let settled = false;
+      const timeoutMs = 5000;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        console.error(`[Chromecast] TCP connect timeout after ${timeoutMs}ms`);
+        try {
+          this.disconnect();
+        } catch (e) {
+          // ignore
+        }
+        reject(new Error('Chromecast TCP connect timeout'));
+      }, timeoutMs);
       
       this.client.connect(this.chromecastIp, () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         console.log('[Chromecast] TCP connected');
         this.connectedIp = this.chromecastIp;
         
@@ -130,12 +148,20 @@ class ChromecastService extends EventEmitter {
       });
 
       this.client.on('error', (err) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timeout);
+        }
         console.error('[Chromecast] Client error:', err.message);
         this.disconnect();
         reject(err);
       });
 
       this.client.on('close', () => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timeout);
+        }
         console.log('[Chromecast] Connection closed');
         this.disconnect();
       });
@@ -174,7 +200,11 @@ class ChromecastService extends EventEmitter {
 
     if (app.transportId !== this.transportId) {
       this.transportId = app.transportId;
+      this.sessionId = app.sessionId || this.sessionId;
       this.bindApplicationChannels();
+    }
+    if (app.sessionId && app.sessionId !== this.sessionId) {
+      this.sessionId = app.sessionId;
     }
 
     if (this.pendingLaunch && this.transportId) {
@@ -299,10 +329,21 @@ class ChromecastService extends EventEmitter {
     console.log('[Chromecast] Stopping cast/receiver session...');
     
     try {
+      // Ensure we have a receiver channel; sessionId is required for STOP to work reliably.
+      try {
+        await this.connect();
+        if (this.receiverChannel) {
+          this.receiverChannel.send({ type: 'GET_STATUS', requestId: this.requestId++ });
+        }
+      } catch (e) {
+        // ignore connect errors; we'll still clean up local state below
+      }
+
       // Send STOP message to receiver
       if (this.receiverChannel) {
         this.receiverChannel.send({
           type: 'STOP',
+          sessionId: this.sessionId || undefined,
           requestId: this.requestId++,
         });
       }
