@@ -2,19 +2,19 @@ import 'dotenv/config';
 
 export default {
   expo: {
-    name: "Lyric",
-    slug: "lyric",
+    name: "SoundStream",
+    slug: "soundstream",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
-    scheme: "lyric",
+    scheme: "soundstream",
     userInterfaceStyle: "light",
     newArchEnabled: true,
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.lyric.app",
+      bundleIdentifier: "com.soundstream.app",
       infoPlist: {
-        NSLocalNetworkUsageDescription: "Lyric needs local network access to discover and control your music servers and audio devices like MinimServer and dCS Varese.",
+        NSLocalNetworkUsageDescription: "SoundStream needs local network access to discover and control your music servers and audio devices like Logitech Media Server and dCS Varese.",
         NSBonjourServices: [
           "_upnp._tcp",
           "_ssdp._udp",
@@ -38,11 +38,22 @@ export default {
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
-      package: "com.lyric.app"
+      package: "com.soundstream.app"
     },
     web: {
       output: "single",
-      favicon: "./assets/images/favicon.png"
+      favicon: "./assets/images/favicon.png",
+      name: "SoundStream",
+      shortName: "SoundStream",
+      description: "Music streaming and control application",
+      backgroundColor: "#0A0A0C",
+      themeColor: "#0A0A0C",
+      display: "standalone",
+      orientation: "portrait",
+      startUrl: "/",
+      scope: "/",
+      preferRelatedApplications: false,
+      bundler: "metro"
     },
     plugins: [
       [
