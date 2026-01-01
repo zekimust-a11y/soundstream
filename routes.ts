@@ -2335,10 +2335,10 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
     }
   });
 
-  // Initialize Tidal API client with stored tokens if available
+  // Initialize Tidal API client (credentials must come from env; never hardcode secrets).
   globalTidalClient = new TidalApiClient({
-    clientId: process.env.TIDAL_CLIENT_ID || 'pUlCxd80DuDSem4J', // Real developer client ID
-    clientSecret: process.env.TIDAL_CLIENT_SECRET || 'kC0n63WNO79MKK3wZqABlgukjkCJLAwvmxprVkdTbMU=', // Real developer client secret
+    clientId: process.env.TIDAL_CLIENT_ID || '',
+    clientSecret: process.env.TIDAL_CLIENT_SECRET || '',
   });
 
   // Try to load stored Tidal tokens and authenticate
@@ -2547,10 +2547,10 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
     }
   });
 
-  // Initialize Tidal API client
+  // Initialize Tidal API client (credentials must come from env; never hardcode secrets).
   globalTidalClient = new TidalApiClient({
-    clientId: process.env.TIDAL_CLIENT_ID || 'pUlCxd80DuDSem4J', // Real developer client ID
-    clientSecret: process.env.TIDAL_CLIENT_SECRET || 'kC0n63WNO79MKK3wZqABlgukjkCJLAwvmxprVkdTbMU=', // Real developer client secret
+    clientId: process.env.TIDAL_CLIENT_ID || '',
+    clientSecret: process.env.TIDAL_CLIENT_SECRET || '',
   });
 
   // Tidal API Routes
@@ -2755,10 +2755,10 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
     }
   });
 
-  // Initialize Tidal API client
+  // Initialize Tidal API client (credentials must come from env; never hardcode secrets).
   globalTidalClient = new TidalApiClient({
-    clientId: process.env.TIDAL_CLIENT_ID || 'pUlCxd80DuDSem4J', // Real developer client ID
-    clientSecret: process.env.TIDAL_CLIENT_SECRET || 'kC0n63WNO79MKK3wZqABlgukjkCJLAwvmxprVkdTbMU=', // Real developer client secret
+    clientId: process.env.TIDAL_CLIENT_ID || '',
+    clientSecret: process.env.TIDAL_CLIENT_SECRET || '',
   });
 
   // Tidal API Routes
@@ -2823,10 +2823,10 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
     }
   });
 
-  // Initialize Tidal API client
+  // Initialize Tidal API client (credentials must come from env; never hardcode secrets).
   globalTidalClient = new TidalApiClient({
-    clientId: process.env.TIDAL_CLIENT_ID || 'pUlCxd80DuDSem4J', // Real developer client ID
-    clientSecret: process.env.TIDAL_CLIENT_SECRET || 'kC0n63WNO79MKK3wZqABlgukjkCJLAwvmxprVkdTbMU=', // Real developer client secret
+    clientId: process.env.TIDAL_CLIENT_ID || '',
+    clientSecret: process.env.TIDAL_CLIENT_SECRET || '',
   });
 
   // Tidal API Routes
