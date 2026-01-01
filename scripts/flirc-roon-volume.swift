@@ -15,14 +15,11 @@ import Darwin
 
 let apiBase = ProcessInfo.processInfo.environment["SOUNDSTREAM_API_URL"] ?? "http://127.0.0.1:3000"
 let step = Int(ProcessInfo.processInfo.environment["ROON_STEP"] ?? "1") ?? 1
-let repeatIntervalMs = Int(ProcessInfo.processInfo.environment["ROON_REPEAT_INTERVAL_MS"] ?? "50") ?? 50
 let logRawEvents = (ProcessInfo.processInfo.environment["ROON_LOG_RAW"] ?? "0") == "1"
-let holdReleaseTimeoutMs = Int(ProcessInfo.processInfo.environment["ROON_HOLD_RELEASE_TIMEOUT_MS"] ?? "300") ?? 300
 
 let stateLock = NSLock()
 var pressedUp = false
 var pressedDown = false
-var repeatTimer: DispatchSourceTimer? = nil
 var lastRelevantEventAt: TimeInterval = Date().timeIntervalSince1970
 var inFlight = false
 var pendingSteps: Int = 0
@@ -96,67 +93,30 @@ func drainQueue() {
     stateLock.unlock()
     return
   }
-  if pendingSteps == 0 {
+  // Priority: while holding, keep stepping in that direction (no backlog).
+  // Otherwise, drain queued discrete taps.
+  let wantUp = pressedUp
+  let wantDown = pressedDown
+  var next: Int = 0
+  if wantUp {
+    next = 1
+  } else if wantDown {
+    next = -1
+  } else if pendingSteps != 0 {
+    next = pendingSteps > 0 ? 1 : -1
+    pendingSteps += (pendingSteps > 0 ? -1 : 1)
+  }
+  if next == 0 {
     stateLock.unlock()
     return
   }
   inFlight = true
-  let next = pendingSteps
-  if pendingSteps > 0 { pendingSteps -= 1 }
-  if pendingSteps < 0 { pendingSteps += 1 }
   stateLock.unlock()
 
   if next > 0 {
-    fire(action: "up", label: "queue")
+    fire(action: wantUp ? "up" : "up", label: wantUp ? "hold" : "tap")
   } else {
-    fire(action: "down", label: "queue")
-  }
-}
-
-func ensureTimerRunning() {
-  if repeatTimer != nil { return }
-  let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInitiated))
-  t.schedule(deadline: .now() + .milliseconds(repeatIntervalMs), repeating: .milliseconds(repeatIntervalMs))
-  t.setEventHandler {
-    let now = Date().timeIntervalSince1970
-    stateLock.lock()
-    let up = pressedUp
-    let down = pressedDown
-    let last = lastRelevantEventAt
-    let inflight = inFlight
-    let pending = pendingSteps
-
-    // If we never see a usable release event, stop after inactivity.
-    if (up || down) && (now - last) > (Double(holdReleaseTimeoutMs) / 1000.0) {
-      pressedUp = false
-      pressedDown = false
-      // Don't allow backlog to continue after "release"
-      pendingSteps = 0
-      stateLock.unlock()
-      stopTimer()
-      return
-    }
-
-    // For holds: never allow backlog > 1 step. Only queue the next step if we can.
-    if up {
-      if !inflight && pending == 0 { pendingSteps = 1 }
-    } else if down {
-      if !inflight && pending == 0 { pendingSteps = -1 }
-    }
-    let shouldStop = !(pressedUp || pressedDown)
-    stateLock.unlock()
-
-    if shouldStop { stopTimer() }
-    drainQueue()
-  }
-  repeatTimer = t
-  t.resume()
-}
-
-func stopTimer() {
-  if let t = repeatTimer {
-    repeatTimer = nil
-    t.cancel()
+    fire(action: wantDown ? "down" : "down", label: wantDown ? "hold" : "tap")
   }
 }
 
@@ -185,7 +145,6 @@ let callback: IOHIDValueCallback = { _ctx, _result, _sender, value in
       pendingSteps = 0
       lastRelevantEventAt = Date().timeIntervalSince1970
       stateLock.unlock()
-      stopTimer()
     }
     return
   }
@@ -221,7 +180,6 @@ let callback: IOHIDValueCallback = { _ctx, _result, _sender, value in
     if isUp && !wasUp { pendingSteps += 1 }
     if isDown && !wasDown { pendingSteps -= 1 }
     stateLock.unlock()
-    ensureTimerRunning()
     drainQueue()
     return
   }
@@ -234,14 +192,13 @@ let callback: IOHIDValueCallback = { _ctx, _result, _sender, value in
   let down = pressedDown
   lastRelevantEventAt = Date().timeIntervalSince1970
   stateLock.unlock()
-  if !up && !down { stopTimer() }
+  // If released, attempt to drain any remaining queued taps; holds will stop naturally.
+  if !up && !down { drainQueue() }
 }
 
 print("[\(ts())] Starting FLIRC HID listener")
 print("[\(ts())] API: \(apiBase)")
 print("[\(ts())] Step: \(step)")
-print("[\(ts())] Repeat interval: \(repeatIntervalMs)ms")
-print("[\(ts())] Hold release timeout: \(holdReleaseTimeoutMs)ms")
 print("[\(ts())] Raw logging: \(logRawEvents ? "on" : "off")")
 
 let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
