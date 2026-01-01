@@ -468,10 +468,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/roon/status', async (_req: Request, res: Response) => {
     const roon = getRoonVolumeControl();
     if (!roon) {
-      return res.json({ enabled: false, connected: false, ready: false });
+      return res.json({
+        success: true,
+        enabled: false,
+        connected: false,
+        outputs: [],
+        currentOutput: null,
+        currentOutputName: null,
+      });
     }
-    const status = (roon as any).getConnectionStatus?.() || { connected: false, ready: false };
-    return res.json({ enabled: true, ...status });
+    const status = (roon as any).getConnectionStatus?.() || { connected: false, currentOutput: null, currentOutputName: null };
+    const outputsMap: Map<string, any> = (roon as any).getOutputs?.() || new Map();
+    const outputs = Array.from(outputsMap.values()).map((o: any) => ({
+      output_id: o.output_id,
+      zone_id: o.zone_id,
+      display_name: o.display_name,
+      volume_supported: !!o.volume,
+    }));
+
+    return res.json({
+      success: true,
+      enabled: true,
+      connected: !!status.connected,
+      outputs,
+      currentOutput: status.currentOutput ?? null,
+      currentOutputName: status.currentOutputName ?? null,
+    });
+  });
+
+  app.post('/api/roon/output', async (req: Request, res: Response) => {
+    const roon = getRoonVolumeControl();
+    if (!roon) return res.status(503).json({ success: false, error: 'Roon volume control not initialized' });
+    const { output_id } = (req.body as any) || {};
+    if (!output_id) return res.status(400).json({ success: false, error: 'Missing output_id' });
+    try {
+      (roon as any).selectOutput?.(output_id);
+      return res.json({ success: true, output_id });
+    } catch (e) {
+      return res.status(400).json({ success: false, error: e instanceof Error ? e.message : String(e) });
+    }
   });
 
   app.get('/api/roon/volume', async (_req: Request, res: Response) => {
@@ -479,23 +514,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!roon) return res.status(404).json({ error: 'Roon volume control not initialized' });
     try {
       const volume = await roon.getVolume();
-      return res.json({ volume });
+      return res.json({ success: true, volume });
     } catch (e) {
-      return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+      return res.status(500).json({ success: false, error: e instanceof Error ? e.message : String(e) });
     }
   });
 
   app.post('/api/roon/volume', async (req: Request, res: Response) => {
     const roon = getRoonVolumeControl();
     if (!roon) return res.status(404).json({ error: 'Roon volume control not initialized' });
-    const raw = (req.body as any)?.volume;
-    const volume = typeof raw === 'number' ? raw : parseFloat(raw);
+    const body = (req.body as any) || {};
+    // Support multiple client shapes:
+    // - { volume: 50 }
+    // - { action: 'set', value: 50 }
+    // - { value: 50 }
+    const raw =
+      body.volume !== undefined ? body.volume :
+      body.value !== undefined ? body.value :
+      (body.action === 'set' ? body.value : undefined);
+    const volume = typeof raw === 'number' ? raw : parseFloat(String(raw));
     if (Number.isNaN(volume)) return res.status(400).json({ error: 'volume must be a number (0-100)' });
     try {
       await roon.setVolume(volume);
-      return res.json({ success: true });
+      return res.json({ success: true, volume });
     } catch (e) {
-      return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+      return res.status(500).json({ success: false, error: e instanceof Error ? e.message : String(e) });
     }
   });
   // Android Mosaic ACTUS Relay (optional - for dCS Varese volume control)
