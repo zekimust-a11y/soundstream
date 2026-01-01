@@ -4,6 +4,7 @@ import type { Request, Response, NextFunction } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerRoutes } from "./routes";
 import { initializeRelayServer } from "./relay-server";
+import { startRoonVolumeControl } from "./roon-volume-control";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -405,6 +406,11 @@ process.on("unhandledRejection", (reason: unknown, promise: Promise<unknown>) =>
 
     // Initialize the relay server (Chromecast casting logic)
     initializeRelayServer(app);
+
+    // Initialize Roon volume control extension (so it appears in Roon > Settings > Extensions)
+    if (process.env.ENABLE_ROON_VOLUME_CONTROL === "true") {
+      await startRoonVolumeControl({ enabled: true });
+    }
 
     const server = await registerRoutes(app);
 // const server = createServer(app);

@@ -511,6 +511,20 @@ export function initializeRoonVolumeControl(config: RoonVolumeControlConfig): Ro
 }
 
 /**
+ * Initialize + start the Roon volume control service.
+ * (Calling initializeRoonVolumeControl alone only constructs the instance.)
+ */
+export async function startRoonVolumeControl(config: RoonVolumeControlConfig): Promise<RoonVolumeControl> {
+  const instance = initializeRoonVolumeControl(config);
+  try {
+    await instance.initialize();
+  } catch (e) {
+    console.error('[RoonVolumeControl] Failed to start:', e instanceof Error ? e.message : String(e));
+  }
+  return instance;
+}
+
+/**
  * Get the Roon volume control instance
  */
 export function getRoonVolumeControl(): RoonVolumeControl | null {

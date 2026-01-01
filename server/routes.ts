@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import dgram from "node:dgram";
+import { getRoonVolumeControl } from "./roon-volume-control";
 
 // SSDP discovery for UPnP/OpenHome devices
 interface DiscoveredDevice {
@@ -461,6 +462,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       service: 'proxy-server',
       timestamp: new Date().toISOString()
     });
+  });
+
+  // Roon volume control endpoints
+  app.get('/api/roon/status', async (_req: Request, res: Response) => {
+    const roon = getRoonVolumeControl();
+    if (!roon) {
+      return res.json({ enabled: false, connected: false, ready: false });
+    }
+    const status = (roon as any).getConnectionStatus?.() || { connected: false, ready: false };
+    return res.json({ enabled: true, ...status });
+  });
+
+  app.get('/api/roon/volume', async (_req: Request, res: Response) => {
+    const roon = getRoonVolumeControl();
+    if (!roon) return res.status(404).json({ error: 'Roon volume control not initialized' });
+    try {
+      const volume = await roon.getVolume();
+      return res.json({ volume });
+    } catch (e) {
+      return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  app.post('/api/roon/volume', async (req: Request, res: Response) => {
+    const roon = getRoonVolumeControl();
+    if (!roon) return res.status(404).json({ error: 'Roon volume control not initialized' });
+    const raw = (req.body as any)?.volume;
+    const volume = typeof raw === 'number' ? raw : parseFloat(raw);
+    if (Number.isNaN(volume)) return res.status(400).json({ error: 'volume must be a number (0-100)' });
+    try {
+      await roon.setVolume(volume);
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
   });
   // Android Mosaic ACTUS Relay (optional - for dCS Varese volume control)
   if (process.env.ENABLE_ANDROID_MOSAIC_RELAY === 'true') {
