@@ -294,11 +294,9 @@ class ChromecastService extends EventEmitter {
   }
 
   async stop() {
-    if (!this.isCasting) {
-      return true;
-    }
-
-    console.log('[Chromecast] Stopping cast...');
+    // Stop should be able to terminate the receiver app even if our local state
+    // thinks we are not casting (Chromecast can keep the app alive across reconnects).
+    console.log('[Chromecast] Stopping cast/receiver session...');
     
     try {
       // Send STOP message to receiver
