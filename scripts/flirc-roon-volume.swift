@@ -173,7 +173,7 @@ print("[\(ts())] Starting FLIRC HID listener")
 print("[\(ts())] API: \(apiBase)")
 print("[\(ts())] Step: \(step)")
 print("[\(ts())] Repeat interval: \(repeatIntervalMs)ms")
-print("[\(ts())] Raw logging: \(logRawEvents ? \"on\" : \"off\")")
+print("[\(ts())] Raw logging: \(logRawEvents ? "on" : "off")")
 
 let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
 
