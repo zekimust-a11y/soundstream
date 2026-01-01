@@ -181,6 +181,72 @@ async function stopCasting(): Promise<void> {
   isCasting = false;
 }
 
+// Format LMS status as NOW_PLAYING message for roon-cast receiver
+function formatNowPlayingMessage(status: any): any {
+  if (!status || !status.playlist_loop || status.playlist_loop.length === 0) {
+    return null;
+  }
+
+  const track = status.playlist_loop[0];
+  const artist = track.artist || 'Unknown Artist';
+  const title = track.title || 'Unknown Track';
+  const album = track.album || '';
+  const duration = parseFloat(track.duration) || 0;
+  const seek = parseFloat(status.time) || 0;
+  
+  // Build artwork URL
+  let imageUrl = null;
+  if (track.coverid) {
+    imageUrl = `http://${LMS_HOST}:${LMS_PORT}/music/${track.coverid}/cover.jpg`;
+  } else if (track.artwork_url) {
+    imageUrl = track.artwork_url;
+  }
+
+  return {
+    type: 'NOW_PLAYING',
+    payload: {
+      state: status.mode === 'play' ? 'playing' : status.mode === 'pause' ? 'paused' : 'stopped',
+      seek_position: seek,
+      now_playing: {
+        one_line: {
+          line1: title
+        },
+        two_line: {
+          line1: title,
+          line2: artist
+        },
+        three_line: {
+          line1: title,
+          line2: artist,
+          line3: album
+        },
+        length: duration,
+        image_keys: [track.coverid || ''],
+      },
+      image_url: imageUrl,
+      image_data: imageUrl,
+      artist_images: [] // We can add AudioDB images later if needed
+    }
+  };
+}
+
+// Send NOW_PLAYING message to Chromecast
+async function sendNowPlayingToCast(status: any): Promise<void> {
+  if (!isCasting || !chromecastService.customChannel) {
+    return;
+  }
+
+  const message = formatNowPlayingMessage(status);
+  if (!message) return;
+
+  try {
+    console.log('[Relay] Sending NOW_PLAYING to Cast:', message.payload.now_playing.two_line.line1);
+    chromecastService.customChannel.send(message);
+  } catch (error) {
+    console.error('[Relay] Error sending NOW_PLAYING:', error.message);
+  }
+}
+
 // LMS status polling
 async function pollLmsStatus(): Promise<void> {
   try {
@@ -200,6 +266,11 @@ async function pollLmsStatus(): Promise<void> {
     const mode = status.mode;
     const hasTrack = status.playlist_loop && status.playlist_loop.length > 0;
 
+    // Send NOW_PLAYING updates if casting
+    if (hasTrack && isCasting && chromecastEnabled) {
+      await sendNowPlayingToCast(status);
+    }
+
     if (mode === 'play' && hasTrack) {
       if (pauseTimer) {
         clearTimeout(pauseTimer);
@@ -213,6 +284,18 @@ async function pollLmsStatus(): Promise<void> {
         console.log('[Relay] Casting disabled, skipping cast');
       }
     } else if (mode === 'pause' || mode === 'stop') {
+      // Send pause state to receiver
+      if (isCasting && chromecastService.customChannel) {
+        try {
+          chromecastService.customChannel.send({
+            type: 'PAUSE',
+            payload: {}
+          });
+        } catch (error) {
+          console.error('[Relay] Error sending PAUSE:', error.message);
+        }
+      }
+      
       if (isCasting && !pauseTimer) {
         console.log(`[Relay] Pause/stop detected, will stop cast in ${PAUSE_TIMEOUT/1000} seconds...`);
         pauseTimer = setTimeout(() => {
