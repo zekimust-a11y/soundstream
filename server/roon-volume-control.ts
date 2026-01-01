@@ -46,7 +46,7 @@ class RoonVolumeControl {
   constructor(config: RoonVolumeControlConfig) {
     this.config = config;
     // Use a unique extension ID to force fresh registration
-    this.extensionId = 'com.soundstream.roon.volume.TEST';
+    this.extensionId = 'com.soundstream.roon.volume.v4';
   }
 
   /**
@@ -78,7 +78,8 @@ class RoonVolumeControl {
       email: 'support@soundstream.app',
       log_level: 'all',
       core_paired: (core: any) => {
-        console.log(`[RoonVolumeControl] Connected to Roon Core: ${core.display_name}`);
+        console.log(`[RoonVolumeControl] ✅ PAIRED with Roon Core: ${core.display_name}`);
+        console.log(`[RoonVolumeControl] Core ID: ${core.core_id}`);
 
         // Create transport service
         this.transport = new RoonApiTransport(this.roon);
@@ -87,15 +88,17 @@ class RoonVolumeControl {
         const roonAny = this.roon as any;
         if (roonAny.paired_core && roonAny.paired_core.moo) {
           roonAny.moo = roonAny.paired_core.moo;
+          console.log('[RoonVolumeControl] ✅ Moo connection established');
         }
 
         this.isConnected = true;
+        console.log('[RoonVolumeControl] ✅ Marked as connected');
 
         // Get outputs
         this._refreshOutputs();
       },
       core_unpaired: (core: any) => {
-        console.log(`[RoonVolumeControl] Disconnected from Roon Core: ${core?.display_name}`);
+        console.log(`[RoonVolumeControl] ❌ UNPAIRED from Roon Core: ${core?.display_name}`);
         this.isConnected = false;
         this.isReadyFlag = false;
         this.outputs.clear();
