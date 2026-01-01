@@ -8,23 +8,52 @@ import dgram from "dgram";
 // Import ChromecastService
 const chromecastService = require('./chromecast-service.js');
 
+// Configuration file path
+const CONFIG_FILE = path.join(process.cwd(), 'server-config.json');
+
+// Load saved configuration
+function loadConfig() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+      console.log('[Relay] Loaded saved configuration:', config);
+      return config;
+    }
+  } catch (e) {
+    console.error('[Relay] Failed to load config:', e);
+  }
+  return {};
+}
+
+// Save configuration
+function saveConfig(config: any) {
+  try {
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+    console.log('[Relay] Configuration saved');
+  } catch (e) {
+    console.error('[Relay] Failed to save config:', e);
+  }
+}
+
+const savedConfig = loadConfig();
+
 // Configuration
-let LMS_HOST = process.env.LMS_HOST || '192.168.0.19';
-let LMS_PORT = process.env.LMS_PORT || '9000';
+let LMS_HOST = savedConfig.lmsHost || process.env.LMS_HOST || '192.168.0.19';
+let LMS_PORT = savedConfig.lmsPort || process.env.LMS_PORT || '9000';
 const PAUSE_TIMEOUT = parseInt(process.env.PAUSE_TIMEOUT || '5000', 10);
 const ENABLE_KEYBOARD = process.env.ENABLE_KEYBOARD !== 'false';
 
 // Global state
 let isCasting = false;
 let pauseTimer: NodeJS.Timeout | null = null;
-let currentPlayerId = '';
+let currentPlayerId = savedConfig.currentPlayerId || '';
 let lastMode = '';
 let serverIp = '';
 
 // Chromecast configuration
-let chromecastIp = process.env.CHROMECAST_IP || '';
-let chromecastName = '';
-let chromecastEnabled = true;
+let chromecastIp = savedConfig.chromecastIp || process.env.CHROMECAST_IP || '';
+let chromecastName = savedConfig.chromecastName || '';
+let chromecastEnabled = savedConfig.chromecastEnabled !== undefined ? savedConfig.chromecastEnabled : true;
 
 // DAC configuration
 const DAC_IP = process.env.DAC_IP || '192.168.0.42';
@@ -282,6 +311,12 @@ export function initializeRelayServer(app: express.Application): void {
   serverIp = getLocalIp();
   console.log(`[Relay] Server IP: ${serverIp}`);
 
+  // Configure chromecast service with saved config
+  if (chromecastIp) {
+    chromecastService.configure(chromecastIp, chromecastName, chromecastEnabled);
+    console.log(`[Relay] Restored Chromecast configuration: ${chromecastName || chromecastIp} (${chromecastIp})`);
+  }
+
   // Serve display pages
   app.use('/now-playing', express.static(path.join(process.cwd(), 'server', 'templates')));
 
@@ -393,6 +428,16 @@ export function initializeRelayServer(app: express.Application): void {
       }
     }
 
+    // Save configuration
+    saveConfig({
+      lmsHost: LMS_HOST,
+      lmsPort: LMS_PORT,
+      chromecastIp,
+      chromecastName,
+      chromecastEnabled,
+      currentPlayerId
+    });
+
     res.json({
       success: true,
       message: chromecastIp ? `Configured ${chromecastName || chromecastIp}` : 'Chromecast disabled',
@@ -409,6 +454,16 @@ export function initializeRelayServer(app: express.Application): void {
     if (isCasting) {
       stopCasting();
     }
+
+    // Save configuration
+    saveConfig({
+      lmsHost: LMS_HOST,
+      lmsPort: LMS_PORT,
+      chromecastIp: '',
+      chromecastName: '',
+      chromecastEnabled: false,
+      currentPlayerId
+    });
 
     res.json({ success: true, message: 'Chromecast disabled' });
   });
