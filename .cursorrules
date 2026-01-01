@@ -1,0 +1,18 @@
+## Soundstream: mandatory project context (read before doing any work)
+
+Before taking ANY action (running commands, editing code, proposing changes), you MUST:
+
+1. Read `PROJECT_NOTES.md` (repo root).
+2. Read `PROJECT_SUMMARY.md` for architecture + current state.
+3. Read `../DEPLOYMENT-STATUS.md` for the current `.21` server state and deployment notes.
+4. Read `cursor client instructions.md` for operational rules in this repo.
+
+If any of these disagree with each other, STOP and ask the user which source is authoritative.
+
+## Repo rule: commits are required
+
+After making code changes, always:
+1. Stage the modified files with `git add`
+2. Commit with a descriptive message
+
+
