@@ -2099,17 +2099,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         signal: AbortSignal.timeout(5000),
       });
 
-      // Proactively launch the custom receiver so the TV updates immediately
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const chromecastService = require('./chromecast-service');
-        chromecastService.configure(ip, friendlyName, enabled !== false);
-        // Force a full reload of the receiver HTML (Chromecast can cache aggressively)
-        await chromecastService.stop();
-        await chromecastService.ensureLaunched();
-      } catch (e) {
-        console.warn('[Chromecast] Could not proactively launch receiver:', e instanceof Error ? e.message : String(e));
-      }
+      // Proactively launch the custom receiver so the TV updates immediately.
+      // IMPORTANT: Do this asynchronously so the API call doesn't hang if Chromecast takes time.
+      setTimeout(() => {
+        (async () => {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const chromecastService = require('./chromecast-service');
+            chromecastService.configure(ip, friendlyName, enabled !== false);
+            // Force a full reload of the receiver HTML (Chromecast can cache aggressively)
+            await chromecastService.stop();
+            await chromecastService.ensureLaunched();
+          } catch (e) {
+            console.warn('[Chromecast] Could not proactively launch receiver:', e instanceof Error ? e.message : String(e));
+          }
+        })();
+      }, 0);
 
       return res.json({
         success: true,
