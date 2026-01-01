@@ -5,6 +5,9 @@ import fs from "fs";
 import { exec } from "child_process";
 import dgram from "dgram";
 
+// Import ChromecastService
+const chromecastService = require('./chromecast-service.js');
+
 // Configuration
 let LMS_HOST = process.env.LMS_HOST || '192.168.0.19';
 let LMS_PORT = process.env.LMS_PORT || '9000';
@@ -41,16 +44,9 @@ if (fs.existsSync(MOSAIC_VOLUME_BINARY)) {
   console.log('[Relay] Mosaic volume control enabled (Swift script)');
 }
 
-// Check if catt is available for Chromecast casting
-let cattAvailable = false;
-exec('which catt', (error) => {
-  if (!error) {
-    cattAvailable = true;
-    console.log('[Relay] Chromecast support enabled (using catt)');
-  } else {
-    console.log('[Relay] Chromecast support disabled (install catt: pip3 install catt)');
-  }
-});
+// Chromecast is now handled by chromecastService (using castv2-client)
+console.log('[Relay] Chromecast support enabled (using castv2-client)');
+
 
 // LMS communication function
 async function lmsRequest(playerId: string, command: any): Promise<any> {
@@ -116,46 +112,43 @@ async function getPlayerStatus(playerId: string): Promise<any> {
 
 // Chromecast functions
 async function startCasting(): Promise<void> {
-  if (isCasting) return;
-  if (!cattAvailable) {
-    console.log('[Relay] Chromecast not available (install catt: pip3 install catt)');
+  const status = chromecastService.getStatus();
+  if (status.isCasting) {
+    console.log('[Relay] Already casting, skipping');
     return;
   }
   if (!chromecastIp) {
     console.log('[Relay] Chromecast not configured');
     return;
   }
-
-  isCasting = true;
+  if (!chromecastEnabled) {
+    console.log('[Relay] Chromecast disabled');
+    return;
+  }
 
   const nowPlayingUrl = `http://${serverIp}:3000/now-playing?host=${LMS_HOST}&port=${LMS_PORT}&player=${encodeURIComponent(currentPlayerId)}`;
 
-  console.log(`[Relay] Starting cast to: ${nowPlayingUrl}`);
+  console.log(`[Relay] Starting cast to ${chromecastIp}: ${nowPlayingUrl}`);
 
-  const cattCmd = `catt -d "${chromecastIp}" cast_site "${nowPlayingUrl}"`;
-
-  exec(cattCmd, (error, stdout, stderr) => {
-    if (error) {
-      console.error('[Relay] Error starting cast:', error.message);
-      isCasting = false;
-      return;
-    }
+  // Configure and start casting using ChromecastService
+  chromecastService.configure(chromecastIp, chromecastName, true);
+  const success = await chromecastService.castUrl(nowPlayingUrl);
+  
+  if (success) {
+    isCasting = true;
     console.log('[Relay] Cast started successfully');
-  });
+  } else {
+    console.error('[Relay] Failed to start cast');
+    isCasting = false;
+  }
 }
 
-function stopCasting(): void {
+async function stopCasting(): Promise<void> {
   if (!isCasting) return;
-  if (!cattAvailable || !chromecastIp) return;
 
   console.log('[Relay] Stopping cast...');
 
-  exec(`catt -d "${chromecastIp}" stop`, (error) => {
-    if (error) {
-      console.error('[Relay] Error stopping cast:', error.message);
-    }
-  });
-
+  await chromecastService.stop();
   isCasting = false;
 }
 
