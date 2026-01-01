@@ -40,7 +40,9 @@ const savedConfig = loadConfig();
 // Configuration
 let LMS_HOST = savedConfig.lmsHost || process.env.LMS_HOST || '192.168.0.19';
 let LMS_PORT = savedConfig.lmsPort || process.env.LMS_PORT || '9000';
-const PAUSE_TIMEOUT = parseInt(process.env.PAUSE_TIMEOUT || '5000', 10);
+// Stop casting shortly after playback stops/pauses.
+// Default: 6s (matches user expectation); can be overridden via env.
+const PAUSE_TIMEOUT = parseInt(process.env.PAUSE_TIMEOUT || '6000', 10);
 const ENABLE_KEYBOARD = process.env.ENABLE_KEYBOARD !== 'false';
 
 // Global state
