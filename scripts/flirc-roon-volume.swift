@@ -1,5 +1,6 @@
 import Foundation
 import IOKit.hid
+import Darwin
 
 // Simple FLIRC HID listener that translates key presses into Soundstream Roon volume API calls.
 // Intended to run on the server host (e.g. 192.168.0.21) where FLIRC is plugged in.
@@ -21,6 +22,10 @@ let stateLock = NSLock()
 var pressedUp = false
 var pressedDown = false
 var repeatTimer: DispatchSourceTimer? = nil
+
+// Ensure logs are flushed even when stdout is piped (e.g. through tee).
+setbuf(stdout, nil)
+setbuf(stderr, nil)
 
 func ts() -> String {
   let f = ISO8601DateFormatter()
