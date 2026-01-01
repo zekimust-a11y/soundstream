@@ -1,5 +1,10 @@
 # SoundStream Deployment Notes
 
+## Current status (2026-01-01)
+
+- **Roon volume control**: Working again (stable extension authorization; outputs discovered; volume set succeeds)
+- **LMS casting**: Working again (Now Playing updates and casting flow confirmed)
+
 ## Environment Configuration
 
 ### EXPO_PUBLIC_DOMAIN Configuration
