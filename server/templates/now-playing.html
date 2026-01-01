@@ -513,7 +513,8 @@
           if (isPlaying) {
             tickTimer = setInterval(() => incrementSeek(), 1000);
           }
-          // Intentionally not showing volume overlay here to match /now-playing layout
+          // Show volume overlay when volume changes (same behavior as roon-cast receiver)
+          handleVolumeOverlay(payload.output?.volume);
         } else if (state === 'idle' || state === 'stopped' || state === 'paused') {
           // Only reset display for explicit idle/stopped/paused states
           console.log('[Receiver] Resetting display, state:', state);
@@ -537,8 +538,17 @@
 
       function handleVolumeOverlay(volumeObj) {
         if (!volumeObj) return;
-        const db = typeof volumeObj.value === 'number' ? volumeObj.value : -80;
-        const percentage = Math.max(0, Math.min(100, Math.round(((db + 80) / 80) * 100)));
+        const raw = typeof volumeObj.value === 'number' ? volumeObj.value : parseFloat(String(volumeObj.value));
+        let percentage = 0;
+
+        if (volumeObj.type === 'db' || (Number.isFinite(raw) && raw < 0) || (typeof volumeObj.min === 'number' && volumeObj.min < 0)) {
+          const min = typeof volumeObj.min === 'number' ? volumeObj.min : -80;
+          const max = typeof volumeObj.max === 'number' ? volumeObj.max : 0;
+          const range = max - min || 80;
+          percentage = Math.max(0, Math.min(100, Math.round(((raw - min) / range) * 100)));
+        } else {
+          percentage = Math.max(0, Math.min(100, Math.round(Number.isFinite(raw) ? raw : 0)));
+        }
         const isMuted = !!volumeObj.is_muted;
         
         // Only show overlay if volume actually changed (not on initial load)

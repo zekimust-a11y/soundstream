@@ -343,6 +343,11 @@ function formatNowPlayingMessage(status: any, artistImages: string[]): any {
   const album = track.album || '';
   const duration = parseFloat(track.duration) || 0;
   const seek = parseFloat(status.time) || 0;
+  const rawVolume = (status['mixer volume'] ?? status.mixer_volume ?? status.volume);
+  const volumeNumber = typeof rawVolume === 'number' ? rawVolume : parseFloat(String(rawVolume));
+  const rawMute = (status['mixer muting'] ?? status.mixer_muting ?? status.muting);
+  const muteNumber = typeof rawMute === 'number' ? rawMute : parseInt(String(rawMute), 10);
+  const isMuted = muteNumber === 1;
   
   // Build artwork URL
   let imageUrl = null;
@@ -357,6 +362,11 @@ function formatNowPlayingMessage(status: any, artistImages: string[]): any {
     payload: {
       state: status.mode === 'play' ? 'playing' : status.mode === 'pause' ? 'paused' : 'stopped',
       seek_position: seek,
+      output: {
+        volume: Number.isFinite(volumeNumber)
+          ? { type: 'number', min: 0, max: 100, value: volumeNumber, is_muted: isMuted }
+          : null,
+      },
       now_playing: {
         one_line: {
           line1: title

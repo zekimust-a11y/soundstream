@@ -159,6 +159,43 @@
         width: 0%;
       }
 
+      #volume-overlay {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.8);
+        padding: 32px 48px;
+        border-radius: 18px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        z-index: 20;
+      }
+
+      #volume-overlay.visible {
+        opacity: 1;
+      }
+
+      .volume-icon {
+        font-size: 3rem;
+      }
+
+      .volume-text {
+        font-size: 4.5rem;
+        font-weight: 200;
+      }
+
+      .mute-text {
+        font-size: 2rem;
+        letter-spacing: 4px;
+        color: #ff6666;
+      }
+
       .not-playing-container {
         position: fixed;
         inset: 0;
@@ -258,6 +295,11 @@
       </div>
     </div>
 
+    <div id="volume-overlay">
+      <div id="volume-icon" class="volume-icon">🔊</div>
+      <div id="volume-value" class="volume-text">0</div>
+    </div>
+
     <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
     <script>
       // Cast SDK setup
@@ -332,6 +374,9 @@
       const albumArt = document.getElementById('album-art');
       const bottomBar = document.querySelector('.bottom-bar');
       const notPlayingContainer = document.querySelector('.not-playing-container');
+      const volumeOverlay = document.getElementById('volume-overlay');
+      const volumeIcon = document.getElementById('volume-icon');
+      const volumeValue = document.getElementById('volume-value');
 
       // State
       let lastTrackId = '';
@@ -341,6 +386,49 @@
       let activeBackgroundLayer = 0;
       let rotationTimer = null;
       let pollTimer = null;
+      let lastVolume = null;
+      let lastMute = null;
+      let volumeTimer = null;
+
+      function handleVolumeOverlay(volumeObj) {
+        if (!volumeObj) return;
+        const raw = typeof volumeObj.value === 'number' ? volumeObj.value : parseFloat(String(volumeObj.value));
+        let percentage = 0;
+        if (volumeObj.type === 'db' || (Number.isFinite(raw) && raw < 0) || (typeof volumeObj.min === 'number' && volumeObj.min < 0)) {
+          const min = typeof volumeObj.min === 'number' ? volumeObj.min : -80;
+          const max = typeof volumeObj.max === 'number' ? volumeObj.max : 0;
+          const range = max - min || 80;
+          percentage = Math.max(0, Math.min(100, Math.round(((raw - min) / range) * 100)));
+        } else {
+          percentage = Math.max(0, Math.min(100, Math.round(Number.isFinite(raw) ? raw : 0)));
+        }
+
+        const isMuted = !!volumeObj.is_muted;
+        const volumeChanged = lastVolume !== null && (lastVolume !== percentage || lastMute !== isMuted);
+
+        if (!volumeChanged && lastVolume === null) {
+          lastVolume = percentage;
+          lastMute = isMuted;
+          return;
+        }
+        if (!volumeChanged) return;
+
+        lastVolume = percentage;
+        lastMute = isMuted;
+
+        if (isMuted) {
+          volumeIcon.textContent = '🔇';
+          volumeValue.innerHTML = '<span class="mute-text">MUTED</span>';
+          volumeOverlay.classList.add('visible');
+          clearTimeout(volumeTimer);
+        } else {
+          volumeIcon.textContent = percentage > 60 ? '🔊' : percentage > 0 ? '🔉' : '🔈';
+          volumeValue.textContent = percentage;
+          volumeOverlay.classList.add('visible');
+          clearTimeout(volumeTimer);
+          volumeTimer = setTimeout(() => volumeOverlay.classList.remove('visible'), 2500);
+        }
+      }
 
       async function lmsRequest(pid, command) {
         const response = await fetch(getProxyUrl(), {
@@ -526,6 +614,15 @@
           if (artworkUrl) {
             setBackground(artworkUrl, true);
           }
+        }
+
+        // Volume overlay (copied behavior from roon-cast receiver)
+        const rawVol = (status['mixer volume'] ?? status.mixer_volume ?? status.volume);
+        const volNum = typeof rawVol === 'number' ? rawVol : parseFloat(String(rawVol));
+        const rawMute = (status['mixer muting'] ?? status.mixer_muting ?? status.muting);
+        const muteNum = typeof rawMute === 'number' ? rawMute : parseInt(String(rawMute), 10);
+        if (Number.isFinite(volNum)) {
+          handleVolumeOverlay({ type: 'number', min: 0, max: 100, value: volNum, is_muted: muteNum === 1 });
         }
       }
 
