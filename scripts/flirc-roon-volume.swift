@@ -107,15 +107,8 @@ let callback: IOHIDValueCallback = { _ctx, _result, _sender, value in
 
   let intValue = IOHIDValueGetIntegerValue(value)
   if usage == 0 { return }
-  // Some FLIRC profiles emit this sentinel; treat it as "release all"
-  if usage == 0xFFFFFFFF {
-    stateLock.lock()
-    pressedUp = false
-    pressedDown = false
-    stateLock.unlock()
-    stopTimer()
-    return
-  }
+  // FLIRC often emits this sentinel during key sequences; it is NOT a reliable release signal.
+  if usage == 0xFFFFFFFF { return }
 
   // Map pressed events only. (FLIRC will generate repeats while held.)
   let isUp =
