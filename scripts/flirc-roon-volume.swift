@@ -17,11 +17,15 @@ let apiBase = ProcessInfo.processInfo.environment["SOUNDSTREAM_API_URL"] ?? "htt
 let step = Int(ProcessInfo.processInfo.environment["ROON_STEP"] ?? "1") ?? 1
 let repeatIntervalMs = Int(ProcessInfo.processInfo.environment["ROON_REPEAT_INTERVAL_MS"] ?? "50") ?? 50
 let logRawEvents = (ProcessInfo.processInfo.environment["ROON_LOG_RAW"] ?? "0") == "1"
+let holdReleaseTimeoutMs = Int(ProcessInfo.processInfo.environment["ROON_HOLD_RELEASE_TIMEOUT_MS"] ?? "300") ?? 300
 
 let stateLock = NSLock()
 var pressedUp = false
 var pressedDown = false
 var repeatTimer: DispatchSourceTimer? = nil
+var lastRelevantEventAt: TimeInterval = Date().timeIntervalSince1970
+var inFlight = false
+var pendingSteps: Int = 0
 
 // Ensure logs are flushed even when stdout is piped (e.g. through tee).
 setbuf(stdout, nil)
@@ -49,13 +53,19 @@ func postJSON(path: String, body: [String: Any]) {
   }
 
   let task = URLSession.shared.dataTask(with: req) { data, resp, err in
+    stateLock.lock()
+    inFlight = false
+    stateLock.unlock()
+
     if let err = err {
       print("[\(ts())] ❌ API error: \(err)")
+      drainQueue()
       return
     }
     let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
     let text = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
     print("[\(ts())] API \(path) -> \(status) \(text)")
+    drainQueue()
   }
   task.resume()
 }
@@ -80,19 +90,64 @@ func fire(action: String, label: String) {
   postJSON(path: "/api/roon/volume", body: ["action": action, "value": step])
 }
 
+func drainQueue() {
+  stateLock.lock()
+  if inFlight {
+    stateLock.unlock()
+    return
+  }
+  if pendingSteps == 0 {
+    stateLock.unlock()
+    return
+  }
+  inFlight = true
+  let next = pendingSteps
+  if pendingSteps > 0 { pendingSteps -= 1 }
+  if pendingSteps < 0 { pendingSteps += 1 }
+  stateLock.unlock()
+
+  if next > 0 {
+    fire(action: "up", label: "queue")
+  } else {
+    fire(action: "down", label: "queue")
+  }
+}
+
 func ensureTimerRunning() {
   if repeatTimer != nil { return }
   let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInitiated))
   t.schedule(deadline: .now() + .milliseconds(repeatIntervalMs), repeating: .milliseconds(repeatIntervalMs))
   t.setEventHandler {
+    let now = Date().timeIntervalSince1970
     stateLock.lock()
     let up = pressedUp
     let down = pressedDown
+    let last = lastRelevantEventAt
+    let inflight = inFlight
+    let pending = pendingSteps
+
+    // If we never see a usable release event, stop after inactivity.
+    if (up || down) && (now - last) > (Double(holdReleaseTimeoutMs) / 1000.0) {
+      pressedUp = false
+      pressedDown = false
+      // Don't allow backlog to continue after "release"
+      pendingSteps = 0
+      stateLock.unlock()
+      stopTimer()
+      return
+    }
+
+    // For holds: never allow backlog > 1 step. Only queue the next step if we can.
+    if up {
+      if !inflight && pending == 0 { pendingSteps = 1 }
+    } else if down {
+      if !inflight && pending == 0 { pendingSteps = -1 }
+    }
+    let shouldStop = !(pressedUp || pressedDown)
     stateLock.unlock()
 
-    if up { fire(action: "up", label: "hold") }
-    if down { fire(action: "down", label: "hold") }
-    if !up && !down { stopTimer() }
+    if shouldStop { stopTimer() }
+    drainQueue()
   }
   repeatTimer = t
   t.resume()
@@ -127,6 +182,8 @@ let callback: IOHIDValueCallback = { _ctx, _result, _sender, value in
       stateLock.lock()
       pressedUp = false
       pressedDown = false
+      pendingSteps = 0
+      lastRelevantEventAt = Date().timeIntervalSince1970
       stateLock.unlock()
       stopTimer()
     }
@@ -155,12 +212,17 @@ let callback: IOHIDValueCallback = { _ctx, _result, _sender, value in
     let wasDown = pressedDown
     if isUp { pressedUp = true }
     if isDown { pressedDown = true }
+    lastRelevantEventAt = Date().timeIntervalSince1970
     stateLock.unlock()
 
-    // Fire once on the initial press (ignore subsequent repeats from FLIRC)
-    if isUp && !wasUp { fire(action: "up", label: "press") }
-    if isDown && !wasDown { fire(action: "down", label: "press") }
+    // Queue one step for presses (even if a request is already in-flight).
+    // This preserves "5 rapid taps => 5%" behavior.
+    stateLock.lock()
+    if isUp && !wasUp { pendingSteps += 1 }
+    if isDown && !wasDown { pendingSteps -= 1 }
+    stateLock.unlock()
     ensureTimerRunning()
+    drainQueue()
     return
   }
 
@@ -170,6 +232,7 @@ let callback: IOHIDValueCallback = { _ctx, _result, _sender, value in
   if isDown { pressedDown = false }
   let up = pressedUp
   let down = pressedDown
+  lastRelevantEventAt = Date().timeIntervalSince1970
   stateLock.unlock()
   if !up && !down { stopTimer() }
 }
@@ -178,6 +241,7 @@ print("[\(ts())] Starting FLIRC HID listener")
 print("[\(ts())] API: \(apiBase)")
 print("[\(ts())] Step: \(step)")
 print("[\(ts())] Repeat interval: \(repeatIntervalMs)ms")
+print("[\(ts())] Hold release timeout: \(holdReleaseTimeoutMs)ms")
 print("[\(ts())] Raw logging: \(logRawEvents ? "on" : "off")")
 
 let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
