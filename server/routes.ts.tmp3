@@ -1,15 +1,24 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import dgram from "node:dgram";
-
-
+import fs from "node:fs";
+import path from "node:path";
+import { initializeRelayServer } from "./relay-server.js";
+import { initializeRelayServer } from "./relay-server.js";
+import { TidalApiClient } from "./tidal-api-client.js";
+import { TidalApiClient } from "./tidal-api-client.js";
+import { TidalApiClient } from "./tidal-api-client.js";
+// import { TidalApiClient } from "./tidal-api-client.js";
 
 // Global Roon control instance (to avoid issues with dynamic imports)
+let globalRoonControl: any = null;
 
+// Global Tidal API client instance
+// Global Tidal API client instance
+let globalTidalClient: TidalApiClient | null = null;
 
-
-
-
+// Global Tidal API client instance
+// let globalTidalClient: TidalApiClient | null = null;
 
 // SSDP discovery for UPnP/OpenHome devices
 interface DiscoveredDevice {
@@ -104,6 +113,7 @@ async function performSsdpDiscovery(searchTarget: string = 'ssdp:all', timeoutMs
       socket.close();
       resolve(Array.from(devices.values()));
     }, timeoutMs);
+  });
 }
 
 async function fetchDeviceDescription(locationUrl: string): Promise<DiscoveredDevice | null> {
@@ -233,6 +243,7 @@ async function makeSOAPRequest(controlUrl: string, soapEnvelope: string): Promis
       'User-Agent': 'SoundStream/1.0 UPnP/1.0',
     },
     body: soapEnvelope,
+  });
   
   console.log(`[UPNP] Response status: ${response.status} from ${controlUrl}`);
   return response;
@@ -461,6 +472,7 @@ async function discoverServerContent(host: string, port: number): Promise<Browse
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  console.log('🚀 registerRoutes initialized from server/routes.ts');
   // Health check endpoint for proxy server availability
   app.get('/api/health', (req: Request, res: Response) => {
     res.json({ 
@@ -468,6 +480,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       service: 'proxy-server',
       timestamp: new Date().toISOString()
     });
+  });
   // Android Mosaic ACTUS Relay (optional - for dCS Varese volume control)
   if (process.env.ENABLE_ANDROID_MOSAIC_RELAY === 'true') {
     try {
@@ -695,7 +708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (errorStack) {
         console.error('[LMS Proxy] Stack:', errorStack);
       }
-      console.error('[LMS Proxy] Target:', `http://${host}:${lmsPort}/jsonrpc.js`);
+      console.error('[LMS Proxy] Target:', `${lmsUrl}/jsonrpc.js`);
       console.error('[LMS Proxy] Command:', JSON.stringify(command));
       
       // Provide more helpful error messages
@@ -716,6 +729,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         command: command
       });
     }
+  });
 
   // Image proxy endpoint - proxies LMS images to avoid CORS issues
   app.get('/api/image-proxy', async (req: Request, res: Response) => {
@@ -820,6 +834,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const errorMessage = error instanceof Error ? error.message : 'Failed to proxy image';
       res.status(500).json({ error: errorMessage });
     }
+  });
 
   // SSDP discovery endpoint - discovers UPnP/OpenHome devices on the network
   app.get('/api/discover', async (req: Request, res: Response) => {
@@ -857,6 +872,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Discovery failed'
       });
     }
+  });
 
   // Fetch device description from a specific URL
   app.get('/api/discover/device', async (req: Request, res: Response) => {
@@ -879,6 +895,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Failed to fetch device'
       });
     }
+  });
 
   app.get('/api/server/test', async (req: Request, res: Response) => {
     const { host, port } = req.query;
@@ -904,6 +921,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: error instanceof Error ? error.message : 'Connection failed'
       });
     }
+  });
 
   app.get('/api/server/browse', async (req: Request, res: Response) => {
     const { host, port, type } = req.query;
@@ -925,6 +943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Failed to browse server'
       });
     }
+  });
 
   app.get('/api/server/browse/:containerId', async (req: Request, res: Response) => {
     const { host, port } = req.query;
@@ -948,6 +967,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Failed to browse container'
       });
     }
+  });
 
   // ==========================================
   // iOS Shortcuts / Siri Integration Endpoints
@@ -993,6 +1013,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Failed to toggle play/pause' 
       });
     }
+  });
 
   // Skip to next track
   app.post('/api/shortcuts/next', async (req: Request, res: Response) => {
@@ -1011,6 +1032,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Failed to skip track' 
       });
     }
+  });
 
   // Skip to previous track
   app.post('/api/shortcuts/previous', async (req: Request, res: Response) => {
@@ -1029,6 +1051,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Failed to skip track' 
       });
     }
+  });
 
   // Set volume
   app.post('/api/shortcuts/volume', async (req: Request, res: Response) => {
@@ -1049,6 +1072,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Failed to set volume' 
       });
     }
+  });
 
   // Play a specific playlist by name
   app.post('/api/shortcuts/playlist', async (req: Request, res: Response) => {
@@ -1096,6 +1120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Failed to play playlist' 
       });
     }
+  });
 
   // Get list of available playlists
   app.get('/api/shortcuts/playlists', async (req: Request, res: Response) => {
@@ -1125,6 +1150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Failed to get playlists' 
       });
     }
+  });
 
   // Get current playback status
   app.get('/api/shortcuts/status', async (req: Request, res: Response) => {
@@ -1160,6 +1186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Failed to get status' 
       });
     }
+  });
 
   // Get list of available players
   app.get('/api/shortcuts/players', async (req: Request, res: Response) => {
@@ -1194,6 +1221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : 'Failed to get players' 
       });
     }
+  });
 
   // ==========================================
   // Roon Volume Control
@@ -1206,11 +1234,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     envVar: process.env.ENABLE_ROON_VOLUME_CONTROL,
     isTrue: process.env.ENABLE_ROON_VOLUME_CONTROL === 'true',
     type: typeof process.env.ENABLE_ROON_VOLUME_CONTROL
+  });
   
   if (process.env.ENABLE_ROON_VOLUME_CONTROL === 'true') {
     console.log('[Server] Roon volume control is enabled, initializing...');
     try {
-      // const { initializeRoonVolumeControl, getRoonVolumeControl } = await import('./roon-volume-control');
+      const { initializeRoonVolumeControl, getRoonVolumeControl } = await import('./roon-volume-control');
       globalRoonControl = initializeRoonVolumeControl({
         enabled: true,
         coreIp: process.env.ROON_CORE_IP,
@@ -1271,6 +1300,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
+  });
 
   // Set Roon output
   app.post('/api/roon/output', async (req: Request, res: Response) => {
@@ -1307,6 +1337,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
+  });
 
   // Get current volume
   app.get('/api/roon/volume', async (req: Request, res: Response) => {
@@ -1343,6 +1374,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Failed to get volume'
       });
     }
+  });
 
   // Set volume
   app.post('/api/roon/volume', async (req: Request, res: Response) => {
@@ -1414,6 +1446,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Failed to control volume'
       });
     }
+  });
 
 
   // Combined server discovery endpoint (LMS + MinimServer + UPnP)
@@ -1426,15 +1459,13 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         (async () => {
           try {
             const port = 9000;
-            const timeoutMs = 1000; // Reduced from 2000ms to speed up discovery
+            const timeoutMs = 500; // Very fast timeout to speed up discovery
             const found: Array<{ id: string; name: string; host: string; port: number; type: string; version?: string }> = [];
 
-            // Focus on most common private IP ranges, with smaller ranges for faster scanning
+            // Only scan the most likely ranges with very limited hosts for speed
             const ipRanges = [
-              { base: [192, 168, 0], maxHost: 25 }, // Most common range, extended slightly
-              { base: [192, 168, 1], maxHost: 25 },
-              { base: [10, 0, 0], maxHost: 25 },
-              { base: [172, 16, 0], maxHost: 25 },
+              { base: [192, 168, 0], maxHost: 10 }, // Focus on most common range
+              { base: [192, 168, 1], maxHost: 5 },
             ];
             
             const promises: Promise<void>[] = [];
@@ -1682,6 +1713,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Discovery failed' 
       });
     }
+  });
 
   // LMS server discovery endpoint (for web platform)
   app.get('/api/lms/discover', async (req: Request, res: Response) => {
@@ -1756,6 +1788,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Discovery failed' 
       });
     }
+  });
 
   // Extract dominant color from an image URL
   app.get('/api/color/extract', async (req: Request, res: Response) => {
@@ -1844,6 +1877,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
       console.error('[Color Extract] Error:', error);
       res.status(500).json({ error: 'Failed to extract color', color: '#1C1C1E' });
     }
+  });
 
   // LMS server connection proxy (for web platform to avoid CORS)
   app.post('/api/lms/connect', async (req: Request, res: Response) => {
@@ -1913,6 +1947,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Connection failed' 
       });
     }
+  });
 
   // Chromecast casting endpoints
   app.post('/api/chromecast/cast', async (req: Request, res: Response) => {
@@ -2073,6 +2108,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Cast failed' 
       });
     }
+  });
 
   app.post('/api/chromecast/stop', async (req: Request, res: Response) => {
     try {
@@ -2110,6 +2146,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Stop failed' 
       });
     }
+  });
 
   // Chromecast enabled state endpoint - proxies to relay server
   app.post('/api/chromecast/enabled', async (req: Request, res: Response) => {
@@ -2165,6 +2202,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Failed to set enabled state' 
       });
     }
+  });
 
   // Chromecast device discovery using mDNS
   app.get('/api/chromecast/discover', async (req: Request, res: Response) => {
@@ -2284,41 +2322,197 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Discovery failed' 
       });
     }
+  });
+
+  // Token persistence for Tidal
+  const TIDAL_TOKENS_FILE = path.join(process.cwd(), '.tidal-tokens.json');
+
+  function saveTidalTokens(tokens: { accessToken: string; refreshToken: string; userId?: string }) {
+    try {
+      fs.writeFileSync(TIDAL_TOKENS_FILE, JSON.stringify(tokens, null, 2));
+      console.log('💾 Tidal tokens saved to file');
+    } catch (error) {
+      console.error('❌ Failed to save Tidal tokens:', error);
+    }
+  }
+
+  function loadTidalTokens() {
+    try {
+      if (fs.existsSync(TIDAL_TOKENS_FILE)) {
+        const data = fs.readFileSync(TIDAL_TOKENS_FILE, 'utf8');
+        const tokens = JSON.parse(data);
+        if (tokens.accessToken && tokens.refreshToken) {
+          console.log('✅ Loaded Tidal tokens from file');
+          return tokens;
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️  Failed to load Tidal tokens:', error);
+    }
+    return null;
+  }
 
   // Initialize Tidal API client with stored tokens if available
+  const storedTokens = loadTidalTokens();
+  globalTidalClient = new TidalApiClient({
     clientId: 'pUlCxd80DuDSem4J', // Third-party client ID provided by user
+    accessToken: storedTokens?.accessToken,
+    refreshToken: storedTokens?.refreshToken,
+    userId: storedTokens?.userId,
+  }, (tokens) => {
+    saveTidalTokens(tokens);
+  });
 
-  // Try to load stored Tidal tokens and authenticate
-  // Note: In a production app, tokens would be stored securely
-  // For now, we'll initialize without tokens and require manual auth
+  // Authenticate if tokens were loaded
+  if (storedTokens) {
+    globalTidalClient.authenticate().then(success => {
+      if (success) console.log('✅ Tidal authenticated with stored tokens');
+      else console.warn('⚠️  Tidal authentication with stored tokens failed');
+    });
+  }
 
   // Tidal API Routes
+  app.get('/api/tidal/auth-url', (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
       }
 
-      const authUrl = globalTidalClient.generateAuthUrl();
-      res.json({ authUrl });
+      // Dynamic redirect URI for web vs mobile
+      const platform = req.query.platform || (req.headers.origin ? 'web' : 'mobile');
+      const requestHost = req.headers.host || '192.168.0.21:3000';
+      const protocol = req.protocol || 'http';
+      
+      let redirectUri;
+      if (platform === 'web') {
+        // ALWAYS use the redirect URI registered in Tidal Developer Portal for web
+        redirectUri = `http://192.168.0.21:3000/api/tidal/callback`;
+      } else {
+        redirectUri = 'soundstream://callback';
+      }
+
+      console.log(`[Routes] Generating Tidal auth URL for platform: ${platform}, redirect: ${redirectUri}`);
+      const authUrl = globalTidalClient.generateAuthUrl(redirectUri);
+      
+      // Store redirect URI for token exchange
+      (global as any).tidalRedirectUri = redirectUri;
+
+      res.json({ authUrl, redirectUri });
     } catch (error) {
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Failed to generate auth URL'
       });
     }
+  });
 
+  app.post('/api/tidal/authenticate', async (req: Request, res: Response) => {
+    try {
+      const { code } = req.body;
+
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
       }
 
       if (!code) {
         return res.status(400).json({ error: 'Authorization code required' });
       }
 
-      const tokens = await globalTidalClient.exchangeCodeForTokens(code);
+      const redirectUri = (global as any).tidalRedirectUri || 'soundstream://callback';
+      console.log(`[Routes] Exchanging code for Tidal tokens, redirect: ${redirectUri}`);
+      
+      const tokens = await globalTidalClient.exchangeCodeForTokens(code, redirectUri);
       // Set the tokens in the client for future use
       globalTidalClient.setTokens(tokens.accessToken, tokens.refreshToken, tokens.userId);
+      saveTidalTokens(tokens);
+      
+      // Clean up
+      delete (global as any).tidalRedirectUri;
+      
       res.json({ success: true, tokens });
     } catch (error) {
+      console.error('[Routes] Tidal authenticate error:', error);
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Failed to authenticate with Tidal'
       });
     }
+  });
 
+  app.get('/api/tidal/callback', async (req: Request, res: Response) => {
+    try {
+      const { code, error } = req.query;
+
+      if (error) {
+        return res.send(`
+          <html>
+            <head><title>Tidal Auth Error</title></head>
+            <body style="font-family: sans-serif; padding: 20px; text-align: center;">
+              <h1>Authentication Error</h1>
+              <p>${error}</p>
+              <p>You can close this window now.</p>
+            </body>
+          </html>
+        `);
+      }
+
+      if (!code || typeof code !== 'string') {
+        return res.status(400).send('No code received');
+      }
+
+      if (!globalTidalClient) {
+        return res.status(503).send('Tidal client not initialized');
+      }
+
+      const redirectUri = (global as any).tidalRedirectUri || 'http://192.168.0.21:3000/api/tidal/callback';
+      console.log(`[Routes] Handling Tidal callback, exchanging code, redirect: ${redirectUri}`);
+
+      const tokens = await globalTidalClient.exchangeCodeForTokens(code, redirectUri);
+      globalTidalClient.setTokens(tokens.accessToken, tokens.refreshToken, tokens.userId);
+      saveTidalTokens(tokens);
+
+      // Clean up
+      delete (global as any).tidalRedirectUri;
+
+      res.send(`
+        <html>
+          <head>
+            <title>Tidal Auth Success</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+          </head>
+          <body style="font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #121212; color: white;">
+            <div style="text-align: center; padding: 40px; border-radius: 20px; background: #1e1e1e; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+              <div style="font-size: 64px; margin-bottom: 20px;">✅</div>
+              <h1 style="margin: 0 0 10px 0;">Authentication Successful!</h1>
+              <p style="color: #aaa; margin-bottom: 30px;">Your Tidal account is now connected.</p>
+              <button onclick="window.close()" style="background: #2196F3; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px;">
+                Close This Window
+              </button>
+              <p style="margin-top: 20px; font-size: 14px; color: #666;">You can now return to the SoundStream app.</p>
+            </div>
+            <script>
+              // Try to notify the opener if possible
+              if (window.opener) {
+                window.opener.postMessage({ type: 'TIDAL_AUTH_SUCCESS' }, '*');
+              }
+              // Auto-close after 5 seconds if not closed manually
+              setTimeout(() => {
+                try { window.close(); } catch(e) {}
+              }, 5000);
+            </script>
+          </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error('[Routes] Tidal callback error:', error);
+      res.status(500).send(`Authentication failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
+
+  app.post('/api/tidal/set-tokens', (req: Request, res: Response) => {
+    try {
+      const { accessToken, refreshToken, userId } = req.body;
+
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
       }
 
       if (!accessToken || !refreshToken) {
@@ -2326,13 +2520,19 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
       }
 
       globalTidalClient.setTokens(accessToken, refreshToken, userId);
+      saveTidalTokens({ accessToken, refreshToken, userId });
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Failed to set Tidal tokens'
       });
     }
+  });
 
+  app.get('/api/tidal/status', (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
       }
 
       const authenticated = globalTidalClient.isAuthenticated();
@@ -2341,14 +2541,65 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
       res.json({
         authenticated,
         hasTokens: !!tokens?.accessToken,
-        userId: tokens?.userId
+        userId: tokens?.userId,
+        clientId: globalTidalClient.getClientId()
       });
     } catch (error) {
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Failed to get Tidal status'
       });
     }
+  });
 
+  app.get('/api/tidal/totals', async (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
+      }
+
+      const totals = await globalTidalClient.getLibraryTotals();
+      res.json(totals);
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to get Tidal totals'
+      });
+    }
+  });
+
+  app.get('/api/tidal/cycle-client-id', (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
+      }
+
+      const newClientId = globalTidalClient.cycleClientId();
+      res.json({ success: true, clientId: newClientId });
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to cycle Tidal client ID'
+      });
+    }
+  });
+
+  app.post('/api/tidal/cycle-client-id', (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
+      }
+
+      const newClientId = globalTidalClient.cycleClientId();
+      res.json({ success: true, clientId: newClientId });
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to cycle Tidal client ID'
+      });
+    }
+  });
+
+  app.get('/api/tidal/albums', async (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
       }
 
       const limit = parseInt(req.query.limit as string) || 50;
@@ -2361,7 +2612,12 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Failed to get Tidal albums'
       });
     }
+  });
 
+  app.get('/api/tidal/playlists', async (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
       }
 
       const limit = parseInt(req.query.limit as string) || 50;
@@ -2374,7 +2630,12 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Failed to get Tidal playlists'
       });
     }
+  });
 
+  app.get('/api/tidal/artists', async (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
       }
 
       const limit = parseInt(req.query.limit as string) || 50;
@@ -2387,7 +2648,12 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Failed to get Tidal artists'
       });
     }
+  });
 
+  app.get('/api/tidal/albums/:albumId/tracks', async (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
       }
 
       const { albumId } = req.params;
@@ -2398,7 +2664,12 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Failed to get album tracks'
       });
     }
+  });
 
+  app.get('/api/tidal/playlists/:playlistId/tracks', async (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
       }
 
       const { playlistId } = req.params;
@@ -2409,7 +2680,12 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Failed to get playlist tracks'
       });
     }
+  });
 
+  app.get('/api/tidal/search', async (req: Request, res: Response) => {
+    try {
+      if (!globalTidalClient) {
+        return res.status(503).json({ error: 'Tidal API client not initialized' });
       }
 
       const { q: query, type = 'albums', limit = 20 } = req.query;
@@ -2439,259 +2715,7 @@ app.get('/api/roon/status', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'Search failed'
       });
     }
-
-  // Initialize Tidal API client
-    clientId: 'pUlCxd80DuDSem4J', // Third-party client ID provided by user
-
-  // Tidal API Routes
-      }
-
-      const authUrl = globalTidalClient.generateAuthUrl();
-      res.json({ authUrl });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to generate auth URL'
-      });
-    }
-
-      }
-
-      if (!code) {
-        return res.status(400).json({ error: 'Authorization code required' });
-      }
-
-      const tokens = await globalTidalClient.exchangeCodeForTokens(code);
-      // Set the tokens in the client for future use
-      globalTidalClient.setTokens(tokens.accessToken, tokens.refreshToken, tokens.userId);
-      res.json({ success: true, tokens });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to authenticate with Tidal'
-      });
-    }
-
-      }
-
-      if (!accessToken || !refreshToken) {
-        return res.status(400).json({ error: 'Access token and refresh token required' });
-      }
-
-      globalTidalClient.setTokens(accessToken, refreshToken, userId);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to set Tidal tokens'
-      });
-    }
-
-      }
-
-      const authenticated = globalTidalClient.isAuthenticated();
-      const tokens = authenticated ? globalTidalClient.getTokens() : null;
-
-      res.json({
-        authenticated,
-        hasTokens: !!tokens?.accessToken,
-        userId: tokens?.userId
-      });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal status'
-      });
-    }
-
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyAlbums(limit, offset);
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal albums'
-      });
-    }
-
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyPlaylists(limit, offset);
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal playlists'
-      });
-    }
-
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyArtists(limit, offset);
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal artists'
-      });
-    }
-
-      }
-
-      const { albumId } = req.params;
-      const tracks = await globalTidalClient.getAlbumTracks(albumId);
-      res.json({ tracks });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get album tracks'
-      });
-    }
-
-      }
-
-      const { playlistId } = req.params;
-      const tracks = await globalTidalClient.getPlaylistTracks(playlistId);
-      res.json({ tracks });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get playlist tracks'
-      });
-    }
-
-      }
-
-      const { q: query, type = 'albums', limit = 20 } = req.query;
-
-      if (!query || typeof query !== 'string') {
-        return res.status(400).json({ error: 'Search query required' });
-      }
-
-      let results;
-      switch (type) {
-        case 'albums':
-          results = await globalTidalClient.searchAlbums(query, Number(limit));
-          break;
-        case 'artists':
-          results = await globalTidalClient.searchArtists(query, Number(limit));
-          break;
-        case 'tracks':
-          results = await globalTidalClient.searchTracks(query, Number(limit));
-          break;
-        default:
-          return res.status(400).json({ error: 'Invalid search type' });
-      }
-
-      res.json({ results });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Search failed'
-      });
-    }
-
-  // Initialize Tidal API client
-    clientId: 'pUlCxd80DuDSem4J', // Third-party client ID provided by user
-
-  // Tidal API Routes
-      }
-
-      const authenticated = globalTidalClient.isAuthenticated();
-      const tokens = authenticated ? globalTidalClient.getTokens() : null;
-
-      res.json({
-        authenticated,
-        hasTokens: !!tokens?.accessToken,
-        userId: tokens?.userId
-      });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal status'
-      });
-    }
-
-      }
-
-      if (!accessToken) {
-        return res.status(400).json({ error: 'Access token required' });
-      }
-
-      globalTidalClient.setTokens(accessToken, refreshToken, userId);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to set Tidal tokens'
-      });
-    }
-
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyAlbums(limit, offset);
-      res.json(result);
-    } catch (error) {
-      console.error('[Tidal API] Failed to get albums:', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal albums'
-      });
-    }
-
-  // Initialize Tidal API client
-    clientId: 'pUlCxd80DuDSem4J', // Third-party client ID provided by user
-
-  // Tidal API Routes
-      }
-
-      const authenticated = globalTidalClient.isAuthenticated();
-      const tokens = authenticated ? globalTidalClient.getTokens() : null;
-
-      res.json({
-        authenticated,
-        hasTokens: !!tokens?.accessToken,
-        userId: tokens?.userId
-      });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal status'
-      });
-    }
-
-      }
-
-      if (!accessToken) {
-        return res.status(400).json({ error: 'Access token required' });
-      }
-
-      globalTidalClient.setTokens(accessToken, refreshToken, userId);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to set Tidal tokens'
-      });
-    }
-
-      }
-
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const result = await globalTidalClient.getMyAlbums(limit, offset);
-      res.json(result);
-    } catch (error) {
-      console.error('[Tidal API] Failed to get albums:', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get Tidal albums'
-      });
-    }
-
-
-
-  // Initialize relay server (Chromecast, IR control, display pages, etc.)
-  // // initializeRelayServer(app); // Temporarily disabled - issue with relay-server.ts
-
+  });
   const httpServer = createServer(app);
 
   return httpServer;

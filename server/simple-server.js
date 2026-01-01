@@ -2033,122 +2033,14 @@ app.post('/api/roon/volume', async (req, res) => {
 app.get('/api/chromecast/discover', async (req, res) => {
   try {
     console.log('[Chromecast] Discovery requested');
-    
-    let mdns;
-    try {
-      // Try to load mdns-js library
-      mdns = require('mdns-js');
-    } catch (e) {
-      console.warn('[Chromecast] mDNS library not available, falling back to manual discovery');
-      // Fallback: return empty array or check for known server on 192.168.0.21
-      const fallbackDevices = [];
-      
-      // Try to check if there's a server on 192.168.0.21 that might have device info
-      try {
-        const response = await fetch('http://192.168.0.21:5000/api/chromecasts', {
-          signal: AbortSignal.timeout(3000),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.devices && Array.isArray(data.devices)) {
-            return res.json(data.devices.map((d) => ({
-              ip: d.ip,
-              name: d.name,
-            })));
-          }
-        }
-      } catch (e) {
-        console.log('[Chromecast] Fallback server not available:', e instanceof Error ? e.message : String(e));
-      }
-      
-      return res.json(fallbackDevices);
-    }
-
     const timeout = parseInt(req.query.timeout) || 5000;
-    const devices = [];
-    const seen = new Set();
-
-    return new Promise((resolve) => {
-      try {
-        const browser = mdns.createBrowser(mdns.tcp('googlecast'));
-        
-        browser.on('ready', () => {
-          console.log('[Chromecast] mDNS browser ready, starting discovery...');
-          browser.discover();
-        });
-        
-        browser.on('update', (data) => {
-          if (data.addresses && data.addresses.length > 0) {
-            // Find IPv4 address (contains dots)
-            const ip = data.addresses.find(addr => addr.includes('.')) || data.addresses[0];
-            const key = `${ip}:${data.port || 8009}`;
-            
-            if (!seen.has(key)) {
-              seen.add(key);
-              
-              let name = data.fullname || data.host || 'Unknown';
-              if (name.includes('._googlecast')) {
-                name = name.split('._googlecast')[0];
-              }
-              name = name.replace(/-/g, ' ').replace(/\._tcp\.local$/, '');
-              
-              // Parse TXT record for friendly name and model
-              const txtRecord = data.txt || [];
-              let friendlyName = name;
-              let model = '';
-              
-              txtRecord.forEach(entry => {
-                if (typeof entry === 'string') {
-                  if (entry.startsWith('fn=')) {
-                    friendlyName = entry.substring(3);
-                  } else if (entry.startsWith('md=')) {
-                    model = entry.substring(3);
-                  }
-                } else if (entry && typeof entry === 'object') {
-                  // Handle object format
-                  if (entry.fn) friendlyName = entry.fn;
-                  if (entry.md) model = entry.md;
-                }
-              });
-              
-              const device = {
-                ip: ip,
-                name: friendlyName,
-                model: model,
-                port: data.port || 8009
-              };
-              
-              devices.push(device);
-              console.log(`[Chromecast] Discovered: ${friendlyName} at ${ip}`);
-            }
-          }
-        });
-        
-        browser.on('error', (error) => {
-          console.error('[Chromecast] mDNS browser error:', error);
-        });
-        
-        // Stop discovery after timeout
-        setTimeout(() => {
-          try {
-            browser.stop();
-          } catch (e) {
-            // Ignore errors when stopping
-          }
-          
-          console.log(`[Chromecast] Discovery complete, found ${devices.length} device(s)`);
-          res.json(devices.sort((a, b) => a.name.localeCompare(b.name)));
-          resolve();
-        }, timeout);
-        
-      } catch (error) {
-        console.error('[Chromecast] Discovery setup error:', error);
-        res.status(500).json({ 
-          error: error instanceof Error ? error.message : 'Discovery setup failed' 
-        });
-        resolve();
-      }
-    });
+    
+    // Use the Chromecast service's discovery method
+    const { ChromecastService } = require('./chromecast-service');
+    const devices = await ChromecastService.discoverDevices(timeout);
+    
+    console.log(`[Chromecast] Discovery complete, found ${devices.length} device(s)`);
+    res.json(devices.sort((a, b) => a.name.localeCompare(b.name)));
     
   } catch (error) {
     console.error('[Chromecast] Discovery error:', error);
@@ -2279,14 +2171,16 @@ app.get('/api/image-proxy', async (req, res) => {
 });
 
 // ============================================
-// Chromecast Casting (Integrated into main server)
+// Chromecast Casting (Using castv2-client - no dashcast required)
 // ============================================
 
-// Chromecast state
+// Import Chromecast service
+const chromecastService = require('./chromecast-service');
+
+// Chromecast state (for compatibility with existing code)
 let chromecastIp = '';
 let chromecastName = '';
 let chromecastEnabled = false;
-let isCasting = false;
 let pauseTimer = null;
 let preferredPlayerId = '';
 let preferredPlayerName = '';
@@ -2295,38 +2189,7 @@ let lastMode = '';
 let castingLmsHost = '';
 let castingLmsPort = 9000;
 
-// Check if catt is available for Chromecast casting
-let cattAvailable = false;
-let cattCmd = 'catt'; // Default command
-
-// Try multiple paths for catt - check user bin first, then python3 -m catt
-exec('test -f /Users/zeki/Library/Python/3.9/bin/catt', (pathError) => {
-  if (!pathError) {
-    cattAvailable = true;
-    cattCmd = '/Users/zeki/Library/Python/3.9/bin/catt';
-    console.log('[Chromecast] Support enabled (using /Users/zeki/Library/Python/3.9/bin/catt)');
-  } else {
-    // Try python3 -m catt
-    exec('python3 -m catt --help 2>&1 | head -1', (error, stdout) => {
-      if (!error || stdout.includes('catt') || stdout.includes('usage') || stdout.includes('Commands:')) {
-        cattAvailable = true;
-        cattCmd = 'python3 -m catt';
-        console.log('[Chromecast] Support enabled (using python3 -m catt)');
-      } else {
-        // Try which catt
-        exec('which catt', (cmdError) => {
-          if (!cmdError) {
-            cattAvailable = true;
-            cattCmd = 'catt';
-            console.log('[Chromecast] Support enabled (using catt)');
-          } else {
-            console.log('[Chromecast] Support disabled (install catt: pip3 install catt)');
-          }
-        });
-      }
-    });
-  }
-});
+console.log('[Chromecast] Using castv2-client (no dashcast required)');
 
 // Get server's local IP address
 function getServerIp() {
@@ -2406,15 +2269,12 @@ async function getPlayerStatus(playerId) {
 }
 
 async function startCasting() {
-  if (isCasting) {
-    console.log('[Chromecast] startCasting called but isCasting is already true, skipping');
+  const status = chromecastService.getStatus();
+  if (status.isCasting) {
+    console.log('[Chromecast] startCasting called but already casting, skipping');
     return;
   }
   
-  if (!cattAvailable) {
-    console.log('[Chromecast] Not available (install catt: pip3 install catt)');
-    return;
-  }
   if (!chromecastIp) {
     console.log('[Chromecast] Not configured');
     return;
@@ -2424,9 +2284,6 @@ async function startCasting() {
     return;
   }
 
-  // Set flag immediately to prevent duplicate calls
-  isCasting = true;
-
   // Use preferredPlayerId if set, otherwise use currentPlayerId
   const playerToUse = preferredPlayerId || currentPlayerId;
   const serverIp = getServerIp();
@@ -2434,36 +2291,20 @@ async function startCasting() {
   
   console.log(`[Chromecast] Starting cast to ${chromecastIp}: ${nowPlayingUrl} (player: ${playerToUse})`);
 
-  // Use catt to cast the URL to Chromecast
-  const cmd = `${cattCmd} -d "${chromecastIp}" cast_site "${nowPlayingUrl}"`;
-  
-  exec(cmd, (error, stdout, stderr) => {
-    if (error) {
-      console.error('[Chromecast] Error starting cast:', error.message);
-      console.error('[Chromecast] stderr:', stderr);
-      isCasting = false; // Reset on error so it can retry
-      return;
-    }
-    console.log('[Chromecast] Cast started successfully');
-    if (stdout) console.log('[Chromecast] stdout:', stdout);
-  });
+  // Use chromecast service to cast the URL
+  const success = await chromecastService.castUrl(nowPlayingUrl);
+  if (!success) {
+    console.error('[Chromecast] Failed to start cast');
+  }
 }
 
-function stopCasting() {
-  if (!isCasting) return;
-  if (!cattAvailable || !chromecastIp) return;
+async function stopCasting() {
+  const status = chromecastService.getStatus();
+  if (!status.isCasting) return;
 
   console.log('[Chromecast] Stopping cast...');
+  await chromecastService.stop();
   
-  exec(`${cattCmd} -d "${chromecastIp}" stop`, (error) => {
-    if (error) {
-      console.error('[Chromecast] Error stopping cast:', error.message);
-    } else {
-      console.log('[Chromecast] Cast stopped');
-    }
-  });
-  
-  isCasting = false;
   if (pauseTimer) {
     clearTimeout(pauseTimer);
     pauseTimer = null;
@@ -2474,10 +2315,11 @@ const PAUSE_TIMEOUT = 5000; // 5 seconds
 
 async function pollLmsStatus() {
   try {
+    const castStatus = chromecastService.getStatus();
     if (!chromecastEnabled || !chromecastIp) {
-      if (isCasting) {
+      if (castStatus.isCasting) {
         console.log('[Chromecast] Disabled or no IP, stopping cast');
-        stopCasting();
+        await stopCasting();
       }
       return;
     }
@@ -2517,7 +2359,7 @@ async function pollLmsStatus() {
     const mode = status.mode;
     const hasTrack = status.playlist_loop && status.playlist_loop.length > 0;
 
-    console.log(`[Chromecast] Poll status: mode=${mode}, hasTrack=${hasTrack}, isCasting=${isCasting}, chromecastEnabled=${chromecastEnabled}, chromecastIp=${chromecastIp}`);
+    console.log(`[Chromecast] Poll status: mode=${mode}, hasTrack=${hasTrack}, isCasting=${castStatus.isCasting}, chromecastEnabled=${chromecastEnabled}, chromecastIp=${chromecastIp}`);
 
     if (mode === 'play' && hasTrack) {
       if (pauseTimer) {
@@ -2525,17 +2367,19 @@ async function pollLmsStatus() {
         pauseTimer = null;
       }
 
-      if (!isCasting && chromecastIp && chromecastEnabled) {
+      if (!castStatus.isCasting && chromecastIp && chromecastEnabled) {
         console.log('[Chromecast] Play detected, starting cast...');
         await startCasting();
-      } else if (isCasting) {
-        // isCasting flag is true, but verify cast is actually active
-        // If cast failed silently, reset flag and retry
-        console.log('[Chromecast] isCasting flag is true, but verifying cast is active...');
-        // Reset flag and retry - if cast is actually active, startCasting will detect it
-        // If cast failed, this will allow a retry
-        isCasting = false;
-        await startCasting();
+      } else if (castStatus.isCasting) {
+        // Verify cast is actually active - if connection lost, reconnect
+        if (!castStatus.isConnected) {
+          console.log('[Chromecast] Connection lost, reconnecting...');
+          await chromecastService.connect();
+          // Retry casting if we have a current URL
+          if (castStatus.currentUrl) {
+            await chromecastService.castUrl(castStatus.currentUrl);
+          }
+        }
       } else if (!chromecastIp) {
         console.log('[Chromecast] No Chromecast IP configured');
       } else if (!chromecastEnabled) {
@@ -2544,17 +2388,17 @@ async function pollLmsStatus() {
     } else if (mode === 'stop' || (mode !== 'play' && !hasTrack)) {
       // Stop mode - stop casting immediately
       // Also stop if mode is not 'play' and there's no track (playlist empty)
-      if (isCasting) {
+      if (castStatus.isCasting) {
         if (pauseTimer) {
           clearTimeout(pauseTimer);
           pauseTimer = null;
         }
         console.log(`[Chromecast] Stop detected (mode=${mode}, hasTrack=${hasTrack}), stopping cast immediately...`);
-        stopCasting();
+        await stopCasting();
       }
     } else if (mode === 'pause') {
       // Pause mode - wait a bit before stopping (user might resume)
-      if (isCasting && !pauseTimer) {
+      if (castStatus.isCasting && !pauseTimer) {
         console.log(`[Chromecast] Pause detected, will stop cast in ${PAUSE_TIMEOUT/1000} seconds...`);
         pauseTimer = setTimeout(() => {
           console.log('[Chromecast] Pause timeout reached, stopping cast');
@@ -2599,15 +2443,18 @@ app.post('/api/chromecast/config', async (req, res) => {
     if (ip !== undefined) {
       chromecastIp = ip;
       chromecastName = name || '';
+      chromecastService.configure(ip, name, chromecastEnabled);
       console.log(`[Chromecast] Configured: ${chromecastName || chromecastIp} (${chromecastIp})`);
     }
     
     if (enabled !== undefined) {
       chromecastEnabled = enabled;
+      chromecastService.configure(chromecastIp, chromecastName, enabled);
       console.log(`[Chromecast] Enabled set to: ${chromecastEnabled}`);
       
-      if (!chromecastEnabled && isCasting) {
-        stopCasting();
+      const castStatus = chromecastService.getStatus();
+      if (!chromecastEnabled && castStatus.isCasting) {
+        await stopCasting();
       }
       
       if (chromecastEnabled && chromecastIp) {
@@ -2698,9 +2545,11 @@ app.post('/api/chromecast/enabled', async (req, res) => {
     console.log('[Chromecast] Enabled state:', enabled);
     
     chromecastEnabled = enabled;
+    chromecastService.configure(chromecastIp, chromecastName, enabled);
     
-    if (!chromecastEnabled && isCasting) {
-      stopCasting();
+    const castStatus = chromecastService.getStatus();
+    if (!chromecastEnabled && castStatus.isCasting) {
+      await stopCasting();
     }
     
     if (chromecastEnabled && chromecastIp) {
@@ -2773,9 +2622,8 @@ server.listen(PORT, '0.0.0.0', () => {
     startPolling();
   }
   
-  if (!cattAvailable) {
-    console.log('[Chromecast] Install catt for Chromecast support: pip3 install catt');
-  }
+  // Chromecast support is now provided by castv2-client (no external dependencies needed)
+  console.log('[Chromecast] Using castv2-client for Chromecast support (no dashcast required)');
 }).on('error', (err) => {
   console.error(`❌ Failed to start server:`, err.message);
   process.exit(1);
