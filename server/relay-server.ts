@@ -182,7 +182,68 @@ async function stopCasting(): Promise<void> {
 }
 
 // Format LMS status as NOW_PLAYING message for roon-cast receiver
-function formatNowPlayingMessage(status: any): any {
+const AUDIODB_API_KEY = process.env.AUDIODB_API_KEY || '2';
+const ARTIST_IMAGE_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const artistImageCache: Map<string, { images: string[]; fetchedAt: number }> = new Map();
+const artistImageInFlight: Map<string, Promise<string[]>> = new Map();
+
+async function fetchArtistImagesFromAudioDb(artistNameRaw: string): Promise<string[]> {
+  const artistName = (artistNameRaw || '').trim();
+  if (!artistName) return [];
+
+  const cached = artistImageCache.get(artistName);
+  if (cached && Date.now() - cached.fetchedAt < ARTIST_IMAGE_CACHE_TTL_MS) {
+    return cached.images;
+  }
+
+  const inflight = artistImageInFlight.get(artistName);
+  if (inflight) return inflight;
+
+  const p = (async () => {
+    try {
+      const url = `https://www.theaudiodb.com/api/v1/json/${AUDIODB_API_KEY}/search.php?s=${encodeURIComponent(artistName)}`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!resp.ok) return [];
+      const data: any = await resp.json();
+      const artist = data?.artists?.[0];
+      if (!artist) return [];
+
+      const candidates = [
+        artist.strArtistFanart,
+        artist.strArtistFanart2,
+        artist.strArtistFanart3,
+        artist.strArtistFanart4,
+        artist.strArtistThumb,
+        artist.strArtistWideThumb,
+      ].filter((u: any) => typeof u === 'string' && u.length > 0);
+
+      // Deduplicate while preserving order
+      const seen = new Set<string>();
+      const images = candidates.filter((u: string) => (seen.has(u) ? false : (seen.add(u), true)));
+
+      artistImageCache.set(artistName, { images, fetchedAt: Date.now() });
+      console.log(`[Relay] Artist images: ${artistName} -> ${images.length}`);
+      return images;
+    } catch (e) {
+      console.warn('[Relay] Artist image fetch failed:', e instanceof Error ? e.message : String(e));
+      return [];
+    } finally {
+      artistImageInFlight.delete(artistName);
+    }
+  })();
+
+  artistImageInFlight.set(artistName, p);
+  return p;
+}
+
+function normalizePrimaryArtist(artist: string): string {
+  if (!artist) return '';
+  // LMS sometimes uses "A / B" - take primary artist for background
+  if (artist.includes(' / ')) return artist.split(' / ')[0].trim();
+  return artist.trim();
+}
+
+function formatNowPlayingMessage(status: any, artistImages: string[]): any {
   if (!status || !status.playlist_loop || status.playlist_loop.length === 0) {
     return null;
   }
@@ -225,7 +286,7 @@ function formatNowPlayingMessage(status: any): any {
       },
       image_url: imageUrl,
       image_data: imageUrl,
-      artist_images: [] // We can add AudioDB images later if needed
+      artist_images: artistImages || []
     }
   };
 }
@@ -236,7 +297,10 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
     return;
   }
 
-  const message = formatNowPlayingMessage(status);
+  const track = status?.playlist_loop?.[0];
+  const primaryArtist = normalizePrimaryArtist(track?.artist || '');
+  const artistImages = primaryArtist ? await fetchArtistImagesFromAudioDb(primaryArtist) : [];
+  const message = formatNowPlayingMessage(status, artistImages);
   if (!message) return;
 
   try {
