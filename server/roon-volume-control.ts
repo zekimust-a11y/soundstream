@@ -43,6 +43,7 @@ class RoonVolumeControl {
   private isInitializing: boolean = false;
   private readonly roonConfigPath: string;
   private volumeQueue: Promise<void> = Promise.resolve();
+  private targetVolumePercent: number | null = null;
 
   // Direct connection to Roon Core
   private roonCoreHost: string = process.env.ROON_CORE_IP || '192.168.0.19';
@@ -393,6 +394,7 @@ class RoonVolumeControl {
     // Update cached output volume immediately so rapid successive calls don't re-read stale values.
     // This makes repeated +/- steps accumulate smoothly even before _refreshOutputs() runs.
     output.volume.value = targetValue;
+    this.targetVolumePercent = clampedVolume;
 
     return new Promise((resolve, reject) => {
       // Try zone-based control first, fallback to output
@@ -483,8 +485,8 @@ class RoonVolumeControl {
    */
   async volumeUp(step: number = 2): Promise<number> {
     return this.enqueueVolumeOp(async () => {
-      const current = await this._getVolumeUnlocked();
-      const newVolume = Math.min(100, current + step);
+      const base = this.targetVolumePercent ?? (await this._getVolumeUnlocked());
+      const newVolume = Math.min(100, base + step);
       await this._setVolumeUnlocked(newVolume);
       return newVolume;
     });
@@ -495,8 +497,8 @@ class RoonVolumeControl {
    */
   async volumeDown(step: number = 2): Promise<number> {
     return this.enqueueVolumeOp(async () => {
-      const current = await this._getVolumeUnlocked();
-      const newVolume = Math.max(0, current - step);
+      const base = this.targetVolumePercent ?? (await this._getVolumeUnlocked());
+      const newVolume = Math.max(0, base - step);
       await this._setVolumeUnlocked(newVolume);
       return newVolume;
     });
