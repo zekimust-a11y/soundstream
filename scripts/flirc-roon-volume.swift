@@ -6,13 +6,17 @@ import IOKit.hid
 //
 // Env:
 // - SOUNDSTREAM_API_URL (default: http://127.0.0.1:3000)
-// - ROON_STEP (default: 2)
+// - ROON_STEP (default: 1)               // percent step per tick
+// - ROON_MIN_INTERVAL_MS (default: 120)  // throttle repeated events (helps smooth holds)
 //
 // Usage:
-//   SOUNDSTREAM_API_URL=http://127.0.0.1:3000 ROON_STEP=2 swift scripts/flirc-roon-volume.swift
+//   SOUNDSTREAM_API_URL=http://127.0.0.1:3000 ROON_STEP=1 ROON_MIN_INTERVAL_MS=120 swift scripts/flirc-roon-volume.swift
 
 let apiBase = ProcessInfo.processInfo.environment["SOUNDSTREAM_API_URL"] ?? "http://127.0.0.1:3000"
-let step = Int(ProcessInfo.processInfo.environment["ROON_STEP"] ?? "2") ?? 2
+let step = Int(ProcessInfo.processInfo.environment["ROON_STEP"] ?? "1") ?? 1
+let minIntervalMs = Int(ProcessInfo.processInfo.environment["ROON_MIN_INTERVAL_MS"] ?? "120") ?? 120
+let throttleLock = NSLock()
+var lastActionAt: [String: TimeInterval] = [:] // action -> timestamp
 
 func ts() -> String {
   let f = ISO8601DateFormatter()
@@ -63,36 +67,27 @@ let kUsageConsumerVolumeIncrement: Int = 0xE9
 let kUsageConsumerVolumeDecrement: Int = 0xEA
 
 func handlePress(page: Int, usage: Int) {
-  if page == kPageKeyboard && usage == kUsageArrowUp {
-    print("[\(ts())] Key: ArrowUp -> Roon volume up (\(step))")
-    postJSON(path: "/api/roon/volume", body: ["action": "up", "value": step])
-    return
+  func fire(action: String, label: String) {
+    let now = Date().timeIntervalSince1970
+    throttleLock.lock()
+    defer { throttleLock.unlock() }
+
+    let last = lastActionAt[action] ?? 0
+    if now - last < (Double(minIntervalMs) / 1000.0) {
+      return
+    }
+    lastActionAt[action] = now
+
+    print("[\(ts())] Key: \(label) -> Roon volume \(action) (\(step))")
+    postJSON(path: "/api/roon/volume", body: ["action": action, "value": step])
   }
-  if page == kPageKeyboard && usage == kUsageArrowDown {
-    print("[\(ts())] Key: ArrowDown -> Roon volume down (\(step))")
-    postJSON(path: "/api/roon/volume", body: ["action": "down", "value": step])
-    return
-  }
-  if page == kPageKeyboard && usage == kUsageF10 {
-    print("[\(ts())] Key: F10 -> Roon volume up (\(step))")
-    postJSON(path: "/api/roon/volume", body: ["action": "up", "value": step])
-    return
-  }
-  if page == kPageKeyboard && usage == kUsageF9 {
-    print("[\(ts())] Key: F9 -> Roon volume down (\(step))")
-    postJSON(path: "/api/roon/volume", body: ["action": "down", "value": step])
-    return
-  }
-  if page == kPageConsumer && usage == kUsageConsumerVolumeIncrement {
-    print("[\(ts())] Key: ConsumerVolumeIncrement -> Roon volume up (\(step))")
-    postJSON(path: "/api/roon/volume", body: ["action": "up", "value": step])
-    return
-  }
-  if page == kPageConsumer && usage == kUsageConsumerVolumeDecrement {
-    print("[\(ts())] Key: ConsumerVolumeDecrement -> Roon volume down (\(step))")
-    postJSON(path: "/api/roon/volume", body: ["action": "down", "value": step])
-    return
-  }
+
+  if page == kPageKeyboard && usage == kUsageArrowUp { fire(action: "up", label: "ArrowUp"); return }
+  if page == kPageKeyboard && usage == kUsageArrowDown { fire(action: "down", label: "ArrowDown"); return }
+  if page == kPageKeyboard && usage == kUsageF10 { fire(action: "up", label: "F10"); return }
+  if page == kPageKeyboard && usage == kUsageF9 { fire(action: "down", label: "F9"); return }
+  if page == kPageConsumer && usage == kUsageConsumerVolumeIncrement { fire(action: "up", label: "ConsumerVolumeIncrement"); return }
+  if page == kPageConsumer && usage == kUsageConsumerVolumeDecrement { fire(action: "down", label: "ConsumerVolumeDecrement"); return }
 
   print("[\(ts())] Key press (unmapped): page=0x\(String(page, radix: 16)) usage=0x\(String(usage, radix: 16))")
 }

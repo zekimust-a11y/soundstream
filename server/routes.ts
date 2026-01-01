@@ -537,7 +537,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       (body.action === 'set' ? body.value : undefined);
     try {
       if (action === 'up' || action === 'down') {
-        const stepRaw = body.value ?? body.step ?? 2;
+        const stepRaw = body.value ?? body.step ?? 1;
         const step = typeof stepRaw === 'number' ? stepRaw : parseFloat(String(stepRaw));
         if (Number.isNaN(step) || step <= 0 || step > 100) {
           return res.status(400).json({ success: false, error: 'step must be a number (1-100)' });
