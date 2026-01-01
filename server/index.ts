@@ -3,6 +3,7 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerRoutes } from "./routes";
+import { initializeRelayServer } from "./relay-server";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -391,8 +392,8 @@ process.on("unhandledRejection", (reason: unknown, promise: Promise<unknown>) =>
 
     configureExpoAndLanding(app);
 
-
-
+    // Initialize the relay server (Chromecast casting logic)
+    initializeRelayServer(app);
 
     const server = await registerRoutes(app);
 // const server = createServer(app);
