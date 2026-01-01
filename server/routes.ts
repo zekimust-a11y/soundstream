@@ -2165,6 +2165,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Chromecast status endpoint - gets current status from relay server
+  app.get('/api/chromecast/status', async (req: Request, res: Response) => {
+    try {
+      // Try to get status from the relay server on 192.168.0.21:3000
+      try {
+        const relayResponse = await fetch('http://192.168.0.21:3000/api/status', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(5000),
+        });
+        
+        if (relayResponse.ok) {
+          const status = await relayResponse.json();
+          return res.json(status);
+        }
+      } catch (relayError) {
+        console.log('[Chromecast] Relay server not available for status:', relayError instanceof Error ? relayError.message : String(relayError));
+      }
+      
+      // Fallback response if relay server is not available
+      return res.json({
+        chromecastIp: '',
+        chromecastName: '',
+        chromecastEnabled: false,
+        isCasting: false,
+        serverIp: '',
+      });
+      
+    } catch (error) {
+      console.error('[Chromecast] Status error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to get status' 
+      });
+    }
+  });
+
   // Chromecast enabled state endpoint - proxies to relay server
   app.post('/api/chromecast/enabled', async (req: Request, res: Response) => {
     console.log('[Chromecast] Enabled state endpoint called');
