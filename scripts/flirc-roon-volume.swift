@@ -15,6 +15,7 @@ import IOKit.hid
 let apiBase = ProcessInfo.processInfo.environment["SOUNDSTREAM_API_URL"] ?? "http://127.0.0.1:3000"
 let step = Int(ProcessInfo.processInfo.environment["ROON_STEP"] ?? "1") ?? 1
 let repeatIntervalMs = Int(ProcessInfo.processInfo.environment["ROON_REPEAT_INTERVAL_MS"] ?? "50") ?? 50
+let logRawEvents = (ProcessInfo.processInfo.environment["ROON_LOG_RAW"] ?? "0") == "1"
 
 let stateLock = NSLock()
 var pressedUp = false
@@ -106,6 +107,14 @@ let callback: IOHIDValueCallback = { _ctx, _result, _sender, value in
   let usage = IOHIDElementGetUsage(element)
 
   let intValue = IOHIDValueGetIntegerValue(value)
+  if logRawEvents {
+    // Log raw events for troubleshooting release behavior (FLIRC varies by profile)
+    if usage == 0 || usage == 0xFFFFFFFF ||
+      (page == kPageKeyboard && (usage == kUsageF9 || usage == kUsageF10 || usage == kUsageArrowUp || usage == kUsageArrowDown)) ||
+      (page == kPageConsumer && (usage == kUsageConsumerVolumeIncrement || usage == kUsageConsumerVolumeDecrement)) {
+      print("[\(ts())] RAW page=0x\(String(Int(page), radix: 16)) usage=0x\(String(Int(usage), radix: 16)) value=\(intValue)")
+    }
+  }
   // Some FLIRC profiles emit sentinels rather than true key-up events.
   // Empirically, intValue==0 for these tends to correlate with "release".
   if usage == 0 || usage == 0xFFFFFFFF {
@@ -164,6 +173,7 @@ print("[\(ts())] Starting FLIRC HID listener")
 print("[\(ts())] API: \(apiBase)")
 print("[\(ts())] Step: \(step)")
 print("[\(ts())] Repeat interval: \(repeatIntervalMs)ms")
+print("[\(ts())] Raw logging: \(logRawEvents ? "on" : "off")")
 
 let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
 
