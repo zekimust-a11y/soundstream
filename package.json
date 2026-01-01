@@ -33,6 +33,7 @@
     "@tidal-music/api": "^0.7.0",
     "@tidal-music/auth": "^1.4.0",
     "buffer": "^6.0.3",
+    "castv2-client": "^1.2.0",
     "drizzle-orm": "^0.39.3",
     "drizzle-zod": "^0.7.0",
     "expo": "^54.0.23",
