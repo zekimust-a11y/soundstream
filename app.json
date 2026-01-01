@@ -40,7 +40,17 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "SoundStream",
+      "shortName": "SoundStream",
+      "description": "Music streaming and control application",
+      "backgroundColor": "#0A0A0C",
+      "themeColor": "#0A0A0C",
+      "display": "standalone",
+      "orientation": "portrait",
+      "startUrl": "/",
+      "scope": "/",
+      "preferRelatedApplications": false
     },
     "plugins": [
       [
