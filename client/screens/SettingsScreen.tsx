@@ -1520,25 +1520,6 @@ export default function SettingsScreen() {
           <ThemedText style={styles.sectionTitle}>About</ThemedText>
           <View style={styles.sectionContent}>
             <SettingRow
-              icon="info"
-              iconColor={Colors.light.textSecondary}
-              title="Version"
-              value="1.0.0"
-              showChevron={false}
-            />
-            <SettingRow
-              icon="file-text"
-              iconColor={Colors.light.textSecondary}
-              title="Privacy Policy"
-              onPress={() => {}}
-            />
-            <SettingRow
-              icon="file"
-              iconColor={Colors.light.textSecondary}
-              title="Terms of Service"
-              onPress={() => {}}
-            />
-            <SettingRow
               icon="terminal"
               iconColor="#FF9800"
               title="Debug Console"
