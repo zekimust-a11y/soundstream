@@ -47,8 +47,8 @@ class RoonVolumeControl {
   private zoneVolumeControlSupported: boolean | null = null;
   private holdTimer: NodeJS.Timeout | null = null;
   private holdDirection: 'up' | 'down' | null = null;
-  private holdInFlight: boolean = false;
   private lastHoldAt: number = 0;
+  private holdSeq: number = 0;
 
   // Direct connection to Roon Core
   private roonCoreHost: string = process.env.ROON_CORE_IP || '192.168.0.19';
@@ -565,36 +565,52 @@ class RoonVolumeControl {
     const tickMsRaw = opts?.tickMs ?? parseInt(process.env.ROON_HOLD_TICK_MS || '40', 10);
     const tickMs = Number.isFinite(tickMsRaw) ? Math.max(15, Math.min(200, tickMsRaw)) : 40;
     const stepRaw = opts?.step ?? parseFloat(process.env.ROON_HOLD_STEP || '1');
-    const step = Number.isFinite(stepRaw) ? Math.max(0.1, Math.min(10, stepRaw)) : 1;
+    const step = Number.isFinite(stepRaw) ? Math.max(0.1, Math.min(25, stepRaw)) : 1;
 
     this.stopHold();
     this.holdDirection = direction;
-    this.holdInFlight = false;
     this.lastHoldAt = Date.now();
+    const seq = ++this.holdSeq;
 
-    this.holdTimer = setInterval(async () => {
+    const run = async () => {
+      // Stop immediately if a newer hold was started or stopHold() was called.
+      if (seq !== this.holdSeq) return;
       if (!this.holdDirection) return;
-      // Avoid piling up if Roon is slow; skip ticks while one request is in flight.
-      if (this.holdInFlight) return;
-      this.holdInFlight = true;
+
+      const startedAt = Date.now();
+
+      // If Roon is slow, we don't want the ramp to become "tap-speed".
+      // Scale the effective step by the number of "missed" ticks while we were waiting.
+      const elapsedMs = Math.max(0, startedAt - this.lastHoldAt);
+      const ticks = Math.max(1, Math.floor(elapsedMs / tickMs));
+      const effectiveStep = Math.max(0.1, Math.min(25, step * ticks));
+      this.lastHoldAt = startedAt;
+
       try {
-        await this._changeVolumeRelativeUnlocked(this.holdDirection, step);
+        await this._changeVolumeRelativeUnlocked(direction, effectiveStep);
       } catch {
         // ignore; keep trying until stopHold()
       } finally {
-        this.holdInFlight = false;
-        this.lastHoldAt = Date.now();
+        if (seq !== this.holdSeq) return;
+        if (!this.holdDirection) return;
+        const finishedAt = Date.now();
+        const workMs = finishedAt - startedAt;
+        const delay = Math.max(0, tickMs - workMs);
+        this.holdTimer = setTimeout(run, delay);
       }
-    }, tickMs);
+    };
+
+    // Kick off immediately.
+    this.holdTimer = setTimeout(run, 0);
   }
 
   stopHold(): void {
     if (this.holdTimer) {
-      clearInterval(this.holdTimer);
+      clearTimeout(this.holdTimer);
       this.holdTimer = null;
     }
     this.holdDirection = null;
-    this.holdInFlight = false;
+    this.holdSeq++;
   }
 
   /**
