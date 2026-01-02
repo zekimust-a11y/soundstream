@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 type TidalTokens = {
   accessToken: string;
@@ -20,7 +21,9 @@ type TidalAuthSession = {
   platform: "web" | "mobile";
 };
 
-const TIDAL_TOKENS_FILE = path.resolve(process.cwd(), ".tidal-tokens.json");
+// Store tokens in a stable location relative to this file (so restarts from different CWDs still find them).
+// `server/` -> project root -> `.tidal-tokens.json`
+const TIDAL_TOKENS_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".tidal-tokens.json");
 
 // Fallback client IDs (these must be valid TIDAL developer client IDs)
 const TIDAL_FALLBACK_IDS = [
@@ -101,8 +104,16 @@ function resolveClientIdFromRequest(
 
 function loadTokensFromDisk(): void {
   try {
-    if (!fs.existsSync(TIDAL_TOKENS_FILE)) return;
-    const raw = fs.readFileSync(TIDAL_TOKENS_FILE, "utf-8");
+    // Prefer the stable path, but also support legacy "cwd-based" tokens for migration.
+    const legacyPath = path.resolve(process.cwd(), ".tidal-tokens.json");
+    const pathToRead = fs.existsSync(TIDAL_TOKENS_FILE)
+      ? TIDAL_TOKENS_FILE
+      : fs.existsSync(legacyPath)
+        ? legacyPath
+        : null;
+    if (!pathToRead) return;
+
+    const raw = fs.readFileSync(pathToRead, "utf-8");
     const parsed = JSON.parse(raw) as TidalTokens;
     if (parsed?.accessToken) {
       // Backfill userId if missing (common when TIDAL doesn't return it in token response).
@@ -113,6 +124,13 @@ function loadTokensFromDisk(): void {
         console.log("[Tidal] Loaded tokens from disk (derived userId from access token)");
       } else {
         console.log("[Tidal] Loaded tokens from disk");
+      }
+      // If we loaded from legacy path, write it back to the stable location for next boot.
+      if (pathToRead !== TIDAL_TOKENS_FILE) {
+        try {
+          saveTokensToDisk();
+          console.log("[Tidal] Migrated tokens file to stable location");
+        } catch {}
       }
     }
   } catch (e) {
