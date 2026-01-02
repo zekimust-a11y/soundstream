@@ -4,8 +4,9 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Dimensions,
   ActivityIndicator,
+  Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -31,9 +32,6 @@ import { usePlayback } from "@/hooks/usePlayback";
 import { lmsClient } from "@/lib/lmsClient";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
 
-const { width } = Dimensions.get("window");
-const ALBUM_SIZE = (width - Spacing.lg * 3) / 2;
-
 type RouteProps = RouteProp<BrowseStackParamList, "Artist">;
 type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
 
@@ -47,8 +45,9 @@ const springConfig: WithSpringConfig = {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const AlbumGridCard = memo(({ album, onPress, onPlay, onShuffle }: { 
+const AlbumGridCard = memo(({ album, size, onPress, onPlay, onShuffle }: { 
   album: Album; 
+  size: number;
   onPress: () => void;
   onPlay: () => void;
   onShuffle: () => void;
@@ -75,7 +74,7 @@ const AlbumGridCard = memo(({ album, onPress, onPlay, onShuffle }: {
   }));
 
   return (
-    <Animated.View style={[styles.gridItem, cardAnimatedStyle]}>
+    <Animated.View style={[styles.gridItem, { width: size }, cardAnimatedStyle]}>
       <View style={styles.gridImageContainer}>
         <AnimatedPressable
           style={cardAnimatedStyle}
@@ -91,7 +90,7 @@ const AlbumGridCard = memo(({ album, onPress, onPlay, onShuffle }: {
         >
           <Image
             source={album.imageUrl || require("../assets/images/placeholder-album.png")}
-            style={styles.gridImage}
+            style={[styles.gridImage, { width: size, height: size }]}
             contentFit="cover"
           />
         </AnimatedPressable>
@@ -148,6 +147,7 @@ export default function ArtistScreen() {
   const navigation = useNavigation<NavigationProp>();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
+  const { width: windowWidth } = useWindowDimensions();
   const { getArtistAlbums, activeServer } = useMusic();
   const { activePlayer } = usePlayback();
 
@@ -160,6 +160,38 @@ export default function ArtistScreen() {
   const [isLoadingBio, setIsLoadingBio] = useState(true);
 
   const artistName = route.params.name;
+  const isDesktop = Platform.OS === "web" && windowWidth >= 900;
+  const maxContentWidth = isDesktop ? 1180 : undefined;
+
+  const artistImageSize = (() => {
+    if (!isDesktop) return 160;
+    // Larger hero portrait on desktop
+    const ideal = Math.round(windowWidth * 0.18);
+    return Math.max(220, Math.min(320, ideal));
+  })();
+
+  const gridLayout = (() => {
+    // Similar sizing rules to AllAlbumsScreen (bigger tiles on desktop)
+    const padding = Spacing.lg;
+    const gap = Spacing.lg;
+    const available = Math.max(0, (maxContentWidth ?? windowWidth) - padding * 2);
+
+    if (!isDesktop) {
+      const cols = 2;
+      const size = Math.floor((available - gap * (cols - 1)) / cols);
+      return { numColumns: cols, itemSize: Math.max(140, size) };
+    }
+
+    const min = 200;
+    const max = 325;
+    let cols = Math.max(3, Math.min(8, Math.floor((available + gap) / (min + gap)) || 3));
+    let size = (available - gap * (cols - 1)) / cols;
+    while (size > max && cols < 8) {
+      cols += 1;
+      size = (available - gap * (cols - 1)) / cols;
+    }
+    return { numColumns: cols, itemSize: Math.floor(Math.max(min, Math.min(max, size))) };
+  })();
 
   useEffect(() => {
     async function loadData() {
@@ -320,71 +352,78 @@ export default function ArtistScreen() {
           { paddingTop: headerHeight + Spacing.xl, paddingBottom: tabBarHeight + Spacing["5xl"] },
         ]}
       >
-        <View style={styles.artistHeader}>
-          <View style={styles.artistImageContainer}>
-            {artistImage ? (
-              <Image
-                source={artistImage}
-                style={styles.artistImage}
-                contentFit="cover"
-              />
-            ) : (
-          <View style={styles.artistImagePlaceholder}>
-            <Feather name="user" size={64} color={Colors.light.textTertiary} />
-              </View>
-            )}
-          </View>
-          <ThemedText style={styles.artistName}>{artistName}</ThemedText>
-          {!isLoading ? (
-            <ThemedText style={styles.artistMeta}>
-              {albums.length} album{albums.length !== 1 ? "s" : ""} in library
-            </ThemedText>
-          ) : null}
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>My Library</ThemedText>
-          {isLoading ? (
-            <ActivityIndicator color={Colors.light.accent} style={styles.loader} />
-          ) : albums.length === 0 ? (
-            <ThemedText style={styles.emptyText}>No albums in your library</ThemedText>
-          ) : (
-            <View style={styles.albumGrid}>
-              {albums.map((album) => (
-                <AlbumGridCard
-                  key={album.id}
-                  album={album}
-                  onPress={() =>
-                    navigation.navigate("Album", {
-                      id: album.id,
-                      name: album.name,
-                      artistName: album.artist,
-                    })
-                  }
-                  onPlay={() => handlePlayAlbum(album)}
-                  onShuffle={() => handleShuffleAlbum(album)}
+        <View style={[styles.pageContainer, maxContentWidth ? { maxWidth: maxContentWidth } : null]}>
+          <View style={[styles.artistHeader, isDesktop ? styles.artistHeaderDesktop : null]}>
+            <View
+              style={[
+                styles.artistImageContainer,
+                { width: artistImageSize, height: artistImageSize, borderRadius: artistImageSize / 2 },
+              ]}
+            >
+              {artistImage ? (
+                <Image
+                  source={artistImage}
+                  style={{ width: artistImageSize, height: artistImageSize, borderRadius: artistImageSize / 2 }}
+                  contentFit="cover"
                 />
-              ))}
+              ) : (
+                <View
+                  style={[
+                    styles.artistImagePlaceholder,
+                    { width: artistImageSize, height: artistImageSize, borderRadius: artistImageSize / 2 },
+                  ]}
+                >
+                  <Feather name="user" size={Math.round(artistImageSize * 0.45)} color={Colors.light.textTertiary} />
+                </View>
+              )}
             </View>
-          )}
-        </View>
 
-        {qobuzAlbums.length > 0 && (
+            <View style={[styles.artistHeaderRight, isDesktop ? styles.artistHeaderRightDesktop : null]}>
+              <ThemedText style={[styles.artistName, isDesktop ? styles.artistNameDesktop : null]}>
+                {artistName}
+              </ThemedText>
+
+              {!isLoading ? (
+                <ThemedText style={[styles.artistMeta, isDesktop ? styles.artistMetaDesktop : null]}>
+                  {albums.length} album{albums.length !== 1 ? "s" : ""} in library
+                </ThemedText>
+              ) : null}
+
+              {artistBio && (artistBio.formedYear || artistBio.genre || artistBio.country) ? (
+                <View style={[styles.artistDetails, isDesktop ? styles.artistDetailsDesktop : null]}>
+                  {artistBio.formedYear ? (
+                    <ThemedText style={styles.artistDetail}>Formed: {artistBio.formedYear}</ThemedText>
+                  ) : null}
+                  {artistBio.genre ? (
+                    <ThemedText style={styles.artistDetail}>{artistBio.genre}</ThemedText>
+                  ) : null}
+                  {artistBio.country ? (
+                    <ThemedText style={styles.artistDetail}>{artistBio.country}</ThemedText>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          </View>
+
           <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>Discography</ThemedText>
-            {isLoadingQobuz ? (
+            <ThemedText style={styles.sectionTitle}>My Library</ThemedText>
+            {isLoading ? (
               <ActivityIndicator color={Colors.light.accent} style={styles.loader} />
+            ) : albums.length === 0 ? (
+              <ThemedText style={styles.emptyText}>No albums in your library</ThemedText>
             ) : (
-              <View style={styles.albumGrid}>
-                {qobuzAlbums.map((album) => (
+              <View style={[styles.albumGrid, isDesktop ? styles.albumGridDesktop : null]}>
+                {albums.map((album) => (
                   <AlbumGridCard
                     key={album.id}
                     album={album}
+                    size={gridLayout.itemSize}
                     onPress={() =>
                       navigation.navigate("Album", {
                         id: album.id,
                         name: album.name,
                         artistName: album.artist,
+                        source: album.source,
                       })
                     }
                     onPlay={() => handlePlayAlbum(album)}
@@ -394,36 +433,43 @@ export default function ArtistScreen() {
               </View>
             )}
           </View>
-        )}
 
-        {artistBio && (artistBio.formedYear || artistBio.genre || artistBio.country) && (
-          <View style={styles.section}>
-            <View style={styles.artistDetails}>
-              {artistBio.formedYear && (
-                <ThemedText style={styles.artistDetail}>
-                  Formed: {artistBio.formedYear}
-                </ThemedText>
-              )}
-              {artistBio.genre && (
-                <ThemedText style={styles.artistDetail}>
-                  {artistBio.genre}
-                </ThemedText>
-              )}
-              {artistBio.country && (
-                <ThemedText style={styles.artistDetail}>
-                  {artistBio.country}
-                </ThemedText>
+          {qobuzAlbums.length > 0 && (
+            <View style={styles.section}>
+              <ThemedText style={styles.sectionTitle}>Discography</ThemedText>
+              {isLoadingQobuz ? (
+                <ActivityIndicator color={Colors.light.accent} style={styles.loader} />
+              ) : (
+                <View style={[styles.albumGrid, isDesktop ? styles.albumGridDesktop : null]}>
+                  {qobuzAlbums.map((album) => (
+                    <AlbumGridCard
+                      key={album.id}
+                      album={album}
+                      size={gridLayout.itemSize}
+                      onPress={() =>
+                        navigation.navigate("Album", {
+                          id: album.id,
+                          name: album.name,
+                          artistName: album.artist,
+                          source: album.source,
+                        })
+                      }
+                      onPlay={() => handlePlayAlbum(album)}
+                      onShuffle={() => handleShuffleAlbum(album)}
+                    />
+                  ))}
+                </View>
               )}
             </View>
-          </View>
-        )}
+          )}
 
-        {artistBio?.bio && (
-          <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>About</ThemedText>
-            <ThemedText style={styles.bioText}>{artistBio.bio}</ThemedText>
-          </View>
-        )}
+          {artistBio?.bio && (
+            <View style={styles.section}>
+              <ThemedText style={styles.sectionTitle}>About</ThemedText>
+              <ThemedText style={styles.bioText}>{artistBio.bio}</ThemedText>
+            </View>
+          )}
+        </View>
       </ScrollView>
     </ThemedView>
   );
@@ -440,30 +486,37 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Spacing.lg,
   },
+  pageContainer: {
+    width: "100%",
+    alignSelf: "center",
+  },
   artistHeader: {
     alignItems: "center",
     marginBottom: Spacing["3xl"],
   },
+  artistHeaderDesktop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: Spacing["3xl"],
+  },
   artistImageContainer: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
     marginBottom: Spacing.lg,
     overflow: "hidden",
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  artistImage: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-  },
   artistImagePlaceholder: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
     backgroundColor: "#4A4A4E", // Darker grey to match overlay behind play button
     justifyContent: "center",
     alignItems: "center",
+  },
+  artistHeaderRight: {
+    width: "100%",
+    alignItems: "center",
+  },
+  artistHeaderRightDesktop: {
+    flex: 1,
+    alignItems: "flex-start",
   },
   artistDetails: {
     flexDirection: "row",
@@ -471,6 +524,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: Spacing.sm,
     gap: Spacing.sm,
+  },
+  artistDetailsDesktop: {
+    justifyContent: "flex-start",
   },
   artistDetail: {
     ...Typography.caption,
@@ -487,10 +543,17 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     textAlign: "center",
   },
+  artistNameDesktop: {
+    textAlign: "left",
+    fontSize: 34,
+  },
   artistMeta: {
     ...Typography.body,
     color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
+  },
+  artistMetaDesktop: {
+    textAlign: "left",
   },
   section: {
     marginBottom: Spacing["2xl"],
@@ -505,16 +568,17 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: Spacing.lg,
   },
+  albumGridDesktop: {
+    gap: Spacing.lg,
+  },
   gridItem: {
-    width: ALBUM_SIZE,
+    // width is dynamic via props
   },
   gridImageContainer: {
     position: "relative",
     marginBottom: Spacing.sm,
   },
   gridImage: {
-    width: ALBUM_SIZE,
-    height: ALBUM_SIZE,
     borderRadius: BorderRadius.xs,
   },
   gridOverlay: {
