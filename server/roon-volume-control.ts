@@ -513,6 +513,21 @@ class RoonVolumeControl {
     });
   }
 
+  /**
+   * Percent-based nudge (preferred for "tap" buttons).
+   * This guarantees that step=1 means "1% of the UI scale", regardless of dB range/step size.
+   * Uses absolute volume set so small dB ranges don't make taps feel chunky (e.g. 0.5dB = ~2%).
+   */
+  private async _nudgeVolumePercentUnlocked(direction: 'up' | 'down', stepPercent: number): Promise<number> {
+    const stepNum = typeof stepPercent === 'number' ? stepPercent : parseFloat(String(stepPercent));
+    const stepClamped = Number.isFinite(stepNum) ? Math.max(1, Math.min(100, Math.round(stepNum))) : 1;
+    const base = this.targetVolumePercent ?? (await this._getVolumeUnlocked());
+    const next = direction === 'up' ? base + stepClamped : base - stepClamped;
+    await this._setVolumeUnlocked(next);
+    // _setVolumeUnlocked updates targetVolumePercent and cached output.volume.value
+    return this.targetVolumePercent ?? Math.max(0, Math.min(100, Math.round(next)));
+  }
+
   async setVolume(volume: number): Promise<void> {
     return this.enqueueVolumeOp(() => this._setVolumeUnlocked(volume));
   }
@@ -556,6 +571,17 @@ class RoonVolumeControl {
    */
   async volumeDown(step: number = 2): Promise<number> {
     return this.enqueueVolumeOp(() => this._changeVolumeRelativeUnlocked('down', step));
+  }
+
+  /**
+   * Tap-friendly percent nudges
+   */
+  async nudgeUpPercent(stepPercent: number = 1): Promise<number> {
+    return this.enqueueVolumeOp(() => this._nudgeVolumePercentUnlocked('up', stepPercent));
+  }
+
+  async nudgeDownPercent(stepPercent: number = 1): Promise<number> {
+    return this.enqueueVolumeOp(() => this._nudgeVolumePercentUnlocked('down', stepPercent));
   }
 
   /**

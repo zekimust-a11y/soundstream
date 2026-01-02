@@ -665,7 +665,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (Number.isNaN(step) || step <= 0 || step > 100) {
           return res.status(400).json({ success: false, error: 'step must be a number (>0 and <=100)' });
         }
-        const newVolume = action === 'up' ? await (roon as any).volumeUp(step) : await (roon as any).volumeDown(step);
+        // For "tap" UX: interpret step as a percent nudge (1 == 1%).
+        // This avoids chunky taps on dB outputs with small ranges (e.g. -20..0 => 0.5dB ~= 2.5%).
+        const newVolume =
+          action === 'up'
+            ? await (roon as any).nudgeUpPercent?.(step)
+            : await (roon as any).nudgeDownPercent?.(step);
         try {
           const { sendCustomMessageToCast } = await import('./relay-server');
           sendCustomMessageToCast({
