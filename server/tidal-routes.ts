@@ -1190,7 +1190,7 @@ export function registerTidalRoutes(app: Express): void {
       async function countRelationship(
         rel: "albums" | "artists" | "tracks" | "playlists",
         opts: { maxItems?: number; maxRequests?: number }
-      ): Promise<{ count: number; rateLimited: boolean }> {
+      ): Promise<{ count: number | null; rateLimited: boolean }> {
         const maxItems = opts.maxItems ?? 5000;
         const maxRequests = opts.maxRequests ?? 80;
         let count = 0;
@@ -1209,7 +1209,7 @@ export function registerTidalRoutes(app: Express): void {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           if (msg.includes("Tidal OpenAPI error: 429")) {
-            return { count: 0, rateLimited: true };
+            return { count: null, rateLimited: true };
           }
           // If meta fetch fails for another reason, fall through to cursor-walk attempt below.
         }
@@ -1237,31 +1237,36 @@ export function registerTidalRoutes(app: Express): void {
         return { count, rateLimited };
       }
 
-      const [albumsR, artistsR, tracksR, playlistsR] = await Promise.all([
-        countRelationship("albums", { maxItems: 5000, maxRequests: 80 }),
-        countRelationship("artists", { maxItems: 5000, maxRequests: 80 }),
-        countRelationship("tracks", { maxItems: 5000, maxRequests: 80 }),
-        countRelationship("playlists", { maxItems: 5000, maxRequests: 80 }),
-      ]);
+      // IMPORTANT: run sequentially to avoid bursting Tidal OpenAPI and triggering 429s.
+      const albumsR = await countRelationship("albums", { maxItems: 5000, maxRequests: 80 });
+      const artistsR = await countRelationship("artists", { maxItems: 5000, maxRequests: 80 });
+      const tracksR = await countRelationship("tracks", { maxItems: 5000, maxRequests: 80 });
+      const playlistsR = await countRelationship("playlists", { maxItems: 5000, maxRequests: 80 });
 
       const rateLimited = albumsR.rateLimited || artistsR.rateLimited || tracksR.rateLimited || playlistsR.rateLimited;
       const partial = rateLimited;
 
       // If we got rate-limited before we could count anything, return nulls (unknown) instead of 0s.
       // This avoids the UI incorrectly showing "0" across the board.
-      const allZero = albumsR.count === 0 && artistsR.count === 0 && tracksR.count === 0 && playlistsR.count === 0;
-      if (rateLimited && allZero) {
+      const allUnknownOrZero =
+        (albumsR.count === null || albumsR.count === 0) &&
+        (artistsR.count === null || artistsR.count === 0) &&
+        (tracksR.count === null || tracksR.count === 0) &&
+        (playlistsR.count === null || playlistsR.count === 0);
+      if (rateLimited && allUnknownOrZero) {
         if (cached?.payload) {
           return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true, partial: true });
         }
         return res.json({ albums: null, artists: null, tracks: null, playlists: null, rateLimited: true, partial: true });
       }
 
+      // If some relationships were rate-limited, prefer cached values for those fields; otherwise return null (unknown).
+      const cachedPayload: any = cached?.payload || {};
       const payload = {
-        albums: albumsR.count,
-        artists: artistsR.count,
-        tracks: tracksR.count,
-        playlists: playlistsR.count,
+        albums: albumsR.count ?? (rateLimited ? cachedPayload.albums ?? null : null),
+        artists: artistsR.count ?? (rateLimited ? cachedPayload.artists ?? null : null),
+        tracks: tracksR.count ?? (rateLimited ? cachedPayload.tracks ?? null : null),
+        playlists: playlistsR.count ?? (rateLimited ? cachedPayload.playlists ?? null : null),
         rateLimited,
         partial,
       };
