@@ -147,13 +147,11 @@ export default function SettingsScreen() {
       checkTidalStatus().catch(error => {
         console.error('Failed to check Tidal status:', error);
       });
-    } else {
-      // If Tidal is disabled, ensure UI reflects disconnected state
-      disconnectTidal().catch(error => {
-        console.error('Failed to disconnect Tidal:', error);
-      });
     }
-  }, [tidalEnabled, checkTidalStatus, disconnectTidal]);
+    // IMPORTANT:
+    // Disabling the "Tidal API" toggle should NOT revoke/clear tokens. Only the explicit
+    // "Disconnect" button should call disconnectTidal() (which deletes server tokens).
+  }, [tidalEnabled, checkTidalStatus]);
 
   // Handle OAuth callback
   useEffect(() => {
