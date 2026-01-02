@@ -118,6 +118,19 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const isChangingVolumeRef = useRef<boolean>(false); // Track when volume changes are in progress
   const lastVolumeChangeTimeRef = useRef<number>(0); // Track when volume was last changed by user
   const lastRoonVolumeSetRef = useRef<number | null>(null); // Track the last volume we set on Roon
+
+  const detectSourceFromLmsTrack = useCallback((t?: { id?: string; url?: string; artwork_url?: string } | null) => {
+    const id = String(t?.id || "").toLowerCase();
+    const url = String(t?.url || "").toLowerCase();
+    const artwork = String(t?.artwork_url || "").toLowerCase();
+    const haystack = `${id} ${url} ${artwork}`;
+    if (!haystack.trim()) return "local" as const;
+    // Prefer explicit URI schemes when present
+    if (url.startsWith("tidal://") || haystack.includes(" tidal") || haystack.includes("tidal")) return "tidal" as const;
+    if (url.startsWith("qobuz://") || haystack.includes("qobuz")) return "qobuz" as const;
+    if (url.startsWith("soundcloud://") || haystack.includes("soundcloud")) return "soundcloud" as const;
+    return "local" as const;
+  }, []);
   const syncErrorCountRef = useRef<number>(0); // Track consecutive sync errors for backoff
   const lastSuccessfulSyncRef = useRef<number>(Date.now()); // Track last successful sync
   const syncInProgressRef = useRef<boolean>(false); // Prevent parallel sync operations
@@ -425,6 +438,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           }
         }
         
+        const detectedSource = detectSourceFromLmsTrack(status.currentTrack);
         const track: Track = {
           id: status.currentTrack.id,
           title: isRadio ? radioStationName || status.currentTrack.title : status.currentTrack.title,
@@ -435,7 +449,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
             ? (radioStationImage || (status.currentTrack.artwork_url ? lmsClient.getArtworkUrl(status.currentTrack) : undefined))
             : (status.currentTrack.artwork_url ? lmsClient.getArtworkUrl(status.currentTrack) : undefined),
           duration: status.currentTrack.duration,
-          source: 'local',
+          source: isRadio ? 'local' : detectedSource,
           format: status.currentTrack.format,
           bitrate: status.currentTrack.bitrate,
           sampleRate: status.currentTrack.sampleRate,
@@ -470,7 +484,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           albumId: t.albumId,
           albumArt: t.artwork_url ? lmsClient.getArtworkUrl(t) : undefined,
           duration: t.duration,
-          source: 'local' as const,
+          source: detectSourceFromLmsTrack(t),
           format: t.format,
           bitrate: t.bitrate,
           sampleRate: t.sampleRate,
