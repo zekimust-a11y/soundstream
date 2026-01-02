@@ -602,6 +602,71 @@ export function initializeRelayServer(app: express.Application): void {
     }
   });
 
+  // LMS-derived TIDAL library totals (fast + accurate, avoids TIDAL OpenAPI rate limits)
+  // NOTE: Some TIDAL plugin commands require a playerId; we auto-pick the first player if none provided.
+  app.get('/api/lms/tidal/totals', async (req, res) => {
+    const host = (req.query.host as string) || LMS_HOST;
+    const port = parseInt(String(req.query.port || LMS_PORT), 10);
+    const requestedPlayerId = typeof req.query.playerId === 'string' ? req.query.playerId : '';
+
+    async function lmsRequest(playerId: string, command: any[]) {
+      const response = await fetch(`http://${host}:${port}/jsonrpc.js`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 1,
+          method: 'slim.request',
+          params: [playerId || '', command],
+        }),
+      });
+      const data = await response.json();
+      return data;
+    }
+
+    async function pickPlayerId(): Promise<string> {
+      if (requestedPlayerId) return requestedPlayerId;
+      const playersResp = await lmsRequest('', ['players', '0', '50']);
+      const players = playersResp?.result?.players_loop || [];
+      const pid = players?.[0]?.playerid;
+      return typeof pid === 'string' ? pid : '';
+    }
+
+    try {
+      const playerId = await pickPlayerId();
+      if (!playerId) {
+        return res.status(400).json({ error: 'No LMS players found (TIDAL plugin requires a playerId).' });
+      }
+
+      // These item_ids come from the TIDAL app menu returned by `tidal items 0 200`.
+      // - 3: Playlists (user playlists)
+      // - 4: Albums (user collection)
+      // - 5: Songs (usually favorite tracks, not the full catalog)
+      // - 6: Artists (user artists)
+      const [albumsResp, artistsResp, playlistsResp, songsResp] = await Promise.all([
+        lmsRequest(playerId, ['tidal', 'items', '0', '1', 'item_id:4']),
+        lmsRequest(playerId, ['tidal', 'items', '0', '1', 'item_id:6']),
+        lmsRequest(playerId, ['tidal', 'items', '0', '1', 'item_id:3']),
+        lmsRequest(playerId, ['tidal', 'items', '0', '1', 'item_id:5']),
+      ]);
+
+      const toNum = (v: any) => {
+        const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+        return Number.isFinite(n) ? n : null;
+      };
+
+      return res.json({
+        albums: toNum(albumsResp?.result?.count),
+        artists: toNum(artistsResp?.result?.count),
+        playlists: toNum(playlistsResp?.result?.count),
+        // IMPORTANT: TIDAL "Songs" in LMS is typically *favorites*, not total track count.
+        tracks: toNum(songsResp?.result?.count),
+        playerId,
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: e?.message || String(e) });
+    }
+  });
+
   // Status endpoint
   app.get('/api/status', async (req, res) => {
     res.json({
