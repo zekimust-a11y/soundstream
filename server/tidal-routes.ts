@@ -716,7 +716,10 @@ export function registerTidalRoutes(app: Express): void {
       const artworksById = new Map<string, any>(included.filter((x) => x?.type === "artworks").map((x) => [String(x.id), x]));
 
       const items = dataArr.map((rel: any) => {
-        const mixId = String(rel.id);
+        // OpenAPI relationships often return relationship ids, not the mix ids.
+        // The actual mix id is usually in rel.relationships.mix.data[0].id (or rel.relationships.mixes...)
+        const mixId =
+          String(rel?.relationships?.mix?.data?.[0]?.id || rel?.relationships?.mixes?.data?.[0]?.id || rel?.id || "");
         const mix = mixesById.get(mixId);
         const artworkId = mix?.relationships?.coverArt?.data?.[0]?.id ? String(mix.relationships.coverArt.data[0].id) : "";
         const artwork = artworksById.get(artworkId);
