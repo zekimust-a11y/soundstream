@@ -2270,6 +2270,17 @@ class LmsClient {
     await this.request(playerId, ['playlistcontrol', 'cmd:load', `playlist_id:${playlistId}`]);
   }
 
+  /**
+   * Play an arbitrary URI (including plugin URIs like `tidal://mix:<id>`).
+   * We clear the current playlist, add the URI, and start playback.
+   */
+  async playUri(playerId: string, uri: string): Promise<void> {
+    if (!uri) return;
+    await this.request(playerId, ["playlist", "clear"]);
+    await this.request(playerId, ["playlist", "add", uri]);
+    await this.request(playerId, ["play"]);
+  }
+
   async getAlbumTracks(albumId: string, source?: "qobuz" | "local"): Promise<LmsTrack[]> {
     // Check if this is a Qobuz album
     const isQobuz = source === "qobuz" || albumId.includes('qobuz') || albumId.startsWith('qobuz-');

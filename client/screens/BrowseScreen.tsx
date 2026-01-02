@@ -514,7 +514,21 @@ export default function BrowseScreen() {
         // Mixes
         if (mixesResp.ok) {
           const data = await mixesResp.json();
-          setTidalMixes(Array.isArray(data?.items) ? data.items : []);
+          const raw = Array.isArray(data?.items) ? data.items : [];
+          const mixes = raw
+            .map((m: any) => {
+              const id = m?.id ? String(m.id) : "";
+              if (!id) return null;
+              return {
+                id,
+                title: m?.title || m?.name || "Mix",
+                description: m?.description || m?.subtitle || "",
+                artwork_url: m?.artwork_url || m?.artworkUrl || m?.imageUrl || m?.image || null,
+                lmsUri: m?.lmsUri || m?.uri || (id ? `tidal://mix:${id}` : null),
+              };
+            })
+            .filter(Boolean);
+          setTidalMixes(mixes as any[]);
         } else {
           setTidalMixes([]);
         }
@@ -717,7 +731,7 @@ export default function BrowseScreen() {
         )}
 
         {/* Tidal Custom Mixes Section */}
-        {tidalMixes.length > 0 && (
+        {(tidalEnabled && tidalConnected) && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionTitle}>Custom Mixes</ThemedText>
@@ -727,7 +741,13 @@ export default function BrowseScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.horizontalList}
             >
-              {tidalMixes.map((mix) => (
+              {tidalMixes.length === 0 ? (
+                <View style={[styles.smallCard, { width: browseTileSize, justifyContent: "center", alignItems: "center" }]}>
+                  <ThemedText style={styles.smallSubtitle} numberOfLines={2}>
+                    No mixes found
+                  </ThemedText>
+                </View>
+              ) : tidalMixes.map((mix) => (
                 <Pressable
                   key={mix.id}
                   style={({ pressed }) => [
@@ -737,7 +757,8 @@ export default function BrowseScreen() {
                   ]}
                   onPress={() => {
                     if (activePlayer && mix.lmsUri) {
-                      lmsClient.playPlaylist(activePlayer.id, mix.lmsUri);
+                      // Mix URIs are not numeric LMS playlist ids; play as URI.
+                      lmsClient.playUri(activePlayer.id, mix.lmsUri);
                     } else if (!activePlayer) {
                       Alert.alert('No Player', 'Please select a player first.');
                     }
