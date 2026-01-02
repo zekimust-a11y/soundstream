@@ -1,16 +1,12 @@
 import React from "react";
 import { View, StyleSheet, Pressable, ScrollView } from "react-native";
-import { CommonActions, useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 
 import { ThemedText } from "@/components/ThemedText";
-import { AlbumArtwork } from "@/components/AlbumArtwork";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { usePlayback } from "@/hooks/usePlayback";
 import { useMusic } from "@/hooks/useMusic";
-
-type Nav = any;
+import { navigate } from "@/navigation/navigationRef";
 
 function stripPlaylistName(name: string) {
   return name.replace(/^(SoundCloud|Tidal|Qobuz)\s*:?\s*/i, "").trim();
@@ -45,8 +41,6 @@ function SidebarItem({
 }
 
 export function DesktopSidebar() {
-  const navigation = useNavigation<Nav>();
-  const { currentTrack } = usePlayback();
   const { playlists } = useMusic();
   const [playlistsExpanded, setPlaylistsExpanded] = React.useState(false);
 
@@ -56,44 +50,8 @@ export function DesktopSidebar() {
     return copy;
   }, [playlists]);
 
-  const goNowPlaying = React.useCallback(() => {
-    navigation.dispatch(
-      CommonActions.navigate({
-        name: "NowPlaying",
-      })
-    );
-  }, [navigation]);
-
   return (
     <View style={styles.container}>
-      <Pressable
-        onPress={goNowPlaying}
-        style={({ pressed }) => [
-          styles.nowPlayingCard,
-          { opacity: pressed ? 0.75 : 1 },
-        ]}
-      >
-        {currentTrack?.albumArt ? (
-          <AlbumArtwork
-            source={currentTrack.albumArt}
-            style={styles.nowPlayingArt}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={[styles.nowPlayingArt, styles.nowPlayingArtPlaceholder]}>
-            <Feather name="music" size={22} color={Colors.light.textTertiary} />
-          </View>
-        )}
-        <View style={styles.nowPlayingText}>
-          <ThemedText style={styles.nowPlayingTitle} numberOfLines={2}>
-            {currentTrack?.title || "Nothing playing"}
-          </ThemedText>
-          <ThemedText style={styles.nowPlayingArtist} numberOfLines={1}>
-            {currentTrack?.artist || ""}
-          </ThemedText>
-        </View>
-      </Pressable>
-
       <ScrollView
         style={styles.menuScroll}
         contentContainerStyle={styles.menuContent}
@@ -102,17 +60,17 @@ export function DesktopSidebar() {
         <SidebarItem
           label="Home"
           icon={<Feather name="home" size={18} color={Colors.light.text} />}
-          onPress={() => navigation.navigate("BrowseTab", { screen: "Browse" })}
+          onPress={() => navigate("Main", { screen: "BrowseTab", params: { screen: "Browse" } })}
         />
         <SidebarItem
           label="Artists"
           icon={<Feather name="users" size={18} color={Colors.light.text} />}
-          onPress={() => navigation.navigate("BrowseTab", { screen: "AllArtists" })}
+          onPress={() => navigate("Main", { screen: "BrowseTab", params: { screen: "AllArtists" } })}
         />
         <SidebarItem
           label="Albums"
           icon={<Feather name="disc" size={18} color={Colors.light.text} />}
-          onPress={() => navigation.navigate("AlbumsTab")}
+          onPress={() => navigate("Main", { screen: "AlbumsTab" })}
         />
         <SidebarItem
           label="Playlists"
@@ -132,10 +90,12 @@ export function DesktopSidebar() {
               <Pressable
                 key={p.id}
                 onPress={() =>
-                  navigation.navigate("PlaylistsTab", {
-                    screen: "PlaylistDetail",
-                    params: { playlist: { id: p.id, name: p.name } },
-                  })
+                  navigate("Main", {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    screen: "PlaylistsTab" as any,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    params: { screen: "PlaylistDetail", params: { playlist: { id: p.id, name: p.name } } } as any,
+                  } as any)
                 }
                 style={({ pressed }) => [
                   styles.playlistSubItem,
@@ -157,12 +117,12 @@ export function DesktopSidebar() {
         <SidebarItem
           label="Tracks"
           icon={<Feather name="music" size={18} color={Colors.light.text} />}
-          onPress={() => navigation.navigate("TracksTab")}
+          onPress={() => navigate("Main", { screen: "TracksTab" })}
         />
         <SidebarItem
           label="Radio"
           icon={<Feather name="radio" size={18} color={Colors.light.text} />}
-          onPress={() => navigation.navigate("RadioTab")}
+          onPress={() => navigate("Main", { screen: "RadioTab" })}
         />
         <SidebarItem
           label="Tidal"
@@ -174,9 +134,9 @@ export function DesktopSidebar() {
             />
           }
           onPress={() =>
-            navigation.navigate("BrowseTab", {
-              screen: "Browse",
-              params: { scrollTo: "tidal" },
+            navigate("Main", {
+              screen: "BrowseTab",
+              params: { screen: "Browse", params: { scrollTo: "tidal" } },
             })
           }
         />
@@ -193,41 +153,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundDefault,
     padding: Spacing.lg,
     paddingRight: Spacing.md,
-  },
-  nowPlayingCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.light.backgroundSecondary,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.light.border,
-  },
-  nowPlayingArt: {
-    width: 68,
-    height: 68,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.backgroundTertiary,
-  },
-  nowPlayingArtPlaceholder: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  nowPlayingText: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  nowPlayingTitle: {
-    ...Typography.title,
-    fontSize: 16,
-    lineHeight: 20,
-    color: Colors.light.text,
-  },
-  nowPlayingArtist: {
-    ...Typography.caption,
-    marginTop: 4,
-    color: Colors.light.textSecondary,
   },
   menuScroll: {
     flex: 1,

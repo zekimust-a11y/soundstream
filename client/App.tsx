@@ -15,6 +15,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
 
 import RootStackNavigator from "@/navigation/RootStackNavigator";
+import { navigationRef } from "@/navigation/navigationRef";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LmsProvider } from "@/hooks/useLms";
 import { Colors } from "@/constants/theme";
@@ -40,7 +41,7 @@ export default function App() {
           <SafeAreaProvider>
             <GestureHandlerRootView style={styles.root}>
               <KeyboardProvider>
-                <NavigationContainer theme={AppTheme}>
+                <NavigationContainer ref={navigationRef} theme={AppTheme}>
                   <RootStackNavigator />
                 </NavigationContainer>
                 <StatusBar style="dark" />

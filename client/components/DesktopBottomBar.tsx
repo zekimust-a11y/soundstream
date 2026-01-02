@@ -4,8 +4,10 @@ import { Feather } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 
 import { ThemedText } from "@/components/ThemedText";
+import { AlbumArtwork } from "@/components/AlbumArtwork";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { usePlayback } from "@/hooks/usePlayback";
+import { navigate } from "@/navigation/navigationRef";
 
 function formatTime(seconds: number): string {
   if (!seconds || !isFinite(seconds) || seconds < 0) return "0:00";
@@ -45,6 +47,36 @@ export function DesktopBottomBar() {
 
   return (
     <View style={styles.container}>
+      <Pressable
+        onPress={() => navigate("NowPlaying")}
+        disabled={!currentTrack}
+        style={({ pressed }) => [
+          styles.nowPlayingCard,
+          { opacity: pressed ? 0.75 : 1 },
+          !currentTrack ? styles.nowPlayingCardDisabled : null,
+        ]}
+      >
+        {currentTrack?.albumArt ? (
+          <AlbumArtwork
+            source={currentTrack.albumArt}
+            style={styles.nowPlayingArt}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={[styles.nowPlayingArt, styles.nowPlayingArtPlaceholder]}>
+            <Feather name="music" size={18} color={Colors.light.textTertiary} />
+          </View>
+        )}
+        <View style={styles.nowPlayingText}>
+          <ThemedText style={styles.nowPlayingTitle} numberOfLines={1}>
+            {currentTrack?.title || "Nothing playing"}
+          </ThemedText>
+          <ThemedText style={styles.nowPlayingArtist} numberOfLines={1}>
+            {currentTrack?.artist || ""}
+          </ThemedText>
+        </View>
+      </Pressable>
+
       <View style={styles.middle}>
         <View style={styles.controlsRow}>
           <Pressable
@@ -155,6 +187,45 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
+  },
+  nowPlayingCard: {
+    width: 360,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.light.border,
+    marginRight: Spacing.lg,
+  },
+  nowPlayingCardDisabled: {
+    opacity: 0.8,
+  },
+  nowPlayingArt: {
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.light.backgroundTertiary,
+  },
+  nowPlayingArtPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  nowPlayingText: {
+    flex: 1,
+    marginLeft: Spacing.md,
+  },
+  nowPlayingTitle: {
+    ...Typography.title,
+    fontSize: 16,
+    lineHeight: 20,
+    color: Colors.light.text,
+  },
+  nowPlayingArtist: {
+    ...Typography.caption,
+    marginTop: 2,
+    color: Colors.light.textSecondary,
   },
   middle: {
     flex: 1,
