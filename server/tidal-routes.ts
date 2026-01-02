@@ -363,8 +363,9 @@ function mapOpenApiTrackFromItem(item: any, includedMap: Record<string, Record<s
     duration,
     trackNumber: item?.meta?.trackNumber || track?.attributes?.trackNumber || 0,
     artwork_url: coverUrl || null,
-    uri: `tidal://track:${id}`,
-    lmsUri: `tidal://track:${id}`,
+    // LMS TIDAL plugin expects track URIs in the form `tidal://<trackId>`
+    uri: `tidal://${id}`,
+    lmsUri: `tidal://${id}`,
     source: "tidal",
   };
 }
@@ -813,8 +814,8 @@ export function registerTidalRoutes(app: Express): void {
           albumId,
           duration: track?.attributes?.duration ? Number(track.attributes.duration) : 0,
           artwork_url: pickArtworkUrl(artwork, "320x320"),
-          uri: `tidal://track:${trackId}`,
-          lmsUri: `tidal://track:${trackId}`,
+          uri: `tidal://${trackId}`,
+          lmsUri: `tidal://${trackId}`,
           source: "tidal",
         };
       });

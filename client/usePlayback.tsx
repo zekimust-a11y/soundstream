@@ -26,7 +26,7 @@ export interface Track {
   duration: number;
   source: "local" | "qobuz" | "tidal";
   uri?: string;
-  lmsUri?: string; // LMS playable URI (e.g., tidal://track:id, tidal://album:id)
+  lmsUri?: string; // LMS playable URI (e.g., tidal://<trackId> for Tidal)
   metadata?: string;
   format?: string;
   bitrate?: string;

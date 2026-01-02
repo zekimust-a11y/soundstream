@@ -1291,6 +1291,13 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         // Ensure player is powered on
         await lmsClient.setPower(activePlayer.id, true);
 
+        const normalizeTidalUriForLms = (uri: string) => {
+          // LMS TIDAL plugin expects `tidal://<trackId>`.
+          if (uri.startsWith("tidal://track:")) return `tidal://${uri.replace("tidal://track:", "")}`;
+          if (uri.startsWith("tidal://track/")) return `tidal://${uri.replace("tidal://track/", "")}`;
+          return uri;
+        };
+
         // --- TIDAL fast-paths (explicit LMS commands) ---
         // We avoid relying on Qobuz codepaths; for Tidal we send clear → load url → play.
         if (track.source === 'tidal' && track.uri) {
@@ -1306,9 +1313,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
             return;
           }
 
-          debugLog.info('Playing Tidal track via LMS', `URI: ${track.uri}`);
+          const tidalUri = normalizeTidalUriForLms(track.uri);
+          debugLog.info('Playing Tidal track via LMS', `URI: ${tidalUri}`);
           await lmsClient.clearPlaylist(activePlayer.id);
-          await lmsClient.playUrl(activePlayer.id, track.uri);
+          await lmsClient.playUrl(activePlayer.id, tidalUri);
           // Force LMS to jump to the newly-loaded item. Without this, LMS can resume
           // the previous local track even after loading.
           await lmsClient.playPlaylistIndex(activePlayer.id, 0);
@@ -1321,7 +1329,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
             const remainder = trackIndex >= 0 ? tracks.slice(trackIndex + 1) : tracks.filter((t) => t.id !== track.id);
             for (const t of remainder) {
               if (t.source === 'tidal' && t.uri) {
-                await lmsClient.addTrackToPlaylist(activePlayer.id, t.uri);
+                await lmsClient.addTrackToPlaylist(activePlayer.id, normalizeTidalUriForLms(t.uri));
               }
             }
           }

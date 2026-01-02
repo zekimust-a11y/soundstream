@@ -3561,7 +3561,7 @@ class LmsClient {
 
   async playUrl(playerId: string, url: string): Promise<void> {
     // Let LMS handle format/transcoding automatically based on player capabilities
-    // IMPORTANT: For plugin URLs like `tidal://track:*`, `playlist play <url>` is the reliable path on our LMS.
+    // IMPORTANT: For plugin URLs like `tidal://*` (TIDAL), `playlist play <url>` is the reliable path on our LMS.
     await this.request(playerId, ['playlist', 'play', url]);
   }
 

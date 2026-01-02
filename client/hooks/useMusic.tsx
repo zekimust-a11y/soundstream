@@ -1075,7 +1075,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
           duration: typeof t.duration === "number" ? t.duration : 0,
           albumArt: t.albumArt || t.artwork_url || undefined,
           source: "tidal" as const,
-          uri: t.lmsUri || t.uri || `tidal://track:${t.id}`,
+          // LMS TIDAL plugin expects `tidal://<id>` (NOT `tidal://track:<id>`)
+          uri: t.lmsUri || t.uri || `tidal://${String(t.id).replace(/^tidal-track-/, "")}`,
           lmsTrackId: String(t.id).replace(/^tidal-track-/, ""),
         }));
       }
