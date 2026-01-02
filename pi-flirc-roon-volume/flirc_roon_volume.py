@@ -19,8 +19,8 @@ from evdev import InputDevice, ecodes  # type: ignore
 
 API_BASE = os.getenv("SOUNDSTREAM_API_URL", "http://192.168.0.21:3000").rstrip("/")
 
-# Tap step (single press)
-TAP_STEP = int(os.getenv("ROON_STEP", "1"))
+# Tap step (single press) — allow fractional steps (e.g. 0.5)
+TAP_STEP = float(os.getenv("ROON_STEP", "1"))
 
 # Hold behavior:
 # - We send ONE tap immediately on KeyDown.
@@ -29,7 +29,7 @@ TAP_STEP = int(os.getenv("ROON_STEP", "1"))
 # Important: FLIRC can emit spurious KeyUp events during a long press (while repeats still
 # arrive). To make holds reliable, we use a short "release grace" window and treat repeat
 # (value=2) as evidence the key is still held.
-HOLD_STEP = int(os.getenv("ROON_HOLD_STEP", str(TAP_STEP)))
+HOLD_STEP = float(os.getenv("ROON_HOLD_STEP", str(TAP_STEP)))
 HOLD_DELAY_S = float(os.getenv("ROON_HOLD_DELAY_S", "0.08"))
 # Kept for backward compat / logging (we no longer HTTP-per-step).
 HOLD_REPEAT_S = float(os.getenv("ROON_REPEAT_S", "0.03"))
@@ -50,7 +50,7 @@ def ts() -> str:
   return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def post_volume(action: str, step: int) -> Optional[int]:
+def post_volume(action: str, step: float) -> Optional[int]:
   try:
     r = requests.post(
       f"{API_BASE}/api/roon/volume",
@@ -73,7 +73,7 @@ def post_volume(action: str, step: int) -> Optional[int]:
     return None
 
 
-def post_hold(action: str, direction: str, step: int, tick_ms: int) -> None:
+def post_hold(action: str, direction: str, step: float, tick_ms: int) -> None:
   try:
     if action == "start":
       requests.post(

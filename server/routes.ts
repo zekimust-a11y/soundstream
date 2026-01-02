@@ -663,7 +663,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const stepRaw = body.value ?? body.step ?? 1;
         const step = typeof stepRaw === 'number' ? stepRaw : parseFloat(String(stepRaw));
         if (Number.isNaN(step) || step <= 0 || step > 100) {
-          return res.status(400).json({ success: false, error: 'step must be a number (1-100)' });
+          return res.status(400).json({ success: false, error: 'step must be a number (>0 and <=100)' });
         }
         const newVolume = action === 'up' ? await (roon as any).volumeUp(step) : await (roon as any).volumeDown(step);
         try {

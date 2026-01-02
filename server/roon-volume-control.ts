@@ -465,7 +465,8 @@ class RoonVolumeControl {
    * - Updates cached output.volume.value and targetVolumePercent immediately.
    */
   private async _changeVolumeRelativeUnlocked(direction: 'up' | 'down', step: number): Promise<number> {
-    const stepClamped = Math.max(0, Math.min(100, Math.round(step)));
+    const stepNum = typeof step === 'number' ? step : parseFloat(String(step));
+    const stepClamped = Number.isFinite(stepNum) ? Math.max(0.1, Math.min(100, stepNum)) : 1;
     if (stepClamped <= 0) return this.targetVolumePercent ?? (await this._getVolumeUnlocked());
 
     if (!this.isReady()) throw new Error('Roon volume control not ready');
@@ -565,7 +566,7 @@ class RoonVolumeControl {
     const tickMsRaw = opts?.tickMs ?? parseInt(process.env.ROON_HOLD_TICK_MS || '40', 10);
     const tickMs = Number.isFinite(tickMsRaw) ? Math.max(15, Math.min(200, tickMsRaw)) : 40;
     const stepRaw = opts?.step ?? parseFloat(process.env.ROON_HOLD_STEP || '1');
-    const step = Number.isFinite(stepRaw) ? Math.max(1, Math.min(20, stepRaw)) : 1;
+    const step = Number.isFinite(stepRaw) ? Math.max(0.1, Math.min(20, stepRaw)) : 1;
 
     this.stopHold();
     this.holdDirection = direction;
