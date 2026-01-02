@@ -72,6 +72,71 @@ function persistConfig() {
 const DAC_IP = process.env.DAC_IP || '192.168.0.42';
 const DAC_PORT = process.env.DAC_PORT || 80;
 
+// --- Radio favorites cache (used for proper metadata/artwork on Chromecast) ---
+const RADIO_FAVORITES_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let radioFavoritesCache:
+  | { fetchedAt: number; byUrl: Map<string, { name: string; imageUrl?: string }> }
+  | null = null;
+let radioFavoritesInFlight: Promise<Map<string, { name: string; imageUrl?: string }>> | null = null;
+
+function normalizeLmsImageUrl(imageRaw: string): string {
+  const image = (imageRaw || '').trim();
+  if (!image) return '';
+  if (image.startsWith('http://') || image.startsWith('https://')) return image;
+  // LMS often returns relative paths like "/imageproxy/..." or "/music/..."
+  const prefix = `http://${LMS_HOST}:${LMS_PORT}`;
+  if (image.startsWith('/')) return `${prefix}${image}`;
+  return `${prefix}/${image}`;
+}
+
+async function getFavoriteRadioMap(): Promise<Map<string, { name: string; imageUrl?: string }>> {
+  const now = Date.now();
+  if (radioFavoritesCache && now - radioFavoritesCache.fetchedAt < RADIO_FAVORITES_TTL_MS) {
+    return radioFavoritesCache.byUrl;
+  }
+  if (radioFavoritesInFlight) return radioFavoritesInFlight;
+
+  radioFavoritesInFlight = (async () => {
+    const byUrl = new Map<string, { name: string; imageUrl?: string }>();
+    try {
+      const result = await lmsRequest('', ['favorites', 'items', '0', '500', 'want_url:1', 'tags:stc']);
+      const favoritesLoop = (result.loop_loop || result.favorites_loop || []) as Array<Record<string, unknown>>;
+      for (const f of favoritesLoop) {
+        const url = f.url ? String(f.url) : '';
+        const type = f.type ? String(f.type) : '';
+        const hasFolder = f.hasitems !== undefined && Number(f.hasitems) > 0;
+        if (!url || hasFolder) continue;
+        // Keep only likely radio streams (same heuristic as client)
+        if (type !== 'audio') {
+          if (!(url.startsWith('http://') || url.startsWith('https://'))) continue;
+          const isStream =
+            url.includes('.mp3') ||
+            url.includes('.aac') ||
+            url.includes('.m3u') ||
+            url.includes('.pls') ||
+            url.includes('stream') ||
+            url.includes('radio') ||
+            url.includes('tunein') ||
+            url.includes('icecast') ||
+            !url.match(/\.(flac|wav|aiff|ape|alac|m4a)$/i);
+          if (!isStream) continue;
+        }
+        const name = String(f.name || 'Unknown Station');
+        const image = f.image ? normalizeLmsImageUrl(String(f.image)) : undefined;
+        byUrl.set(url, { name, imageUrl: image || undefined });
+      }
+    } catch (e) {
+      console.warn('[Relay] Failed to load favorite radios for cast metadata:', e instanceof Error ? e.message : String(e));
+    } finally {
+      radioFavoritesCache = { fetchedAt: Date.now(), byUrl };
+      radioFavoritesInFlight = null;
+    }
+    return byUrl;
+  })();
+
+  return radioFavoritesInFlight;
+}
+
 // Mosaic volume control
 const MOSAIC_VOLUME_SCRIPT = path.join(process.cwd(), 'local-server', 'mosaic-volume.swift');
 const MOSAIC_VOLUME_BINARY = path.join(process.cwd(), 'local-server', 'mosaic-volume');
@@ -345,15 +410,19 @@ function normalizePrimaryArtist(artist: string): string {
   return artist.trim();
 }
 
-function formatNowPlayingMessage(status: any, artistImages: string[]): any {
+function formatNowPlayingMessage(
+  status: any,
+  artistImages: string[],
+  overrides?: { title?: string; artist?: string; album?: string; imageUrl?: string }
+): any {
   if (!status || !status.playlist_loop || status.playlist_loop.length === 0) {
     return null;
   }
 
   const track = status.playlist_loop[0];
-  const artist = track.artist || 'Unknown Artist';
-  const title = track.title || 'Unknown Track';
-  const album = track.album || '';
+  const artist = overrides?.artist ?? track.artist ?? 'Unknown Artist';
+  const title = overrides?.title ?? track.title ?? 'Unknown Track';
+  const album = overrides?.album ?? track.album ?? '';
   const duration = parseFloat(track.duration) || 0;
   const seek = parseFloat(status.time) || 0;
   const rawVolume = (status['mixer volume'] ?? status.mixer_volume ?? status.volume);
@@ -363,7 +432,7 @@ function formatNowPlayingMessage(status: any, artistImages: string[]): any {
   const isMuted = muteNumber === 1;
   
   // Build artwork URL
-  let imageUrl = null;
+  let imageUrl = overrides?.imageUrl ?? null;
   if (track.coverid) {
     imageUrl = `http://${LMS_HOST}:${LMS_PORT}/music/${track.coverid}/cover.jpg`;
   } else if (track.artwork_url) {
@@ -410,9 +479,29 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
   }
 
   const track = status?.playlist_loop?.[0];
-  const primaryArtist = normalizePrimaryArtist(track?.artist || '');
+  // Radio fix: if this is a favorite radio URL, use the station name/logo instead of "no name".
+  let overrides: { title?: string; artist?: string; album?: string; imageUrl?: string } | undefined;
+  try {
+    const url = typeof track?.url === 'string' ? track.url : '';
+    if (url) {
+      const map = await getFavoriteRadioMap();
+      const hit = map.get(url);
+      if (hit) {
+        overrides = {
+          title: hit.name,
+          artist: 'Radio Station',
+          album: '',
+          imageUrl: hit.imageUrl,
+        };
+      }
+    }
+  } catch {
+    // ignore radio lookup failures
+  }
+
+  const primaryArtist = overrides ? '' : normalizePrimaryArtist(track?.artist || '');
   const artistImages = primaryArtist ? await fetchArtistImages(primaryArtist) : [];
-  const message = formatNowPlayingMessage(status, artistImages);
+  const message = formatNowPlayingMessage(status, artistImages, overrides);
   if (!message) return;
 
   try {
