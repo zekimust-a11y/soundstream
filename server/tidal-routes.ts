@@ -293,6 +293,51 @@ export function registerTidalRoutes(app: Express): void {
     res.json({ authUrl, redirectUri, state, platform, preset });
   });
 
+  // Convenience endpoint: redirect directly to TIDAL authorize URL (useful for manual browser flows).
+  app.get("/api/tidal/authorize", (req: Request, res: Response) => {
+    const platform = (String(req.query.platform || "").toLowerCase() === "web" ? "web" : "mobile") as
+      | "web"
+      | "mobile";
+
+    const clientId = getClientId();
+    const redirectUri =
+      platform === "web"
+        ? `${req.protocol}://${req.get("host")}/api/tidal/callback`
+        : "soundstream://callback";
+
+    const preset = String(req.query.preset || "modern").toLowerCase();
+    const scope =
+      preset === "legacy"
+        ? "r_usr"
+        : "user.read collection.read collection.write playlists.read playlists.write search.read search.write playback recommendations.read entitlements.read";
+
+    const codeVerifier = generateCodeVerifier();
+    const codeChallenge = generateCodeChallenge(codeVerifier);
+    const state = crypto.randomBytes(16).toString("hex");
+
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
+      state,
+    });
+
+    sessionsByState.set(state, {
+      createdAt: Date.now(),
+      clientId,
+      redirectUri,
+      codeVerifier,
+      state,
+      platform,
+    });
+
+    const authUrl = `https://login.tidal.com/authorize?${params.toString()}`;
+    return res.redirect(authUrl);
+  });
+
   // Web callback handler — exchanges code for tokens and posts them back to opener.
   app.get("/api/tidal/callback", async (req: Request, res: Response) => {
     const code = typeof req.query.code === "string" ? req.query.code : undefined;
