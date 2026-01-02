@@ -565,7 +565,19 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
   // Prefer embedding artwork as a data URI when the artwork URL isn't HTTPS.
   try {
     const imgUrl = typeof message?.payload?.image_url === 'string' ? message.payload.image_url : '';
-    if (imgUrl && !imgUrl.startsWith('https://')) {
+    const trackUrl = typeof track?.url === 'string' ? String(track.url) : '';
+
+    // Special case: TIDAL artwork can still fail to load on the cast device due to
+    // network blocks / external fetch restrictions. Embed a small 320px version as a data URI.
+    if (trackUrl.startsWith('tidal://') && imgUrl) {
+      const small = imgUrl
+        .replace(/\/1280x1280\.jpg(\b|$)/i, '/320x320.jpg')
+        .replace(/\/640x640\.jpg(\b|$)/i, '/320x320.jpg');
+      const dataUri = await getImageDataUri(small);
+      if (dataUri) {
+        message.payload.image_data = dataUri;
+      }
+    } else if (imgUrl && !imgUrl.startsWith('https://')) {
       const dataUri = await getImageDataUri(imgUrl);
       if (dataUri) {
         message.payload.image_data = dataUri;
