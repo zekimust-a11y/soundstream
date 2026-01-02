@@ -80,18 +80,17 @@ const AlbumGridCard = memo(({ album, size, onPress, onPlay, onShuffle }: {
   const imageUrl = album.imageUrl;
 
   return (
-    <Animated.View style={[styles.gridItem, { width: size }, cardAnimatedStyle]}>
+    <AnimatedPressable
+      style={[styles.gridItem, { width: size }, cardAnimatedStyle]}
+      onPress={onPress}
+      onPressIn={() => {
+        cardScale.value = withSpring(0.96, springConfig);
+      }}
+      onPressOut={() => {
+        cardScale.value = withSpring(1, springConfig);
+      }}
+    >
       <View style={styles.gridImageContainer}>
-        <AnimatedPressable
-          style={cardAnimatedStyle}
-          onPress={onPress}
-          onPressIn={() => {
-            cardScale.value = withSpring(0.96, springConfig);
-          }}
-          onPressOut={() => {
-            cardScale.value = withSpring(1, springConfig);
-          }}
-        >
           {imageUrl ? (
             <Image
               source={imageUrl}
@@ -103,7 +102,6 @@ const AlbumGridCard = memo(({ album, size, onPress, onPlay, onShuffle }: {
               <Feather name="disc" size={Math.max(20, size * 0.3)} color={Colors.light.textTertiary} />
             </View>
           )}
-        </AnimatedPressable>
         <SourceBadge source={album.source || 'local'} size={20} />
         <Animated.View style={[styles.gridOverlay, overlayAnimatedStyle]}>
           <View style={styles.gridOverlayButtons}>
@@ -142,7 +140,7 @@ const AlbumGridCard = memo(({ album, size, onPress, onPlay, onShuffle }: {
       <ThemedText style={styles.gridTitle} numberOfLines={2}>
         {album.name}
       </ThemedText>
-    </Animated.View>
+    </AnimatedPressable>
   );
 });
 

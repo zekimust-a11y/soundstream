@@ -13,7 +13,7 @@ export function SourceBadge({ source, size = 24 }: SourceBadgeProps) {
   if (!source) return null;
 
   return (
-    <View style={[styles.badge, { width: size, height: size }]}>
+    <View pointerEvents="none" style={[styles.badge, { width: size, height: size }]}>
       {source === "qobuz" ? (
         <Image
           source={require("../assets/images/qobuz-icon.png")}
