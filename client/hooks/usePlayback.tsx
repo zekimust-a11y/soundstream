@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { lmsClient, LmsPlayer, LmsPlayerStatus } from "@/lib/lmsClient";
@@ -1294,6 +1294,18 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         // --- TIDAL fast-paths (explicit LMS commands) ---
         // We avoid relying on Qobuz codepaths; for Tidal we send clear → load url → play.
         if (track.source === 'tidal' && track.uri) {
+          // LMS needs a Tidal plugin/app to resolve `tidal://...` URIs.
+          // Without it, LMS can appear to "play" but actually continues (or falls back to) local queue.
+          const hasTidalApp = await lmsClient.supportsTidalApp();
+          if (!hasTidalApp) {
+            debugLog.error('Tidal playback unavailable', 'LMS does not have Tidal app/plugin enabled');
+            Alert.alert(
+              'Tidal playback not available in LMS',
+              'Install/enable the Tidal plugin in Logitech Media Server, then try again.\n\nUntil then, Soundstream can browse Tidal but cannot play it through LMS.'
+            );
+            return;
+          }
+
           // Always start playback immediately by loading the selected track URI.
           // (Some LMS Tidal plugin installs may not support `tidal://album:*` reliably.)
           debugLog.info('Playing Tidal track via LMS', `URI: ${track.uri}`);

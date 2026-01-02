@@ -103,6 +103,7 @@ class LmsClient {
   private serverPort: number = 9000;
   private serverProtocol: 'http' | 'https' = 'http';
   private requestId: number = 1;
+  private appsCache: { fetchedAt: number; apps: Array<{ name?: string; cmd?: string }> } | null = null;
 
   /**
    * Set LMS server connection
@@ -130,6 +131,47 @@ class LmsClient {
       this.serverProtocol = 'http';
       this.baseUrl = `http://${hostOrUrl}:${this.serverPort}`;
       debugLog.info('LMS server set (local)', `${this.baseUrl}`);
+    }
+  }
+
+  /**
+   * List LMS apps (LMS "apps" menu). Used to detect whether a given integration/plugin exists.
+   */
+  async getApps(forceRefresh: boolean = false): Promise<Array<{ name?: string; cmd?: string }>> {
+    const now = Date.now();
+    // Cache for 5 minutes (apps list doesn't change often)
+    if (!forceRefresh && this.appsCache && now - this.appsCache.fetchedAt < 5 * 60 * 1000) {
+      return this.appsCache.apps;
+    }
+
+    // apps is a server-level command (no player required)
+    const result = await this.request('', ['apps', '0', '200']);
+    const raw = (result.appss_loop || result.apps_loop || result.items_loop || result.item_loop || result.items || []) as Array<Record<string, unknown>>;
+    const apps = raw.map((a) => ({
+      name: a.name ? String(a.name) : a.title ? String(a.title) : a.text ? String(a.text) : undefined,
+      cmd: a.cmd ? String(a.cmd) : undefined,
+    }));
+
+    this.appsCache = { fetchedAt: now, apps };
+    return apps;
+  }
+
+  /**
+   * Returns true if LMS has an app/plugin whose cmd or name matches Tidal.
+   * NOTE: Without an LMS-side Tidal plugin, `tidal://...` URIs will not play.
+   */
+  async supportsTidalApp(forceRefresh: boolean = false): Promise<boolean> {
+    try {
+      const apps = await this.getApps(forceRefresh);
+      return apps.some((a) => {
+        const name = (a.name || '').toLowerCase();
+        const cmd = (a.cmd || '').toLowerCase();
+        return name.includes('tidal') || cmd === 'tidal' || cmd.startsWith('tidal');
+      });
+    } catch (e) {
+      // If apps listing fails, assume not supported to avoid accidentally triggering local fallback.
+      debugLog.info('supportsTidalApp', `Failed to query apps: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
     }
   }
 
