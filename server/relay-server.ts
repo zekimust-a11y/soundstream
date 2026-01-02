@@ -52,6 +52,11 @@ let currentPlayerId = savedConfig.currentPlayerId || '';
 let lastMode = '';
 let serverIp = '';
 
+// Cast retry/backoff: avoid hammering the Chromecast when it becomes unresponsive (ETIMEDOUT/ECONNREFUSED).
+let castFailureCount = 0;
+let nextCastAttemptAt = 0;
+let lastCastError: string | null = null;
+
 // Chromecast configuration
 let chromecastIp = savedConfig.chromecastIp || process.env.CHROMECAST_IP || '';
 let chromecastName = savedConfig.chromecastName || '';
@@ -233,16 +238,31 @@ async function startCasting(): Promise<void> {
     return;
   }
 
+  const now = Date.now();
+  if (nextCastAttemptAt && now < nextCastAttemptAt) {
+    // Backoff window active (Chromecast likely not responding). Skip until next attempt time.
+    return;
+  }
+
   const nowPlayingUrl = `http://${serverIp}:3000/now-playing?host=${LMS_HOST}&port=${LMS_PORT}&player=${encodeURIComponent(currentPlayerId)}&v=${Date.now()}`;
 
   console.log(`[Relay] Starting cast to ${chromecastIp}: ${nowPlayingUrl}`);
 
   // Configure and start casting using ChromecastService
   chromecastService.configure(chromecastIp, chromecastName, true);
-  const success = await chromecastService.castUrl(nowPlayingUrl);
+  let success = false;
+  try {
+    success = await chromecastService.castUrl(nowPlayingUrl);
+  } catch (e) {
+    success = false;
+    lastCastError = e instanceof Error ? e.message : String(e);
+  }
   
   if (success) {
     isCasting = true;
+    castFailureCount = 0;
+    nextCastAttemptAt = 0;
+    lastCastError = null;
     console.log('[Relay] Cast started successfully');
     // Important: sending to the custom channel *immediately* after launch can cause EPIPE on some devices
     // (receiver not fully ready yet). Send shortly after cast start instead.
@@ -258,7 +278,15 @@ async function startCasting(): Promise<void> {
       }
     }, 1200);
   } else {
-    console.error('[Relay] Failed to start cast');
+    castFailureCount += 1;
+    const backoffMs = Math.min(120_000, 2_000 * Math.pow(2, Math.min(castFailureCount, 6)));
+    // Add small jitter so we don't sync with other loops
+    const jitter = Math.floor(Math.random() * 500);
+    nextCastAttemptAt = Date.now() + backoffMs + jitter;
+    console.error(
+      `[Relay] Failed to start cast (failures=${castFailureCount}, nextAttemptIn=${Math.round((backoffMs + jitter) / 1000)}s)` +
+        (lastCastError ? `: ${lastCastError}` : '')
+    );
     isCasting = false;
   }
 }
