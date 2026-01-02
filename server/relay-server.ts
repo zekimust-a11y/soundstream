@@ -430,34 +430,41 @@ function formatNowPlayingMessage(
   const rawMute = (status['mixer muting'] ?? status.mixer_muting ?? status.muting);
   const muteNumber = typeof rawMute === 'number' ? rawMute : parseInt(String(rawMute), 10);
   const isMuted = muteNumber === 1;
+  const digitalVolumeControlRaw =
+    (status?.digital_volume_control ?? status?.digitalVolumeControl ?? status?.digitalVolume ?? status?.digitalVolumeControlEnabled);
+  const digitalVolumeControl = typeof digitalVolumeControlRaw === 'number'
+    ? digitalVolumeControlRaw
+    : parseInt(String(digitalVolumeControlRaw ?? ''), 10);
+  const hasReliableLmsVolume = digitalVolumeControl === 1;
   
   // Build artwork URL
   let imageUrl = overrides?.imageUrl ?? null;
-  if (track.coverid) {
-    imageUrl = `http://${LMS_HOST}:${LMS_PORT}/music/${track.coverid}/cover.jpg`;
-  } else if (track.artwork_url) {
-    // LMS (and plugins like TIDAL) often provide relative image paths (e.g. "/imageproxy/..." or "/music/...").
-    // The cast receiver runs on a different origin, so relative URLs would 404; normalize to an absolute LMS URL.
-    const rawArtwork = String(track.artwork_url);
-    // Special-case: TIDAL plugin artwork is typically an LMS /imageproxy/ wrapper around resources.tidal.com.
-    // Prefer a direct HTTPS resources.tidal.com URL to avoid mixed-content blocks in the HTTPS Cast receiver.
-    if (typeof track.url === 'string' && track.url.startsWith('tidal://') && rawArtwork.includes('/imageproxy/') && rawArtwork.includes('resources.tidal.com')) {
-      try {
-        const m = rawArtwork.match(/\/imageproxy\/([^/]+)\/image\.jpg/i);
-        const encodedInner = m?.[1];
-        if (encodedInner) {
-          let inner = decodeURIComponent(encodedInner);
-          if (inner.startsWith('http://resources.tidal.com/')) inner = inner.replace('http://', 'https://');
-          // Downscale common "1280x1280" to "640x640" to keep payloads lighter.
-          inner = inner.replace(/\/1280x1280\.jpg(\b|$)/i, '/640x640.jpg');
-          imageUrl = inner;
-        } else {
-          imageUrl = normalizeLmsImageUrl(rawArtwork);
-        }
-      } catch {
-        imageUrl = normalizeLmsImageUrl(rawArtwork);
+  const trackUrl = typeof track?.url === 'string' ? String(track.url) : '';
+  const rawArtwork = track.artwork_url ? String(track.artwork_url) : '';
+  const isTidalTrack = trackUrl.startsWith('tidal://');
+
+  // Prefer direct HTTPS resources.tidal.com artwork for TIDAL tracks (avoids mixed-content and LMS coverid oddities).
+  if (isTidalTrack && rawArtwork.includes('/imageproxy/') && rawArtwork.includes('resources.tidal.com')) {
+    try {
+      const m = rawArtwork.match(/\/imageproxy\/([^/]+)\/image\.jpg/i);
+      const encodedInner = m?.[1];
+      if (encodedInner) {
+        let inner = decodeURIComponent(encodedInner);
+        if (inner.startsWith('http://resources.tidal.com/')) inner = inner.replace('http://', 'https://');
+        inner = inner.replace(/\/1280x1280\.jpg(\b|$)/i, '/640x640.jpg');
+        imageUrl = inner;
       }
-    } else {
+    } catch {
+      // fall through to other artwork sources
+    }
+  }
+
+  if (!imageUrl) {
+    if (track.coverid) {
+      imageUrl = `http://${LMS_HOST}:${LMS_PORT}/music/${track.coverid}/cover.jpg`;
+    } else if (rawArtwork) {
+      // LMS (and plugins like TIDAL) often provide relative image paths (e.g. "/imageproxy/..." or "/music/...").
+      // The cast receiver runs on a different origin, so relative URLs would 404; normalize to an absolute LMS URL.
       imageUrl = normalizeLmsImageUrl(rawArtwork);
     }
   }
@@ -468,7 +475,9 @@ function formatNowPlayingMessage(
       state: status.mode === 'play' ? 'playing' : status.mode === 'pause' ? 'paused' : 'stopped',
       seek_position: seek,
       output: {
-        volume: Number.isFinite(volumeNumber)
+        // IMPORTANT: If LMS digital volume control is off, LMS often reports 100% even when the real listening
+        // volume is controlled elsewhere (DAC/Roon). In that case, don't show a misleading volume overlay.
+        volume: hasReliableLmsVolume && Number.isFinite(volumeNumber)
           ? { type: 'number', min: 0, max: 100, value: volumeNumber, is_muted: isMuted }
           : null,
       },

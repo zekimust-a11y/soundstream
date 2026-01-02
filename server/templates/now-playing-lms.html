@@ -606,9 +606,25 @@
           // - The proxy expects an absolute http(s) URL.
           const lmsBase = `http://${host}:${parseInt(port) || 9000}`;
           let absoluteArtwork = null;
-          if (track.coverid) {
+          // Prefer TIDAL direct HTTPS artwork when available (avoids mixed content / proxy oddities)
+          const trackUrl = (track.url || '').toString();
+          const rawArtwork = track.artwork_url ? String(track.artwork_url) : '';
+          if (trackUrl.startsWith('tidal://') && rawArtwork.includes('/imageproxy/') && rawArtwork.includes('resources.tidal.com')) {
+            try {
+              const m = rawArtwork.match(/\/imageproxy\/([^/]+)\/image\.jpg/i);
+              const encodedInner = m?.[1];
+              if (encodedInner) {
+                let inner = decodeURIComponent(encodedInner);
+                if (inner.startsWith('http://resources.tidal.com/')) inner = inner.replace('http://', 'https://');
+                inner = inner.replace(/\/1280x1280\.jpg(\b|$)/i, '/640x640.jpg');
+                absoluteArtwork = inner;
+              }
+            } catch {}
+          }
+
+          if (!absoluteArtwork && track.coverid) {
             absoluteArtwork = `${lmsBase}/music/${track.coverid}/cover.jpg`;
-          } else if (track.artwork_url) {
+          } else if (!absoluteArtwork && track.artwork_url) {
             const raw = String(track.artwork_url);
             if (raw.startsWith('http://') || raw.startsWith('https://')) {
               absoluteArtwork = raw;
