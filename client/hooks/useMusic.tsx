@@ -39,9 +39,14 @@ export interface Server {
   lastFailureTime?: number; // Timestamp of last failure
 }
 
+// Playlist metadata shown in the UI (Playlists screen needs url/trackCount/artwork to build mosaics).
 export interface Playlist {
   id: string;
   name: string;
+  url?: string;
+  trackCount?: number;
+  artwork_url?: string;
+  // Kept for legacy/local-only playlist operations; unused for LMS playlists.
   tracks: Track[];
   createdAt: number;
   updatedAt: number;
@@ -1148,11 +1153,13 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       }
       // fallback to LMS
       lmsClient.setServer(activeServer.host, activeServer.port);
-      return await lmsClient.getPlaylistTracks(playlistId);
+      // If we have playlist metadata, pass url/name so plugins (e.g. SoundCloud) can resolve properly.
+      const meta = playlists.find((p) => p.id === playlistId);
+      return await lmsClient.getPlaylistTracks(playlistId, meta?.url, meta?.name);
     } catch (e) {
       return [];
     }
-  }, [activeServer]);
+  }, [activeServer, playlists]);
 
   const refreshLibrary = useCallback(async () => {
     if (!activeServer) {
@@ -1237,10 +1244,13 @@ export function MusicProvider({ children }: { children: ReactNode }) {
           return true;
         });
       
-      // Convert to internal playlist format for count
-      const playlistData: Playlist[] = filteredPlaylists.map(p => ({
-        id: p.id,
-        name: p.name,
+      // Convert to internal playlist format while retaining useful metadata (url, artwork, trackCount).
+      const playlistData: Playlist[] = filteredPlaylists.map((p: any) => ({
+        id: String(p.id),
+        name: String(p.name),
+        url: p.url ? String(p.url) : undefined,
+        trackCount: p.trackCount !== undefined ? Number(p.trackCount) : p.tracks !== undefined ? Number(p.tracks) : undefined,
+        artwork_url: (p.artwork_url || p.artwork) ? String(p.artwork_url || p.artwork) : undefined,
         tracks: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),

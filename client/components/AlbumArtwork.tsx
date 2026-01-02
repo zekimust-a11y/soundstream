@@ -23,10 +23,12 @@ export function AlbumArtwork({
   placeholderColor = "#3A3A3C" // Dark grey color (slightly lighter for better visibility)
 }: AlbumArtworkProps) {
   const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState<0 | 1>(0);
 
   // Reset failure state when source changes
   useEffect(() => {
     setFailed(false);
+    setAttempt(0);
   }, [source]);
 
   // Check if source is valid (not empty string, null, or undefined)
@@ -45,12 +47,15 @@ export function AlbumArtwork({
     return [style, styles.placeholder, { backgroundColor: placeholderColor }];
   }, [style, placeholderColor]);
 
-  const proxiedSource = useMemo(() => {
+  const resolvedSource = useMemo(() => {
     if (typeof source !== "string") return source;
     const raw = source.trim();
     if (!raw || raw.startsWith("data:") || raw.startsWith("file:")) return source;
     if (!raw.startsWith("http://") && !raw.startsWith("https://")) return source;
     if (raw.includes("/api/image-proxy?")) return source;
+
+    // Only do proxying on web (where caching matters most). On native, direct URLs are fine.
+    if (Platform.OS !== "web") return source;
 
     // Request thumbnails through the server cache for faster loads.
     // Grid/list => 160, detail/now-playing => 640.
@@ -60,11 +65,12 @@ export function AlbumArtwork({
     const dim = Math.max(w || 0, h || 0);
     const requested = dim > 300 ? 640 : 160;
 
-    // Only do this on web (where CORS + caching matters most).
-    if (Platform.OS !== "web") return source;
     const apiUrl = getApiUrl();
-    return `${apiUrl}/api/image-proxy?url=${encodeURIComponent(raw)}&w=${requested}&h=${requested}`;
-  }, [source, style]);
+    const proxied = `${apiUrl}/api/image-proxy?url=${encodeURIComponent(raw)}&w=${requested}&h=${requested}`;
+
+    // Attempt 0: proxied via server cache (fast). If that fails, fall back to direct raw URL.
+    return attempt === 0 ? proxied : raw;
+  }, [source, style, attempt]);
 
   // Use the shared placeholder image when artwork is missing or fails to load.
   if (!hasArtwork || failed) {
@@ -73,10 +79,17 @@ export function AlbumArtwork({
 
   return (
     <Image
-      source={typeof proxiedSource === 'string' ? { uri: proxiedSource } : proxiedSource}
+      source={typeof resolvedSource === 'string' ? { uri: resolvedSource } : resolvedSource}
       style={mergedStyle}
       contentFit={contentFit}
-      onError={() => setFailed(true)}
+      onError={() => {
+        // On web we try proxy first; if it fails, try direct once before giving up.
+        if (Platform.OS === "web" && attempt === 0) {
+          setAttempt(1);
+          return;
+        }
+        setFailed(true);
+      }}
     />
   );
 }
