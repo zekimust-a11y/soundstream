@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -31,6 +32,7 @@ import { useInfiniteArtists, type Artist } from "@/hooks/useLibrary";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
+type BrowseRouteProp = RouteProp<BrowseStackParamList, "Browse">;
 
 type RecentItem =
   | { kind: "track"; id: string; track: Track }
@@ -44,6 +46,7 @@ export default function BrowseScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<BrowseRouteProp>();
   const { width: windowWidth } = useWindowDimensions();
   const {
     recentlyPlayed,
@@ -388,6 +391,15 @@ export default function BrowseScreen() {
     }
   }, [activePlayer, activeServer, isShuffling, playTrack, syncPlayerStatus, tidalConnected, tidalEnabled]);
 
+  // Allow global header Shuffle to route here and trigger Shuffle All.
+  useEffect(() => {
+    if ((route.params as any)?.autoShuffle) {
+      // Clear flag first to avoid repeat triggers on re-render.
+      (navigation as any).setParams?.({ autoShuffle: undefined });
+      handleShuffleAll();
+    }
+  }, [route.params, navigation, handleShuffleAll]);
+
   const handleRecentItemPress = useCallback(
     async (item: RecentItem) => {
       if (!activePlayer || !activeServer) return;
@@ -520,19 +532,7 @@ export default function BrowseScreen() {
           />
         }
       >
-        <AppHeader
-          title="Browse"
-          showShuffle
-          onPressShuffle={handleShuffleAll}
-          rightExtra={
-            <Pressable
-              style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
-              onPress={() => navigation.navigate("History")}
-            >
-              <Feather name="clock" size={20} color={Colors.light.text} />
-            </Pressable>
-          }
-        />
+        <AppHeader title="Browse" onPressShuffle={handleShuffleAll} />
 
         {/* Recent selector (Played / Added) */}
         {(recentItems.length > 0 || recentlyAdded.length > 0) && (

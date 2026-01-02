@@ -18,7 +18,7 @@ import HistoryScreen from "@/screens/HistoryScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type BrowseStackParamList = {
-  Browse: undefined;
+  Browse: { autoShuffle?: boolean } | undefined;
   Artist: { id: string; name: string };
   Album: { id: string; name: string; artistName: string; source?: "qobuz" | "local" | "tidal" };
   AllAlbums: undefined;
@@ -49,9 +49,7 @@ export default function BrowseStackNavigator() {
       <Stack.Screen
         name="Artist"
         component={ArtistScreen}
-        options={({ route }) => ({
-          headerTitle: route.params.name,
-        })}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Album"

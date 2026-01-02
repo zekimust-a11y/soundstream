@@ -4,9 +4,7 @@ import {
   StyleSheet,
   FlatList,
   Pressable,
-  Dimensions,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -16,12 +14,11 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { SourceBadge } from "@/components/SourceBadge";
+import { AppHeader } from "@/components/AppHeader";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback, Track } from "@/hooks/usePlayback";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
-
-const { width } = Dimensions.get("window");
 
 type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
 
@@ -33,7 +30,6 @@ function formatTime(seconds: number): string {
 }
 
 export default function HistoryScreen() {
-  const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
   const { recentlyPlayed } = useMusic();
@@ -135,19 +131,7 @@ export default function HistoryScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.backButton,
-            { opacity: pressed ? 0.6 : 1 },
-          ]}
-          onPress={() => navigation.goBack()}
-        >
-          <Feather name="chevron-left" size={24} color={Colors.light.text} />
-        </Pressable>
-        <ThemedText style={styles.headerTitle}>History</ThemedText>
-        <View style={styles.headerSpacer} />
-      </View>
+      <AppHeader title="History" showBack />
 
       {recentlyPlayed.length === 0 ? (
         <View style={styles.emptyState}>
@@ -178,28 +162,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundRoot,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
-  headerTitle: {
-    flex: 1,
-    ...Typography.title,
-    color: Colors.light.text,
-    textAlign: "left",
-    alignSelf: "flex-start",
-  },
-  headerSpacer: {
-    width: 40,
-  },
+  // Header now standardized via `AppHeader`.
   content: {
     paddingHorizontal: Spacing.lg,
   },

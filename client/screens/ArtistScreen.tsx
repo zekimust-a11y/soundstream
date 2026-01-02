@@ -11,7 +11,6 @@ import {
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -26,6 +25,7 @@ import Animated, {
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { SourceBadge } from "@/components/SourceBadge";
+import { AppHeader } from "@/components/AppHeader";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic, type Album } from "@/hooks/useMusic";
 import { usePlayback } from "@/hooks/usePlayback";
@@ -145,7 +145,6 @@ const AlbumGridCard = memo(({ album, size, onPress, onPlay, onShuffle }: {
 export default function ArtistScreen() {
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavigationProp>();
-  const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { width: windowWidth } = useWindowDimensions();
   const { getArtistAlbums, activeServer } = useMusic();
@@ -345,11 +344,12 @@ export default function ArtistScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <AppHeader title="" showBack />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: headerHeight + Spacing.xl, paddingBottom: tabBarHeight + Spacing["5xl"] },
+          { paddingTop: Spacing.lg, paddingBottom: tabBarHeight + Spacing["5xl"] },
         ]}
       >
         <View style={[styles.pageContainer, maxContentWidth ? { maxWidth: maxContentWidth } : null]}>

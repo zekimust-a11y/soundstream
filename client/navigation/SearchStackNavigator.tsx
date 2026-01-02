@@ -33,9 +33,7 @@ export default function SearchStackNavigator() {
       <Stack.Screen
         name="Artist"
         component={ArtistScreen}
-        options={({ route }) => ({
-          headerTitle: route.params.name,
-        })}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Album"

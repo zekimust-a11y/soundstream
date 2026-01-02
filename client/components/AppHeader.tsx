@@ -12,11 +12,12 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 type AppHeaderProps = {
   title: string;
+  showBack?: boolean;
+  onPressBack?: () => void;
   onPressSearch?: (query?: string) => void;
   onPressShuffle?: () => void;
-  showShuffle?: boolean;
+  onPressHistory?: () => void;
   onPressSettings?: () => void;
-  rightExtra?: React.ReactNode;
 };
 
 /**
@@ -25,11 +26,12 @@ type AppHeaderProps = {
  */
 export function AppHeader({
   title,
+  showBack,
+  onPressBack,
   onPressSearch,
   onPressShuffle,
-  showShuffle,
+  onPressHistory,
   onPressSettings,
-  rightExtra,
 }: AppHeaderProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -53,6 +55,19 @@ export function AppHeader({
     navigation.navigate("Main", { screen: "BrowseTab", params: { screen: "Settings" } } as any);
   };
 
+  const goHistory = () => {
+    if (onPressHistory) return onPressHistory();
+    navigation.navigate("Main", { screen: "BrowseTab", params: { screen: "History" } } as any);
+  };
+
+  const goShuffle = () => {
+    if (onPressShuffle) return onPressShuffle();
+    navigation.navigate("Main", {
+      screen: "BrowseTab",
+      params: { screen: "Browse", params: { autoShuffle: true } },
+    } as any);
+  };
+
   const onSubmit = () => {
     const trimmed = q.trim();
     if (!trimmed) return goSearch("");
@@ -64,9 +79,27 @@ export function AppHeader({
 
   return (
     <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-      <View style={styles.left}>{titleNode}</View>
+      <View style={styles.left}>
+        {showBack ? (
+          <Pressable
+            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
+            onPress={() => (onPressBack ? onPressBack() : (navigation as any).goBack())}
+          >
+            <Feather name="chevron-left" size={20} color={Colors.light.text} />
+          </Pressable>
+        ) : null}
+        {title ? titleNode : null}
+      </View>
 
       <View style={styles.right}>
+        {/* Order: Shuffle, Search, History, Settings */}
+        <Pressable
+          style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={goShuffle}
+        >
+          <Feather name="shuffle" size={20} color={Colors.light.text} />
+        </Pressable>
+
         {isWide ? (
           <View style={styles.searchBox}>
             <Feather name="search" size={16} color={Colors.light.textSecondary} />
@@ -111,16 +144,12 @@ export function AppHeader({
           </Pressable>
         )}
 
-        {rightExtra}
-
-        {showShuffle && onPressShuffle ? (
-          <Pressable
-            style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}
-            onPress={onPressShuffle}
-          >
-            <Feather name="shuffle" size={20} color={Colors.light.text} />
-          </Pressable>
-        ) : null}
+        <Pressable
+          style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={goHistory}
+        >
+          <Feather name="clock" size={20} color={Colors.light.text} />
+        </Pressable>
 
         <Pressable
           style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}
@@ -143,9 +172,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundRoot,
   },
   left: {
+    flexDirection: "row",
+    alignItems: "center",
     flexGrow: 1,
     flexShrink: 1,
     paddingRight: Spacing.md,
+    gap: Spacing.sm,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.light.backgroundSecondary,
+    justifyContent: "center",
+    alignItems: "center",
   },
   title: {
     ...Typography.title,

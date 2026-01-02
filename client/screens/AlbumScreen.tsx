@@ -12,7 +12,6 @@ import {
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 
@@ -21,6 +20,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { SourceBadge } from "@/components/SourceBadge";
 import { AlbumArtwork } from "@/components/AlbumArtwork";
 import { Button } from "@/components/Button";
+import { AppHeader } from "@/components/AppHeader";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback, type Track } from "@/hooks/usePlayback";
@@ -38,7 +38,6 @@ function formatDuration(duration: number): string {
 export default function AlbumScreen() {
   const route = useRoute<RouteProps>();
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { width: windowWidth } = useWindowDimensions();
   const { getAlbumTracks, addToRecentlyPlayed } = useMusic();
@@ -109,23 +108,14 @@ export default function AlbumScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <AppHeader title="" showBack />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + Spacing.lg, paddingBottom: tabBarHeight + Spacing["5xl"] },
+          { paddingTop: Spacing.lg, paddingBottom: tabBarHeight + Spacing["5xl"] },
         ]}
       >
-        <View style={styles.topRow}>
-          <Pressable
-            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
-            onPress={() => (navigation as any).goBack()}
-          >
-            <Feather name="chevron-left" size={22} color={Colors.light.text} />
-          </Pressable>
-          <View style={styles.topRowSpacer} />
-        </View>
-
         <View style={[styles.pageContainer, maxContentWidth ? { maxWidth: maxContentWidth } : null]}>
           <View style={[styles.albumHeader, isDesktop ? styles.albumHeaderDesktop : null]}>
             <View style={[styles.albumArtContainer, { width: albumArtSize }]}>
@@ -242,24 +232,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: Spacing.lg,
-  },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.light.backgroundDefault,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.light.border,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  topRowSpacer: {
-    flex: 1,
   },
   pageContainer: {
     width: "100%",

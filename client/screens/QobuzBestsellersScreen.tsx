@@ -26,6 +26,7 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { AppHeader } from "@/components/AppHeader";
 import { SourceBadge } from "@/components/SourceBadge";
 import { SortFilter, type SortOption } from "@/components/SortFilter";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
@@ -404,36 +405,20 @@ export default function QobuzBestsellersScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <View style={styles.headerLeft}>
-          <Pressable
-            style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
-            onPress={() => navigation.goBack()}
-          >
-            <Feather name="chevron-left" size={24} color={Colors.light.text} />
-          </Pressable>
-        </View>
-        <View style={styles.headerCenter}>
-          <ThemedText style={styles.headerTitle}>Qobuz Bestsellers</ThemedText>
-        </View>
-        <View style={styles.headerRight}>
-          <Pressable
-            style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
-            onPress={() => setActiveFilterSheet("sort")}
-          >
-            <Feather name="sliders-h" size={20} color={Colors.light.text} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
-            onPress={() => handleViewModeChange(viewMode === "grid" ? "list" : "grid")}
-          >
-            <Feather
-              name={viewMode === "grid" ? "list" : "grid"}
-              size={20}
-              color={Colors.light.text}
-            />
-          </Pressable>
-        </View>
+      <AppHeader title="Qobuz Bestsellers" showBack />
+      <View style={styles.toolbarRow}>
+        <Pressable
+          style={({ pressed }) => [styles.toolbarButton, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => setActiveFilterSheet("sort")}
+        >
+          <Feather name="sliders-h" size={20} color={Colors.light.text} />
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.toolbarButton, { opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => handleViewModeChange(viewMode === "grid" ? "list" : "grid")}
+        >
+          <Feather name={viewMode === "grid" ? "list" : "grid"} size={20} color={Colors.light.text} />
+        </Pressable>
       </View>
 
       <FlatList
@@ -495,34 +480,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundRoot,
   },
-  header: {
+  toolbarRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-  },
-  headerLeft: {
-    width: 80,
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: "center",
-  },
-  headerTitle: {
-    ...Typography.title2,
-    fontWeight: "600",
-  },
-  headerRight: {
-    width: 80,
-    flexDirection: "row",
     justifyContent: "flex-end",
     gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
-  headerButton: {
-    padding: Spacing.xs,
+  toolbarButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.light.backgroundSecondary,
+    justifyContent: "center",
+    alignItems: "center",
   },
   list: {
     padding: Spacing.md,
