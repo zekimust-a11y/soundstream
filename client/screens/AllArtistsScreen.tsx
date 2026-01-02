@@ -268,8 +268,9 @@ export default function AllArtistsScreen() {
       return { numColumns: cols, itemSize: Math.max(90, size) };
     }
 
-    const min = 140;
-    const max = 210;
+    // +16% bigger tiles on large screens
+    const min = 165;
+    const max = 245;
     let cols = Math.max(3, Math.min(10, Math.floor((available + gap) / (min + gap)) || 3));
     let size = (available - gap * (cols - 1)) / cols;
     while (size > max && cols < 10) {

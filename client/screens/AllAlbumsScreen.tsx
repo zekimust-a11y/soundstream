@@ -251,8 +251,9 @@ export default function AllAlbumsScreen() {
     }
 
     // Desktop tiles: slightly larger for big screens (user request ~15% bigger covers)
-    const min = 170;
-    const max = 280;
+    // +16% bigger tiles on large screens
+    const min = 200;
+    const max = 325;
     let cols = Math.max(3, Math.min(10, Math.floor((available + gap) / (min + gap)) || 3));
     let size = (available - gap * (cols - 1)) / cols;
     while (size > max && cols < 10) {

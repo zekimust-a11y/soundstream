@@ -340,8 +340,9 @@ export default function PlaylistsScreen() {
       return { numColumns: cols, itemSize: Math.max(160, size) };
     }
 
-    const min = 210;
-    const max = 340;
+    // +16% bigger tiles on large screens
+    const min = 245;
+    const max = 395;
     let cols = Math.max(2, Math.min(8, Math.floor((available + gap) / (min + gap)) || 2));
     let size = (available - gap * (cols - 1)) / cols;
     while (size > max && cols < 8) {

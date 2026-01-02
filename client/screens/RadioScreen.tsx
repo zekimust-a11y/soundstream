@@ -217,8 +217,9 @@ export default function RadioScreen() {
     }
 
     // Desktop/web: allow more columns, larger tiles.
-    const min = 150;
-    const max = 260;
+    // +16% bigger tiles on large screens
+    const min = 175;
+    const max = 300;
     let cols = Math.max(3, Math.min(10, Math.floor((available + gap) / (min + gap)) || 3));
     let size = (available - gap * (cols - 1)) / cols;
     while (size > max && cols < 10) {
