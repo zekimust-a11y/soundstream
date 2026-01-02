@@ -14,7 +14,7 @@ UDEV_RULE="/etc/udev/rules.d/99-flirc-soundstream.rules"
 
 echo "[install] Installing apt deps..."
 apt-get update -y
-apt-get install -y python3 python3-pip
+apt-get install -y python3 python3-pip python3-venv
 
 echo "[install] Creating ${INSTALL_DIR}..."
 mkdir -p "${INSTALL_DIR}"
@@ -22,8 +22,11 @@ install -m 0755 "${ROOT_DIR}/flirc_roon_volume.py" "${INSTALL_DIR}/flirc_roon_vo
 install -m 0644 "${ROOT_DIR}/requirements.txt" "${INSTALL_DIR}/requirements.txt"
 
 echo "[install] Installing python deps..."
-python3 -m pip install --upgrade pip >/dev/null
-python3 -m pip install -r "${INSTALL_DIR}/requirements.txt"
+if [[ ! -d "${INSTALL_DIR}/venv" ]]; then
+  python3 -m venv "${INSTALL_DIR}/venv"
+fi
+"${INSTALL_DIR}/venv/bin/python" -m pip install --upgrade pip >/dev/null
+"${INSTALL_DIR}/venv/bin/python" -m pip install -r "${INSTALL_DIR}/requirements.txt"
 
 echo "[install] Installing udev rule..."
 install -m 0644 "${ROOT_DIR}/99-flirc-soundstream.rules" "${UDEV_RULE}"

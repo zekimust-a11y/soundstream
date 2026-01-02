@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=/etc/soundstream-flirc-roon-volume.env
-ExecStart=/usr/bin/python3 /opt/soundstream-flirc-roon-volume/flirc_roon_volume.py
+ExecStart=/opt/soundstream-flirc-roon-volume/venv/bin/python /opt/soundstream-flirc-roon-volume/flirc_roon_volume.py
 Restart=always
 RestartSec=1
 
