@@ -69,26 +69,32 @@ function cycleClientId(): { clientId: string; index: number } {
   return { clientId: getClientId(), index: currentClientIdIndex };
 }
 
-function resolveClientIdFromRequest(req: Request): { clientId: string; index: number } {
-  // If env var is set, always use it (no rotation).
-  const envId = process.env.TIDAL_CLIENT_ID;
-  if (envId && envId.trim()) return { clientId: envId.trim(), index: -1 };
-
+function resolveClientIdFromRequest(
+  req: Request,
+  opts: { ignoreEnv?: boolean } = {}
+): { clientId: string; index: number; usingEnv: boolean } {
   const q: any = req.query || {};
+  const forceFallback = String(q.forceFallback || "").toLowerCase();
+  const ignoreEnv = !!opts.ignoreEnv || forceFallback === "1" || forceFallback === "true" || forceFallback === "yes";
+
+  // If env var is set, use it unless explicitly ignored.
+  const envId = process.env.TIDAL_CLIENT_ID;
+  if (!ignoreEnv && envId && envId.trim()) return { clientId: envId.trim(), index: -1, usingEnv: true };
+
   const idxRaw = q.clientIdIndex;
   if (idxRaw !== undefined) {
     const idx = clampClientIdIndex(parseInt(String(idxRaw), 10));
-    return { clientId: TIDAL_FALLBACK_IDS[idx], index: idx };
+    return { clientId: TIDAL_FALLBACK_IDS[idx], index: idx, usingEnv: false };
   }
 
   const idRaw = q.clientId;
   if (typeof idRaw === "string" && idRaw.trim()) {
     const wanted = idRaw.trim();
     const idx = TIDAL_FALLBACK_IDS.indexOf(wanted);
-    if (idx >= 0) return { clientId: wanted, index: idx };
+    if (idx >= 0) return { clientId: wanted, index: idx, usingEnv: false };
   }
 
-  return { clientId: getClientId(), index: currentClientIdIndex };
+  return { clientId: TIDAL_FALLBACK_IDS[currentClientIdIndex] || TIDAL_FALLBACK_IDS[0], index: currentClientIdIndex, usingEnv: false };
 }
 
 function loadTokensFromDisk(): void {
@@ -279,16 +285,29 @@ function pickArtworkUrl(artwork: any, preferred = "320x320"): string | null {
 export function registerTidalRoutes(app: Express): void {
   loadTokensFromDisk();
 
-  app.get("/api/tidal/client-id", (_req: Request, res: Response) => {
+  app.get("/api/tidal/client-id", (req: Request, res: Response) => {
+    const resolved = resolveClientIdFromRequest(req);
     res.json({
-      clientId: getClientId(),
-      clientIdIndex: process.env.TIDAL_CLIENT_ID ? null : currentClientIdIndex,
-      usingEnv: !!process.env.TIDAL_CLIENT_ID,
-      fallbackIds: process.env.TIDAL_CLIENT_ID ? null : TIDAL_FALLBACK_IDS,
+      clientId: resolved.clientId,
+      clientIdIndex: resolved.usingEnv ? null : resolved.index,
+      usingEnv: resolved.usingEnv,
+      fallbackIds: resolved.usingEnv ? null : TIDAL_FALLBACK_IDS,
     });
   });
 
-  app.post("/api/tidal/client-id/cycle", (_req: Request, res: Response) => {
+  app.post("/api/tidal/client-id/cycle", (req: Request, res: Response) => {
+    const q: any = req.query || {};
+    const forceFallback = String(q.forceFallback || "").toLowerCase();
+    const ignoreEnv = forceFallback === "1" || forceFallback === "true" || forceFallback === "yes";
+    if (ignoreEnv && process.env.TIDAL_CLIENT_ID) {
+      // no-op for env, but allow cycling of fallback index anyway
+      currentClientIdIndex = (currentClientIdIndex + 1) % TIDAL_FALLBACK_IDS.length;
+      return res.json({
+        clientId: TIDAL_FALLBACK_IDS[currentClientIdIndex],
+        clientIdIndex: currentClientIdIndex,
+        usingEnv: false,
+      });
+    }
     const rotated = cycleClientId();
     res.json({
       clientId: rotated.clientId,
@@ -307,7 +326,10 @@ export function registerTidalRoutes(app: Express): void {
     if (cycle === "1" || cycle === "true" || cycle === "yes") {
       cycleClientId();
     }
-    const { clientId, index: clientIdIndex } = resolveClientIdFromRequest(req);
+    const preset = String(req.query.preset || "modern").toLowerCase();
+    const resolved = resolveClientIdFromRequest(req, { ignoreEnv: preset === "legacy" });
+    const clientId = resolved.clientId;
+    const clientIdIndex = resolved.usingEnv ? null : resolved.index;
     const redirectUri =
       platform === "web"
         ? `${req.protocol}://${req.get("host")}/api/tidal/callback`
@@ -317,7 +339,6 @@ export function registerTidalRoutes(app: Express): void {
     const codeChallenge = generateCodeChallenge(codeVerifier);
     const state = crypto.randomBytes(16).toString("hex");
 
-    const preset = String(req.query.preset || "modern").toLowerCase();
     // `preset=legacy` opts into the legacy scope that some api.tidal.com endpoints require.
     // Warning: some client IDs may cause OAuth error 1002 when requesting legacy scopes.
     const scope =
@@ -358,13 +379,14 @@ export function registerTidalRoutes(app: Express): void {
     if (cycle === "1" || cycle === "true" || cycle === "yes") {
       cycleClientId();
     }
-    const { clientId } = resolveClientIdFromRequest(req);
+    const preset = String(req.query.preset || "modern").toLowerCase();
+    const resolved = resolveClientIdFromRequest(req, { ignoreEnv: preset === "legacy" });
+    const clientId = resolved.clientId;
     const redirectUri =
       platform === "web"
         ? `${req.protocol}://${req.get("host")}/api/tidal/callback`
         : "soundstream://callback";
 
-    const preset = String(req.query.preset || "modern").toLowerCase();
     const scope =
       preset === "legacy"
         ? "r_usr"
