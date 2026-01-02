@@ -987,7 +987,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       const inferredSource: "local" | "tidal" = source || (albumId.startsWith("tidal-") ? "tidal" : "local");
 
       if (inferredSource === "tidal" || albumId.startsWith("tidal-")) {
-        const tidalAlbumId = albumId.replace(/^tidal-/, "");
+        const tidalAlbumId = albumId
+          .replace(/^tidal-/, "")
+          .replace(/^album-/, "");
         const apiUrl = getApiUrl();
         const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
         const response = await fetch(`${cleanApiUrl}/api/tidal/albums/${encodeURIComponent(tidalAlbumId)}/tracks`);
@@ -998,16 +1000,19 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         const items = Array.isArray(data?.items) ? data.items : [];
         return items.map((t: any) => ({
-          id: `tidal-track-${t.id}`,
+          // Server may already return `tidal-track-*` IDs; keep stable.
+          id: typeof t.id === "string" && t.id.startsWith("tidal-track-") ? t.id : `tidal-track-${t.id}`,
           title: t.title,
           artist: t.artist,
           album: t.album,
-          albumId: t.albumId ? `tidal-${t.albumId}` : `tidal-${tidalAlbumId}`,
+          albumId: t.albumId
+            ? `tidal-${String(t.albumId).replace(/^album-/, "").replace(/^tidal-/, "")}`
+            : `tidal-${tidalAlbumId}`,
           duration: typeof t.duration === "number" ? t.duration : 0,
-          albumArt: t.artwork_url || undefined,
+          albumArt: t.albumArt || t.artwork_url || undefined,
           source: "tidal" as const,
           uri: t.lmsUri || t.uri || `tidal://track:${t.id}`,
-          lmsTrackId: String(t.id),
+          lmsTrackId: String(t.id).replace(/^tidal-track-/, ""),
         }));
       }
 
@@ -1024,7 +1029,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     try {
       const inferredSource: "local" | "tidal" = source || (playlistId.startsWith("tidal-") ? "tidal" : "local");
       if (inferredSource === "tidal" || playlistId.startsWith("tidal-")) {
-        const tidalPlaylistId = playlistId.replace(/^tidal-/, "");
+        const tidalPlaylistId = playlistId
+          .replace(/^tidal-/, "")
+          .replace(/^playlist-/, "");
         const apiUrl = getApiUrl();
         const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
         const response = await fetch(`${cleanApiUrl}/api/tidal/playlists/${encodeURIComponent(tidalPlaylistId)}/tracks`);

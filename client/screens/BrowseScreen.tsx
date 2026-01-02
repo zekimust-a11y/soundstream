@@ -78,7 +78,7 @@ export default function BrowseScreen() {
         fetch(`${apiUrl}/api/tidal/albums?limit=20`)
           .then(res => res.ok ? res.json() : null)
           .then(data => data && setTidalAlbums(data.items.map((a: any) => ({
-            id: `tidal-album-${a.id}`,
+            id: `tidal-${a.id}`,
             title: a.title,
             artist: a.artist,
             artistId: `tidal-artist-${a.artistId}`,
@@ -92,7 +92,7 @@ export default function BrowseScreen() {
         fetch(`${apiUrl}/api/tidal/playlists?limit=20`)
           .then(res => res.ok ? res.json() : null)
           .then(data => data && setTidalPlaylists(data.items.map((p: any) => ({
-            id: `tidal-playlist-${p.id}`,
+            id: `tidal-${p.id}`,
             name: p.title,
             url: p.lmsUri,
             artwork_url: p.cover,
