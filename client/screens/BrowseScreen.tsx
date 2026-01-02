@@ -37,6 +37,9 @@ type RecentItem =
   | { kind: "album"; id: string; track: Track }
   | { kind: "playlist"; id: string; playlistId: string; name: string; artwork?: string };
 
+type RecentTab = "played" | "added";
+type RecentAddedAlbum = LmsAlbum & { source: "local" | "tidal" };
+
 export default function BrowseScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
@@ -61,6 +64,9 @@ export default function BrowseScreen() {
     return artistsData.pages.flatMap(page => page?.artists || []);
   }, [artistsData]);
   const [isShuffling, setIsShuffling] = useState(false);
+  const [recentTab, setRecentTab] = useState<RecentTab>("played");
+  const [recentlyAdded, setRecentlyAdded] = useState<RecentAddedAlbum[]>([]);
+  const [isLoadingRecentlyAdded, setIsLoadingRecentlyAdded] = useState(false);
   const [tidalAlbums, setTidalAlbums] = useState<LmsAlbum[]>([]);
   const [tidalPlaylists, setTidalPlaylists] = useState<LmsPlaylist[]>([]);
   const [tidalMixes, setTidalMixes] = useState<any[]>([]);
@@ -140,6 +146,44 @@ export default function BrowseScreen() {
   const handleRefresh = useCallback(() => {
     refreshLibrary();
   }, [refreshLibrary]);
+
+  const loadRecentlyAdded = useCallback(async () => {
+    if (!activeServer) {
+      setRecentlyAdded([]);
+      return;
+    }
+    setIsLoadingRecentlyAdded(true);
+    try {
+      // Local LMS recently-added albums (best-effort; falls back to normal albums paging)
+      lmsClient.setServer(activeServer.host, activeServer.port);
+      const lmsRes = await lmsClient.getRecentlyAddedAlbumsPage(0, 20);
+      const local = (lmsRes.albums || []).map((a) => ({ ...a, source: "local" as const }));
+
+      // Tidal "My Albums" (already fetched for Browse; treat as "recently added" ordering from API)
+      const tidal = (tidalAlbums || []).slice(0, 20).map((a) => ({ ...a, source: "tidal" as const }));
+
+      // Interleave so both sources appear
+      const combined: RecentAddedAlbum[] = [];
+      const max = Math.max(local.length, tidal.length);
+      for (let i = 0; i < max; i++) {
+        if (tidal[i]) combined.push(tidal[i]);
+        if (local[i]) combined.push(local[i]);
+      }
+
+      setRecentlyAdded(combined.slice(0, 30));
+    } catch (e) {
+      console.warn("[Browse] Failed to load recently added:", e instanceof Error ? e.message : String(e));
+      setRecentlyAdded([]);
+    } finally {
+      setIsLoadingRecentlyAdded(false);
+    }
+  }, [activeServer, tidalAlbums]);
+
+  useEffect(() => {
+    if (recentTab === "added") {
+      loadRecentlyAdded();
+    }
+  }, [recentTab, loadRecentlyAdded]);
 
   const handleShuffleAll = useCallback(async () => {
     if (!activePlayer || !activeServer || isShuffling) {
@@ -490,19 +534,87 @@ export default function BrowseScreen() {
           }
         />
 
-        {/* Recently Played Section */}
-        {recentItems.length > 0 && (
+        {/* Recent selector (Played / Added) */}
+        {(recentItems.length > 0 || recentlyAdded.length > 0) && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <ThemedText style={styles.sectionTitle}>Recently Played</ThemedText>
+              <View style={styles.recentTabs}>
+                <Pressable
+                  style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                  onPress={() => setRecentTab("played")}
+                >
+                  <View style={styles.recentTabItem}>
+                    <ThemedText
+                      style={[
+                        styles.recentTabText,
+                        recentTab === "played" && styles.recentTabTextActive,
+                      ]}
+                    >
+                      Recently Played
+                    </ThemedText>
+                    {recentTab === "played" ? <View style={styles.recentTabIndicator} /> : null}
+                  </View>
+                </Pressable>
+
+                <Pressable
+                  style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                  onPress={() => setRecentTab("added")}
+                >
+                  <View style={styles.recentTabItem}>
+                    <ThemedText
+                      style={[
+                        styles.recentTabText,
+                        recentTab === "added" && styles.recentTabTextActive,
+                      ]}
+                    >
+                      Recently Added
+                    </ThemedText>
+                    {recentTab === "added" ? <View style={styles.recentTabIndicator} /> : null}
+                  </View>
+                </Pressable>
+              </View>
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-            >
-              {recentItems.map((item) => {
-                if (item.kind === "playlist") {
+
+            {recentTab === "played" ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              >
+                {recentItems.map((item) => {
+                  if (item.kind === "playlist") {
+                    return (
+                      <Pressable
+                        key={item.id}
+                        style={({ pressed }) => [
+                          styles.smallCard,
+                          { width: browseTileSize },
+                          { opacity: pressed ? 0.6 : 1 },
+                        ]}
+                        onPress={() => handleRecentItemPress(item)}
+                      >
+                        <AlbumArtwork
+                          source={item.artwork}
+                          style={[styles.smallImage, { width: browseTileSize, height: browseTileSize }]}
+                          contentFit="cover"
+                        />
+                        <ThemedText style={styles.smallTitle} numberOfLines={1}>
+                          {item.name}
+                        </ThemedText>
+                        <ThemedText style={styles.smallSubtitle} numberOfLines={1}>
+                          Playlist
+                        </ThemedText>
+                      </Pressable>
+                    );
+                  }
+
+                  const track = item.track;
+                  const title =
+                    item.kind === "track"
+                      ? track.title
+                      : track.album || track.title;
+                  const subtitle = track.artist;
+
                   return (
                     <Pressable
                       key={item.id}
@@ -513,65 +625,65 @@ export default function BrowseScreen() {
                       ]}
                       onPress={() => handleRecentItemPress(item)}
                     >
-                    <AlbumArtwork
-                      source={item.artwork}
-                      style={[styles.smallImage, { width: browseTileSize, height: browseTileSize }]}
-                      contentFit="cover"
-                    />
-                      <ThemedText
-                        style={styles.smallTitle}
-                        numberOfLines={1}
-                      >
-                        {item.name}
+                      <AlbumArtwork
+                        source={track.albumArt}
+                        style={[styles.smallImage, { width: browseTileSize, height: browseTileSize }]}
+                        contentFit="cover"
+                      />
+                      <ThemedText style={styles.smallTitle} numberOfLines={1}>
+                        {title}
                       </ThemedText>
-                      <ThemedText
-                        style={styles.smallSubtitle}
-                        numberOfLines={1}
-                      >
-                        Playlist
+                      <ThemedText style={styles.smallSubtitle} numberOfLines={1}>
+                        {subtitle}
                       </ThemedText>
                     </Pressable>
                   );
-                }
-
-                const track = item.track;
-                const title =
-                  item.kind === "track"
-                    ? track.title
-                    : track.album || track.title;
-                const subtitle = track.artist;
-
-                return (
-                  <Pressable
-                    key={item.id}
-                    style={({ pressed }) => [
-                      styles.smallCard,
-                      { width: browseTileSize },
-                      { opacity: pressed ? 0.6 : 1 },
-                    ]}
-                    onPress={() => handleRecentItemPress(item)}
-                  >
-                  <AlbumArtwork
-                    source={track.albumArt}
-                    style={[styles.smallImage, { width: browseTileSize, height: browseTileSize }]}
-                    contentFit="cover"
-                  />
-                    <ThemedText
-                      style={styles.smallTitle}
-                      numberOfLines={1}
+                })}
+              </ScrollView>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              >
+                {isLoadingRecentlyAdded ? (
+                  <View style={[styles.smallCard, { width: browseTileSize, justifyContent: "center", alignItems: "center" }]}>
+                    <ActivityIndicator size="small" color={Colors.light.accent} />
+                  </View>
+                ) : (
+                  recentlyAdded.map((album) => (
+                    <Pressable
+                      key={`${album.source}-${album.id}`}
+                      style={({ pressed }) => [
+                        styles.smallCard,
+                        { width: browseTileSize },
+                        { opacity: pressed ? 0.6 : 1 },
+                      ]}
+                      onPress={() => {
+                        navigation.navigate("Album", {
+                          id: album.id,
+                          name: album.title,
+                          artistName: album.artist,
+                          source: album.source === "tidal" ? "tidal" : "local",
+                        });
+                      }}
                     >
-                      {title}
-                    </ThemedText>
-                    <ThemedText
-                      style={styles.smallSubtitle}
-                      numberOfLines={1}
-                    >
-                      {subtitle}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+                      <AlbumArtwork
+                        source={album.artwork_url}
+                        style={[styles.smallImage, { width: browseTileSize, height: browseTileSize }]}
+                        contentFit="cover"
+                      />
+                      <ThemedText style={styles.smallTitle} numberOfLines={1}>
+                        {album.title}
+                      </ThemedText>
+                      <ThemedText style={styles.smallSubtitle} numberOfLines={1}>
+                        {album.artist}
+                      </ThemedText>
+                    </Pressable>
+                  ))
+                )}
+              </ScrollView>
+            )}
           </View>
         )}
 
@@ -810,6 +922,31 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...Typography.title,
     color: Colors.light.text,
+  },
+  recentTabs: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: Spacing.lg,
+  },
+  recentTabItem: {
+    alignItems: "flex-start",
+  },
+  recentTabText: {
+    ...Typography.title,
+    fontSize: 20,
+    fontWeight: "700",
+    color: Colors.light.textSecondary,
+  },
+  recentTabTextActive: {
+    color: Colors.light.text,
+  },
+  // Short underline indicator (not full text width)
+  recentTabIndicator: {
+    height: 3,
+    width: 26,
+    borderRadius: 2,
+    marginTop: 6,
+    backgroundColor: Colors.light.text,
   },
   viewAll: {
     ...Typography.caption,

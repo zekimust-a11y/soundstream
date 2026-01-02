@@ -545,6 +545,56 @@ class LmsClient {
     }
   }
 
+  /**
+   * Recently added albums (local library).
+   * NOTE: LMS supports sort parameters on the `albums` command; `sort:new` is commonly supported.
+   * If the server doesn't support the sort, we fall back to the normal albums paging.
+   */
+  async getRecentlyAddedAlbumsPage(start: number = 0, limit: number = 30): Promise<{ albums: LmsAlbum[], total: number }> {
+    const actualLimit = Math.max(1, limit);
+    debugLog.info('getRecentlyAddedAlbumsPage', `Requesting recently added albums: start=${start}, limit=${actualLimit}`);
+
+    try {
+      const command = [
+        'albums',
+        String(start),
+        String(actualLimit),
+        'library_id:0',
+        'tags:aajlyST',
+        'sort:new',
+      ];
+
+      debugLog.info('getRecentlyAddedAlbumsPage', `Using command: ${command.join(' ')}`);
+      const result = await this.request('', command);
+
+      const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
+      const total = Number(result.count) || 0;
+
+      const albums = albumsLoop.map((a) => ({
+        id: String(a.id || ''),
+        title: String(a.album || a.title || ''),
+        artist: String(a.artist || ''),
+        artistId: a.artist_id ? String(a.artist_id) : undefined,
+        artwork_url: a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` :
+          (a.artwork_url ? (String(a.artwork_url).startsWith('http') ? String(a.artwork_url) : `${this.baseUrl}${a.artwork_url}`) : undefined),
+        year: a.year ? Number(a.year) : undefined,
+        trackCount: a.track_count ? Number(a.track_count) : undefined,
+        url: a.url ? String(a.url) : undefined,
+      }));
+
+      // If LMS doesn't understand sort:new it may return empty; fall back.
+      if (albums.length === 0) {
+        debugLog.info('getRecentlyAddedAlbumsPage', 'No albums returned; falling back to getAlbumsPage');
+        return this.getAlbumsPage(start, actualLimit);
+      }
+
+      return { albums, total };
+    } catch (error) {
+      debugLog.info('getRecentlyAddedAlbumsPage', `Failed (${error instanceof Error ? error.message : String(error)}); falling back to getAlbumsPage`);
+      return this.getAlbumsPage(start, actualLimit);
+    }
+  }
+
   async getAlbums(artistId?: string): Promise<LmsAlbum[]> {
     const command = artistId
       ? ['albums', '0', '100', `artist_id:${artistId}`, 'library_id:0', 'tags:aajlyST']
