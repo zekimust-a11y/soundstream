@@ -561,8 +561,12 @@ export function registerTidalRoutes(app: Express): void {
       toFiniteNumber(meta.totalItems) ??
       toFiniteNumber(meta.totalCount) ??
       toFiniteNumber(meta.totalResults) ??
+      // OpenAPI frequently nests this under meta.page
+      toFiniteNumber(meta?.page?.totalNumberOfItems) ??
       toFiniteNumber(meta?.page?.total) ??
-      toFiniteNumber(meta?.page?.totalItems)
+      toFiniteNumber(meta?.page?.totalItems) ??
+      toFiniteNumber(meta?.page?.totalCount) ??
+      toFiniteNumber(meta?.page?.totalResults)
     );
   }
 
@@ -1416,7 +1420,16 @@ export function registerTidalRoutes(app: Express): void {
       const TOTALS_TTL_MS = 5 * 60_000; // 5 minutes
       const cacheKey = `totals:${t.userId}`;
       const cached = cacheGet(cacheKey, TOTALS_TTL_MS);
-      if (cached?.fresh) {
+      const cachedPayload = cached?.payload as any;
+      const cachedAllNull =
+        cachedPayload &&
+        cachedPayload.albums == null &&
+        cachedPayload.artists == null &&
+        cachedPayload.tracks == null &&
+        cachedPayload.playlists == null;
+
+      // Don't serve an "all unknown" cached payload as fresh — it hides recoverable parsing fixes.
+      if (cached?.fresh && !cachedAllNull) {
         return res.json({ ...cached.payload, cached: true });
       }
 
@@ -1458,7 +1471,13 @@ export function registerTidalRoutes(app: Express): void {
         if (resp.status < 200 || resp.status >= 300) return { count: null, rateLimited: false };
 
         const body = resp.json || {};
-        const n = Number(body?.totalNumberOfItems ?? body?.total ?? NaN);
+        const n = Number(
+          body?.totalNumberOfItems ??
+            body?.total ??
+            body?.metadata?.totalNumberOfItems ??
+            body?.metadata?.total ??
+            NaN
+        );
         return { count: Number.isFinite(n) ? n : null, rateLimited: false };
       };
 
@@ -1516,6 +1535,16 @@ export function registerTidalRoutes(app: Express): void {
       // If we got rate-limited, prefer cached values instead of returning null/partial.
       if (rateLimited && cached?.payload) {
         return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true, partial: true });
+      }
+
+      // Avoid caching a payload that's entirely unknown; it's not useful and can mask fixes.
+      const allNull =
+        payload.albums == null &&
+        payload.artists == null &&
+        payload.tracks == null &&
+        payload.playlists == null;
+      if (allNull && !rateLimited) {
+        return res.json({ ...payload, cached: false });
       }
 
       cacheSet(cacheKey, payload);

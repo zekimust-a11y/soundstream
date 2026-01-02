@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
     inset: 0,
     backgroundColor: "transparent",
   },
-  searchDropdown: {
+  searchDropdown: ({
     position: "absolute" as any,
     right: Spacing.lg,
     top: 10,
@@ -448,12 +448,14 @@ const styles = StyleSheet.create({
     maxHeight: "70vh" as any,
     overflow: "auto" as any,
     borderRadius: 22,
-    backgroundColor: "rgba(20, 20, 22, 0.92)",
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.16)",
-    boxShadow: "0px 18px 60px rgba(0,0,0,0.55)" as any,
+    borderColor: "rgba(0,0,0,0.08)",
+    boxShadow: "0px 18px 60px rgba(0,0,0,0.18)" as any,
+    backdropFilter: "blur(14px)" as any,
+    WebkitBackdropFilter: "blur(14px)" as any,
     padding: Spacing.md,
-  },
+  } as any),
   searchSection: {
     gap: 6,
   },
@@ -466,18 +468,18 @@ const styles = StyleSheet.create({
   },
   searchSectionTitle: {
     ...Typography.caption,
-    color: "rgba(255,255,255,0.75)",
+    color: "rgba(0,0,0,0.55)",
     fontWeight: "700",
     letterSpacing: 0.3,
   },
   searchClear: {
     ...Typography.caption,
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(0,0,0,0.55)",
     fontWeight: "600",
   },
   searchEmpty: {
     ...Typography.body,
-    color: "rgba(255,255,255,0.65)",
+    color: "rgba(0,0,0,0.55)",
     paddingHorizontal: 10,
     paddingVertical: 10,
   },
@@ -488,11 +490,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 12,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(0,0,0,0.04)",
   },
   searchRowText: {
     ...Typography.body,
-    color: "#fff",
+    color: Colors.light.text,
     fontWeight: "700",
     flex: 1,
   },
@@ -503,7 +505,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 10,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "rgba(0,0,0,0.03)",
   },
   resultThumb: {
     width: 46,
@@ -521,12 +523,12 @@ const styles = StyleSheet.create({
   },
   resultTitle: {
     ...Typography.body,
-    color: "#fff",
+    color: Colors.light.text,
     fontWeight: "700",
   },
   resultSubtitle: {
     ...Typography.caption,
-    color: "rgba(255,255,255,0.65)",
+    color: "rgba(0,0,0,0.55)",
     marginTop: 2,
   },
 });

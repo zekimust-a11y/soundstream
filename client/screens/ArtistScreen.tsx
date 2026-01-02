@@ -145,7 +145,14 @@ const AlbumGridCard = memo(({ album, size, onPress, onPlay, onShuffle }: {
 export default function ArtistScreen() {
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavigationProp>();
-  const tabBarHeight = useBottomTabBarHeight();
+  // `useBottomTabBarHeight()` throws if we're not within a BottomTabNavigator (e.g. modal contexts).
+  // Guard it so header search navigation never hard-crashes the app.
+  let tabBarHeight = 0;
+  try {
+    tabBarHeight = useBottomTabBarHeight();
+  } catch {
+    tabBarHeight = 0;
+  }
   const { width: windowWidth } = useWindowDimensions();
   const { getArtistAlbums, activeServer } = useMusic();
   const { activePlayer } = usePlayback();
