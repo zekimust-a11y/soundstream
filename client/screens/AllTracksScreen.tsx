@@ -5,9 +5,7 @@ import {
   FlatList,
   ActivityIndicator,
   Pressable,
-  ScrollView,
-  Modal,
-  Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -16,7 +14,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { SortFilter, type SortOption } from "@/components/SortFilter";
+import { LibraryToolbar, type SourceFilter, type ViewMode } from "@/components/LibraryToolbar";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback, type Track } from "@/hooks/usePlayback";
@@ -38,24 +36,23 @@ function formatDuration(duration: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-type LibraryFilterKey = "local"  | "tidal" | "spotify";
+type SortKey = "title_az" | "artist_az" | "album_az" | "duration_desc";
+type QualityKey = "all" | "cd" | "hires" | "lossy" | "unknown";
 
 export default function AllTracksScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { activeServer } = useMusic();
   const { activePlayer, playTrack } = usePlayback();
-  const {  spotifyEnabled, tidalEnabled } = useSettings();
+  const { tidalEnabled } = useSettings();
+  const { width } = useWindowDimensions();
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [sortOption, setSortOption] = useState<SortOption>("alphabetical");
-  const [activeFilterSheet, setActiveFilterSheet] = useState<"libraries" | null>(null);
-  const [libraryFilter, setLibraryFilter] = useState<Record<LibraryFilterKey, boolean>>({
-    local: true,
-    tidal: true,
-    spotify: true
-  });
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [sortKey, setSortKey] = useState<SortKey>("title_az");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [qualityFilter, setQualityFilter] = useState<QualityKey>("all");
 
   useEffect(() => {
     const loadTracks = async () => {
@@ -82,6 +79,10 @@ export default function AllTracksScreen() {
           source: 'local' as const,
           uri: t.url,
           lmsTrackId: t.id,
+          format: t.format,
+          sampleRate: t.sampleRate,
+          bitDepth: t.bitDepth,
+          bitrate: t.bitrate,
         }));
 
         // Tidal tracks from the Tidal API
@@ -107,6 +108,9 @@ export default function AllTracksScreen() {
                   source: 'tidal' as const,
                   uri: t.lmsUri,
                   lmsTrackId: t.id,
+                  format: t.format || t.audioQuality,
+                  sampleRate: t.sampleRate,
+                  bitDepth: t.bitDepth,
                 }));
                 console.log(`[AllTracksScreen] Loaded ${tidalApiTracks.length} Tidal tracks`);
               }
@@ -142,24 +146,57 @@ export default function AllTracksScreen() {
     loadTracks();
   }, [activeServer, tidalEnabled]);
 
-  const filteredTracks = useMemo(() => {
-    let result = tracks.filter(t => {
-      if (t.source === 'local' && !libraryFilter.local) return false;
-      if (t.source === 'tidal' && !libraryFilter.tidal) return false;
-      if (t.source === 'spotify' && !libraryFilter.spotify) return false;
-      return true;
-    });
+  const qualityKeyForTrack = useCallback((t: Track): QualityKey => {
+    const bit = t.bitDepth ? Number(String(t.bitDepth).replace(/[^\d.]/g, "")) : NaN;
+    const sr = t.sampleRate ? Number(String(t.sampleRate).replace(/[^\d.]/g, "")) : NaN;
 
-    if (sortOption === "alphabetical") {
+    if (Number.isFinite(bit) && Number.isFinite(sr)) {
+      const srK = sr > 1000 ? sr / 1000 : sr;
+      if (bit >= 24 || srK > 48) return "hires";
+      if (bit <= 16 && srK <= 44.1 + 0.2) return "cd";
+      return "unknown";
+    }
+
+    const fmt = (t.format || "").toLowerCase();
+    if (fmt.includes("mp3") || fmt.includes("aac") || fmt.includes("ogg")) return "lossy";
+    if (!fmt) return "unknown";
+    return "unknown";
+  }, []);
+
+  const qualityOptions = useMemo(() => {
+    const present = new Set<QualityKey>();
+    for (const t of tracks) present.add(qualityKeyForTrack(t));
+    const opts: Array<{ value: QualityKey; label: string }> = [{ value: "all", label: "All" }];
+    if (present.has("cd")) opts.push({ value: "cd", label: "CD (16/44.1)" });
+    if (present.has("hires")) opts.push({ value: "hires", label: "Hi-Res" });
+    if (present.has("lossy")) opts.push({ value: "lossy", label: "Lossy" });
+    if (present.has("unknown")) opts.push({ value: "unknown", label: "Unknown" });
+    return opts;
+  }, [tracks, qualityKeyForTrack]);
+
+  const filteredTracks = useMemo(() => {
+    let result = tracks.slice();
+
+    if (sourceFilter !== "all") {
+      result = result.filter((t) => t.source === sourceFilter);
+    }
+
+    if (qualityFilter !== "all") {
+      result = result.filter((t) => qualityKeyForTrack(t) === qualityFilter);
+    }
+
+    if (sortKey === "title_az") {
       result.sort((a, b) => a.title.localeCompare(b.title));
-    } else if (sortOption === "artist") {
+    } else if (sortKey === "artist_az") {
       result.sort((a, b) => a.artist.localeCompare(b.artist));
-    } else if (sortOption === "duration") {
+    } else if (sortKey === "album_az") {
+      result.sort((a, b) => a.album.localeCompare(b.album));
+    } else if (sortKey === "duration_desc") {
       result.sort((a, b) => (b.duration || 0) - (a.duration || 0));
     }
 
     return result;
-  }, [tracks, sortOption, libraryFilter]);
+  }, [tracks, sortKey, sourceFilter, qualityFilter, qualityKeyForTrack]);
 
   const renderTrack = useCallback(({ item }: { item: Track }) => (
     <Pressable
@@ -208,97 +245,71 @@ export default function AllTracksScreen() {
     <ThemedView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <ThemedText style={styles.headerTitle}>Tracks ({filteredTracks.length})</ThemedText>
-        <View style={styles.headerActions}>
-          <Pressable 
-            style={styles.headerButton}
-            onPress={() => setActiveFilterSheet("libraries")}
-          >
-            <Feather name="filter" size={20} color={Colors.light.text} />
-          </Pressable>
-        </View>
       </View>
 
-      <View style={styles.sortContainer}>
-        <SortFilter
-          currentSort={sortOption}
-          onSortChange={setSortOption}
-          options={[
-            { label: "A-Z", value: "alphabetical" },
-            { label: "Artist", value: "artist" },
-            { label: "Duration", value: "duration" },
-          ]}
-        />
-      </View>
-
-      <FlatList
-        data={filteredTracks}
-        renderItem={renderTrack}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: tabBarHeight + Spacing.xl },
+      <LibraryToolbar
+        sortValue={sortKey}
+        sortLabel="Sorting"
+        sortOptions={[
+          { label: "Title (A–Z)", value: "title_az" },
+          { label: "Artist (A–Z)", value: "artist_az" },
+          { label: "Album (A–Z)", value: "album_az" },
+          { label: "Duration (longest)", value: "duration_desc" },
         ]}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        onSortChange={(v) => setSortKey(v as SortKey)}
+        sourceValue={sourceFilter}
+        onSourceChange={setSourceFilter}
+        qualityValue={qualityFilter}
+        qualityOptions={qualityOptions as any}
+        onQualityChange={(v) => setQualityFilter(v as QualityKey)}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        showViewToggle
       />
 
-      <Modal
-        visible={activeFilterSheet === "libraries"}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setActiveFilterSheet(null)}
-      >
-        <Pressable 
-          style={styles.modalOverlay} 
-          onPress={() => setActiveFilterSheet(null)} 
+      {viewMode === "list" ? (
+        <FlatList
+          data={filteredTracks}
+          renderItem={renderTrack}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: tabBarHeight + Spacing.xl },
+          ]}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <ThemedText style={styles.modalTitle}>Filter Libraries</ThemedText>
-            <Pressable onPress={() => setActiveFilterSheet(null)}>
-              <Feather name="x" size={24} color={Colors.light.text} />
-            </Pressable>
-          </View>
-          <ScrollView>
-            <Pressable 
-              style={styles.filterOption}
-              onPress={() => setLibraryFilter(prev => ({ ...prev, local: !prev.local }))}
+      ) : (
+        <FlatList
+          key="grid"
+          data={filteredTracks}
+          keyExtractor={(item) => item.id}
+          numColumns={Math.max(2, Math.min(6, Math.floor((width - Spacing.lg * 2) / 160)))}
+          contentContainerStyle={[
+            styles.gridContent,
+            { paddingBottom: tabBarHeight + Spacing.xl },
+          ]}
+          renderItem={({ item }) => (
+            <Pressable
+              style={({ pressed }) => [styles.gridCard, { opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => playTrack(item, filteredTracks)}
             >
-              <ThemedText style={styles.filterText}>Local Library</ThemedText>
-              <Feather 
-                name={libraryFilter.local ? "check-square" : "square"} 
-                size={20} 
-                color={libraryFilter.local ? Colors.light.accent : Colors.light.textTertiary} 
-              />
+              {item.albumArt ? (
+                <Image source={item.albumArt} style={styles.gridImage} contentFit="cover" />
+              ) : (
+                <View style={styles.gridImagePlaceholder}>
+                  <Feather name="music" size={22} color={Colors.light.textTertiary} />
+                </View>
+              )}
+              <ThemedText style={styles.gridTitle} numberOfLines={1}>
+                {item.title}
+              </ThemedText>
+              <ThemedText style={styles.gridSubtitle} numberOfLines={1}>
+                {item.artist}
+              </ThemedText>
             </Pressable>
-            {tidalEnabled && (
-              <Pressable 
-                style={styles.filterOption}
-                onPress={() => setLibraryFilter(prev => ({ ...prev, tidal: !prev.tidal }))}
-              >
-                <ThemedText style={styles.filterText}>Tidal</ThemedText>
-                <Feather 
-                  name={libraryFilter.tidal ? "check-square" : "square"} 
-                  size={20} 
-                  color={libraryFilter.tidal ? Colors.light.accent : Colors.light.textTertiary} 
-                />
-              </Pressable>
-            )}
-            {spotifyEnabled && (
-              <Pressable 
-                style={styles.filterOption}
-                onPress={() => setLibraryFilter(prev => ({ ...prev, spotify: !prev.spotify }))}
-              >
-                <ThemedText style={styles.filterText}>Spotify</ThemedText>
-                <Feather 
-                  name={libraryFilter.spotify ? "check-square" : "square"} 
-                  size={20} 
-                  color={libraryFilter.spotify ? Colors.light.accent : Colors.light.textTertiary} 
-                />
-              </Pressable>
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
+          )}
+        />
+      )}
     </ThemedView>
   );
 }
@@ -323,19 +334,42 @@ const styles = StyleSheet.create({
     ...Typography.title,
     color: Colors.light.text,
   },
-  headerActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  headerButton: {
-    padding: Spacing.sm,
-  },
-  sortContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-  },
   listContent: {
     paddingHorizontal: Spacing.lg,
+  },
+  gridContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+  },
+  gridCard: {
+    flex: 1,
+    margin: Spacing.sm,
+    maxWidth: 220,
+  },
+  gridImage: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xs,
+    backgroundColor: Colors.light.backgroundTertiary,
+  },
+  gridImagePlaceholder: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xs,
+    backgroundColor: Colors.light.backgroundTertiary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gridTitle: {
+    ...Typography.caption,
+    color: Colors.light.text,
+    fontWeight: "600",
+  },
+  gridSubtitle: {
+    ...Typography.caption,
+    color: Colors.light.textSecondary,
   },
   trackRow: {
     flexDirection: "row",
@@ -379,38 +413,5 @@ const styles = StyleSheet.create({
   separator: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: Colors.light.border,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  modalContent: {
-    backgroundColor: Colors.light.backgroundDefault,
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    maxHeight: "60%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.lg,
-  },
-  modalTitle: {
-    ...Typography.headline,
-    color: Colors.light.text,
-  },
-  filterOption: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.light.border,
-  },
-  filterText: {
-    ...Typography.body,
-    color: Colors.light.text,
   },
 });

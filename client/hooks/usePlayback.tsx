@@ -24,7 +24,7 @@ export interface Track {
   albumId?: string;
   albumArt?: string;
   duration: number;
-  source: "local" | "qobuz" | "tidal";
+  source: "local" | "qobuz" | "tidal" | "soundcloud";
   uri?: string;
   metadata?: string;
   format?: string;
