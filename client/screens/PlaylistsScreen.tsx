@@ -418,11 +418,14 @@ export default function PlaylistsScreen() {
       const selectedArtworks = selectRandomArtworks(uniqueArtworks, playlist.id);
       setPlaylistArtworks(prev => {
         if (prev[playlist.id] !== undefined) return prev;
+        // If we couldn't find any artwork, don't "lock in" an empty mosaic —
+        // allow retries on future renders (and after other data loads).
+        if (selectedArtworks.length === 0) {
+          return prev;
+        }
         loadedArtworksRef.current.add(playlist.id);
         const updated = { ...prev, [playlist.id]: selectedArtworks };
-        if (selectedArtworks.length > 0) {
-          AsyncStorage.setItem(ARTWORK_CACHE_KEY, JSON.stringify(updated)).catch(() => {});
-        }
+        AsyncStorage.setItem(ARTWORK_CACHE_KEY, JSON.stringify(updated)).catch(() => {});
         return updated;
       });
     } catch (error) {

@@ -2189,6 +2189,11 @@ class LmsClient {
   }
 
   async getPlaylistTracks(playlistId: string, playlistUrl?: string, playlistName?: string): Promise<LmsTrack[]> {
+    // Important: LMS "playlists" have a numeric playlistId even if they *contain* Tidal/Qobuz/SoundCloud items.
+    // In that case, the correct way to fetch tracks is still `playlists tracks ... playlist_id:<n>`.
+    // Plugin "items" commands expect plugin item ids/uris, not the LMS playlist id.
+    const isNumericPlaylistId = /^\d+$/.test(String(playlistId || ""));
+
     // Check if this is a Qobuz, SoundCloud, or Tidal playlist
     // Check URL, ID, and name to detect Qobuz/SoundCloud/Tidal playlists
     const isQobuz = playlistUrl?.includes('qobuz') || 
@@ -2203,7 +2208,14 @@ class LmsClient {
                     playlistId.includes('tidal') || 
                     playlistName?.toLowerCase().includes('tidal') ||
                     playlistName?.startsWith('Tidal:');
-    
+   
+    // For numeric LMS playlists, always use the standard playlists command, even if the URL indicates a plugin source.
+    if (isNumericPlaylistId) {
+      const result = await this.request('', ['playlists', 'tracks', '0', '500', `playlist_id:${playlistId}`, 'tags:acdlKNuT']);
+      const playlistTracksLoop = (result.playlisttracks_loop || []) as Array<Record<string, unknown>>;
+      return playlistTracksLoop.map((t, i) => this.parseTrack(t, i));
+    }
+
     if (isQobuz) {
       // For Qobuz playlists, use qobuz items command
       try {
