@@ -929,7 +929,8 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   recentTabItem: {
-    alignItems: "flex-start",
+    // Center the underline beneath the label (looks cleaner on web/large screens)
+    alignItems: "center",
   },
   recentTabText: {
     ...Typography.title,
@@ -942,11 +943,12 @@ const styles = StyleSheet.create({
   },
   // Short underline indicator (not full text width)
   recentTabIndicator: {
-    height: 3,
-    width: 26,
+    height: 4,
+    width: 54,
     borderRadius: 2,
     marginTop: 6,
     backgroundColor: Colors.light.text,
+    alignSelf: "center",
   },
   viewAll: {
     ...Typography.caption,
