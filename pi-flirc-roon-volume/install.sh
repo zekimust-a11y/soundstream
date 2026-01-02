@@ -42,8 +42,15 @@ SOUNDSTREAM_API_URL=http://192.168.0.21:3000
 # Volume step per press
 ROON_STEP=1
 
-# Hold ramp cadence (seconds)
-ROON_REPEAT_S=0.06
+# Hold behavior:
+# - tap: ROON_STEP (default 1%)
+# - hold: starts after ROON_HOLD_DELAY_S and repeats ROON_HOLD_STEP every ROON_REPEAT_S
+ROON_HOLD_STEP=4
+ROON_HOLD_DELAY_S=0.20
+ROON_HOLD_TICK_MS=40
+
+# Hold repeat cadence (seconds) - lower is faster (actual speed is also limited by API latency)
+ROON_REPEAT_S=0.01
 
 # FLIRC input device path (udev symlink to the keyboard event device)
 FLIRC_DEVICE=/dev/input/flirc-kbd
@@ -75,6 +82,11 @@ if [[ -e /dev/input/flirc-kbd ]]; then
     sed -i 's#^FLIRC_DEVICE=.*#FLIRC_DEVICE=/dev/input/flirc-kbd#' "${ENV_FILE}" || true
   fi
 fi
+
+# Ensure hold tuning defaults exist for older env files (do not override if user set them).
+grep -q '^ROON_HOLD_STEP=' "${ENV_FILE}" 2>/dev/null || echo 'ROON_HOLD_STEP=4' >> "${ENV_FILE}"
+grep -q '^ROON_HOLD_DELAY_S=' "${ENV_FILE}" 2>/dev/null || echo 'ROON_HOLD_DELAY_S=0.20' >> "${ENV_FILE}"
+grep -q '^ROON_HOLD_TICK_MS=' "${ENV_FILE}" 2>/dev/null || echo 'ROON_HOLD_TICK_MS=40' >> "${ENV_FILE}"
 
 echo "[install] Installing systemd service..."
 install -m 0644 "${ROOT_DIR}/soundstream-flirc-roon-volume.service" "${SERVICE_FILE}"

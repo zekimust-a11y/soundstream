@@ -695,6 +695,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ success: false, error: e instanceof Error ? e.message : String(e) });
     }
   });
+
+  // Roon hold ramp endpoints (stateful; avoids HTTP-per-step latency)
+  app.post('/api/roon/hold/start', async (req: Request, res: Response) => {
+    const roon = getRoonVolumeControl();
+    if (!roon) return res.status(404).json({ success: false, error: 'Roon volume control not initialized' });
+    const body = (req.body as any) || {};
+    const direction = body.direction === 'down' ? 'down' : 'up';
+    const tickMsRaw = body.tickMs ?? body.tick_ms;
+    const stepRaw = body.step;
+    try {
+      (roon as any).startHold?.(direction, {
+        tickMs: tickMsRaw !== undefined ? parseInt(String(tickMsRaw), 10) : undefined,
+        step: stepRaw !== undefined ? parseFloat(String(stepRaw)) : undefined,
+      });
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  app.post('/api/roon/hold/stop', async (_req: Request, res: Response) => {
+    const roon = getRoonVolumeControl();
+    if (!roon) return res.status(404).json({ success: false, error: 'Roon volume control not initialized' });
+    try {
+      (roon as any).stopHold?.();
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  });
   // Android Mosaic ACTUS Relay (optional - for dCS Varese volume control)
   if (process.env.ENABLE_ANDROID_MOSAIC_RELAY === 'true') {
     try {

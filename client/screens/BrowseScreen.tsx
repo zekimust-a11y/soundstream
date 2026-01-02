@@ -552,7 +552,13 @@ export default function BrowseScreen() {
                     >
                       Recently Played
                     </ThemedText>
-                    {recentTab === "played" ? <View style={styles.recentTabIndicator} /> : null}
+                    {/* Always reserve underline space so the inactive tab doesn't "drop" vertically */}
+                    <View
+                      style={[
+                        styles.recentTabIndicator,
+                        recentTab !== "played" && styles.recentTabIndicatorHidden,
+                      ]}
+                    />
                   </View>
                 </Pressable>
 
@@ -569,7 +575,13 @@ export default function BrowseScreen() {
                     >
                       Recently Added
                     </ThemedText>
-                    {recentTab === "added" ? <View style={styles.recentTabIndicator} /> : null}
+                    {/* Always reserve underline space so the inactive tab doesn't "drop" vertically */}
+                    <View
+                      style={[
+                        styles.recentTabIndicator,
+                        recentTab !== "added" && styles.recentTabIndicatorHidden,
+                      ]}
+                    />
                   </View>
                 </Pressable>
               </View>
@@ -925,7 +937,7 @@ const styles = StyleSheet.create({
   },
   recentTabs: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     gap: Spacing.lg,
   },
   recentTabItem: {
@@ -949,6 +961,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
     backgroundColor: Colors.light.text,
     alignSelf: "center",
+  },
+  recentTabIndicatorHidden: {
+    opacity: 0,
   },
   viewAll: {
     ...Typography.caption,

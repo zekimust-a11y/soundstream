@@ -5,7 +5,9 @@ import { getApiUrl } from '@/lib/query-client';
 import { useMusic } from './useMusic';
 import { useSettings } from './useSettings';
 
-const PAGE_SIZE = 500;
+// LMS can handle large pages; TIDAL v2 endpoints typically cap at 100 and use offset pagination.
+const LMS_PAGE_SIZE = 500;
+const TIDAL_PAGE_SIZE = 100;
 
 export interface Album {
   id: string;
@@ -224,15 +226,17 @@ export function useInfiniteAlbums(artistId?: string) {
 
   return useInfiniteQuery({
     queryKey: ['albums', 'infinite', activeServer?.id, artistId,  spotifyEnabled, tidalEnabled, localLibraryEnabled],
-    queryFn: async ({ pageParam = 0 }) => {
-      console.log(`[useInfiniteAlbums] queryFn called: pageParam=${pageParam}, PAGE_SIZE=${PAGE_SIZE}, tidalEnabled=${tidalEnabled}, localEnabled=${localLibraryEnabled}`);
+    queryFn: async ({ pageParam = { lmsOffset: 0, tidalOffset: 0 } as any }) => {
+      const lmsOffset = Number(pageParam?.lmsOffset || 0);
+      const tidalOffset = Number(pageParam?.tidalOffset || 0);
+      console.log(`[useInfiniteAlbums] queryFn called: lmsOffset=${lmsOffset}, tidalOffset=${tidalOffset}, LMS_PAGE_SIZE=${LMS_PAGE_SIZE}, TIDAL_PAGE_SIZE=${TIDAL_PAGE_SIZE}, tidalEnabled=${tidalEnabled}, localEnabled=${localLibraryEnabled}`);
       
       if (!activeServer) return { albums: [], total: 0, nextPage: undefined };
 
       lmsClient.setServer(activeServer.host, activeServer.port);
 
       // Fetch LMS albums
-      const result = await lmsClient.getAlbumsPage(pageParam, PAGE_SIZE, artistId);
+      const result = await lmsClient.getAlbumsPage(lmsOffset, LMS_PAGE_SIZE, artistId);
       const convertedLmsAlbums = result.albums.map(album => convertLmsAlbumToAlbum(album, 'local'));
       console.log(`[useInfiniteAlbums] LMS albums fetched: ${convertedLmsAlbums.length}, total reported by LMS: ${result.total}`);
 
@@ -243,7 +247,7 @@ export function useInfiniteAlbums(artistId?: string) {
         try {
           const apiUrl = getApiUrl();
           const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
-          const url = `${cleanApiUrl}/api/tidal/albums?limit=${PAGE_SIZE}&offset=${pageParam}`;
+          const url = `${cleanApiUrl}/api/tidal/albums?limit=${TIDAL_PAGE_SIZE}&offset=${tidalOffset}`;
           console.log(`[useInfiniteAlbums] Fetching Tidal albums from: ${url}`);
           const tidalResponse = await fetch(url);
           if (tidalResponse.ok) {
@@ -277,10 +281,16 @@ export function useInfiniteAlbums(artistId?: string) {
       // Remove duplicates
       const uniqueAlbumsMap = new Map();
       allAlbums.forEach(album => {
-        const key = album.id.startsWith('tidal-') ? album.id : `${album.name.toLowerCase()}|${album.artist.toLowerCase()}`;
-        if (!uniqueAlbumsMap.has(key)) {
+        // De-dupe aggressively to avoid repeated pages showing as duplicates in the UI.
+        // For TIDAL, ids can differ across editions; use name+artist+year as a stable key.
+        const key = `${(album.source || 'local')}|${(album.name || '').toLowerCase()}|${(album.artist || '').toLowerCase()}|${album.year || ''}`;
+        const existing = uniqueAlbumsMap.get(key) as Album | undefined;
+        if (!existing) {
           uniqueAlbumsMap.set(key, album);
+          return;
         }
+        // Prefer entries with a real imageUrl.
+        if (!existing.imageUrl && album.imageUrl) uniqueAlbumsMap.set(key, album);
       });
       let albums = Array.from(uniqueAlbumsMap.values());
       console.log(`[useInfiniteAlbums] After dedupe: ${albums.length}`);
@@ -299,14 +309,18 @@ export function useInfiniteAlbums(artistId?: string) {
 
       // Total includes local and Tidal albums
       const totalAlbumsCount = (result.total || 0) + (tidalTotalCount || 0);
-      const nextPage = (pageParam + PAGE_SIZE < totalAlbumsCount && albums.length > 0) ? pageParam + PAGE_SIZE : undefined;
+      const nextLmsOffset = (lmsOffset + LMS_PAGE_SIZE < (result.total || 0)) ? (lmsOffset + LMS_PAGE_SIZE) : lmsOffset;
+      const nextTidalOffset = (tidalEnabled && !artistId && (tidalOffset + TIDAL_PAGE_SIZE < (tidalTotalCount || 0))) ? (tidalOffset + TIDAL_PAGE_SIZE) : tidalOffset;
+      const hasMoreLocal = nextLmsOffset !== lmsOffset;
+      const hasMoreTidal = nextTidalOffset !== tidalOffset;
+      const nextPage = (hasMoreLocal || hasMoreTidal) ? { lmsOffset: nextLmsOffset, tidalOffset: nextTidalOffset } : undefined;
       
       console.log(`[useInfiniteAlbums] Returning ${albums.length} albums, totalAlbumsCount=${totalAlbumsCount}, nextPage=${nextPage}`);
       
       return { albums, total: totalAlbumsCount, nextPage };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
-    initialPageParam: 0,
+    initialPageParam: { lmsOffset: 0, tidalOffset: 0 } as any,
     enabled: !!activeServer,
     staleTime: 5 * 60 * 1000,
   });

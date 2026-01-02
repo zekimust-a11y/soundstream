@@ -976,52 +976,86 @@ export function registerTidalRoutes(app: Express): void {
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
 
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
-    // NOTE: OpenAPI uses cursor pagination, not offset. We currently treat offset as unsupported.
+    const offset = Math.max(0, parseInt(String(req.query.offset || "0"), 10) || 0);
     try {
-      const cacheKey = `albums:${t.userId}:limit=${limit}`;
+      // Cache by (limit, offset). Previously we cached only by limit and ignored offset, which caused
+      // infinite-scroll to repeat the same first page and produce many duplicates in the UI.
+      const cacheKey = `albums:${t.userId}:limit=${limit}:offset=${offset}`;
       const cached = cacheGet(cacheKey);
       if (cached?.fresh) {
         return res.json({ ...cached.payload, cached: true });
       }
 
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const url = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
-        t.userId
-      )}/relationships/albums?include=albums,albums.artists,albums.coverArt&countryCode=${encodeURIComponent(
-        countryCode
-      )}&page[size]=${limit}`;
-      const data = await openApiGet(url, t.accessToken);
+      const doFetch = async (token: string) =>
+        tidalApiGet(
+          `/v2/users/${encodeURIComponent(t.userId!)}/favorites/albums?limit=${limit}&offset=${offset}`,
+          token,
+          countryCode
+        );
 
-      const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
-      const included: any[] = Array.isArray(data?.included) ? data.included : [];
-      const albumsById = new Map<string, any>(included.filter((x) => x?.type === "albums").map((x) => [String(x.id), x]));
-      const artistsById = new Map<string, any>(included.filter((x) => x?.type === "artists").map((x) => [String(x.id), x]));
-      const artworksById = new Map<string, any>(included.filter((x) => x?.type === "artworks").map((x) => [String(x.id), x]));
+      let resp = await doFetch(t.accessToken);
+      // Auto-refresh expired tokens for long-running .21 server.
+      if (resp.status === 401 && tokens?.refreshToken) {
+        const msg = resp.text || "";
+        const looksExpired = msg.includes("Expired token") || msg.includes("AUTHENTICATION_ERROR") || msg.includes("UNAUTHORIZED");
+        if (looksExpired) {
+          try {
+            const clientId = tokens.clientId || process.env.TIDAL_CLIENT_ID || getClientId();
+            const refreshed = await refreshAccessToken(tokens.refreshToken, clientId);
+            tokens = {
+              ...tokens,
+              accessToken: refreshed.accessToken,
+              refreshToken: refreshed.refreshToken || tokens.refreshToken,
+              userId: tokens.userId || refreshed.userId || deriveUserIdFromAccessToken(refreshed.accessToken),
+              obtainedAt: Date.now(),
+              clientId,
+            };
+            saveTokensToDisk();
+            resp = await doFetch(tokens.accessToken);
+          } catch {
+            // fall through to error handling below
+          }
+        }
+      }
 
-      const items = dataArr.map((rel: any) => {
-        const albumId = String(rel.id);
-        const album = albumsById.get(albumId);
-        const artistId = album?.relationships?.artists?.data?.[0]?.id ? String(album.relationships.artists.data[0].id) : "";
-        const artist = artistsById.get(artistId);
-        const artworkId = album?.relationships?.coverArt?.data?.[0]?.id ? String(album.relationships.coverArt.data[0].id) : "";
-        const artwork = artworksById.get(artworkId);
+      if (resp.status < 200 || resp.status >= 300) {
+        throw new Error(`Tidal API error: ${resp.status} - ${String(resp.text || "").substring(0, 200)}`);
+      }
+
+      const body = resp.json || {};
+      const rawItems: any[] = Array.isArray(body?.items) ? body.items : Array.isArray(body?.data) ? body.data : [];
+      const totalNumberOfItems = Number(body?.totalNumberOfItems ?? body?.total ?? 0) || 0;
+
+      const coverUrl = (cover: any, size: string = "320x320") => {
+        const c = typeof cover === "string" ? cover : "";
+        if (!c) return null;
+        // TIDAL cover ids are UUID-ish strings with dashes; resources URL wants path segments.
+        return `https://resources.tidal.com/images/${c.replace(/-/g, "/")}/${size}.jpg`;
+      };
+
+      const items = rawItems.map((a: any) => {
+        const id = String(a?.id || "");
+        const artist = a?.artist || (Array.isArray(a?.artists) ? a.artists[0] : null) || {};
+        const artistId = String(artist?.id || a?.artistId || "");
         return {
-          id: albumId,
-          title: album?.attributes?.title || "Album",
-          artist: artist?.attributes?.name || album?.attributes?.artistName || "Unknown Artist",
+          id,
+          title: a?.title || a?.name || "Album",
+          artist: artist?.name || a?.artist?.name || a?.artistName || "Unknown Artist",
           artistId,
-          year: album?.attributes?.releaseDate ? new Date(album.attributes.releaseDate).getFullYear() : undefined,
-          numberOfTracks: album?.attributes?.numberOfItems,
-          artwork_url: pickArtworkUrl(artwork, "320x320"),
-          lmsUri: `tidal://album:${albumId}`,
+          year: a?.releaseDate ? new Date(a.releaseDate).getFullYear() : undefined,
+          numberOfTracks: a?.numberOfTracks ?? a?.trackCount ?? undefined,
+          artwork_url: coverUrl(a?.cover || a?.imageId || a?.coverId, "320x320"),
+          lmsUri: `tidal://album:${id}`,
           source: "tidal",
         };
       });
-      const payload = { items, total: items.length };
+
+      const payload = { items, total: totalNumberOfItems };
       cacheSet(cacheKey, payload);
       res.json(payload);
     } catch (e) {
-      const cacheKey = `albums:${t.userId}:limit=${limit}`;
+      const cacheKey = `albums:${t.userId}:limit=${limit}:offset=${offset}`;
       const cached = cacheGet(cacheKey);
       if (isRateLimitedError(e)) {
         if (cached?.payload) {
@@ -1355,10 +1389,76 @@ export function registerTidalRoutes(app: Express): void {
         return res.json({ ...cached.payload, cached: true });
       }
 
+      // Prefer api.tidal.com "favorites" endpoints when possible: they provide totalNumberOfItems cheaply
+      // and avoid OpenAPI cursor-walking (which can be slow and prone to next-link quirks / 429s).
+      const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
+
+      const apiTotal = async (
+        pathWithQuery: string
+      ): Promise<{ count: number | null; rateLimited: boolean }> => {
+        const doFetch = async (token: string) => tidalApiGet(pathWithQuery, token, countryCode);
+        let resp = await doFetch(t.accessToken);
+
+        // Auto-refresh expired tokens for long-running .21 server.
+        if (resp.status === 401 && tokens?.refreshToken) {
+          const msg = resp.text || "";
+          const looksExpired = msg.includes("Expired token") || msg.includes("AUTHENTICATION_ERROR") || msg.includes("UNAUTHORIZED");
+          if (looksExpired) {
+            try {
+              const clientId = tokens.clientId || process.env.TIDAL_CLIENT_ID || getClientId();
+              const refreshed = await refreshAccessToken(tokens.refreshToken, clientId);
+              tokens = {
+                ...tokens,
+                accessToken: refreshed.accessToken,
+                refreshToken: refreshed.refreshToken || tokens.refreshToken,
+                userId: tokens.userId || refreshed.userId || deriveUserIdFromAccessToken(refreshed.accessToken),
+                obtainedAt: Date.now(),
+                clientId,
+              };
+              saveTokensToDisk();
+              resp = await doFetch(tokens.accessToken);
+            } catch {
+              // fall through
+            }
+          }
+        }
+
+        if (resp.status === 429) return { count: null, rateLimited: true };
+        if (resp.status < 200 || resp.status >= 300) return { count: null, rateLimited: false };
+
+        const body = resp.json || {};
+        const n = Number(body?.totalNumberOfItems ?? body?.total ?? NaN);
+        return { count: Number.isFinite(n) ? n : null, rateLimited: false };
+      };
+
+      // These endpoints map closely to what users expect as "My Collection" counts.
+      const albumsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/albums?limit=1&offset=0`);
+      const artistsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/artists?limit=1&offset=0`);
+      const playlistsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/playlists?limit=1&offset=0`);
+      // Best-effort; if unsupported it returns null.
+      const tracksV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/tracks?limit=1&offset=0`);
+
+      const v2RateLimited = albumsV2.rateLimited || artistsV2.rateLimited || playlistsV2.rateLimited || tracksV2.rateLimited;
+      const v2Payload = {
+        albums: albumsV2.count,
+        artists: artistsV2.count,
+        tracks: tracksV2.count,
+        playlists: playlistsV2.count,
+        rateLimited: v2RateLimited,
+        partial: v2RateLimited || [albumsV2.count, artistsV2.count, tracksV2.count, playlistsV2.count].some((x) => x === null),
+        source: "api.tidal.com",
+      };
+
+      // If v2 returned at least one usable number, prefer it (and cache it).
+      if ([v2Payload.albums, v2Payload.artists, v2Payload.tracks, v2Payload.playlists].some((x) => typeof x === "number")) {
+        cacheSet(cacheKey, v2Payload);
+        return res.json(v2Payload);
+      }
+
       // OpenAPI doesn’t provide a cheap "total count" field; count by walking cursors (bounded).
       // IMPORTANT: Tidal may rate-limit (429). When that happens, return partial counts with a flag
       // instead of failing (so the client doesn't show 0).
-      const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
+      // NOTE: fallback only if v2 totals aren't available for this token/client.
 
       async function countRelationship(
         rel: "albums" | "artists" | "tracks" | "playlists",

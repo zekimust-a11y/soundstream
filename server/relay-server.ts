@@ -41,8 +41,8 @@ const savedConfig = loadConfig();
 let LMS_HOST = savedConfig.lmsHost || process.env.LMS_HOST || '192.168.0.19';
 let LMS_PORT = savedConfig.lmsPort || process.env.LMS_PORT || '9000';
 // Stop casting shortly after playback stops/pauses.
-// Default: 6s (matches user expectation); can be overridden via env.
-const PAUSE_TIMEOUT = parseInt(process.env.PAUSE_TIMEOUT || '6000', 10);
+// Default: 5s; can be overridden via env.
+const PAUSE_TIMEOUT = parseInt(process.env.PAUSE_TIMEOUT || '5000', 10);
 const ENABLE_KEYBOARD = process.env.ENABLE_KEYBOARD !== 'false';
 
 // Global state
@@ -768,17 +768,8 @@ async function pollLmsStatus(): Promise<void> {
         console.log('[Relay] Casting disabled, skipping cast');
       }
     } else if (mode === 'pause' || mode === 'stop') {
-      // Send pause state to receiver
-      if (isCasting && chromecastService.customChannel) {
-        try {
-          chromecastService.customChannel.send({
-            type: 'PAUSE',
-            payload: {}
-          });
-        } catch (error) {
-          console.error('[Relay] Error sending PAUSE:', error.message);
-        }
-      }
+      // NOTE: Don't send an explicit PAUSE message. The receiver should keep showing the last
+      // now-playing UI while paused, then we stop casting entirely after PAUSE_TIMEOUT.
       
       if (isCasting && !pauseTimer) {
         console.log(`[Relay] Pause/stop detected, will stop cast in ${PAUSE_TIMEOUT/1000} seconds...`);

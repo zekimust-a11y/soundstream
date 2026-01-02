@@ -18,8 +18,17 @@ from evdev import InputDevice, ecodes  # type: ignore
 
 
 API_BASE = os.getenv("SOUNDSTREAM_API_URL", "http://192.168.0.21:3000").rstrip("/")
-STEP = int(os.getenv("ROON_STEP", "1"))
-REPEAT_S = float(os.getenv("ROON_REPEAT_S", "0.06"))  # hold ramp cadence
+
+# Tap step (single press)
+TAP_STEP = int(os.getenv("ROON_STEP", "1"))
+
+# Hold behavior: after HOLD_DELAY_S, start repeating HOLD_STEP every HOLD_REPEAT_S.
+# Default: keep taps at 1% but accelerate holds.
+HOLD_STEP = int(os.getenv("ROON_HOLD_STEP", str(TAP_STEP)))
+HOLD_DELAY_S = float(os.getenv("ROON_HOLD_DELAY_S", "0.25"))
+HOLD_REPEAT_S = float(os.getenv("ROON_REPEAT_S", "0.03"))
+HOLD_TICK_MS = int(float(os.getenv("ROON_HOLD_TICK_MS", "40")))
+
 DEVICE_PATH = os.getenv("FLIRC_DEVICE", "/dev/input/flirc-kbd")
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "1.5"))
 GRAB = os.getenv("FLIRC_GRAB", "1") != "0"  # prevent keystrokes affecting the console by default
@@ -57,6 +66,24 @@ def post_volume(action: str, step: int) -> Optional[int]:
     return None
 
 
+def post_hold(action: str, direction: str, step: int, tick_ms: int) -> None:
+  try:
+    if action == "start":
+      requests.post(
+        f"{API_BASE}/api/roon/hold/start",
+        json={"direction": direction, "step": step, "tickMs": tick_ms},
+        timeout=HTTP_TIMEOUT_S,
+      )
+    else:
+      requests.post(
+        f"{API_BASE}/api/roon/hold/stop",
+        json={},
+        timeout=HTTP_TIMEOUT_S,
+      )
+  except Exception:
+    pass
+
+
 class HoldWorker:
   def __init__(self, action: str):
     self.action = action  # "up" or "down"
@@ -77,17 +104,21 @@ class HoldWorker:
     self.running = False
 
   def _run(self) -> None:
-    # Request-driven ramp: send the next step only after previous request completes,
-    # and stop quickly when stop_event is set.
-    while not self.stop_event.is_set():
-      post_volume(self.action, STEP)
-      if self.stop_event.wait(REPEAT_S):
-        break
+    # Server-side hold: one start call, then stop call on release.
+    if self.stop_event.wait(HOLD_DELAY_S):
+      return
+    post_hold("start", self.action, HOLD_STEP, HOLD_TICK_MS)
+    # Wait until stop, then send stop.
+    self.stop_event.wait()
+    post_hold("stop", self.action, HOLD_STEP, HOLD_TICK_MS)
 
 
 def main() -> None:
   print(f"[{ts()}] SoundStream FLIRC listener starting")
-  print(f"[{ts()}] API={API_BASE} step={STEP} repeat={REPEAT_S}s device={DEVICE_PATH} grab={GRAB}")
+  print(
+    f"[{ts()}] API={API_BASE} tap_step={TAP_STEP} hold_step={HOLD_STEP} "
+    f"hold_delay={HOLD_DELAY_S}s repeat={HOLD_REPEAT_S}s device={DEVICE_PATH} grab={GRAB}"
+  )
   print(f"[{ts()}] Mapping: up={KEY_UP} down={KEY_DOWN}")
 
   up_worker = HoldWorker("up")
@@ -118,7 +149,8 @@ def main() -> None:
         if key == KEY_UP:
           if val == 1 and not up_held:
             up_held = True
-            print(f"[{ts()}] KeyDown UP -> hold start")
+            print(f"[{ts()}] KeyDown UP -> tap + hold start")
+            post_volume("up", TAP_STEP)
             up_worker.start()
           elif val == 0 and up_held:
             up_held = False
@@ -128,7 +160,8 @@ def main() -> None:
         elif key == KEY_DOWN:
           if val == 1 and not down_held:
             down_held = True
-            print(f"[{ts()}] KeyDown DOWN -> hold start")
+            print(f"[{ts()}] KeyDown DOWN -> tap + hold start")
+            post_volume("down", TAP_STEP)
             down_worker.start()
           elif val == 0 and down_held:
             down_held = False

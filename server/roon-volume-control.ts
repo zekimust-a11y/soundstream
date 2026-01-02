@@ -44,6 +44,11 @@ class RoonVolumeControl {
   private readonly roonConfigPath: string;
   private volumeQueue: Promise<void> = Promise.resolve();
   private targetVolumePercent: number | null = null;
+  private zoneVolumeControlSupported: boolean | null = null;
+  private holdTimer: NodeJS.Timeout | null = null;
+  private holdDirection: 'up' | 'down' | null = null;
+  private holdInFlight: boolean = false;
+  private lastHoldAt: number = 0;
 
   // Direct connection to Roon Core
   private roonCoreHost: string = process.env.ROON_CORE_IP || '192.168.0.19';
@@ -400,7 +405,7 @@ class RoonVolumeControl {
       // Try zone-based control first, fallback to output
       const zone = this.zones.get(this.currentZoneId!);
 
-      if (zone) {
+      if (zone && this.zoneVolumeControlSupported !== false) {
         console.log(`[RoonVolumeControl] Trying zone-based volume control first`);
         this.transport!.change_volume(
           { zone_id: zone.zone_id },
@@ -409,11 +414,16 @@ class RoonVolumeControl {
           (err: any) => {
             console.log(`[RoonVolumeControl] Zone change_volume callback with err:`, err);
             if (!err) {
+              this.zoneVolumeControlSupported = true;
               console.log(`[RoonVolumeControl] Volume set successfully via zone`);
               // Refresh outputs to get updated volume values
               setTimeout(() => this._refreshOutputs(), 150);
               resolve();
             } else {
+              // Some setups reject zone volume control (InvalidRequest). Remember and skip next time.
+              if (String(err).includes('InvalidRequest')) {
+                this.zoneVolumeControlSupported = false;
+              }
               console.log(`[RoonVolumeControl] Zone failed, trying output...`);
               // Fallback to output-based control
               this.tryOutputVolumeControl(targetValue, resolve, reject);
@@ -447,6 +457,59 @@ class RoonVolumeControl {
         }
       }
     );
+  }
+
+  /**
+   * Relative volume change (preferred for smooth ramps)
+   * - Uses Roon's native relative change_volume, avoids recalculating absolute targets repeatedly.
+   * - Updates cached output.volume.value and targetVolumePercent immediately.
+   */
+  private async _changeVolumeRelativeUnlocked(direction: 'up' | 'down', step: number): Promise<number> {
+    const stepClamped = Math.max(0, Math.min(100, Math.round(step)));
+    if (stepClamped <= 0) return this.targetVolumePercent ?? (await this._getVolumeUnlocked());
+
+    if (!this.isReady()) throw new Error('Roon volume control not ready');
+    const output = this.outputs.get(this.currentOutputId!);
+    if (!output || !output.volume) throw new Error('Output does not support volume control');
+
+    const cfg = output.volume;
+    const sign = direction === 'up' ? 1 : -1;
+
+    // Convert "step" into native delta units.
+    // For dB, prefer cfg.step (commonly 0.5dB) so increments feel smooth.
+    let delta: number;
+    if (cfg.type === 'db') {
+      const nativeStep = typeof cfg.step === 'number' && cfg.step > 0 ? cfg.step : 0.5;
+      delta = sign * stepClamped * nativeStep;
+    } else {
+      const nativeStep = typeof cfg.step === 'number' && cfg.step > 0 ? cfg.step : 1;
+      // If max <= 1, treat as normalized 0..1.
+      if (cfg.max && cfg.max <= 1) delta = sign * (stepClamped / 100) * nativeStep;
+      else delta = sign * stepClamped * nativeStep;
+    }
+
+    return await new Promise<number>((resolve, reject) => {
+      this.transport!.change_volume(
+        { output_id: this.currentOutputId },
+        'relative',
+        delta,
+        (err: any) => {
+          if (err) {
+            reject(new Error(`Failed to change volume: ${err}`));
+            return;
+          }
+
+          // Update cached value immediately
+          const prev = typeof cfg.value === 'number' ? cfg.value : 0;
+          cfg.value = prev + delta;
+
+          const percent = this.calculateVolumePercent(output as any);
+          this.targetVolumePercent = percent;
+          setTimeout(() => this._refreshOutputs(), 150);
+          resolve(percent);
+        }
+      );
+    });
   }
 
   async setVolume(volume: number): Promise<void> {
@@ -484,24 +547,54 @@ class RoonVolumeControl {
    * Volume up by step
    */
   async volumeUp(step: number = 2): Promise<number> {
-    return this.enqueueVolumeOp(async () => {
-      const base = this.targetVolumePercent ?? (await this._getVolumeUnlocked());
-      const newVolume = Math.min(100, base + step);
-      await this._setVolumeUnlocked(newVolume);
-      return newVolume;
-    });
+    return this.enqueueVolumeOp(() => this._changeVolumeRelativeUnlocked('up', step));
   }
 
   /**
    * Volume down by step
    */
   async volumeDown(step: number = 2): Promise<number> {
-    return this.enqueueVolumeOp(async () => {
-      const base = this.targetVolumePercent ?? (await this._getVolumeUnlocked());
-      const newVolume = Math.max(0, base - step);
-      await this._setVolumeUnlocked(newVolume);
-      return newVolume;
-    });
+    return this.enqueueVolumeOp(() => this._changeVolumeRelativeUnlocked('down', step));
+  }
+
+  /**
+   * Start a smooth hold ramp on the server (no HTTP-per-step).
+   * The loop runs in-process and issues relative change_volume calls directly.
+   */
+  startHold(direction: 'up' | 'down', opts?: { tickMs?: number; step?: number }): void {
+    const tickMsRaw = opts?.tickMs ?? parseInt(process.env.ROON_HOLD_TICK_MS || '40', 10);
+    const tickMs = Number.isFinite(tickMsRaw) ? Math.max(15, Math.min(200, tickMsRaw)) : 40;
+    const stepRaw = opts?.step ?? parseFloat(process.env.ROON_HOLD_STEP || '1');
+    const step = Number.isFinite(stepRaw) ? Math.max(0.1, Math.min(10, stepRaw)) : 1;
+
+    this.stopHold();
+    this.holdDirection = direction;
+    this.holdInFlight = false;
+    this.lastHoldAt = Date.now();
+
+    this.holdTimer = setInterval(async () => {
+      if (!this.holdDirection) return;
+      // Avoid piling up if Roon is slow; skip ticks while one request is in flight.
+      if (this.holdInFlight) return;
+      this.holdInFlight = true;
+      try {
+        await this._changeVolumeRelativeUnlocked(this.holdDirection, step);
+      } catch {
+        // ignore; keep trying until stopHold()
+      } finally {
+        this.holdInFlight = false;
+        this.lastHoldAt = Date.now();
+      }
+    }, tickMs);
+  }
+
+  stopHold(): void {
+    if (this.holdTimer) {
+      clearInterval(this.holdTimer);
+      this.holdTimer = null;
+    }
+    this.holdDirection = null;
+    this.holdInFlight = false;
   }
 
   /**

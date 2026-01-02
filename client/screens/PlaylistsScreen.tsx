@@ -27,6 +27,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { AppHeader } from "@/components/AppHeader";
 import { LibraryToolbar, type SourceFilter } from "@/components/LibraryToolbar";
+import { AlbumArtwork } from "@/components/AlbumArtwork";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { AlbumGridSkeleton, AlbumListSkeleton } from "@/components/SkeletonLoader";
 import { useMusic } from "@/hooks/useMusic";
@@ -156,9 +157,11 @@ const PlaylistGridItem = memo(({
           </View>
         ) : isTidal ? (
           <View style={styles.gridSourceBadge}>
-            <View style={[styles.gridSourceIcon, { backgroundColor: '#000', borderRadius: 4, alignItems: 'center', justifyContent: 'center' }]}>
-              <Feather name="music" size={10} color="#fff" />
-            </View>
+            <Image
+              source={require("../assets/images/tidal-icon.png")}
+              style={styles.gridSourceIcon}
+              contentFit="contain"
+            />
           </View>
         ) : null}
       </View>
@@ -197,8 +200,8 @@ const PlaylistMosaic = memo(({ artworks, size }: { artworks: string[]; size: num
   if (artworks.length === 1) {
     return (
       <View style={[styles.mosaicContainer, { width: size, height: size }]}>
-        <Image
-          source={{ uri: artworks[0] }}
+        <AlbumArtwork
+          source={artworks[0]}
           style={{ width: size, height: size, borderRadius: BorderRadius.sm }}
           contentFit="cover"
         />
@@ -214,25 +217,25 @@ const PlaylistMosaic = memo(({ artworks, size }: { artworks: string[]; size: num
   return (
     <View style={[styles.mosaicContainer, { width: size, height: size }]}>
       <View style={styles.mosaicRow}>
-        <Image
-          source={{ uri: tiles[0] }}
+        <AlbumArtwork
+          source={tiles[0]}
           style={[styles.mosaicTile, { width: tileSize, height: tileSize }, styles.mosaicTopLeft]}
           contentFit="cover"
         />
-        <Image
-          source={{ uri: tiles[1] }}
+        <AlbumArtwork
+          source={tiles[1]}
           style={[styles.mosaicTile, { width: tileSize, height: tileSize }, styles.mosaicTopRight]}
           contentFit="cover"
         />
       </View>
       <View style={styles.mosaicRow}>
-        <Image
-          source={{ uri: tiles[2] }}
+        <AlbumArtwork
+          source={tiles[2]}
           style={[styles.mosaicTile, { width: tileSize, height: tileSize }, styles.mosaicBottomLeft]}
           contentFit="cover"
         />
-        <Image
-          source={{ uri: tiles[3] }}
+        <AlbumArtwork
+          source={tiles[3]}
           style={[styles.mosaicTile, { width: tileSize, height: tileSize }, styles.mosaicBottomRight]}
           contentFit="cover"
         />
@@ -473,9 +476,9 @@ export default function PlaylistsScreen() {
       loadPlaylistArtworks(item);
     }
     let displayArtworks = artworks || [];
-    if (displayArtworks.length === 0 && (item as any).artwork) {
-      displayArtworks = [(item as any).artwork];
-    }
+    // Fallback to playlist-level artwork if present (avoids empty mosaics).
+    const playlistArtwork = (item as any).artwork || item.artwork_url;
+    if (displayArtworks.length === 0 && playlistArtwork) displayArtworks = [String(playlistArtwork)];
     return (
       <PlaylistGridItem
         item={item}
@@ -488,14 +491,44 @@ export default function PlaylistsScreen() {
     );
   };
 
-  const renderListItem = ({ item }: { item: LmsPlaylist }) => (
+  const renderListItem = ({ item }: { item: LmsPlaylist }) => {
+    const artworks = playlistArtworks[item.id] || [];
+    const playlistArtwork = (item as any).artwork || item.artwork_url;
+    const thumb = artworks[0] || (playlistArtwork ? String(playlistArtwork) : undefined);
+    const isSoundCloud = (item.url || '').includes('soundcloud') || item.name.toLowerCase().includes('soundcloud');
+    const isTidal = (item.url || '').includes('tidal') || (item.id && String(item.id).startsWith('tidal-')) || item.name.toLowerCase().includes('tidal');
+    return (
     <View style={styles.listRow}>
       <Pressable
         style={({ pressed }) => [styles.listMainArea, { opacity: pressed ? 0.6 : 1 }]}
         onPress={() => handleOpenPlaylist(item)}
       >
+        <View style={styles.listThumb}>
+          <AlbumArtwork
+            source={thumb}
+            style={styles.listThumbImage}
+            contentFit="cover"
+          />
+        </View>
         <View style={styles.listInfo}>
           <View style={styles.listNameRow}>
+            {isSoundCloud ? (
+              <View style={styles.listSourceBadge}>
+                <Image
+                  source={require("../assets/images/soundcloud-icon.png")}
+                  style={styles.listSourceIcon}
+                  contentFit="contain"
+                />
+              </View>
+            ) : isTidal ? (
+              <View style={styles.listSourceBadge}>
+                <Image
+                  source={require("../assets/images/tidal-icon.png")}
+                  style={styles.listSourceIcon}
+                  contentFit="contain"
+                />
+              </View>
+            ) : null}
             
             <ThemedText style={styles.listName} numberOfLines={1}>
               {item.name.replace(/^(SoundCloud|Tidal)\s*:?\s*/i, '').trim()}
@@ -517,7 +550,8 @@ export default function PlaylistsScreen() {
         </Pressable>
       </View>
     </View>
-  );
+    );
+  };
 
   const renderEmptyState = () => {
     if (isLoading) return null;
@@ -615,6 +649,8 @@ const styles = StyleSheet.create({
   emptyRefreshButtonText: { ...Typography.body, fontWeight: "500" },
   listRow: { flexDirection: "row", alignItems: "center", paddingVertical: Spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.light.border },
   listMainArea: { flex: 1, flexDirection: "row", alignItems: "center" },
+  listThumb: { width: 52, height: 52, borderRadius: BorderRadius.sm, overflow: "hidden", backgroundColor: Colors.light.backgroundSecondary, marginRight: Spacing.md },
+  listThumbImage: { width: "100%", height: "100%", borderRadius: BorderRadius.sm },
   listInfo: { flex: 1, marginRight: Spacing.sm },
   listNameRow: { flexDirection: "row", alignItems: "center" },
   listName: { ...Typography.body, color: Colors.light.text, flexShrink: 1 },
