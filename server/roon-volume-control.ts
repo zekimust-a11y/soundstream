@@ -565,7 +565,7 @@ class RoonVolumeControl {
     const tickMsRaw = opts?.tickMs ?? parseInt(process.env.ROON_HOLD_TICK_MS || '40', 10);
     const tickMs = Number.isFinite(tickMsRaw) ? Math.max(15, Math.min(200, tickMsRaw)) : 40;
     const stepRaw = opts?.step ?? parseFloat(process.env.ROON_HOLD_STEP || '1');
-    const step = Number.isFinite(stepRaw) ? Math.max(0.1, Math.min(25, stepRaw)) : 1;
+    const step = Number.isFinite(stepRaw) ? Math.max(1, Math.min(20, stepRaw)) : 1;
 
     this.stopHold();
     this.holdDirection = direction;
@@ -579,11 +579,16 @@ class RoonVolumeControl {
 
       const startedAt = Date.now();
 
-      // If Roon is slow, we don't want the ramp to become "tap-speed".
-      // Scale the effective step by the number of "missed" ticks while we were waiting.
+      // If Roon is slow, naive "catch-up" can produce a single large jump.
+      // Instead, we allow limited catch-up, capped to keep ramps perceptually smooth.
       const elapsedMs = Math.max(0, startedAt - this.lastHoldAt);
       const ticks = Math.max(1, Math.floor(elapsedMs / tickMs));
-      const effectiveStep = Math.max(0.1, Math.min(25, step * ticks));
+      const output = this.currentOutputId ? this.outputs.get(this.currentOutputId) : undefined;
+      const isDb = output?.volume?.type === 'db';
+      const maxMultiplier = isDb ? 2 : 4; // keep dB ramps especially smooth
+      const multiplier = Math.min(maxMultiplier, ticks);
+      const maxStepPerCall = isDb ? 3 : 10;
+      const effectiveStep = Math.max(1, Math.min(maxStepPerCall, step * multiplier));
       this.lastHoldAt = startedAt;
 
       try {
