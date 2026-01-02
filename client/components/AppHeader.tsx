@@ -41,6 +41,18 @@ export function AppHeader({
 
   const isWide = Platform.OS === "web" && width >= 980;
 
+  const withNavLock = (fn: () => void) => {
+    if (redirectingRef.current) return;
+    redirectingRef.current = true;
+    try {
+      fn();
+    } finally {
+      setTimeout(() => {
+        redirectingRef.current = false;
+      }, 450);
+    }
+  };
+
   const goSearch = (query?: string) => {
     if (onPressSearch) return onPressSearch(query);
     // Navigate to the nested Search screen so it behaves like the real Search page.
@@ -70,8 +82,10 @@ export function AppHeader({
 
   const onSubmit = () => {
     const trimmed = q.trim();
-    if (!trimmed) return goSearch("");
-    goSearch(trimmed);
+    withNavLock(() => {
+      goSearch(trimmed);
+    });
+    // Clear input after navigation to avoid stale text when returning
     setQ("");
   };
 
@@ -108,13 +122,10 @@ export function AppHeader({
               onChangeText={(text) => {
                 setQ(text);
                 // As soon as the user types, open the Search screen and show results there.
-                if (!redirectingRef.current && text.trim().length > 0) {
-                  redirectingRef.current = true;
-                  goSearch(text);
-                  setQ("");
-                  setTimeout(() => {
-                    redirectingRef.current = false;
-                  }, 400);
+                if (text.trim().length > 0) {
+                  withNavLock(() => {
+                    goSearch(text);
+                  });
                 }
               }}
               placeholder="Search…"
@@ -124,14 +135,9 @@ export function AppHeader({
               onSubmitEditing={onSubmit}
               onFocus={() => {
                 // Clicking into the box should behave like Search page.
-                if (!redirectingRef.current) {
-                  redirectingRef.current = true;
+                withNavLock(() => {
                   goSearch(q);
-                  setQ("");
-                  setTimeout(() => {
-                    redirectingRef.current = false;
-                  }, 400);
-                }
+                });
               }}
             />
           </View>
