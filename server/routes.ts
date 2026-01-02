@@ -1,8 +1,125 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import dgram from "node:dgram";
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
+import crypto from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { getRoonVolumeControl } from "./roon-volume-control";
 import { registerTidalRoutes } from "./tidal-routes";
+
+const execFileAsync = promisify(execFile);
+
+// Image cache (disk) for fast thumbnail loads
+const IMAGE_CACHE_DIR = path.join(os.homedir(), ".soundstream", "image-cache");
+const IMAGE_CACHE_TTL_MS = 14 * 24 * 60 * 60_000; // 14 days
+const IMAGE_CACHE_MAX_BYTES = 4 * 1024 * 1024 * 1024; // 4GB
+const IMAGE_CACHE_ALLOWED_SIZES = [96, 160, 320, 640]; // keep small & useful
+let imageCacheSweepInProgress = false;
+
+function normalizeRequestedSize(n: number | null): number | null {
+  if (!n || !Number.isFinite(n) || n <= 0) return null;
+  // Snap to nearest allowed size to improve cache hit rate.
+  let best = IMAGE_CACHE_ALLOWED_SIZES[0];
+  let bestDiff = Math.abs(best - n);
+  for (const s of IMAGE_CACHE_ALLOWED_SIZES) {
+    const d = Math.abs(s - n);
+    if (d < bestDiff) {
+      best = s;
+      bestDiff = d;
+    }
+  }
+  return best;
+}
+
+function sha1(input: string): string {
+  return crypto.createHash("sha1").update(input).digest("hex");
+}
+
+function isAllowedPublicHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  if (h === "localhost" || h === "127.0.0.1") return true;
+  // Allowlist common artwork CDNs we rely on
+  if (h === "resources.tidal.com") return true;
+  if (h.endsWith(".theaudiodb.com")) return true;
+  if (h === "e-cdns-images.dzcdn.net") return true; // Deezer images (fallbacks)
+  if (h.endsWith(".mzstatic.com")) return true; // iTunes artwork (fallbacks)
+  return false;
+}
+
+async function ensureImageCacheDir(): Promise<void> {
+  await fsp.mkdir(IMAGE_CACHE_DIR, { recursive: true });
+}
+
+async function maybeSweepImageCache(): Promise<void> {
+  if (imageCacheSweepInProgress) return;
+  // ~1% chance per request
+  if (Math.random() > 0.01) return;
+  imageCacheSweepInProgress = true;
+  try {
+    await ensureImageCacheDir();
+    const files = await fsp.readdir(IMAGE_CACHE_DIR);
+    const entries: Array<{ file: string; mtimeMs: number; size: number }> = [];
+    let total = 0;
+    for (const f of files) {
+      if (!f.endsWith(".img")) continue;
+      const p = path.join(IMAGE_CACHE_DIR, f);
+      try {
+        const st = await fsp.stat(p);
+        total += st.size;
+        entries.push({ file: p, mtimeMs: st.mtimeMs, size: st.size });
+      } catch {
+        // ignore
+      }
+    }
+    const now = Date.now();
+    // Remove old entries first
+    for (const e of entries) {
+      if (now - e.mtimeMs > IMAGE_CACHE_TTL_MS) {
+        try {
+          await fsp.rm(e.file, { force: true });
+          await fsp.rm(e.file.replace(/\.img$/, ".json"), { force: true });
+          total -= e.size;
+        } catch {
+          // ignore
+        }
+      }
+    }
+    // Enforce size cap (LRU by mtime)
+    if (total > IMAGE_CACHE_MAX_BYTES) {
+      const remaining: Array<{ file: string; mtimeMs: number; size: number }> = [];
+      const files2 = await fsp.readdir(IMAGE_CACHE_DIR);
+      for (const f of files2) {
+        if (!f.endsWith(".img")) continue;
+        const p = path.join(IMAGE_CACHE_DIR, f);
+        try {
+          const st = await fsp.stat(p);
+          remaining.push({ file: p, mtimeMs: st.mtimeMs, size: st.size });
+        } catch {
+          // ignore
+        }
+      }
+      remaining.sort((a, b) => a.mtimeMs - b.mtimeMs);
+      for (const e of remaining) {
+        if (total <= IMAGE_CACHE_MAX_BYTES) break;
+        try {
+          await fsp.rm(e.file, { force: true });
+          await fsp.rm(e.file.replace(/\.img$/, ".json"), { force: true });
+          total -= e.size;
+        } catch {
+          // ignore
+        }
+      }
+    }
+  } catch {
+    // ignore
+  } finally {
+    imageCacheSweepInProgress = false;
+  }
+}
 
 // SSDP discovery for UPnP/OpenHome devices
 interface DiscoveredDevice {
@@ -773,6 +890,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Image proxy endpoint - proxies LMS images to avoid CORS issues
   app.get('/api/image-proxy', async (req: Request, res: Response) => {
     const { url } = req.query;
+    const wRaw = typeof req.query?.w === "string" ? req.query.w : undefined;
+    const hRaw = typeof req.query?.h === "string" ? req.query.h : undefined;
     
     if (!url || typeof url !== 'string') {
       return res.status(400).json({ error: 'Missing url parameter' });
@@ -781,8 +900,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Decode the URL if it's encoded
       const imageUrl = decodeURIComponent(url);
+      const w = wRaw ? parseInt(wRaw, 10) : NaN;
+      const h = hRaw ? parseInt(hRaw, 10) : NaN;
+      const maxDimRequested = normalizeRequestedSize(
+        Number.isFinite(w) || Number.isFinite(h) ? Math.max(Number.isFinite(w) ? w : 0, Number.isFinite(h) ? h : 0) : null
+      );
       
-      // Validate URL is from a private network (security)
+      // Validate URL
       let parsedUrl: URL;
       try {
         parsedUrl = new URL(imageUrl);
@@ -795,7 +919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Only HTTP and HTTPS URLs are allowed' });
       }
       
-      // Validate host is private network (same security as LMS proxy)
+      // Validate host is private network OR allowlisted public artwork CDN.
       const hostname = parsedUrl.hostname;
       const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
       const ipMatch = hostname.match(ipv4Regex);
@@ -823,16 +947,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!isPrivate) {
           return res.status(403).json({ error: 'Only private network addresses are allowed' });
         }
-      } else if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-        // For hostnames, allow but log
-        console.log(`[Image Proxy] Allowing hostname: ${hostname}`);
+      } else if (!isAllowedPublicHost(hostname)) {
+        return res.status(403).json({ error: `Host not allowed: ${hostname}` });
+      }
+
+      // Cache paths (key includes requested size)
+      const cacheKey = sha1(`${imageUrl}::${maxDimRequested || "orig"}`);
+      const cacheImgPath = path.join(IMAGE_CACHE_DIR, `${cacheKey}.img`);
+      const cacheMetaPath = path.join(IMAGE_CACHE_DIR, `${cacheKey}.json`);
+
+      await ensureImageCacheDir();
+      // Cache hit
+      try {
+        const st = await fsp.stat(cacheImgPath);
+        if (st.isFile()) {
+          const now = new Date();
+          fsp.utimes(cacheImgPath, now, now).catch(() => {});
+          let meta: any = null;
+          try {
+            meta = JSON.parse(await fsp.readFile(cacheMetaPath, "utf8"));
+          } catch {
+            // ignore
+          }
+          // Set CORS headers
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET');
+          res.setHeader('Content-Type', meta?.contentType || 'image/jpeg');
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          fs.createReadStream(cacheImgPath).pipe(res);
+          maybeSweepImageCache().catch(() => {});
+          return;
+        }
+      } catch {
+        // miss
       }
       
       // Fetch the image
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
-      let response: Response;
+      let response: globalThis.Response;
       try {
         response = await fetch(imageUrl, {
           method: 'GET',
@@ -858,16 +1012,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get content type from response or default to image
       const contentType = response.headers.get('content-type') || 'image/jpeg';
+      const imageBuffer = Buffer.from(await response.arrayBuffer());
+
+      let finalBuffer = imageBuffer;
+      let finalContentType = contentType;
+
+      // Resize thumbnails on macOS using `sips` (built-in). No npm deps required.
+      if (maxDimRequested && imageBuffer.length > 0 && (contentType.includes("jpeg") || contentType.includes("jpg") || contentType.includes("png"))) {
+        const tmpBase = path.join(os.tmpdir(), `soundstream-img-${cacheKey}-${Date.now()}`);
+        const inPath = `${tmpBase}.in`;
+        const outPath = `${tmpBase}.out`;
+        try {
+          await fsp.writeFile(inPath, imageBuffer);
+          const args = ["-Z", String(maxDimRequested), inPath, "--out", outPath];
+          if (contentType.includes("jpeg") || contentType.includes("jpg")) {
+            // Reduce JPEG size
+            args.unshift("70");
+            args.unshift("formatOptions");
+            args.unshift("--setProperty");
+            finalContentType = "image/jpeg";
+          }
+          await execFileAsync("sips", args);
+          const resized = await fsp.readFile(outPath);
+          if (resized && resized.length > 0) {
+            finalBuffer = resized;
+          }
+        } catch {
+          finalBuffer = imageBuffer;
+          finalContentType = contentType;
+        } finally {
+          fsp.rm(inPath, { force: true }).catch(() => {});
+          fsp.rm(outPath, { force: true }).catch(() => {});
+        }
+      }
       
       // Set CORS headers
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET');
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
-      
-      // Stream the image
-      const imageBuffer = await response.arrayBuffer();
-      res.send(Buffer.from(imageBuffer));
+      res.setHeader('Content-Type', finalContentType);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+
+      // Write cache (best-effort)
+      try {
+        await fsp.writeFile(cacheImgPath, finalBuffer);
+        await fsp.writeFile(cacheMetaPath, JSON.stringify({ contentType: finalContentType, url: imageUrl, w: maxDimRequested }, null, 2));
+      } catch {
+        // ignore
+      }
+
+      res.send(finalBuffer);
+      maybeSweepImageCache().catch(() => {});
     } catch (error) {
       console.error('[Image Proxy] Error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to proxy image';

@@ -25,6 +25,7 @@ import Animated, {
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { SourceBadge } from "@/components/SourceBadge";
+import { AlbumArtwork } from "@/components/AlbumArtwork";
 import { LibraryToolbar, type SourceFilter } from "@/components/LibraryToolbar";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { useInfiniteAlbums, Album } from "@/hooks/useLibrary";
@@ -91,17 +92,11 @@ const AlbumGridCard = memo(({ album, size, onPress, onPlay, onShuffle }: {
       }}
     >
       <View style={styles.gridImageContainer}>
-          {imageUrl ? (
-            <Image
-              source={imageUrl}
-              style={[styles.gridImage, { width: size, height: size }]}
-              contentFit="cover"
-            />
-          ) : (
-            <View style={[styles.gridImagePlaceholder, { width: size, height: size }]}>
-              <Feather name="disc" size={Math.max(20, size * 0.3)} color={Colors.light.textTertiary} />
-            </View>
-          )}
+          <AlbumArtwork
+            source={imageUrl}
+            style={[styles.gridImage, { width: size, height: size }]}
+            contentFit="cover"
+          />
         <SourceBadge source={album.source || 'local'} size={20} />
         <Animated.View style={[styles.gridOverlay, overlayAnimatedStyle]}>
           <View style={styles.gridOverlayButtons}>
@@ -160,17 +155,11 @@ const AlbumListRow = memo(({ album, onPress, onPlay }: {
         ]}
         onPress={onPress}
       >
-        {imageUrl ? (
-          <Image
-            source={imageUrl}
-            style={styles.listImage}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={styles.listImagePlaceholder}>
-            <Feather name="disc" size={20} color={Colors.light.accent} />
-          </View>
-        )}
+        <AlbumArtwork
+          source={imageUrl}
+          style={styles.listImage}
+          contentFit="cover"
+        />
         <View style={styles.listInfo}>
           <ThemedText style={styles.listTitle} numberOfLines={1}>
             {album.name}

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { StyleSheet, ImageSourcePropType } from "react-native";
+import { Platform, StyleSheet, ImageSourcePropType } from "react-native";
 import { Image } from "expo-image";
+import { getApiUrl } from "@/lib/query-client";
 
 const PLACEHOLDER_IMAGE = require("../assets/images/placeholder-album.png");
 
@@ -44,6 +45,27 @@ export function AlbumArtwork({
     return [style, styles.placeholder, { backgroundColor: placeholderColor }];
   }, [style, placeholderColor]);
 
+  const proxiedSource = useMemo(() => {
+    if (typeof source !== "string") return source;
+    const raw = source.trim();
+    if (!raw || raw.startsWith("data:") || raw.startsWith("file:")) return source;
+    if (!raw.startsWith("http://") && !raw.startsWith("https://")) return source;
+    if (raw.includes("/api/image-proxy?")) return source;
+
+    // Request thumbnails through the server cache for faster loads.
+    // Grid/list => 160, detail/now-playing => 640.
+    const flat = StyleSheet.flatten(style) || {};
+    const w = typeof flat.width === "number" ? flat.width : null;
+    const h = typeof flat.height === "number" ? flat.height : null;
+    const dim = Math.max(w || 0, h || 0);
+    const requested = dim > 300 ? 640 : 160;
+
+    // Only do this on web (where CORS + caching matters most).
+    if (Platform.OS !== "web") return source;
+    const apiUrl = getApiUrl();
+    return `${apiUrl}/api/image-proxy?url=${encodeURIComponent(raw)}&w=${requested}&h=${requested}`;
+  }, [source, style]);
+
   // Use the shared placeholder image when artwork is missing or fails to load.
   if (!hasArtwork || failed) {
     return <Image source={PLACEHOLDER_IMAGE} style={mergedStyle} contentFit="cover" />;
@@ -51,7 +73,7 @@ export function AlbumArtwork({
 
   return (
     <Image
-      source={typeof source === 'string' ? { uri: source } : source}
+      source={typeof proxiedSource === 'string' ? { uri: proxiedSource } : proxiedSource}
       style={mergedStyle}
       contentFit={contentFit}
       onError={() => setFailed(true)}
