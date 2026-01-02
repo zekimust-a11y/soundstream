@@ -426,11 +426,15 @@ export default function SettingsScreen() {
           });
           if (resp.ok) {
             const data = await resp.json();
+            const toNumOrNull = (v: any) => {
+              const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+              return Number.isFinite(n) ? n : null;
+            };
             tidalCounts = {
-              albums: Number(data.albums || 0),
-              artists: Number(data.artists || 0),
-              tracks: Number(data.tracks || 0),
-              playlists: Number(data.playlists || 0),
+              albums: toNumOrNull(data.albums),
+              artists: toNumOrNull(data.artists),
+              tracks: toNumOrNull(data.tracks),
+              playlists: toNumOrNull(data.playlists),
             };
           }
         } catch (e) {

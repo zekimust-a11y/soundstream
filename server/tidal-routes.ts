@@ -1022,32 +1022,59 @@ export function registerTidalRoutes(app: Express): void {
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
     try {
       // OpenAPI doesn’t provide a cheap "total count" field; count by walking cursors (bounded).
+      // IMPORTANT: Tidal may rate-limit (429). When that happens, return partial counts with a flag
+      // instead of failing (so the client doesn't show 0).
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
 
-      async function countRelationship(rel: "albums" | "artists" | "tracks" | "playlists", maxItems = 5000): Promise<number> {
+      async function countRelationship(
+        rel: "albums" | "artists" | "tracks" | "playlists",
+        opts: { maxItems?: number; maxRequests?: number }
+      ): Promise<{ count: number; rateLimited: boolean }> {
+        const maxItems = opts.maxItems ?? 5000;
+        const maxRequests = opts.maxRequests ?? 80;
         let count = 0;
+        let requests = 0;
+        let rateLimited = false;
         let nextUrl = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
           t.userId!
         )}/relationships/${rel}?countryCode=${encodeURIComponent(countryCode)}&page[size]=100`;
-        while (nextUrl && count < maxItems) {
-          const page = await openApiGet(nextUrl, t.accessToken);
-          const dataArr: any[] = Array.isArray(page?.data) ? page.data : [];
-          count += dataArr.length;
-          const next = page?.links?.next;
-          nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : "";
-          if (!nextUrl) break;
+        while (nextUrl && count < maxItems && requests < maxRequests) {
+          requests += 1;
+          try {
+            const page = await openApiGet(nextUrl, t.accessToken);
+            const dataArr: any[] = Array.isArray(page?.data) ? page.data : [];
+            count += dataArr.length;
+            const next = page?.links?.next;
+            nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : "";
+            if (!nextUrl) break;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (msg.includes("Tidal OpenAPI error: 429")) {
+              rateLimited = true;
+              break;
+            }
+            throw err;
+          }
         }
-        return count;
+
+        return { count, rateLimited };
       }
 
-      const [albums, artists, tracks, playlists] = await Promise.all([
-        countRelationship("albums"),
-        countRelationship("artists"),
-        countRelationship("tracks"),
-        countRelationship("playlists"),
+      const [albumsR, artistsR, tracksR, playlistsR] = await Promise.all([
+        countRelationship("albums", { maxItems: 5000, maxRequests: 80 }),
+        countRelationship("artists", { maxItems: 5000, maxRequests: 80 }),
+        countRelationship("tracks", { maxItems: 5000, maxRequests: 80 }),
+        countRelationship("playlists", { maxItems: 5000, maxRequests: 80 }),
       ]);
 
-      res.json({ albums, artists, tracks, playlists });
+      res.json({
+        albums: albumsR.count,
+        artists: artistsR.count,
+        tracks: tracksR.count,
+        playlists: playlistsR.count,
+        rateLimited: albumsR.rateLimited || artistsR.rateLimited || tracksR.rateLimited || playlistsR.rateLimited,
+        partial: albumsR.rateLimited || artistsR.rateLimited || tracksR.rateLimited || playlistsR.rateLimited,
+      });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
