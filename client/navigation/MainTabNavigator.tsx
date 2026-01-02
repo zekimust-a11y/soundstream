@@ -2,7 +2,7 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View, useWindowDimensions } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, WithSpringConfig } from "react-native-reanimated";
 import BrowseStackNavigator from "@/navigation/BrowseStackNavigator";
 import PlaylistsStackNavigator from "@/navigation/PlaylistsStackNavigator";
@@ -10,6 +10,8 @@ import AlbumsStackNavigator from "@/navigation/AlbumsStackNavigator";
 import TracksStackNavigator from "@/navigation/TracksStackNavigator";
 import RadioStackNavigator from "@/navigation/RadioStackNavigator";
 import MiniPlayer from "@/components/MiniPlayer";
+import { DesktopSidebar } from "@/components/DesktopSidebar";
+import { DesktopBottomBar } from "@/components/DesktopBottomBar";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing } from "@/constants/theme";
 
@@ -289,12 +291,19 @@ const TrackIcon = ({ focused, size = 26 }: { focused: boolean; size?: number }) 
 
 export default function MainTabNavigator() {
   const { theme } = useTheme();
+  const { width } = useWindowDimensions();
+  const isLargeWeb = Platform.OS === "web" && width >= 1100;
 
-  return (
-    <View style={styles.container} pointerEvents="box-none">
-      <Tab.Navigator
-        initialRouteName="BrowseTab"
-        screenOptions={{
+  const tabScreenOptions = React.useMemo(() => {
+    const tabBarStyle = isLargeWeb
+      ? {
+          display: "none" as const,
+          height: 0,
+          paddingBottom: 0,
+          paddingTop: 0,
+          borderTopWidth: 0,
+        }
+      : {
           tabBarActiveTintColor: "#000000",
           tabBarInactiveTintColor: "#4A4A4A",
           tabBarShowLabel: false,
@@ -333,8 +342,24 @@ export default function MainTabNavigator() {
               </View>
             ) : null,
           headerShown: false,
-        }}
-      >
+        };
+
+    if (isLargeWeb) {
+      return {
+        tabBarStyle,
+        headerShown: false,
+        tabBarShowLabel: false,
+      } as any;
+    }
+
+    return tabBarStyle as any;
+  }, [isLargeWeb]);
+
+  const navigator = (
+    <Tab.Navigator
+      initialRouteName="BrowseTab"
+      screenOptions={tabScreenOptions}
+    >
         <Tab.Screen
           name="BrowseTab"
           component={BrowseStackNavigator}
@@ -385,7 +410,24 @@ export default function MainTabNavigator() {
             ),
           }}
         />
-      </Tab.Navigator>
+    </Tab.Navigator>
+  );
+
+  if (isLargeWeb) {
+    return (
+      <View style={styles.desktopContainer}>
+        <DesktopSidebar />
+        <View style={styles.desktopMain}>
+          <View style={styles.desktopNavArea}>{navigator}</View>
+          <DesktopBottomBar />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container} pointerEvents="box-none">
+      {navigator}
       <MiniPlayer />
     </View>
   );
@@ -393,6 +435,18 @@ export default function MainTabNavigator() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  desktopContainer: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: Colors.light.backgroundRoot,
+  },
+  desktopMain: {
+    flex: 1,
+    backgroundColor: Colors.light.backgroundRoot,
+  },
+  desktopNavArea: {
     flex: 1,
   },
 });

@@ -18,7 +18,7 @@ import HistoryScreen from "@/screens/HistoryScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type BrowseStackParamList = {
-  Browse: { autoShuffle?: boolean } | undefined;
+  Browse: { autoShuffle?: boolean; scrollTo?: "tidal" } | undefined;
   Artist: { id: string; name: string };
   Album: { id: string; name: string; artistName: string; source?: "qobuz" | "local" | "tidal" };
   AllAlbums: undefined;

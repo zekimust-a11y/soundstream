@@ -7,7 +7,8 @@ import type { LmsPlaylist } from "@/lib/lmsClient";
 
 export type PlaylistsStackParamList = {
   Playlists: undefined;
-  PlaylistDetail: { playlist: LmsPlaylist };
+  // We only require id + name for navigation; PlaylistsScreen passes full LmsPlaylist.
+  PlaylistDetail: { playlist: Pick<LmsPlaylist, "id" | "name"> };
 };
 
 const Stack = createNativeStackNavigator<PlaylistsStackParamList>();

@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo, useEffect } from "react";
+import React, { useCallback, useState, useMemo, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -48,6 +48,9 @@ export default function BrowseScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<BrowseRouteProp>();
   const { width: windowWidth } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView>(null);
+  const [tidalSectionY, setTidalSectionY] = useState<number | null>(null);
+  const didScrollRef = useRef(false);
   const {
     recentlyPlayed,
     recentlyPlayedItems,
@@ -75,6 +78,18 @@ export default function BrowseScreen() {
   const [tidalMixes, setTidalMixes] = useState<any[]>([]);
 
   // (Tidal browse data is loaded below in a single effect to avoid duplicate requests + rate limiting.)
+
+  // Allow desktop sidebar "Tidal" menu item to jump to the Tidal section on Browse.
+  useEffect(() => {
+    if (didScrollRef.current) return;
+    if (route.params?.scrollTo !== "tidal") return;
+    if (tidalSectionY == null) return;
+    didScrollRef.current = true;
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, tidalSectionY - 20),
+      animated: true,
+    });
+  }, [route.params?.scrollTo, tidalSectionY]);
 
   // Keep all artwork tiles on Browse the same size, and scale a bit up on desktop/web.
   // Match Browse tile sizing to the Albums screen sizing rules.
@@ -519,6 +534,7 @@ export default function BrowseScreen() {
   return (
     <ThemedView style={styles.container}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[
           styles.content,
           { paddingBottom: tabBarHeight + Spacing["5xl"] },
@@ -819,7 +835,10 @@ export default function BrowseScreen() {
 
         {/* Tidal Section - Shows when enabled */}
         {tidalEnabled && (
-          <View style={styles.section}>
+          <View
+            style={styles.section}
+            onLayout={(e) => setTidalSectionY(e.nativeEvent.layout.y)}
+          >
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionTitle}>Tidal</ThemedText>
             </View>
