@@ -333,7 +333,9 @@ export function useInfiniteArtists() {
       let tidalTotalCount = 0;
       if (tidalEnabled) {
         try {
-          const tidalResponse = await fetch(`${getApiUrl()}api/tidal/artists?limit=${PAGE_SIZE}&offset=${pageParam}`);
+          const apiUrl = getApiUrl();
+          const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
+          const tidalResponse = await fetch(`${cleanApiUrl}/api/tidal/artists?limit=${PAGE_SIZE}&offset=${pageParam}`);
           if (tidalResponse.ok) {
             const tidalResult = await tidalResponse.json();
             tidalTotalCount = tidalResult.total || 0;
