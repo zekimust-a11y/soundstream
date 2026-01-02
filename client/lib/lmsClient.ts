@@ -3561,13 +3561,8 @@ class LmsClient {
 
   async playUrl(playerId: string, url: string): Promise<void> {
     // Let LMS handle format/transcoding automatically based on player capabilities
-    // - For HTTP URLs, `playlist play <url>` is the most reliable.
-    // - For plugin URLs (tidal://, qobuz://, etc), use `playlistcontrol cmd:load url:*` so LMS resolves via plugin.
-    if (/^https?:\/\//i.test(url)) {
-      await this.request(playerId, ['playlist', 'play', url]);
-    } else {
-      await this.request(playerId, ['playlistcontrol', 'cmd:load', `url:${url}`]);
-    }
+    // IMPORTANT: For plugin URLs like `tidal://track:*`, `playlist play <url>` is the reliable path on our LMS.
+    await this.request(playerId, ['playlist', 'play', url]);
   }
 
   /**
@@ -3613,24 +3608,15 @@ class LmsClient {
 
   async addTrackToPlaylist(playerId: string, trackId: string): Promise<void> {
     if (trackId.includes('://')) {
-      if (/^https?:\/\//i.test(trackId)) {
-        // HTTP/custom URLs: playlist add is most reliable
-        await this.request(playerId, ['playlist', 'add', trackId]);
-      } else {
-        // plugin urls: add via playlistcontrol so plugin resolves it
-        await this.request(playerId, ['playlistcontrol', 'cmd:add', `url:${trackId}`]);
-      }
+      // Works for both HTTP URLs and plugin URLs (tidal://, qobuz://, etc) on our LMS.
+      await this.request(playerId, ['playlist', 'add', trackId]);
     } else {
       await this.request(playerId, ['playlistcontrol', 'cmd:add', `track_id:${trackId}`]);
     }
   }
 
   async addUrlToPlaylist(playerId: string, url: string): Promise<void> {
-    if (/^https?:\/\//i.test(url)) {
-      await this.request(playerId, ['playlist', 'add', url]);
-    } else {
-      await this.request(playerId, ['playlistcontrol', 'cmd:add', `url:${url}`]);
-    }
+    await this.request(playerId, ['playlist', 'add', url]);
   }
 
   async playPlaylistIndex(playerId: string, index: number): Promise<void> {
