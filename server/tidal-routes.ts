@@ -64,8 +64,15 @@ function loadTokensFromDisk(): void {
     const raw = fs.readFileSync(TIDAL_TOKENS_FILE, "utf-8");
     const parsed = JSON.parse(raw) as TidalTokens;
     if (parsed?.accessToken) {
-      tokens = parsed;
-      console.log("[Tidal] Loaded tokens from disk");
+      // Backfill userId if missing (common when TIDAL doesn't return it in token response).
+      const derivedUserId = parsed.userId || deriveUserIdFromAccessToken(parsed.accessToken);
+      tokens = derivedUserId ? { ...parsed, userId: derivedUserId } : parsed;
+      if (derivedUserId && derivedUserId !== parsed.userId) {
+        saveTokensToDisk();
+        console.log("[Tidal] Loaded tokens from disk (derived userId from access token)");
+      } else {
+        console.log("[Tidal] Loaded tokens from disk");
+      }
     }
   } catch (e) {
     console.warn("[Tidal] Failed to load tokens:", e instanceof Error ? e.message : String(e));
@@ -105,6 +112,23 @@ async function fetchTidalUserId(accessToken: string): Promise<string | undefined
   }
 }
 
+function deriveUserIdFromAccessToken(accessToken: string): string | undefined {
+  // TIDAL access tokens are often JWTs. We can decode (without verifying) to extract the `uid` claim,
+  // which is the user id required by TIDAL OpenAPI v2 userCollections endpoints.
+  try {
+    const parts = accessToken.split(".");
+    if (parts.length < 2) return undefined;
+    const payloadB64 = parts[1];
+    const padded = payloadB64 + "=".repeat((4 - (payloadB64.length % 4)) % 4);
+    const json = Buffer.from(padded.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8");
+    const payload: any = JSON.parse(json);
+    const uid = payload?.uid ?? payload?.user_id ?? payload?.userId ?? payload?.id;
+    return uid !== undefined && uid !== null ? String(uid) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function exchangeCodeForTokens(session: TidalAuthSession, code: string): Promise<TidalTokens> {
   const params = new URLSearchParams({
     grant_type: "authorization_code",
@@ -132,7 +156,7 @@ async function exchangeCodeForTokens(session: TidalAuthSession, code: string): P
   const userId = tokenData?.user?.id ? String(tokenData.user.id) : undefined;
   if (!accessToken) throw new Error("Token exchange succeeded but no access_token returned");
 
-  const finalUserId = userId || (await fetchTidalUserId(accessToken));
+  const finalUserId = userId || deriveUserIdFromAccessToken(accessToken) || (await fetchTidalUserId(accessToken));
 
   return {
     accessToken,
@@ -301,7 +325,8 @@ export function registerTidalRoutes(app: Express): void {
     const refreshToken = typeof body.refreshToken === "string" ? body.refreshToken : undefined;
     const userId = body.userId !== undefined ? String(body.userId) : undefined;
     if (!accessToken) return res.status(400).json({ success: false, error: "accessToken required" });
-    tokens = { accessToken, refreshToken, userId, obtainedAt: Date.now() };
+    const finalUserId = userId || deriveUserIdFromAccessToken(accessToken);
+    tokens = { accessToken, refreshToken, userId: finalUserId, obtainedAt: Date.now() };
     saveTokensToDisk();
     return res.json({ success: true });
   });
