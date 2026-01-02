@@ -3561,9 +3561,13 @@ class LmsClient {
 
   async playUrl(playerId: string, url: string): Promise<void> {
     // Let LMS handle format/transcoding automatically based on player capabilities
-    // `playlist play <url>` is more reliable than `playlistcontrol cmd:load url:*` on some LMS setups.
-    // It also avoids cases where LMS silently continues playing the prior local queue.
-    await this.request(playerId, ['playlist', 'play', url]);
+    // - For HTTP URLs, `playlist play <url>` is the most reliable.
+    // - For plugin URLs (tidal://, qobuz://, etc), use `playlistcontrol cmd:load url:*` so LMS resolves via plugin.
+    if (/^https?:\/\//i.test(url)) {
+      await this.request(playerId, ['playlist', 'play', url]);
+    } else {
+      await this.request(playerId, ['playlistcontrol', 'cmd:load', `url:${url}`]);
+    }
   }
 
   /**
@@ -3609,15 +3613,24 @@ class LmsClient {
 
   async addTrackToPlaylist(playerId: string, trackId: string): Promise<void> {
     if (trackId.includes('://')) {
-      // `playlist add <url>` is more reliable than `playlistcontrol cmd:add url:*` for HTTP/custom URLs.
-      await this.request(playerId, ['playlist', 'add', trackId]);
+      if (/^https?:\/\//i.test(trackId)) {
+        // HTTP/custom URLs: playlist add is most reliable
+        await this.request(playerId, ['playlist', 'add', trackId]);
+      } else {
+        // plugin urls: add via playlistcontrol so plugin resolves it
+        await this.request(playerId, ['playlistcontrol', 'cmd:add', `url:${trackId}`]);
+      }
     } else {
       await this.request(playerId, ['playlistcontrol', 'cmd:add', `track_id:${trackId}`]);
     }
   }
 
   async addUrlToPlaylist(playerId: string, url: string): Promise<void> {
-    await this.request(playerId, ['playlist', 'add', url]);
+    if (/^https?:\/\//i.test(url)) {
+      await this.request(playerId, ['playlist', 'add', url]);
+    } else {
+      await this.request(playerId, ['playlistcontrol', 'cmd:add', `url:${url}`]);
+    }
   }
 
   async playPlaylistIndex(playerId: string, index: number): Promise<void> {
