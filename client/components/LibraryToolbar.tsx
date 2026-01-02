@@ -123,9 +123,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
-    backgroundColor: Colors.light.backgroundSecondary,
+    backgroundColor: Colors.light.backgroundDefault,
     borderRadius: BorderRadius.md,
     padding: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.light.border,
   },
   toggleButton: {
     width: 36,
@@ -135,7 +137,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   toggleButtonActive: {
-    backgroundColor: Colors.light.backgroundRoot,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
 });
 

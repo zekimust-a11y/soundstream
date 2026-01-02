@@ -123,9 +123,18 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.light.backgroundSecondary,
+    // Higher contrast vs the app background
+    backgroundColor: Colors.light.backgroundDefault,
     borderRadius: BorderRadius.md,
     minWidth: 130,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.light.border,
+    ...Platform.select({
+      web: {
+        boxShadow: "0px 6px 14px rgba(0,0,0,0.10)",
+      },
+      default: {},
+    }),
   },
   buttonDisabled: {
     opacity: 0.5,
@@ -152,7 +161,7 @@ const styles = StyleSheet.create({
     left: Spacing.lg,
     right: Spacing.lg,
     top: "20%",
-    backgroundColor: Colors.light.backgroundRoot,
+    backgroundColor: Colors.light.backgroundDefault,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     borderWidth: StyleSheet.hairlineWidth,
@@ -161,7 +170,7 @@ const styles = StyleSheet.create({
   popoverCard: {
     position: "absolute",
     width: 280,
-    backgroundColor: Colors.light.backgroundRoot,
+    backgroundColor: Colors.light.backgroundDefault,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     borderWidth: StyleSheet.hairlineWidth,
@@ -169,7 +178,7 @@ const styles = StyleSheet.create({
     // Web-only shadow
     ...Platform.select({
       web: {
-        boxShadow: "0px 12px 28px rgba(0,0,0,0.22)",
+        boxShadow: "0px 16px 34px rgba(0,0,0,0.24)",
       },
       default: {},
     }),

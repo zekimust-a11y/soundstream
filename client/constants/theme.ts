@@ -10,7 +10,7 @@ export const Colors = {
     tabIconSelected: "#007AFF",
     link: "#007AFF",
     // Slightly whiter app background (less grey)
-    backgroundRoot: "#F7F7FB",
+    backgroundRoot: "#FBFBFE",
     backgroundDefault: "#FFFFFF",
     backgroundSecondary: "#F2F2F7",
     backgroundTertiary: "#E5E5EA",
