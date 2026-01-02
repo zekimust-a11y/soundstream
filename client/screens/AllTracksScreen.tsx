@@ -63,6 +63,7 @@ export default function AllTracksScreen() {
   const [sortKey, setSortKey] = useState<SortKey>("title_az");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [qualityFilter, setQualityFilter] = useState<QualityKey>("all");
+  const [textFilter, setTextFilter] = useState("");
 
   const mergeInTracks = useCallback((incoming: Track[]) => {
     if (incoming.length === 0) return;
@@ -229,6 +230,16 @@ export default function AllTracksScreen() {
       result = result.filter((t) => t.source === sourceFilter);
     }
 
+    const q = textFilter.trim().toLowerCase();
+    if (q) {
+      result = result.filter((t) => {
+        const title = (t.title || "").toLowerCase();
+        const artist = (t.artist || "").toLowerCase();
+        const album = (t.album || "").toLowerCase();
+        return title.includes(q) || artist.includes(q) || album.includes(q);
+      });
+    }
+
     if (qualityFilter !== "all") {
       result = result.filter((t) => qualityKeyForTrack(t) === qualityFilter);
     }
@@ -244,7 +255,7 @@ export default function AllTracksScreen() {
     }
 
     return result;
-  }, [tracks, sortKey, sourceFilter, qualityFilter, qualityKeyForTrack]);
+  }, [tracks, sortKey, sourceFilter, qualityFilter, qualityKeyForTrack, textFilter]);
 
   const renderTrack = useCallback(({ item }: { item: Track }) => (
     <Pressable
@@ -300,6 +311,10 @@ export default function AllTracksScreen() {
         qualityValue={qualityFilter}
         qualityOptions={qualityOptions as any}
         onQualityChange={(v) => setQualityFilter(v as QualityKey)}
+        showSearch
+        searchQuery={textFilter}
+        onSearchQueryChange={setTextFilter}
+        searchPlaceholder="Filter tracks…"
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         showViewToggle
