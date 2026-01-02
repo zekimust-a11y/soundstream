@@ -3561,7 +3561,9 @@ class LmsClient {
 
   async playUrl(playerId: string, url: string): Promise<void> {
     // Let LMS handle format/transcoding automatically based on player capabilities
-    await this.request(playerId, ['playlistcontrol', 'cmd:load', `url:${url}`]);
+    // `playlist play <url>` is more reliable than `playlistcontrol cmd:load url:*` on some LMS setups.
+    // It also avoids cases where LMS silently continues playing the prior local queue.
+    await this.request(playerId, ['playlist', 'play', url]);
   }
 
   /**
@@ -3607,14 +3609,15 @@ class LmsClient {
 
   async addTrackToPlaylist(playerId: string, trackId: string): Promise<void> {
     if (trackId.includes('://')) {
-      await this.request(playerId, ['playlistcontrol', 'cmd:add', `url:${trackId}`]);
+      // `playlist add <url>` is more reliable than `playlistcontrol cmd:add url:*` for HTTP/custom URLs.
+      await this.request(playerId, ['playlist', 'add', trackId]);
     } else {
       await this.request(playerId, ['playlistcontrol', 'cmd:add', `track_id:${trackId}`]);
     }
   }
 
   async addUrlToPlaylist(playerId: string, url: string): Promise<void> {
-    await this.request(playerId, ['playlistcontrol', 'cmd:add', `url:${url}`]);
+    await this.request(playerId, ['playlist', 'add', url]);
   }
 
   async playPlaylistIndex(playerId: string, index: number): Promise<void> {
