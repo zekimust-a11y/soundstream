@@ -69,6 +69,13 @@ if grep -q '^FLIRC_DEVICE=/dev/input/flirc$' "${ENV_FILE}" 2>/dev/null; then
   sed -i 's#^FLIRC_DEVICE=/dev/input/flirc$#FLIRC_DEVICE=/dev/input/flirc-kbd#' "${ENV_FILE}" || true
 fi
 
+# If the stable udev symlink exists, prefer it (even if env was previously set to a by-id path).
+if [[ -e /dev/input/flirc-kbd ]]; then
+  if grep -q '^FLIRC_DEVICE=' "${ENV_FILE}" 2>/dev/null; then
+    sed -i 's#^FLIRC_DEVICE=.*#FLIRC_DEVICE=/dev/input/flirc-kbd#' "${ENV_FILE}" || true
+  fi
+fi
+
 echo "[install] Installing systemd service..."
 install -m 0644 "${ROOT_DIR}/soundstream-flirc-roon-volume.service" "${SERVICE_FILE}"
 systemctl daemon-reload
