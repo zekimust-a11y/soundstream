@@ -49,7 +49,14 @@ interface RecentSearchItem {
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
+  // Search is now shown inside a modal stack ("SearchModal") as well as inside tab flows.
+  // `useBottomTabBarHeight()` throws if we're not within a BottomTabNavigator, so guard it.
+  let tabBarHeight = 0;
+  try {
+    tabBarHeight = useBottomTabBarHeight();
+  } catch {
+    tabBarHeight = 0;
+  }
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProp<SearchStackParamList, "Search">>();
   const searchInputRef = useRef<TextInput>(null);
