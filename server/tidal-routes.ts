@@ -1387,6 +1387,11 @@ export function registerTidalRoutes(app: Express): void {
           }
         }
 
+        // If we got rate-limited before we could count anything, treat as unknown (null) rather than "0".
+        // Otherwise the UI will misleadingly show "0" for that category.
+        if (rateLimited && count === 0) {
+          return { count: null, rateLimited: true };
+        }
         return { count, rateLimited };
       }
 
