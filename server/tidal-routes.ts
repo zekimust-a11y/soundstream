@@ -58,6 +58,39 @@ function getClientId(): string {
   return TIDAL_FALLBACK_IDS[currentClientIdIndex] || TIDAL_FALLBACK_IDS[0];
 }
 
+function clampClientIdIndex(idx: number): number {
+  if (!Number.isFinite(idx)) return 0;
+  const max = TIDAL_FALLBACK_IDS.length - 1;
+  return Math.max(0, Math.min(max, Math.floor(idx)));
+}
+
+function cycleClientId(): { clientId: string; index: number } {
+  currentClientIdIndex = (currentClientIdIndex + 1) % TIDAL_FALLBACK_IDS.length;
+  return { clientId: getClientId(), index: currentClientIdIndex };
+}
+
+function resolveClientIdFromRequest(req: Request): { clientId: string; index: number } {
+  // If env var is set, always use it (no rotation).
+  const envId = process.env.TIDAL_CLIENT_ID;
+  if (envId && envId.trim()) return { clientId: envId.trim(), index: -1 };
+
+  const q: any = req.query || {};
+  const idxRaw = q.clientIdIndex;
+  if (idxRaw !== undefined) {
+    const idx = clampClientIdIndex(parseInt(String(idxRaw), 10));
+    return { clientId: TIDAL_FALLBACK_IDS[idx], index: idx };
+  }
+
+  const idRaw = q.clientId;
+  if (typeof idRaw === "string" && idRaw.trim()) {
+    const wanted = idRaw.trim();
+    const idx = TIDAL_FALLBACK_IDS.indexOf(wanted);
+    if (idx >= 0) return { clientId: wanted, index: idx };
+  }
+
+  return { clientId: getClientId(), index: currentClientIdIndex };
+}
+
 function loadTokensFromDisk(): void {
   try {
     if (!fs.existsSync(TIDAL_TOKENS_FILE)) return;
@@ -246,13 +279,35 @@ function pickArtworkUrl(artwork: any, preferred = "320x320"): string | null {
 export function registerTidalRoutes(app: Express): void {
   loadTokensFromDisk();
 
+  app.get("/api/tidal/client-id", (_req: Request, res: Response) => {
+    res.json({
+      clientId: getClientId(),
+      clientIdIndex: process.env.TIDAL_CLIENT_ID ? null : currentClientIdIndex,
+      usingEnv: !!process.env.TIDAL_CLIENT_ID,
+      fallbackIds: process.env.TIDAL_CLIENT_ID ? null : TIDAL_FALLBACK_IDS,
+    });
+  });
+
+  app.post("/api/tidal/client-id/cycle", (_req: Request, res: Response) => {
+    const rotated = cycleClientId();
+    res.json({
+      clientId: rotated.clientId,
+      clientIdIndex: process.env.TIDAL_CLIENT_ID ? null : rotated.index,
+      usingEnv: !!process.env.TIDAL_CLIENT_ID,
+    });
+  });
+
   // Generate OAuth authorization URL (PKCE)
   app.get("/api/tidal/auth-url", (req: Request, res: Response) => {
     const platform = (String(req.query.platform || "").toLowerCase() === "web" ? "web" : "mobile") as
       | "web"
       | "mobile";
 
-    const clientId = getClientId();
+    const cycle = String((req.query as any).cycle || "").toLowerCase();
+    if (cycle === "1" || cycle === "true" || cycle === "yes") {
+      cycleClientId();
+    }
+    const { clientId, index: clientIdIndex } = resolveClientIdFromRequest(req);
     const redirectUri =
       platform === "web"
         ? `${req.protocol}://${req.get("host")}/api/tidal/callback`
@@ -290,7 +345,7 @@ export function registerTidalRoutes(app: Express): void {
     });
 
     const authUrl = `https://login.tidal.com/authorize?${params.toString()}`;
-    res.json({ authUrl, redirectUri, state, platform, preset });
+    res.json({ authUrl, redirectUri, state, platform, preset, clientId, clientIdIndex });
   });
 
   // Convenience endpoint: redirect directly to TIDAL authorize URL (useful for manual browser flows).
@@ -299,7 +354,11 @@ export function registerTidalRoutes(app: Express): void {
       | "web"
       | "mobile";
 
-    const clientId = getClientId();
+    const cycle = String((req.query as any).cycle || "").toLowerCase();
+    if (cycle === "1" || cycle === "true" || cycle === "yes") {
+      cycleClientId();
+    }
+    const { clientId } = resolveClientIdFromRequest(req);
     const redirectUri =
       platform === "web"
         ? `${req.protocol}://${req.get("host")}/api/tidal/callback`
