@@ -40,9 +40,9 @@ export default function SearchStackNavigator() {
       <Stack.Screen
         name="Album"
         component={AlbumScreen}
-        options={({ route }) => ({
-          headerTitle: route.params.name,
-        })}
+        options={{
+          headerShown: false,
+        }}
       />
     </Stack.Navigator>
   );

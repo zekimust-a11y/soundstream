@@ -56,9 +56,9 @@ export default function BrowseStackNavigator() {
       <Stack.Screen
         name="Album"
         component={AlbumScreen}
-        options={({ route }) => ({
-          headerTitle: route.params.name,
-        })}
+        options={{
+          headerShown: false,
+        }}
       />
       <Stack.Screen
         name="AllAlbums"

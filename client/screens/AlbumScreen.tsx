@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -11,8 +11,8 @@ import {
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 
@@ -35,22 +35,10 @@ function formatDuration(duration: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-type FilterType = "all" | "cd" | "hires";
-
-function isHiRes(sampleRate?: string, bitDepth?: string): boolean {
-  if (!sampleRate && !bitDepth) return false;
-  
-  const rate = sampleRate ? parseFloat(sampleRate.toString().replace(/[^0-9.]/g, '')) : 0;
-  const bits = bitDepth ? parseInt(bitDepth.toString().replace(/[^0-9]/g, '')) : 0;
-  
-  // Hi-Res: > 48kHz or > 16-bit
-  return rate > 48000 || bits > 16;
-}
-
 export default function AlbumScreen() {
   const route = useRoute<RouteProps>();
   const navigation = useNavigation();
-  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { width: windowWidth } = useWindowDimensions();
   const { getAlbumTracks, addToRecentlyPlayed } = useMusic();
@@ -62,7 +50,6 @@ export default function AlbumScreen() {
   const [albumYear, setAlbumYear] = useState<number | undefined>();
   const [albumImageUrl, setAlbumImageUrl] = useState<string | undefined>();
   const [albumSource, setAlbumSource] = useState<"local"  | "tidal" | undefined>();
-  const [filter, setFilter] = useState<FilterType>("all");
 
   useEffect(() => {
     async function loadTracks() {
@@ -94,64 +81,10 @@ export default function AlbumScreen() {
     loadTracks();
   }, [route.params.id, route.params.source, getAlbumTracks]);
 
-  // Filter tracks based on selected filter
+  // No track quality filter UI on this page (requested).
   useEffect(() => {
-    if (filter === "all") {
-      setTracks(allTracks);
-    } else if (filter === "cd") {
-      // CD Quality: <= 48kHz and <= 16-bit, or no sample rate info (assume CD quality)
-      setTracks(allTracks.filter(track => {
-        if (!track.sampleRate && !track.bitDepth) return true; // Unknown = show in CD
-        return !isHiRes(track.sampleRate, track.bitDepth);
-      }));
-    } else if (filter === "hires") {
-      // Hi-Res: > 48kHz or > 16-bit (must have sample rate info)
-      setTracks(allTracks.filter(track => isHiRes(track.sampleRate, track.bitDepth)));
-    }
-  }, [filter, allTracks]);
-
-  // Set up header filter button
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <Pressable
-          onPress={handleFilterPress}
-          style={({ pressed }) => [
-            { marginRight: Spacing.md, padding: Spacing.xs, opacity: pressed ? 0.6 : 1 }
-          ]}
-        >
-          <Feather 
-            name="filter" 
-            size={20} 
-            color={filter !== "all" ? Colors.light.accent : Colors.light.text} 
-          />
-        </Pressable>
-      ),
-    });
-  }, [navigation, filter]);
-
-  const handleFilterPress = () => {
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ["Cancel", "All", "CD Quality", "Hi-Res"],
-          cancelButtonIndex: 0,
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 1) setFilter("all");
-          else if (buttonIndex === 2) setFilter("cd");
-          else if (buttonIndex === 3) setFilter("hires");
-        }
-      );
-    } else {
-      // For Android/web, we'll use a simple toggle for now
-      // Could implement a modal or bottom sheet here
-      const filters: FilterType[] = ["all", "cd", "hires"];
-      const currentIndex = filters.indexOf(filter);
-      const nextIndex = (currentIndex + 1) % filters.length;
-      setFilter(filters[nextIndex]);
-    }
-  };
+    setTracks(allTracks);
+  }, [allTracks]);
 
   const handlePlayAll = () => {
     if (tracks.length > 0) {
@@ -179,9 +112,19 @@ export default function AlbumScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: headerHeight + Spacing.xl, paddingBottom: tabBarHeight + Spacing["5xl"] },
+          { paddingTop: insets.top + Spacing.lg, paddingBottom: tabBarHeight + Spacing["5xl"] },
         ]}
       >
+        <View style={styles.topRow}>
+          <Pressable
+            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
+            onPress={() => (navigation as any).goBack()}
+          >
+            <Feather name="chevron-left" size={22} color={Colors.light.text} />
+          </Pressable>
+          <View style={styles.topRowSpacer} />
+        </View>
+
         <View style={[styles.pageContainer, maxContentWidth ? { maxWidth: maxContentWidth } : null]}>
           <View style={[styles.albumHeader, isDesktop ? styles.albumHeaderDesktop : null]}>
             <View style={[styles.albumArtContainer, { width: albumArtSize }]}>
@@ -202,17 +145,7 @@ export default function AlbumScreen() {
               </ThemedText>
               {tracks.length > 0 || allTracks.length > 0 ? (
                 <ThemedText style={[styles.albumMeta, isDesktop ? styles.albumMetaDesktop : null]}>
-                  {filter !== "all" && (
-                    <ThemedText style={[styles.albumMeta, { color: Colors.light.accent }]}>
-                      {filter === "cd" ? "CD Quality" : "Hi-Res"} •{" "}
-                    </ThemedText>
-                  )}
                   {tracks.length} {tracks.length === 1 ? "track" : "tracks"}
-                  {filter !== "all" && allTracks.length > 0 && (
-                    <ThemedText style={[styles.albumMeta, { color: Colors.light.textTertiary }]}>
-                      {" "}(of {allTracks.length})
-                    </ThemedText>
-                  )}
                 </ThemedText>
               ) : null}
 
@@ -308,6 +241,24 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: Spacing.lg,
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.light.backgroundDefault,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.light.border,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  topRowSpacer: {
+    flex: 1,
   },
   pageContainer: {
     width: "100%",
