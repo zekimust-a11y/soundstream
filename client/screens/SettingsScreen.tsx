@@ -345,19 +345,14 @@ export default function SettingsScreen() {
   const loadLibraryStats = async () => {
     try {
       console.log("loadLibraryStats called, activeServer:", activeServer);
-      // If we don't have an activeServer from context, but LMS client might be configured
-      // Check if LMS client has server configured
-      if (!activeServer && lmsClient.isServerConfigured) {
-        console.log("Using LMS client configured server");
-      } else if (!activeServer) {
-        console.log("No active server and LMS client not configured, returning");
+      // For per-source totals we need an explicit active LMS server (host/port) for /api/lms/proxy.
+      if (!activeServer) {
+        console.log("No active server, returning");
         return;
       }
 
       // Ensure LMS client is set if we have activeServer from context
-      if (activeServer) {
-        lmsClient.setServer(activeServer.host, activeServer.port);
-      }
+      lmsClient.setServer(activeServer.host, activeServer.port);
 
       // --- Local (LMS) counts ---
       let localAlbums = 0;
