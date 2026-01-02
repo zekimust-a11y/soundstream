@@ -438,7 +438,28 @@ function formatNowPlayingMessage(
   } else if (track.artwork_url) {
     // LMS (and plugins like TIDAL) often provide relative image paths (e.g. "/imageproxy/..." or "/music/...").
     // The cast receiver runs on a different origin, so relative URLs would 404; normalize to an absolute LMS URL.
-    imageUrl = normalizeLmsImageUrl(String(track.artwork_url));
+    const rawArtwork = String(track.artwork_url);
+    // Special-case: TIDAL plugin artwork is typically an LMS /imageproxy/ wrapper around resources.tidal.com.
+    // Prefer a direct HTTPS resources.tidal.com URL to avoid mixed-content blocks in the HTTPS Cast receiver.
+    if (typeof track.url === 'string' && track.url.startsWith('tidal://') && rawArtwork.includes('/imageproxy/') && rawArtwork.includes('resources.tidal.com')) {
+      try {
+        const m = rawArtwork.match(/\/imageproxy\/([^/]+)\/image\.jpg/i);
+        const encodedInner = m?.[1];
+        if (encodedInner) {
+          let inner = decodeURIComponent(encodedInner);
+          if (inner.startsWith('http://resources.tidal.com/')) inner = inner.replace('http://', 'https://');
+          // Downscale common "1280x1280" to "640x640" to keep payloads lighter.
+          inner = inner.replace(/\/1280x1280\.jpg(\b|$)/i, '/640x640.jpg');
+          imageUrl = inner;
+        } else {
+          imageUrl = normalizeLmsImageUrl(rawArtwork);
+        }
+      } catch {
+        imageUrl = normalizeLmsImageUrl(rawArtwork);
+      }
+    } else {
+      imageUrl = normalizeLmsImageUrl(rawArtwork);
+    }
   }
 
   return {
@@ -474,6 +495,40 @@ function formatNowPlayingMessage(
   };
 }
 
+// Cache image data URIs so we don't repeatedly fetch/encode artwork on every poll.
+const ARTWORK_DATA_CACHE_TTL_MS = 10 * 60_000; // 10 minutes
+const artworkDataCache = new Map<string, { ts: number; dataUri: string }>();
+
+async function getImageDataUri(imageUrl: string): Promise<string | null> {
+  if (!imageUrl) return null;
+  const cached = artworkDataCache.get(imageUrl);
+  if (cached && Date.now() - cached.ts < ARTWORK_DATA_CACHE_TTL_MS) return cached.dataUri;
+
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 7000);
+    const resp = await fetch(imageUrl, { signal: controller.signal });
+    clearTimeout(t);
+    if (!resp.ok) return null;
+
+    const ct = resp.headers.get('content-type') || 'image/jpeg';
+    const ab = await resp.arrayBuffer();
+
+    // Guard: don't send huge payloads over Cast custom messages.
+    const maxBytes = 350_000;
+    if (ab.byteLength > maxBytes) {
+      return null;
+    }
+
+    const b64 = Buffer.from(ab).toString('base64');
+    const dataUri = `data:${ct};base64,${b64}`;
+    artworkDataCache.set(imageUrl, { ts: Date.now(), dataUri });
+    return dataUri;
+  } catch {
+    return null;
+  }
+}
+
 // Send NOW_PLAYING message to Chromecast
 async function sendNowPlayingToCast(status: any): Promise<void> {
   if (!isCasting || !chromecastService.customChannel) {
@@ -505,6 +560,20 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
   const artistImages = primaryArtist ? await fetchArtistImages(primaryArtist) : [];
   const message = formatNowPlayingMessage(status, artistImages, overrides);
   if (!message) return;
+
+  // If the receiver is HTTPS (GitHub Pages), it may block http:// images as mixed content.
+  // Prefer embedding artwork as a data URI when the artwork URL isn't HTTPS.
+  try {
+    const imgUrl = typeof message?.payload?.image_url === 'string' ? message.payload.image_url : '';
+    if (imgUrl && !imgUrl.startsWith('https://')) {
+      const dataUri = await getImageDataUri(imgUrl);
+      if (dataUri) {
+        message.payload.image_data = dataUri;
+      }
+    }
+  } catch {
+    // ignore artwork embedding failures
+  }
 
   try {
     console.log('[Relay] Sending NOW_PLAYING to Cast:', message.payload.now_playing.two_line.line1);

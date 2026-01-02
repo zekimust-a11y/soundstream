@@ -600,8 +600,26 @@
         if (trackId !== lastTrackId) {
           lastTrackId = trackId;
           
-          const artworkUrl = track.artwork_url 
-            ? `/api/lms/image-proxy?url=${encodeURIComponent(track.artwork_url)}`
+          // Album artwork:
+          // - LMS (and plugins like TIDAL) often return relative paths like "/imageproxy/..." or "/music/...".
+          // - Our proxy endpoint is `/api/image-proxy` (not `/api/lms/image-proxy`).
+          // - The proxy expects an absolute http(s) URL.
+          const lmsBase = `http://${host}:${parseInt(port) || 9000}`;
+          let absoluteArtwork = null;
+          if (track.coverid) {
+            absoluteArtwork = `${lmsBase}/music/${track.coverid}/cover.jpg`;
+          } else if (track.artwork_url) {
+            const raw = String(track.artwork_url);
+            if (raw.startsWith('http://') || raw.startsWith('https://')) {
+              absoluteArtwork = raw;
+            } else if (raw.startsWith('/')) {
+              absoluteArtwork = `${lmsBase}${raw}`;
+            } else {
+              absoluteArtwork = `${lmsBase}/${raw}`;
+            }
+          }
+          const artworkUrl = absoluteArtwork
+            ? `/api/image-proxy?url=${encodeURIComponent(absoluteArtwork)}`
             : null;
           
           setAlbumArt(artworkUrl);
