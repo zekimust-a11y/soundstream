@@ -244,6 +244,17 @@ async function startCasting(): Promise<void> {
   if (success) {
     isCasting = true;
     console.log('[Relay] Cast started successfully');
+    // Send NOW_PLAYING immediately so the receiver doesn't sit on a black screen
+    // waiting for the next 2s poll tick.
+    try {
+      const s = await getPlayerStatus(currentPlayerId);
+      const hasTrack = s?.playlist_loop && s.playlist_loop.length > 0;
+      if (hasTrack && chromecastEnabled) {
+        await sendNowPlayingToCast(s);
+      }
+    } catch {
+      // ignore immediate send failures; next poll will update
+    }
   } else {
     console.error('[Relay] Failed to start cast');
     isCasting = false;
@@ -565,40 +576,15 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
     // ignore radio lookup failures
   }
 
+  // Send fast first, then enrich with artwork + artist backgrounds.
+  // This avoids a black screen while we fetch external resources.
   const primaryArtist = overrides ? '' : normalizePrimaryArtist(track?.artist || '');
-  const artistImages = primaryArtist ? await fetchArtistImages(primaryArtist) : [];
-  const message = formatNowPlayingMessage(status, artistImages, overrides);
-  if (!message) return;
-
-  // If the receiver is HTTPS (GitHub Pages), it may block http:// images as mixed content.
-  // Prefer embedding artwork as a data URI when the artwork URL isn't HTTPS.
-  try {
-    const imgUrl = typeof message?.payload?.image_url === 'string' ? message.payload.image_url : '';
-    const trackUrl = typeof track?.url === 'string' ? String(track.url) : '';
-
-    // Special case: TIDAL artwork can still fail to load on the cast device due to
-    // network blocks / external fetch restrictions. Embed a small 320px version as a data URI.
-    if (trackUrl.startsWith('tidal://') && imgUrl) {
-      const small = imgUrl
-        .replace(/\/1280x1280\.jpg(\b|$)/i, '/320x320.jpg')
-        .replace(/\/640x640\.jpg(\b|$)/i, '/320x320.jpg');
-      const dataUri = await getImageDataUri(small);
-      if (dataUri) {
-        message.payload.image_data = dataUri;
-      }
-    } else if (imgUrl && !imgUrl.startsWith('https://')) {
-      const dataUri = await getImageDataUri(imgUrl);
-      if (dataUri) {
-        message.payload.image_data = dataUri;
-      }
-    }
-  } catch {
-    // ignore artwork embedding failures
-  }
+  const baseMessage = formatNowPlayingMessage(status, [], overrides);
+  if (!baseMessage) return;
 
   try {
-    console.log('[Relay] Sending NOW_PLAYING to Cast:', message.payload.now_playing.two_line.line1);
-    chromecastService.customChannel.send(message);
+    console.log('[Relay] Sending NOW_PLAYING (fast) to Cast:', baseMessage.payload.now_playing.two_line.line1);
+    chromecastService.customChannel.send(baseMessage);
   } catch (error) {
     console.error('[Relay] Error sending NOW_PLAYING:', error.message);
     // Channel likely died; force a recast on next poll.
@@ -609,7 +595,45 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
     } catch (e) {
       // ignore
     }
+    return;
   }
+
+  // Enrich asynchronously: artist images (background rotation) + safe album art data URI when needed.
+  (async () => {
+    try {
+      const artistImages = primaryArtist ? await fetchArtistImages(primaryArtist) : [];
+      const enriched = formatNowPlayingMessage(status, artistImages, overrides);
+      if (!enriched) return;
+
+      // Embed album art if needed (HTTPS receiver blocks http://; TIDAL sometimes flakes on device fetch).
+      try {
+        const imgUrl = typeof enriched?.payload?.image_url === 'string' ? enriched.payload.image_url : '';
+        const trackUrl = typeof track?.url === 'string' ? String(track.url) : '';
+
+        if (trackUrl.startsWith('tidal://') && imgUrl) {
+          const small = imgUrl
+            .replace(/\/1280x1280\.jpg(\b|$)/i, '/320x320.jpg')
+            .replace(/\/640x640\.jpg(\b|$)/i, '/320x320.jpg');
+          const dataUri = await getImageDataUri(small);
+          if (dataUri) enriched.payload.image_data = dataUri;
+        } else if (imgUrl && !imgUrl.startsWith('https://')) {
+          const dataUri = await getImageDataUri(imgUrl);
+          if (dataUri) enriched.payload.image_data = dataUri;
+        }
+      } catch {
+        // ignore
+      }
+
+      // Send enriched update (receiver should update artwork even if it's the same track)
+      try {
+        chromecastService.customChannel.send(enriched);
+      } catch {
+        // ignore
+      }
+    } catch {
+      // ignore background enrichment failures
+    }
+  })();
 }
 
 // Send arbitrary messages to the custom receiver (used for volume overlay updates, etc.)
