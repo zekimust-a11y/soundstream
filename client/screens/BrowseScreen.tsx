@@ -176,8 +176,10 @@ export default function BrowseScreen() {
       // Enable shuffle mode first
       await lmsClient.setShuffle(activePlayer.id, 1);
 
-      // Get a sample of tracks from the library
-      // Fetch up to 5000, but we'll only shuffle & play a random 1000
+      // Build a combined pool from LMS (local library) + Tidal (direct API) and then pick ~1000 random tracks.
+      const TARGET_TRACKS = 1000;
+
+      // LMS local tracks
       const lmsTracks = await lmsClient.getAllLibraryTracks(5000);
 
       if (lmsTracks.length === 0) {
@@ -207,20 +209,70 @@ export default function BrowseScreen() {
         lmsTrackId: t.id, // This is the raw LMS track ID we need
       }));
 
-      // Limit to 200 random tracks to avoid overloading the queue / LMS
-      // Start with fewer tracks to ensure it works, can increase later
-      const MAX_SHUFFLE_TRACKS = 200;
-      let pool = tracks;
-      if (tracks.length > MAX_SHUFFLE_TRACKS) {
-        const selectedIndices = new Set<number>();
-        while (selectedIndices.size < MAX_SHUFFLE_TRACKS) {
-          const idx = Math.floor(Math.random() * tracks.length);
-          selectedIndices.add(idx);
+      // Tidal tracks (sampled/paged server-side; may return fewer if rate-limited)
+      let tidalTracks: Track[] = [];
+      try {
+        if (tidalEnabled && tidalConnected) {
+          const { getApiUrl } = await import('@/lib/query-client');
+          const apiUrl = getApiUrl();
+          const resp = await fetch(`${apiUrl}/api/tidal/tracks/sample?limit=1000`);
+          if (resp.ok) {
+            const data = await resp.json();
+            const items: any[] = Array.isArray(data?.items) ? data.items : [];
+            tidalTracks = items.map((t: any) => ({
+              id: `tidal-track-${t.id}`,
+              title: t.title,
+              artist: t.artist,
+              album: t.album,
+              albumId: t.albumId ? `tidal-${t.albumId}` : undefined,
+              artistId: t.artistId ? `tidal-${t.artistId}` : undefined,
+              albumArt: t.artwork_url || undefined,
+              duration: Number(t.duration || 0),
+              source: 'tidal',
+              type: 'track',
+              uri: t.lmsUri || t.uri || `tidal://${t.id}`,
+              // We use lmsTrackId as the "thing to add to LMS playlist" in this flow.
+              // For Tidal, that should be the plugin URI.
+              lmsTrackId: (t.lmsUri || t.uri || `tidal://${t.id}`) as string,
+            }));
+          }
         }
-        pool = Array.from(selectedIndices).map((idx) => tracks[idx]);
+      } catch (e) {
+        console.warn('[Shuffle] Failed to fetch Tidal track sample:', e instanceof Error ? e.message : String(e));
+        tidalTracks = [];
       }
 
-      console.log(`[Shuffle] Selected ${pool.length} tracks from ${tracks.length} available`);
+      // Decide how many to pull from each source (prefer a mix when Tidal is available)
+      const localAvail = tracks.length;
+      const tidalAvail = tidalTracks.length;
+      let tidalTarget = tidalAvail > 0 ? Math.min(tidalAvail, Math.floor(TARGET_TRACKS * 0.5)) : 0;
+      let localTarget = TARGET_TRACKS - tidalTarget;
+      if (localAvail < localTarget) {
+        const missing = localTarget - localAvail;
+        localTarget = localAvail;
+        tidalTarget = Math.min(tidalAvail, tidalTarget + missing);
+      }
+      if (tidalAvail < tidalTarget) {
+        const missing = tidalTarget - tidalAvail;
+        tidalTarget = tidalAvail;
+        localTarget = Math.min(localAvail, localTarget + missing);
+      }
+
+      const sample = <T,>(arr: T[], n: number): T[] => {
+        if (n <= 0) return [];
+        if (arr.length <= n) return [...arr];
+        const picked = new Set<number>();
+        while (picked.size < n) picked.add(Math.floor(Math.random() * arr.length));
+        return Array.from(picked).map((i) => arr[i]);
+      };
+
+      const localSample = sample(tracks, localTarget);
+      const tidalSample = sample(tidalTracks, tidalTarget);
+      const pool = [...localSample, ...tidalSample];
+
+      console.log(
+        `[Shuffle] Selected ${pool.length} tracks (local=${localSample.length}, tidal=${tidalSample.length}) from (local=${tracks.length}, tidal=${tidalTracks.length}) available`
+      );
 
       // Shuffle the pool using Fisher-Yates algorithm
       const shuffled = [...pool];

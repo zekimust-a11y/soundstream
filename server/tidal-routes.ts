@@ -825,6 +825,91 @@ export function registerTidalRoutes(app: Express): void {
     }
   });
 
+  /**
+   * Fetch a larger sample of the user's Tidal track collection (paged via cursor).
+   * Note: OpenAPI appears to ignore large page[size] values in some environments (often returning 20),
+   * so we follow `links.next` until we reach the requested sample size or hit rate limits.
+   */
+  app.get("/api/tidal/tracks/sample", async (req: Request, res: Response) => {
+    const t = requireTokens(res);
+    if (!t) return;
+    if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
+
+    const requested = parseInt(String(req.query.limit || "300"), 10);
+    const limit = Math.min(1000, Math.max(1, Number.isFinite(requested) ? requested : 300));
+    const maxRequests = Math.min(80, Math.max(1, parseInt(String(req.query.maxRequests || "60"), 10) || 60));
+
+    try {
+      const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
+      let nextUrl: string | null =
+        `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+          t.userId
+        )}/relationships/tracks?include=tracks,tracks.albums,tracks.artists,tracks.albums.coverArt&countryCode=${encodeURIComponent(
+          countryCode
+        )}&page[size]=100`;
+
+      const items: any[] = [];
+      const seen = new Set<string>();
+      let requests = 0;
+      let rateLimited = false;
+
+      while (nextUrl && items.length < limit && requests < maxRequests) {
+        requests += 1;
+        try {
+          const data = await openApiGet(nextUrl, t.accessToken);
+          const included: any[] = Array.isArray(data?.included) ? data.included : [];
+          const tracksById = new Map<string, any>(included.filter((x) => x?.type === "tracks").map((x) => [String(x.id), x]));
+          const albumsById = new Map<string, any>(included.filter((x) => x?.type === "albums").map((x) => [String(x.id), x]));
+          const artistsById = new Map<string, any>(included.filter((x) => x?.type === "artists").map((x) => [String(x.id), x]));
+          const artworksById = new Map<string, any>(included.filter((x) => x?.type === "artworks").map((x) => [String(x.id), x]));
+          const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
+
+          for (const rel of dataArr) {
+            const trackId = String(rel?.id || "");
+            if (!trackId || seen.has(trackId)) continue;
+            seen.add(trackId);
+            const track = tracksById.get(trackId);
+            const artistId = track?.relationships?.artists?.data?.[0]?.id ? String(track.relationships.artists.data[0].id) : "";
+            const artist = artistsById.get(artistId);
+            const albumId = track?.relationships?.albums?.data?.[0]?.id ? String(track.relationships.albums.data[0].id) : "";
+            const album = albumsById.get(albumId);
+            const artworkId = album?.relationships?.coverArt?.data?.[0]?.id ? String(album.relationships.coverArt.data[0].id) : "";
+            const artwork = artworksById.get(artworkId);
+            items.push({
+              id: trackId,
+              title: track?.attributes?.title || "Track",
+              artist: artist?.attributes?.name || track?.attributes?.artistName || "Unknown Artist",
+              artistId,
+              album: album?.attributes?.title || track?.attributes?.albumName || "Unknown Album",
+              albumId,
+              duration: track?.attributes?.duration ? Number(track.attributes.duration) : 0,
+              artwork_url: pickArtworkUrl(artwork, "320x320"),
+              uri: `tidal://${trackId}`,
+              lmsUri: `tidal://${trackId}`,
+              source: "tidal",
+            });
+            if (items.length >= limit) break;
+          }
+
+          const next = data?.links?.next;
+          nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : null;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          // If we get rate-limited, return whatever we have so the client can still proceed.
+          if (msg.includes("Tidal OpenAPI error: 429")) {
+            rateLimited = true;
+            break;
+          }
+          throw err;
+        }
+      }
+
+      return res.json({ items, total: items.length, rateLimited, requests });
+    } catch (e) {
+      return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
   app.get("/api/tidal/albums/:albumId/tracks", async (req: Request, res: Response) => {
     const t = requireTokens(res);
     if (!t) return;
