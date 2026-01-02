@@ -428,7 +428,9 @@ export default function AllAlbumsScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText style={styles.headerTitle}>Albums ({filteredAlbums.length})</ThemedText>
+        <ThemedText style={styles.headerTitle}>
+          Albums ({(total || 0).toLocaleString()})
+        </ThemedText>
         <View style={styles.viewToggle}>
           <Pressable
             style={[
