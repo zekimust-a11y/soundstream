@@ -782,12 +782,22 @@ export default function NowPlayingScreen() {
                 />
               )}
               <View style={styles.artworkBadges}>
-                {currentTrack.source === "qobuz" ? (
+                {!currentTrack.isRadio && currentTrack.source === "tidal" ? (
                   <Image
-                    source={require("../assets/images/qobuz-icon.png")}
-                    style={styles.qobuzIconBadge}
+                    source={require("../assets/images/tidal-icon.png")}
+                    style={styles.sourceIconBadge}
                     contentFit="contain"
                   />
+                ) : !currentTrack.isRadio && currentTrack.source === "qobuz" ? (
+                  <Image
+                    source={require("../assets/images/qobuz-icon.png")}
+                    style={styles.sourceIconBadge}
+                    contentFit="contain"
+                  />
+                ) : !currentTrack.isRadio && currentTrack.source === "local" ? (
+                  <View style={styles.sourceIconBadge}>
+                    <Feather name="folder" size={20} color="#000000" />
+                  </View>
                 ) : null}
               </View>
             </Pressable>
@@ -1355,12 +1365,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-end",
   },
-  qobuzIconBadge: {
+  sourceIconBadge: {
     width: 32,
     height: 32,
     borderRadius: 6,
     backgroundColor: "rgba(255, 255, 255, 0.95)",
     padding: 4,
+    justifyContent: "center",
+    alignItems: "center",
   },
   qualityOverlay: {
     backgroundColor: "rgba(0, 0, 0, 0.75)",
