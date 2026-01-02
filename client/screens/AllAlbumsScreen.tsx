@@ -220,6 +220,7 @@ export default function AllAlbumsScreen() {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [qualityFilter, setQualityFilter] = useState<QualityKey>("all");
   const [albumQuality, setAlbumQuality] = useState<Record<string, QualityKey>>({});
+  const [textFilter, setTextFilter] = useState("");
   
   console.log(`🎵 AllAlbumsScreen: allAlbums.length=${allAlbums.length}, total=${total}, hasNextPage=${hasNextPage}`);
 
@@ -265,6 +266,14 @@ export default function AllAlbumsScreen() {
     if (sourceFilter !== "all") {
       result = result.filter((a) => (a.source || "local") === sourceFilter);
     }
+    const q = textFilter.trim().toLowerCase();
+    if (q) {
+      result = result.filter((a) => {
+        const name = (a.name || "").toLowerCase();
+        const artist = (a.artist || "").toLowerCase();
+        return name.includes(q) || artist.includes(q);
+      });
+    }
     if (qualityFilter !== "all") {
       result = result.filter((a) => {
         const src = (a.source || "local") as string;
@@ -285,7 +294,7 @@ export default function AllAlbumsScreen() {
       result.sort((a, b) => (b.year || 0) - (a.year || 0));
     }
     return result;
-  }, [allAlbums, sourceFilter, sortKey, qualityFilter]);
+  }, [allAlbums, sourceFilter, sortKey, qualityFilter, textFilter]);
 
   const gridLayout = useMemo(() => {
     const padding = Spacing.lg;
@@ -489,6 +498,10 @@ export default function AllAlbumsScreen() {
           { value: "unknown", label: "Unknown" },
         ]}
         onQualityChange={(v) => setQualityFilter(v as QualityKey)}
+        showSearch
+        searchQuery={textFilter}
+        onSearchQueryChange={setTextFilter}
+        searchPlaceholder="Filter albums…"
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
         showViewToggle

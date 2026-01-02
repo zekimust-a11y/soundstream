@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, View, Pressable } from "react-native";
+import { StyleSheet, View, Pressable, TextInput } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { SelectMenu, type SelectOption } from "@/components/SelectMenu";
@@ -26,6 +26,11 @@ type LibraryToolbarProps = {
   showQuality?: boolean;
   qualityDisabled?: boolean;
 
+  searchQuery?: string;
+  onSearchQueryChange?: (value: string) => void;
+  searchPlaceholder?: string;
+  showSearch?: boolean;
+
   viewMode?: ViewMode;
   onViewModeChange?: (mode: ViewMode) => void;
   showViewToggle?: boolean;
@@ -51,6 +56,10 @@ export function LibraryToolbar({
   onQualityChange,
   showQuality = true,
   qualityDisabled,
+  searchQuery,
+  onSearchQueryChange,
+  searchPlaceholder = "Filter…",
+  showSearch = false,
   viewMode,
   onViewModeChange,
   showViewToggle = true,
@@ -72,6 +81,31 @@ export function LibraryToolbar({
             onChange={onQualityChange}
             disabled={qualityDisabled || qualityOptions.length <= 1}
           />
+        ) : null}
+
+        {showSearch && typeof searchQuery === "string" && onSearchQueryChange ? (
+          <View style={styles.searchBox}>
+            <Feather name="search" size={16} color={Colors.light.textSecondary} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={onSearchQueryChange}
+              placeholder={searchPlaceholder}
+              placeholderTextColor={Colors.light.textTertiary}
+              style={styles.searchInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+              clearButtonMode="while-editing"
+            />
+            {searchQuery.length > 0 ? (
+              <Pressable
+                onPress={() => onSearchQueryChange("")}
+                style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+                hitSlop={8}
+              >
+                <Feather name="x" size={16} color={Colors.light.textSecondary} />
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
       </View>
 
@@ -119,6 +153,26 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     flexWrap: "wrap",
   },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.light.backgroundDefault,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.light.border,
+    minWidth: 180,
+    maxWidth: 320,
+    flexGrow: 1,
+  },
+  searchInput: {
+    flex: 1,
+    color: Colors.light.text,
+    paddingVertical: 0,
+    outlineStyle: "none",
+  } as any,
   viewToggle: {
     flexDirection: "row",
     alignItems: "center",
