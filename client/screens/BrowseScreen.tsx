@@ -794,7 +794,8 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
   },
   headerLeft: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
   },
   headerTitle: {
     ...Typography.title,
@@ -805,7 +806,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     gap: Spacing.sm,
-    flex: 1,
   },
   headerButton: {
     width: 40,
