@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
 
 type TidalTokens = {
   accessToken: string;
@@ -33,6 +34,9 @@ const TIDAL_FALLBACK_IDS = [
 let currentClientIdIndex = 0;
 let tokens: TidalTokens | null = null;
 const sessionsByState = new Map<string, TidalAuthSession>();
+
+type CachedPlayback = { url: string; expiresAt: number };
+const playbackUrlCache = new Map<string, CachedPlayback>();
 
 function base64Url(buf: Buffer): string {
   return buf
@@ -366,6 +370,92 @@ function mapOpenApiTrackFromItem(item: any, includedMap: Record<string, Record<s
     lmsUri: `tidal://track:${id}`,
     source: "tidal",
   };
+}
+
+function getBaseUrlFromRequest(req: Request): string {
+  const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "http";
+  const host = req.get("host");
+  return `${proto}://${host}`;
+}
+
+async function getTidalPlaybackStreamUrl(opts: {
+  trackId: string;
+  accessToken: string;
+  countryCode: string;
+  audioQuality?: "LOW" | "HIGH" | "LOSSLESS" | "HI_RES";
+}): Promise<string> {
+  const { trackId, accessToken, countryCode } = opts;
+  const audioQuality = opts.audioQuality || "LOSSLESS";
+
+  const cacheKey = `${trackId}:${audioQuality}:${countryCode}`;
+  const cached = playbackUrlCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+
+  // Primary: playback info endpoint (commonly returns a base64 manifest with signed URLs)
+  const candidates: string[] = [
+    `https://api.tidal.com/v1/tracks/${encodeURIComponent(
+      trackId
+    )}/playbackinfopostpaywall?countryCode=${encodeURIComponent(
+      countryCode
+    )}&audioquality=${encodeURIComponent(audioQuality)}&playbackmode=STREAM&assetpresentation=FULL`,
+    // Fallback: older streamUrl endpoint (some clients still use this)
+    `https://api.tidal.com/v1/tracks/${encodeURIComponent(
+      trackId
+    )}/streamUrl?countryCode=${encodeURIComponent(countryCode)}&soundQuality=${encodeURIComponent(audioQuality)}`,
+  ];
+
+  let lastErr: string | null = null;
+  for (const url of candidates) {
+    try {
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(15000),
+      });
+      const text = await resp.text();
+      if (!resp.ok) {
+        lastErr = `Tidal playback info error: ${resp.status} - ${text.substring(0, 200)}`;
+        continue;
+      }
+
+      const data: any = JSON.parse(text);
+
+      // Some variants return direct url fields
+      const direct =
+        data?.url ||
+        data?.streamUrl ||
+        data?.streamUrl?.url ||
+        data?.trackUrl ||
+        data?.urls?.[0];
+      if (typeof direct === "string" && direct.startsWith("http")) {
+        playbackUrlCache.set(cacheKey, { url: direct, expiresAt: Date.now() + 60_000 });
+        return direct;
+      }
+
+      // playbackinfopostpaywall often returns a base64 manifest we can decode
+      if (typeof data?.manifest === "string" && data.manifest.length > 20) {
+        try {
+          const manifestText = Buffer.from(data.manifest, "base64").toString("utf-8");
+          // Manifest can be JSON (common) or XML (DASH). We only support JSON here.
+          const manifestJson = JSON.parse(manifestText);
+          const urls: any[] = manifestJson?.urls || manifestJson?.Url || manifestJson?.URL || [];
+          const u = Array.isArray(urls) ? urls.find((x) => typeof x === "string" && x.startsWith("http")) : undefined;
+          if (typeof u === "string") {
+            playbackUrlCache.set(cacheKey, { url: u, expiresAt: Date.now() + 60_000 });
+            return u;
+          }
+          lastErr = `Unsupported manifest format (no urls): ${manifestText.substring(0, 120)}`;
+        } catch (e) {
+          lastErr = `Failed to parse playback manifest: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
+
+      lastErr = `Playback info response did not include a direct URL (keys: ${Object.keys(data || {}).slice(0, 20).join(",")})`;
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  throw new Error(lastErr || "Failed to resolve Tidal playback URL");
 }
 
 export function registerTidalRoutes(app: Express): void {
@@ -897,6 +987,57 @@ export function registerTidalRoutes(app: Express): void {
       ]);
 
       res.json({ albums, artists, tracks, playlists });
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  /**
+   * Proxy a playable Tidal audio stream for LMS.
+   * LMS cannot attach OAuth headers, so we resolve a signed URL on the server and stream bytes over plain HTTP.
+   */
+  app.get("/api/tidal/stream/track/:trackId", async (req: Request, res: Response) => {
+    const t = requireTokens(res);
+    if (!t) return;
+    const trackId = String(req.params.trackId).replace(/^tidal-/, "").replace(/^tidal:/, "");
+    if (!trackId) return res.status(400).json({ error: "Missing trackId" });
+
+    try {
+      const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
+      const directUrl = await getTidalPlaybackStreamUrl({
+        trackId,
+        accessToken: t.accessToken,
+        countryCode,
+        audioQuality: "LOSSLESS",
+      });
+
+      const range = req.headers.range;
+      const upstreamResp = await fetch(directUrl, {
+        headers: range ? { Range: range } : undefined,
+        signal: AbortSignal.timeout(20000),
+      });
+
+      // Forward status (200/206)
+      res.status(upstreamResp.status);
+      const passthroughHeaders = ["content-type", "content-length", "accept-ranges", "content-range"];
+      for (const h of passthroughHeaders) {
+        const v = upstreamResp.headers.get(h);
+        if (v) res.setHeader(h, v);
+      }
+      res.setHeader("cache-control", "no-store");
+
+      if (!upstreamResp.body) return res.end();
+
+      // Node fetch returns a web ReadableStream; convert to Node stream.
+      const nodeStream = Readable.fromWeb(upstreamResp.body as any);
+      nodeStream.on("error", () => {
+        try {
+          res.end();
+        } catch {
+          // ignore
+        }
+      });
+      nodeStream.pipe(res);
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }

@@ -7,6 +7,7 @@ import { roonVolumeClient } from "@/lib/roonVolumeClient";
 import { debugLog } from "@/lib/debugLog";
 import { useSettings } from "@/hooks/useSettings";
 import { useMusic } from "@/hooks/useMusic";
+import { getApiUrl } from "@/lib/query-client";
 
 export interface Zone {
   id: string;
@@ -1293,26 +1294,36 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
         // --- TIDAL fast-paths (explicit LMS commands) ---
         // We avoid relying on Qobuz codepaths; for Tidal we send clear → load url → play.
-        if (track.source === 'tidal' && track.uri) {
-          // LMS needs a Tidal plugin/app to resolve `tidal://...` URIs.
-          // Without it, LMS can appear to "play" but actually continues (or falls back to) local queue.
-          const hasTidalApp = await lmsClient.supportsTidalApp();
-          if (!hasTidalApp) {
-            debugLog.error('Tidal playback unavailable', 'LMS does not have Tidal app/plugin enabled');
+        if (track.source === 'tidal') {
+          // IMPORTANT: On this LMS, TIDAL plugin JSON-RPC calls can drop the connection, and
+          // `tidal://...` URLs do not reliably resolve. So we proxy a plain HTTP audio stream from
+          // our server (which can attach OAuth / resolve signed URLs) and ask LMS to play that.
+          const rawId =
+            (track.uri && track.uri.startsWith("tidal://track:") ? track.uri.replace("tidal://track:", "") : "") ||
+            (track.id?.startsWith("tidal-track-") ? track.id.replace("tidal-track-", "") : "");
+          if (!rawId) {
+            Alert.alert("Error", "Missing Tidal track id.");
+            return;
+          }
+
+          const apiBase = getApiUrl();
+          const streamUrl = `${apiBase}/api/tidal/stream/track/${encodeURIComponent(rawId)}`;
+
+          debugLog.info('Playing Tidal track via LMS (stream proxy)', `URL: ${streamUrl}`);
+          await lmsClient.clearPlaylist(activePlayer.id);
+          await lmsClient.playUrl(activePlayer.id, streamUrl);
+
+          // Verify we actually loaded something before hitting play, to avoid falling back to local queue.
+          const statusAfterLoad = await lmsClient.getPlayerStatus(activePlayer.id);
+          if (!statusAfterLoad.playlistLength || statusAfterLoad.playlistLength <= 0) {
+            debugLog.error('Tidal stream failed to load', 'LMS playlist is empty after load');
             Alert.alert(
-              'Tidal playback not available in LMS',
-              'Install/enable the Tidal plugin in Logitech Media Server, then try again.\n\nUntil then, Soundstream can browse Tidal but cannot play it through LMS.'
+              'Tidal playback failed',
+              'LMS could not load the Tidal stream.\n\nPlease confirm Soundstream is still connected to Tidal, then try again.'
             );
             return;
           }
 
-          // Always start playback immediately by loading the selected track URI.
-          // (Some LMS Tidal plugin installs may not support `tidal://album:*` reliably.)
-          debugLog.info('Playing Tidal track via LMS', `URI: ${track.uri}`);
-          await lmsClient.clearPlaylist(activePlayer.id);
-          await lmsClient.playUrl(activePlayer.id, track.uri);
-          // Force LMS to jump to the newly-loaded item. Without this, `play` can resume the
-          // previously-playing track even after a `cmd:load`.
           await lmsClient.playPlaylistIndex(activePlayer.id, 0);
           await lmsClient.play(activePlayer.id);
 
@@ -1322,8 +1333,14 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
             const trackIndex = tracks.findIndex((t) => t.id === track.id);
             const remainder = trackIndex >= 0 ? tracks.slice(trackIndex + 1) : tracks.filter((t) => t.id !== track.id);
             for (const t of remainder) {
-              if (t.source === 'tidal' && t.uri) {
-                await lmsClient.addTrackToPlaylist(activePlayer.id, t.uri);
+              if (t.source === 'tidal') {
+                const tid =
+                  (t.uri && t.uri.startsWith("tidal://track:") ? t.uri.replace("tidal://track:", "") : "") ||
+                  (t.id?.startsWith("tidal-track-") ? t.id.replace("tidal-track-", "") : "");
+                if (tid) {
+                  const url = `${apiBase}/api/tidal/stream/track/${encodeURIComponent(tid)}`;
+                  await lmsClient.addTrackToPlaylist(activePlayer.id, url);
+                }
               }
             }
           }
