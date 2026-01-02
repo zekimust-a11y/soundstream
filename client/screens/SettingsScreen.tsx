@@ -799,9 +799,6 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Library</ThemedText>
           <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
-            <ThemedText style={[styles.libraryStatus, { color: theme.textSecondary }]}>
-              {activeServer ? `Connected to ${activeServer.name}` : "No server connected"}
-            </ThemedText>
             {activeServer && (
               <>
                 <View style={styles.libraryStatsTable}>
@@ -1336,115 +1333,6 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>DAC Volume Control</ThemedText>
-          <View style={[styles.sectionContent, { backgroundColor: theme.backgroundDefault }]}>
-            <ThemedText style={[styles.hintText, { color: theme.textSecondary, marginBottom: Spacing.md, paddingHorizontal: Spacing.lg }]}>
-              Configure direct UPnP volume control for your DAC (e.g., dCS Varese). This allows volume control to work independently of the selected player.
-            </ThemedText>
-            
-            <View style={styles.dacInputRow}>
-              <View style={styles.dacInputGroup}>
-                <ThemedText style={[styles.inputLabel, { color: theme.text }]}>DAC IP Address</ThemedText>
-                <TextInput
-                  style={[styles.textInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
-                  placeholder="192.168.0.42"
-                  placeholderTextColor={theme.textTertiary}
-                  value={dacIp}
-                  onChangeText={setDacIp}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="default"
-                />
-              </View>
-              <View style={styles.dacPortGroup}>
-                <ThemedText style={[styles.inputLabel, { color: theme.text }]}>Port</ThemedText>
-                <TextInput
-                  style={[styles.textInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
-                  placeholder="80"
-                  placeholderTextColor={theme.textTertiary}
-                  value={dacPort}
-                  onChangeText={setDacPort}
-                  keyboardType="number-pad"
-                />
-              </View>
-            </View>
-            
-            <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
-              <ThemedText style={[styles.inputLabel, { color: theme.text }]}>DAC Name (Optional)</ThemedText>
-              <TextInput
-                style={[styles.textInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
-                placeholder="dCS Varese"
-                placeholderTextColor={theme.textTertiary}
-                value={dacName}
-                onChangeText={setDacName}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-            
-            <View style={styles.dacToggleRow}>
-              <ThemedText style={[styles.dacToggleLabel, { color: theme.text }]}>
-                Enable DAC Volume Control
-              </ThemedText>
-              <Switch
-                value={dacEnabled}
-                onValueChange={(value) => {
-                  // Only update local state - don't save until user clicks "Save DAC Configuration"
-                  setDacEnabled(value);
-                }}
-                trackColor={{
-                  false: Colors.light.backgroundTertiary,
-                  true: Colors.light.accent,
-                }}
-                thumbColor={Colors.light.text}
-              />
-            </View>
-            
-            {dacConfig && dacConfig.enabled && dacVolume !== undefined ? (
-              <View style={[styles.dacStatusRow, { borderColor: theme.accent, backgroundColor: theme.accent + '10' }]}>
-                <Feather name="check-circle" size={18} color={theme.success} />
-                <ThemedText style={[styles.dacStatusText, { color: theme.text }]}>
-                  Connected - Current Volume: {dacVolume}%
-                </ThemedText>
-              </View>
-            ) : dacConfig && dacConfig.enabled ? (
-              <View style={[styles.dacStatusRow, { borderColor: theme.textTertiary }]}>
-                <Feather name="alert-circle" size={18} color={theme.textTertiary} />
-                <ThemedText style={[styles.dacStatusText, { color: theme.textSecondary }]}>
-                  Configured but not connected
-                </ThemedText>
-              </View>
-            ) : null}
-            
-            <View style={{ paddingHorizontal: Spacing.lg, marginTop: Spacing.md }}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.connectButton,
-                  { 
-                    backgroundColor: theme.accentSecondary,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-                onPress={() => {
-                  if (dacIp) {
-                    setDacConfig({
-                      enabled: dacEnabled,
-                      ip: dacIp,
-                      port: parseInt(dacPort) || 80,
-                      name: dacName || "DAC",
-                    });
-                    Alert.alert("DAC Configuration", "DAC settings saved successfully!");
-                  } else {
-                    Alert.alert("Error", "Please enter a DAC IP address");
-                  }
-                }}
-              >
-                <ThemedText style={[styles.connectButtonText, { color: theme.buttonText }]}>
-                  Save DAC Configuration
-                </ThemedText>
-              </Pressable>
-            </View>
-          </View>
         </View>
 
         <View style={styles.section}>
@@ -1915,13 +1803,13 @@ const styles = StyleSheet.create({
   },
   statsHeaderCell: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
   },
   statsCell: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 14,
     textAlign: "center",
   },
   radioRow: {
