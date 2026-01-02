@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,9 +25,16 @@ type TidalAuthSession = {
   platform: "web" | "mobile";
 };
 
-// Store tokens in a stable location relative to this file (so restarts from different CWDs still find them).
-// `server/` -> project root -> `.tidal-tokens.json`
-const TIDAL_TOKENS_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".tidal-tokens.json");
+// Persist state outside the repo so `git reset --hard` deployments don't delete auth state.
+const SOUNDSTREAM_STATE_DIR = process.env.SOUNDSTREAM_STATE_DIR || path.join(os.homedir(), ".soundstream");
+try {
+  fs.mkdirSync(SOUNDSTREAM_STATE_DIR, { recursive: true });
+} catch {
+  // best-effort; will fail later with a clearer error if we can't write
+}
+
+const TIDAL_TOKENS_FILE = path.join(SOUNDSTREAM_STATE_DIR, ".tidal-tokens.json");
+const TIDAL_SESSIONS_FILE = path.join(SOUNDSTREAM_STATE_DIR, ".tidal-oauth-sessions.json");
 
 // Fallback client IDs (these must be valid TIDAL developer client IDs)
 const TIDAL_FALLBACK_IDS = [
@@ -40,6 +48,60 @@ const TIDAL_FALLBACK_IDS = [
 let currentClientIdIndex = 0;
 let tokens: TidalTokens | null = null;
 const sessionsByState = new Map<string, TidalAuthSession>();
+
+function pruneSessions(now: number = Date.now()) {
+  // 30 minutes should be plenty for a human login; keeps file small and limits exposure window.
+  const MAX_AGE_MS = 30 * 60_000;
+  for (const [k, v] of sessionsByState.entries()) {
+    if (!v?.createdAt || now - v.createdAt > MAX_AGE_MS) sessionsByState.delete(k);
+  }
+}
+
+function loadSessionsFromDisk(): void {
+  try {
+    if (!fs.existsSync(TIDAL_SESSIONS_FILE)) return;
+    const raw = fs.readFileSync(TIDAL_SESSIONS_FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+    const entries: any[] = Array.isArray(parsed.entries) ? parsed.entries : [];
+    for (const e of entries) {
+      if (!e || typeof e !== "object") continue;
+      if (typeof e.state !== "string" || !e.state) continue;
+      if (typeof e.codeVerifier !== "string" || !e.codeVerifier) continue;
+      if (typeof e.clientId !== "string" || !e.clientId) continue;
+      if (typeof e.oauthRedirectUri !== "string" || !e.oauthRedirectUri) continue;
+      if (typeof e.appRedirectUri !== "string" || !e.appRedirectUri) continue;
+      const platform = e.platform === "web" ? "web" : "mobile";
+      sessionsByState.set(e.state, {
+        createdAt: typeof e.createdAt === "number" ? e.createdAt : Date.now(),
+        clientId: e.clientId,
+        oauthRedirectUri: e.oauthRedirectUri,
+        appRedirectUri: e.appRedirectUri,
+        codeVerifier: e.codeVerifier,
+        state: e.state,
+        platform,
+      });
+    }
+    pruneSessions();
+  } catch {
+    // ignore
+  }
+}
+
+function saveSessionsToDisk(): void {
+  try {
+    pruneSessions();
+    const payload = {
+      savedAt: Date.now(),
+      entries: Array.from(sessionsByState.values()),
+    };
+    const tmp = `${TIDAL_SESSIONS_FILE}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), "utf-8");
+    fs.renameSync(tmp, TIDAL_SESSIONS_FILE);
+  } catch {
+    // ignore; worst case iOS login needs retry
+  }
+}
 
 
 function base64Url(buf: Buffer): string {
@@ -107,13 +169,16 @@ function resolveClientIdFromRequest(
 
 function loadTokensFromDisk(): void {
   try {
-    // Prefer the stable path, but also support legacy "cwd-based" tokens for migration.
-    const legacyPath = path.resolve(process.cwd(), ".tidal-tokens.json");
+    // Prefer the stable path, but also support legacy locations for migration.
+    const legacyCwdPath = path.resolve(process.cwd(), ".tidal-tokens.json");
+    const legacyRepoPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".tidal-tokens.json");
     const pathToRead = fs.existsSync(TIDAL_TOKENS_FILE)
       ? TIDAL_TOKENS_FILE
-      : fs.existsSync(legacyPath)
-        ? legacyPath
-        : null;
+      : fs.existsSync(legacyRepoPath)
+        ? legacyRepoPath
+        : fs.existsSync(legacyCwdPath)
+          ? legacyCwdPath
+          : null;
     if (!pathToRead) return;
 
     const raw = fs.readFileSync(pathToRead, "utf-8");
@@ -454,6 +519,7 @@ function mapOpenApiTrackFromItem(item: any, includedMap: Record<string, Record<s
 
 export function registerTidalRoutes(app: Express): void {
   loadTokensFromDisk();
+  loadSessionsFromDisk();
 
   // In-memory cache to avoid hammering Tidal OpenAPI (which rate-limits aggressively).
   // Keyed by userId + endpoint + params. This is per-process (fine for our single `.21` host).
@@ -582,6 +648,7 @@ export function registerTidalRoutes(app: Express): void {
       state,
       platform,
     });
+    saveSessionsToDisk();
 
     const authUrl = `https://login.tidal.com/authorize?${params.toString()}`;
     res.json({ authUrl, redirectUri: appRedirectUri, state, platform, preset, clientId, clientIdIndex });
@@ -632,6 +699,7 @@ export function registerTidalRoutes(app: Express): void {
       state,
       platform,
     });
+    saveSessionsToDisk();
 
     const authUrl = `https://login.tidal.com/authorize?${params.toString()}`;
     return res.redirect(authUrl);
@@ -649,10 +717,28 @@ export function registerTidalRoutes(app: Express): void {
     if (!code) {
       return res.status(400).send(`<html><body><h2>Tidal auth error</h2><p>Missing code</p></body></html>`);
     }
+    if (state && !sessionsByState.has(state)) {
+      // Best-effort reload (handles server restarts between auth-url and callback).
+      loadSessionsFromDisk();
+    }
     if (!state || !sessionsByState.has(state)) {
-      return res
-        .status(400)
-        .send(`<html><body><h2>Tidal auth error</h2><p>Invalid or missing state</p></body></html>`);
+      // If this is iOS, still try to bounce back into the app so it can show a nicer error.
+      if (code) {
+        const deepLink = `soundstream://callback?code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ""}`;
+        return res.status(200).send(`<!doctype html>
+<html>
+  <head><meta charset="utf-8" /><title>Tidal auth error</title></head>
+  <body>
+    <h2>Tidal auth error</h2>
+    <p>Invalid or missing state. Returning to Soundstream…</p>
+    <script>
+      try { window.location.href = ${JSON.stringify(deepLink)}; } catch (e) {}
+    </script>
+    <p>If you are not redirected automatically, close this window and try again.</p>
+  </body>
+</html>`);
+      }
+      return res.status(400).send(`<html><body><h2>Tidal auth error</h2><p>Invalid or missing state</p></body></html>`);
     }
 
     try {
@@ -717,6 +803,11 @@ export function registerTidalRoutes(app: Express): void {
     if (state && sessionsByState.has(state)) {
       session = sessionsByState.get(state);
     } else {
+      // If we restarted between auth-url and callback, reload sessions from disk.
+      loadSessionsFromDisk();
+      if (state && sessionsByState.has(state)) {
+        session = sessionsByState.get(state);
+      }
       // Find most recent session (best-effort)
       const newest = Array.from(sessionsByState.values()).sort((a, b) => b.createdAt - a.createdAt)[0];
       session = newest;
