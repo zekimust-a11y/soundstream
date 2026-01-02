@@ -4,10 +4,10 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Dimensions,
   ActivityIndicator,
   ActionSheetIOS,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -19,14 +19,12 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { SourceBadge } from "@/components/SourceBadge";
+import { AlbumArtwork } from "@/components/AlbumArtwork";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback, type Track } from "@/hooks/usePlayback";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
-
-const { width } = Dimensions.get("window");
-const ALBUM_ART_SIZE = width * 0.6;
 
 type RouteProps = RouteProp<BrowseStackParamList, "Album">;
 
@@ -54,6 +52,7 @@ export default function AlbumScreen() {
   const navigation = useNavigation();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
+  const { width: windowWidth } = useWindowDimensions();
   const { getAlbumTracks, addToRecentlyPlayed } = useMusic();
   const { playTrack, addToQueue, currentTrack, isPlaying } = usePlayback();
 
@@ -166,6 +165,14 @@ export default function AlbumScreen() {
     addToRecentlyPlayed(track);
   };
 
+  const isDesktop = Platform.OS === "web" && windowWidth >= 900;
+  const maxContentWidth = isDesktop ? 1180 : undefined;
+  const albumArtSize = (() => {
+    if (!isDesktop) return Math.max(180, Math.round(windowWidth * 0.6));
+    const ideal = Math.round(windowWidth * 0.28);
+    return Math.max(260, Math.min(420, ideal));
+  })();
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView
@@ -175,53 +182,61 @@ export default function AlbumScreen() {
           { paddingTop: headerHeight + Spacing.xl, paddingBottom: tabBarHeight + Spacing["5xl"] },
         ]}
       >
-        <View style={styles.albumHeader}>
-          <View style={styles.albumArtContainer}>
-            <Image
-              source={albumImageUrl || require("../assets/images/placeholder-album.png")}
-              style={styles.albumArt}
-              contentFit="cover"
-            />
-            <SourceBadge source={albumSource} size={24} />
+        <View style={[styles.pageContainer, maxContentWidth ? { maxWidth: maxContentWidth } : null]}>
+          <View style={[styles.albumHeader, isDesktop ? styles.albumHeaderDesktop : null]}>
+            <View style={[styles.albumArtContainer, { width: albumArtSize }]}>
+              <AlbumArtwork
+                source={albumImageUrl}
+                style={[styles.albumArt, { width: albumArtSize, height: albumArtSize }]}
+                contentFit="cover"
+              />
+              <SourceBadge source={albumSource} size={24} />
+            </View>
+
+            <View style={[styles.albumInfo, isDesktop ? styles.albumInfoDesktop : null]}>
+              <ThemedText style={[styles.albumTitle, isDesktop ? styles.albumTitleDesktop : null]}>
+                {route.params.name}
+              </ThemedText>
+              <ThemedText style={[styles.albumArtist, isDesktop ? styles.albumArtistDesktop : null]}>
+                {route.params.artistName}
+              </ThemedText>
+              {tracks.length > 0 || allTracks.length > 0 ? (
+                <ThemedText style={[styles.albumMeta, isDesktop ? styles.albumMetaDesktop : null]}>
+                  {filter !== "all" && (
+                    <ThemedText style={[styles.albumMeta, { color: Colors.light.accent }]}>
+                      {filter === "cd" ? "CD Quality" : "Hi-Res"} •{" "}
+                    </ThemedText>
+                  )}
+                  {tracks.length} {tracks.length === 1 ? "track" : "tracks"}
+                  {filter !== "all" && allTracks.length > 0 && (
+                    <ThemedText style={[styles.albumMeta, { color: Colors.light.textTertiary }]}>
+                      {" "}(of {allTracks.length})
+                    </ThemedText>
+                  )}
+                </ThemedText>
+              ) : null}
+
+              <View style={[styles.actions, isDesktop ? styles.actionsDesktop : null]}>
+                <Button title="Play All" onPress={handlePlayAll} style={styles.playButton} disabled={tracks.length === 0}>
+                  <Feather name="play" size={18} color={Colors.light.buttonText} style={styles.playIcon} />
+                </Button>
+                <Pressable
+                  style={({ pressed }) => [styles.shuffleButton, { opacity: pressed ? 0.6 : 1 }]}
+                  onPress={() => {
+                    if (tracks.length > 0) {
+                      const randomIndex = Math.floor(Math.random() * tracks.length);
+                      playTrack(tracks[randomIndex], tracks);
+                    }
+                  }}
+                  disabled={tracks.length === 0}
+                >
+                  <Feather name="shuffle" size={20} color={Colors.light.accent} />
+                </Pressable>
+              </View>
+            </View>
           </View>
-          <ThemedText style={styles.albumTitle}>{route.params.name}</ThemedText>
-          <ThemedText style={styles.albumArtist}>{route.params.artistName}</ThemedText>
-          {tracks.length > 0 || allTracks.length > 0 ? (
-            <ThemedText style={styles.albumMeta}>
-              {filter !== "all" && (
-                <ThemedText style={[styles.albumMeta, { color: Colors.light.accent }]}>
-                  {filter === "cd" ? "CD Quality" : "Hi-Res"} •{" "}
-                </ThemedText>
-              )}
-              {tracks.length} {tracks.length === 1 ? "track" : "tracks"}
-              {filter !== "all" && allTracks.length > 0 && (
-                <ThemedText style={[styles.albumMeta, { color: Colors.light.textTertiary }]}>
-                  {" "}(of {allTracks.length})
-                </ThemedText>
-              )}
-            </ThemedText>
-          ) : null}
-        </View>
 
-        <View style={styles.actions}>
-          <Button title="Play All" onPress={handlePlayAll} style={styles.playButton} disabled={tracks.length === 0}>
-            <Feather name="play" size={18} color={Colors.light.buttonText} style={styles.playIcon} />
-          </Button>
-          <Pressable
-            style={({ pressed }) => [styles.shuffleButton, { opacity: pressed ? 0.6 : 1 }]}
-            onPress={() => {
-              if (tracks.length > 0) {
-                const randomIndex = Math.floor(Math.random() * tracks.length);
-                playTrack(tracks[randomIndex], tracks);
-              }
-            }}
-            disabled={tracks.length === 0}
-          >
-            <Feather name="shuffle" size={20} color={Colors.light.accent} />
-          </Pressable>
-        </View>
-
-        <View style={styles.trackList}>
+          <View style={styles.trackList}>
           {isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={Colors.light.accent} />
@@ -276,6 +291,7 @@ export default function AlbumScreen() {
               );
             })
           )}
+          </View>
         </View>
       </ScrollView>
     </ThemedView>
@@ -293,33 +309,63 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Spacing.lg,
   },
+  pageContainer: {
+    width: "100%",
+    alignSelf: "center",
+  },
   albumHeader: {
     alignItems: "center",
     marginBottom: Spacing["2xl"],
+  },
+  albumHeaderDesktop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    gap: Spacing["3xl"],
   },
   albumArtContainer: {
     position: "relative",
     marginBottom: Spacing.lg,
   },
   albumArt: {
-    width: ALBUM_ART_SIZE,
-    height: ALBUM_ART_SIZE,
     borderRadius: BorderRadius.xs,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  albumInfo: {
+    width: "100%",
+    alignItems: "center",
+  },
+  albumInfoDesktop: {
+    flex: 1,
+    alignItems: "flex-start",
+    paddingTop: Spacing.sm,
   },
   albumTitle: {
     ...Typography.title,
     color: Colors.light.text,
     textAlign: "center",
   },
+  albumTitleDesktop: {
+    textAlign: "left",
+    fontSize: 28,
+  },
   albumArtist: {
     ...Typography.body,
     color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
+    textAlign: "center",
+  },
+  albumArtistDesktop: {
+    textAlign: "left",
   },
   albumMeta: {
     ...Typography.caption,
     color: Colors.light.textTertiary,
     marginTop: Spacing.xs,
+    textAlign: "center",
+  },
+  albumMetaDesktop: {
+    textAlign: "left",
   },
   actions: {
     flexDirection: "row",
@@ -327,6 +373,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: Spacing.lg,
     marginBottom: Spacing["2xl"],
+  },
+  actionsDesktop: {
+    justifyContent: "flex-start",
+    marginTop: Spacing.lg,
+    marginBottom: 0,
   },
   playButton: {
     flexDirection: "row",
