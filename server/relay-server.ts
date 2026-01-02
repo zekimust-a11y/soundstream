@@ -436,7 +436,9 @@ function formatNowPlayingMessage(
   if (track.coverid) {
     imageUrl = `http://${LMS_HOST}:${LMS_PORT}/music/${track.coverid}/cover.jpg`;
   } else if (track.artwork_url) {
-    imageUrl = track.artwork_url;
+    // LMS (and plugins like TIDAL) often provide relative image paths (e.g. "/imageproxy/..." or "/music/...").
+    // The cast receiver runs on a different origin, so relative URLs would 404; normalize to an absolute LMS URL.
+    imageUrl = normalizeLmsImageUrl(String(track.artwork_url));
   }
 
   return {
