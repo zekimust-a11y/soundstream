@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, memo } from "react";
+import React, { useEffect, useState, useCallback, useRef, memo, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -24,6 +24,7 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { LibraryToolbar, type SourceFilter } from "@/components/LibraryToolbar";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { AlbumGridSkeleton, AlbumListSkeleton } from "@/components/SkeletonLoader";
 import { useMusic } from "@/hooks/useMusic";
@@ -40,6 +41,7 @@ const TILE_SIZE = GRID_ITEM_SIZE / 2;
 
 type NavigationProp = NativeStackNavigationProp<PlaylistsStackParamList>;
 type ViewMode = "grid" | "list";
+type SortKey = "name_az" | "tracks_desc";
 
 const VIEW_MODE_KEY = "@playlists_view_mode";
 const ARTWORK_CACHE_KEY = "@playlists_artworks";
@@ -258,6 +260,8 @@ export default function PlaylistsScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [sortKey, setSortKey] = useState<SortKey>("name_az");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
   const loadingArtworksRef = useRef<Set<string>>(new Set());
   const loadedArtworksRef = useRef<Set<string>>(new Set());
@@ -292,6 +296,38 @@ export default function PlaylistsScreen() {
     setViewMode(mode);
     AsyncStorage.setItem(VIEW_MODE_KEY, mode);
   };
+
+  const playlistSource = useCallback((p: LmsPlaylist): Exclude<SourceFilter, "all"> => {
+    const name = String(p.name || "").toLowerCase();
+    const url = String((p as any).url || "").toLowerCase();
+    const id = String(p.id || "").toLowerCase();
+    if (url.includes("soundcloud") || name.includes("soundcloud") || id.includes("soundcloud")) return "soundcloud";
+    if (url.includes("tidal") || name.includes("tidal") || id.startsWith("tidal-") || id.includes("tidal")) return "tidal";
+    return "local";
+  }, []);
+
+  const filteredPlaylists = useMemo(() => {
+    let result = contextPlaylists.slice();
+
+    // Respect integration toggles
+    result = result.filter((p) => {
+      const src = playlistSource(p);
+      if (src === "tidal" && !tidalEnabled) return false;
+      if (src === "soundcloud" && !soundcloudEnabled) return false;
+      return true;
+    });
+
+    if (sourceFilter !== "all") {
+      result = result.filter((p) => playlistSource(p) === sourceFilter);
+    }
+
+    if (sortKey === "name_az") {
+      result.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortKey === "tracks_desc") {
+      result.sort((a, b) => (Number(b.trackCount || 0) - Number(a.trackCount || 0)));
+    }
+    return result;
+  }, [contextPlaylists, playlistSource, sourceFilter, sortKey, tidalEnabled, soundcloudEnabled]);
 
   const hashString = (str: string): number => {
     let hash = 0;
@@ -498,16 +534,33 @@ export default function PlaylistsScreen() {
         </View>
       </View>
 
-      {isLoading && contextPlaylists.length === 0 ? (
+      <LibraryToolbar
+        sortValue={sortKey}
+        sortLabel="Sorting"
+        sortOptions={[
+          { label: "Name (A–Z)", value: "name_az" },
+          { label: "Tracks (most)", value: "tracks_desc" },
+        ]}
+        onSortChange={(v) => setSortKey(v as SortKey)}
+        sourceValue={sourceFilter}
+        onSourceChange={setSourceFilter}
+        showQuality={false}
+        qualityValue="all"
+        qualityOptions={[{ value: "all", label: "All" }]}
+        onQualityChange={() => {}}
+        showViewToggle={false}
+      />
+
+      {isLoading && filteredPlaylists.length === 0 ? (
         viewMode === "grid" ? <AlbumGridSkeleton /> : <AlbumListSkeleton />
       ) : (
         <FlatList
           key={viewMode}
-          data={contextPlaylists}
+          data={filteredPlaylists}
           renderItem={viewMode === "grid" ? renderGridItem : renderListItem}
           keyExtractor={(item) => item.id}
           numColumns={viewMode === "grid" ? NUM_COLUMNS : 1}
-          contentContainerStyle={[styles.gridContent, { paddingBottom: tabBarHeight + Spacing["5xl"] }, contextPlaylists.length === 0 && styles.emptyListContent]}
+          contentContainerStyle={[styles.gridContent, { paddingBottom: tabBarHeight + Spacing["5xl"] }, filteredPlaylists.length === 0 && styles.emptyListContent]}
           columnWrapperStyle={viewMode === "grid" ? styles.gridRow : undefined}
           ListEmptyComponent={renderEmptyState}
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={Colors.light.accent} />}

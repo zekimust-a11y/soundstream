@@ -1,4 +1,4 @@
-import React, { useCallback, memo, useState, useEffect } from "react";
+import React, { useCallback, memo, useState, useEffect, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -25,6 +25,7 @@ import Animated, {
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { SourceBadge } from "@/components/SourceBadge";
+import { LibraryToolbar, type SourceFilter } from "@/components/LibraryToolbar";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { useInfiniteAlbums, Album } from "@/hooks/useLibrary";
 
@@ -41,6 +42,8 @@ const GRID_ITEM_SIZE = (width - Spacing.lg * 4) / NUM_COLUMNS;
 
 type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
 type ViewMode = "grid" | "list";
+type SortKey = "name_az" | "artist_az" | "year_desc";
+type QualityKey = "all";
 
 const VIEW_MODE_KEY = "@albums_view_mode";
 
@@ -227,8 +230,26 @@ export default function AllAlbumsScreen() {
 
   const allAlbums = data?.pages.flatMap(page => page.albums) || [];
   const total = data?.pages[0]?.total || 0;
+  const [sortKey, setSortKey] = useState<SortKey>("name_az");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [qualityFilter, setQualityFilter] = useState<QualityKey>("all");
   
   console.log(`🎵 AllAlbumsScreen: allAlbums.length=${allAlbums.length}, total=${total}, hasNextPage=${hasNextPage}`);
+
+  const filteredAlbums = useMemo(() => {
+    let result = allAlbums.slice();
+    if (sourceFilter !== "all") {
+      result = result.filter((a) => (a.source || "local") === sourceFilter);
+    }
+    if (sortKey === "name_az") {
+      result.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortKey === "artist_az") {
+      result.sort((a, b) => a.artist.localeCompare(b.artist));
+    } else if (sortKey === "year_desc") {
+      result.sort((a, b) => (b.year || 0) - (a.year || 0));
+    }
+    return result;
+  }, [allAlbums, sourceFilter, sortKey]);
 
   const handlePlayAlbum = useCallback(async (album: Album) => {
     if (!activePlayer || !activeServer) return;
@@ -385,7 +406,7 @@ export default function AllAlbumsScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText style={styles.headerTitle}>Albums ({allAlbums.length})</ThemedText>
+        <ThemedText style={styles.headerTitle}>Albums ({filteredAlbums.length})</ThemedText>
         <View style={styles.viewToggle}>
           <Pressable
             style={[
@@ -416,6 +437,24 @@ export default function AllAlbumsScreen() {
         </View>
       </View>
 
+      <LibraryToolbar
+        sortValue={sortKey}
+        sortLabel="Sorting"
+        sortOptions={[
+          { label: "Album (A–Z)", value: "name_az" },
+          { label: "Artist (A–Z)", value: "artist_az" },
+          { label: "Year (newest)", value: "year_desc" },
+        ]}
+        onSortChange={(v) => setSortKey(v as SortKey)}
+        sourceValue={sourceFilter}
+        onSourceChange={setSourceFilter}
+        qualityValue={qualityFilter}
+        qualityOptions={[{ value: "all", label: "All" }]}
+        onQualityChange={(v) => setQualityFilter(v as QualityKey)}
+        showViewToggle={false}
+        qualityDisabled
+      />
+
       {!activeServer || (activeServer && !activeServer.connected) ? (
         <View style={styles.emptyState}>
           <Feather name="wifi-off" size={48} color={Colors.light.error} />
@@ -434,7 +473,7 @@ export default function AllAlbumsScreen() {
       ) : (
         <FlatList
           key={viewMode}
-          data={allAlbums}
+          data={filteredAlbums}
           renderItem={viewMode === "grid" ? renderGridItem : renderListItem}
           keyExtractor={keyExtractor}
           numColumns={viewMode === "grid" ? NUM_COLUMNS : 1}

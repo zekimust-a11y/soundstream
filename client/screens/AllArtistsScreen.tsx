@@ -24,7 +24,7 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { SortFilter, type SortOption } from "@/components/SortFilter";
+import { LibraryToolbar, type SourceFilter, type ViewMode } from "@/components/LibraryToolbar";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { ArtistGridSkeleton, AlbumListSkeleton } from "@/components/SkeletonLoader";
 import { useInfiniteArtists, Artist } from "@/hooks/useLibrary";
@@ -38,7 +38,8 @@ const NUM_COLUMNS = 3;
 const GRID_ITEM_SIZE = (width - Spacing.lg * 4) / NUM_COLUMNS;
 
 type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
-type ViewMode = "grid" | "list";
+type SortKey = "name_az" | "albums_desc" | "recently_played";
+type QualityKey = "all";
 
 const VIEW_MODE_KEY = "@artists_view_mode";
 const SORT_KEY = "@artists_sort";
@@ -198,7 +199,9 @@ export default function AllArtistsScreen() {
   const allArtists = data?.pages.flatMap(page => page.artists) || [];
   const total = data?.pages[0]?.total || 0;
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [sortOption, setSortOption] = useState<SortOption>("alphabetical");
+  const [sortKey, setSortKey] = useState<SortKey>("name_az");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [qualityFilter, setQualityFilter] = useState<QualityKey>("all");
 
   useEffect(() => {
     AsyncStorage.getItem(VIEW_MODE_KEY).then((mode) => {
@@ -207,8 +210,8 @@ export default function AllArtistsScreen() {
       }
     });
     AsyncStorage.getItem(SORT_KEY).then((sort) => {
-      if (sort === "alphabetical" || sort === "recently_played" || sort === "recently_added") {
-        setSortOption(sort);
+      if (sort === "name_az" || sort === "albums_desc" || sort === "recently_played") {
+        setSortKey(sort);
       }
     });
   }, []);
@@ -218,49 +221,43 @@ export default function AllArtistsScreen() {
     AsyncStorage.setItem(VIEW_MODE_KEY, mode);
   };
 
-  const handleSortChange = (sort: SortOption) => {
-    setSortOption(sort);
-    AsyncStorage.setItem(SORT_KEY, sort);
+  const handleSortChange = (k: SortKey) => {
+    setSortKey(k);
+    AsyncStorage.setItem(SORT_KEY, k);
   };
 
-  // Sort artists based on selected option
-  const artists = React.useMemo(() => {
-    const sorted = [...allArtists];
-    
-    if (sortOption === "alphabetical") {
-      sorted.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortOption === "recently_played") {
-      // Create a map of recently played artists
+  const filteredArtists = useMemo(() => {
+    let result = allArtists.slice();
+    // Artists data is currently local-only; keep Src dropdown but only 'All/Local' will be meaningful.
+    if (sourceFilter !== "all") {
+      // If in future we add per-source artists, filter here.
+      result = result.filter(() => sourceFilter === "local");
+    }
+    if (sortKey === "name_az") {
+      result.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortKey === "albums_desc") {
+      result.sort((a, b) => (b.albumCount || 0) - (a.albumCount || 0));
+    } else if (sortKey === "recently_played") {
       const recentlyPlayedMap = new Map<string, number>();
       recentlyPlayed.forEach((track, index) => {
         if (track.artist) {
           const key = track.artist.toLowerCase();
-          if (!recentlyPlayedMap.has(key)) {
-            recentlyPlayedMap.set(key, index);
-          }
+          if (!recentlyPlayedMap.has(key)) recentlyPlayedMap.set(key, index);
         }
       });
-      
-      sorted.sort((a, b) => {
+      result.sort((a, b) => {
         const keyA = a.name.toLowerCase();
         const keyB = b.name.toLowerCase();
         const indexA = recentlyPlayedMap.get(keyA) ?? Infinity;
         const indexB = recentlyPlayedMap.get(keyB) ?? Infinity;
-        
-        if (indexA === Infinity && indexB === Infinity) {
-          return a.name.localeCompare(b.name); // Both not played, sort alphabetically
-        }
-        if (indexA === Infinity) return 1; // A not played, B played
-        if (indexB === Infinity) return -1; // B not played, A played
-        return indexA - indexB; // Both played, sort by play order
+        if (indexA === Infinity && indexB === Infinity) return a.name.localeCompare(b.name);
+        if (indexA === Infinity) return 1;
+        if (indexB === Infinity) return -1;
+        return indexA - indexB;
       });
-    } else if (sortOption === "recently_added") {
-      // For recently added, we don't have this data, so fall back to alphabetical
-      sorted.sort((a, b) => a.name.localeCompare(b.name));
     }
-    
-    return sorted;
-  }, [allArtists, sortOption, recentlyPlayed]);
+    return result;
+  }, [allArtists, sortKey, sourceFilter, recentlyPlayed]);
 
   const handleArtistPress = useCallback((artist: Artist) => {
     navigation.navigate("Artist", { id: artist.id, name: artist.name });
@@ -338,38 +335,25 @@ export default function AllArtistsScreen() {
       <ThemedView style={styles.container}>
         <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
           <ThemedText style={styles.headerTitle}>Artists</ThemedText>
-          <View style={styles.headerRight}>
-            <SortFilter value={sortOption} onChange={handleSortChange} />
-            <View style={styles.viewToggle}>
-            <Pressable
-              style={[
-                styles.toggleButton,
-                viewMode === "grid" && styles.toggleButtonActive,
-              ]}
-              onPress={() => handleViewModeChange("grid")}
-            >
-              <Feather
-                name="grid"
-                size={18}
-                color={viewMode === "grid" ? Colors.light.accent : Colors.light.textSecondary}
-              />
-            </Pressable>
-            <Pressable
-              style={[
-                styles.toggleButton,
-                viewMode === "list" && styles.toggleButtonActive,
-              ]}
-              onPress={() => handleViewModeChange("list")}
-            >
-              <Feather
-                name="list"
-                size={18}
-                color={viewMode === "list" ? Colors.light.accent : Colors.light.textSecondary}
-              />
-            </Pressable>
-          </View>
-          </View>
         </View>
+        <LibraryToolbar
+          sortValue={sortKey}
+          sortLabel="Sorting"
+          sortOptions={[
+            { label: "Name (A–Z)", value: "name_az" },
+            { label: "Albums (most)", value: "albums_desc" },
+            { label: "Recently played", value: "recently_played" },
+          ]}
+          onSortChange={(v) => handleSortChange(v as SortKey)}
+          sourceValue={sourceFilter}
+          onSourceChange={setSourceFilter}
+          showQuality={false}
+          qualityValue={qualityFilter}
+          qualityOptions={[{ value: "all", label: "All" }]}
+          onQualityChange={() => {}}
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
+        />
         {viewMode === "grid" ? <ArtistGridSkeleton /> : <AlbumListSkeleton />}
       </ThemedView>
     );
@@ -390,43 +374,30 @@ export default function AllArtistsScreen() {
     <ThemedView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
         <ThemedText style={styles.headerTitle}>Artists</ThemedText>
-        <View style={styles.headerRight}>
-          <SortFilter value={sortOption} onChange={handleSortChange} />
-          <View style={styles.viewToggle}>
-          <Pressable
-            style={[
-              styles.toggleButton,
-              viewMode === "grid" && styles.toggleButtonActive,
-            ]}
-            onPress={() => handleViewModeChange("grid")}
-          >
-            <Feather
-              name="grid"
-              size={18}
-              color={viewMode === "grid" ? Colors.light.accent : Colors.light.textSecondary}
-            />
-          </Pressable>
-          <Pressable
-            style={[
-              styles.toggleButton,
-              viewMode === "list" && styles.toggleButtonActive,
-            ]}
-            onPress={() => handleViewModeChange("list")}
-          >
-            <Feather
-              name="list"
-              size={18}
-              color={viewMode === "list" ? Colors.light.accent : Colors.light.textSecondary}
-            />
-          </Pressable>
-        </View>
-        </View>
       </View>
+      <LibraryToolbar
+        sortValue={sortKey}
+        sortLabel="Sorting"
+        sortOptions={[
+          { label: "Name (A–Z)", value: "name_az" },
+          { label: "Albums (most)", value: "albums_desc" },
+          { label: "Recently played", value: "recently_played" },
+        ]}
+        onSortChange={(v) => handleSortChange(v as SortKey)}
+        sourceValue={sourceFilter}
+        onSourceChange={setSourceFilter}
+        showQuality={false}
+        qualityValue={qualityFilter}
+        qualityOptions={[{ value: "all", label: "All" }]}
+        onQualityChange={() => {}}
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+      />
 
       {viewMode === "grid" ? (
         <FlatList
           key="grid"
-          data={artists}
+          data={filteredArtists}
           renderItem={renderGridItem}
           keyExtractor={keyExtractor}
           numColumns={NUM_COLUMNS}
@@ -450,7 +421,7 @@ export default function AllArtistsScreen() {
       ) : (
       <FlatList
           key="list"
-        data={artists}
+          data={filteredArtists}
           renderItem={renderListItem}
         keyExtractor={keyExtractor}
         contentContainerStyle={[
