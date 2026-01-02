@@ -252,69 +252,51 @@ export default function BrowseScreen() {
       console.log(`[Shuffle] Adding ${trackIds.length} tracks to playlist...`);
       console.log(`[Shuffle] First few track IDs:`, trackIds.slice(0, 5));
 
-      // Add tracks in smaller batches with delays to avoid overwhelming LMS
-      const BATCH_SIZE = 20;
-      let addedCount = 0;
-      let failedCount = 0;
+      // Start playback ASAP:
+      // - Clear playlist
+      // - Add ONE track
+      // - Jump to index 0 and play
+      // Then enqueue the rest in the background so the first track starts quickly.
+      const firstId = trackIds[0];
+      const restIds = trackIds.slice(1);
 
-      for (let i = 0; i < trackIds.length; i += BATCH_SIZE) {
-        const batch = trackIds.slice(i, i + BATCH_SIZE);
-        console.log(`[Shuffle] Adding batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(trackIds.length / BATCH_SIZE)} (${batch.length} tracks})`);
-
-        // Add tracks in batch with Promise.all for speed, but catch individual errors
-        const results = await Promise.allSettled(
-          batch.map(trackId => lmsClient.addTrackToPlaylist(activePlayer.id, trackId))
-        );
-
-        results.forEach((result, idx) => {
-          if (result.status === 'fulfilled') {
-            addedCount++;
-          } else {
-            failedCount++;
-            console.warn(`[Shuffle] Failed to add track ${batch[idx]}:`, result.reason);
-          }
-        });
-
-        // Small delay between batches to avoid overwhelming the server
-        if (i + BATCH_SIZE < trackIds.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-
-      console.log(`[Shuffle] Added ${addedCount} of ${trackIds.length} tracks (${failedCount} failed)`);
-
-      if (addedCount === 0) {
-        Alert.alert(
-          'Failed to Add Tracks',
-          'No tracks could be added to the playlist. Please check your server connection and try again.'
-        );
-        setIsShuffling(false);
-        return;
-      }
-
-      // Wait for playlist to be ready
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Verify playlist has tracks before playing
-      const playlistStatus = await lmsClient.getPlayerStatus(activePlayer.id);
-      console.log(`[Shuffle] Playlist status: ${playlistStatus.playlistLength} tracks`);
-
-      if (playlistStatus.playlistLength === 0) {
-        Alert.alert(
-          'Playlist Empty',
-          'No tracks were added to the playlist. This may be a server issue. Please try again.'
-        );
-        setIsShuffling(false);
-        return;
-      }
-
-      // Ensure shuffle is enabled and start playback
-      await lmsClient.setShuffle(activePlayer.id, 1);
+      await lmsClient.addTrackToPlaylist(activePlayer.id, firstId);
+      await lmsClient.playPlaylistIndex(activePlayer.id, 0);
       await lmsClient.play(activePlayer.id);
 
-      console.log('[Shuffle] Playback started');
+      console.log('[Shuffle] Started playback (first track), queue will fill in background');
 
-      // Sync status so UI updates to the shuffled playback
+      // Stop the spinner once playback is kicked off (don't wait for 1000 adds).
+      setIsShuffling(false);
+
+      // Enqueue remaining tracks in small batches with light backpressure.
+      // Fire-and-forget so UI stays responsive.
+      setTimeout(async () => {
+        const BATCH_SIZE = 10;
+        let added = 1;
+        let failed = 0;
+        for (let i = 0; i < restIds.length; i += BATCH_SIZE) {
+          const batch = restIds.slice(i, i + BATCH_SIZE);
+          const results = await Promise.allSettled(
+            batch.map((id) => lmsClient.addTrackToPlaylist(activePlayer.id, id))
+          );
+          results.forEach((r, idx) => {
+            if (r.status === 'fulfilled') {
+              added += 1;
+            } else {
+              failed += 1;
+              console.warn(`[Shuffle] Failed to add track ${batch[idx]}:`, r.reason);
+            }
+          });
+          // Keep LMS responsive; small delay between batches.
+          if (i + BATCH_SIZE < restIds.length) {
+            await new Promise((resolve) => setTimeout(resolve, 120));
+          }
+        }
+        console.log(`[Shuffle] Queue fill complete: added=${added}/${trackIds.length}, failed=${failed}`);
+      }, 0);
+
+      // Sync status so UI updates quickly
       setTimeout(() => {
         syncPlayerStatus();
       }, 500);
@@ -327,9 +309,11 @@ export default function BrowseScreen() {
         [{ text: 'OK' }]
       );
     } finally {
+      // Note: in the success path we already set this to false after starting playback.
+      // Keep the safety net for error paths.
       setIsShuffling(false);
     }
-  }, [activePlayer, activeServer, isShuffling, playTrack]);
+  }, [activePlayer, activeServer, isShuffling, playTrack, syncPlayerStatus, tidalConnected, tidalEnabled]);
 
   const handleRecentItemPress = useCallback(
     async (item: RecentItem) => {
