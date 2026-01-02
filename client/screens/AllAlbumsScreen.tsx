@@ -261,8 +261,9 @@ export default function AllAlbumsScreen() {
       return { numColumns: cols, itemSize: Math.max(90, size) };
     }
 
-    const min = 150;
-    const max = 240;
+    // Desktop tiles: slightly larger for big screens (user request ~15% bigger covers)
+    const min = 170;
+    const max = 280;
     let cols = Math.max(3, Math.min(10, Math.floor((available + gap) / (min + gap)) || 3));
     let size = (available - gap * (cols - 1)) / cols;
     while (size > max && cols < 10) {

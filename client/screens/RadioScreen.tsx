@@ -4,9 +4,9 @@ import {
   StyleSheet,
   FlatList,
   Pressable,
-  Dimensions,
   ActivityIndicator,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -27,10 +27,6 @@ import { useFavoriteRadios } from "@/hooks/useLibrary";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback, type Track } from "@/hooks/usePlayback";
 import { lmsClient } from "@/lib/lmsClient";
-
-const { width } = Dimensions.get("window");
-const NUM_COLUMNS = 3;
-const GRID_ITEM_SIZE = (width - Spacing.lg * 4) / NUM_COLUMNS;
 
 type ViewMode = "grid" | "list";
 
@@ -53,8 +49,9 @@ interface RadioStation {
   image?: string;
 }
 
-const RadioGridCard = memo(({ station, onPlay, baseUrl }: { 
+const RadioGridCard = memo(({ station, size, onPlay, baseUrl }: { 
   station: RadioStation; 
+  size: number;
   onPlay: () => void;
   baseUrl: string;
 }) => {
@@ -82,7 +79,7 @@ const RadioGridCard = memo(({ station, onPlay, baseUrl }: {
   }));
 
   return (
-    <Animated.View style={[styles.gridItem, cardAnimatedStyle]}>
+    <Animated.View style={[styles.gridItem, { width: size }, cardAnimatedStyle]}>
       <View style={styles.gridImageContainer}>
         <AnimatedPressable
           style={cardAnimatedStyle}
@@ -98,12 +95,12 @@ const RadioGridCard = memo(({ station, onPlay, baseUrl }: {
           {imageUrl ? (
             <Image
               source={imageUrl}
-              style={styles.gridImage}
+              style={[styles.gridImage, { width: size, height: size }]}
               contentFit="cover"
             />
           ) : (
-            <View style={styles.gridImagePlaceholder}>
-              <Feather name="radio" size={GRID_ITEM_SIZE * 0.3} color={Colors.light.textTertiary} />
+            <View style={[styles.gridImagePlaceholder, { width: size, height: size }]}>
+              <Feather name="radio" size={Math.max(20, size * 0.3)} color={Colors.light.textTertiary} />
             </View>
           )}
         </AnimatedPressable>
@@ -193,6 +190,7 @@ export default function RadioScreen() {
   const { activeServer } = useMusic();
   const { activePlayer, syncPlayerStatus, setCurrentTrack } = usePlayback();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const { width: windowWidth } = useWindowDimensions();
 
   useEffect(() => {
     AsyncStorage.getItem(VIEW_MODE_KEY).then((mode) => {
@@ -206,6 +204,29 @@ export default function RadioScreen() {
   const baseUrl = activeServer 
     ? `http://${activeServer.host}:${activeServer.port}`
     : 'http://localhost:9000';
+
+  const gridLayout = React.useMemo(() => {
+    const padding = Spacing.lg;
+    const gap = Spacing.lg;
+    const available = Math.max(0, windowWidth - padding * 2);
+
+    if (Platform.OS !== "web") {
+      const cols = 3;
+      const size = Math.floor((available - gap * (cols - 1)) / cols);
+      return { numColumns: cols, itemSize: Math.max(90, size) };
+    }
+
+    // Desktop/web: allow more columns, larger tiles.
+    const min = 150;
+    const max = 260;
+    let cols = Math.max(3, Math.min(10, Math.floor((available + gap) / (min + gap)) || 3));
+    let size = (available - gap * (cols - 1)) / cols;
+    while (size > max && cols < 10) {
+      cols += 1;
+      size = (available - gap * (cols - 1)) / cols;
+    }
+    return { numColumns: cols, itemSize: Math.floor(Math.max(min, Math.min(max, size))) };
+  }, [windowWidth]);
 
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
@@ -296,10 +317,11 @@ export default function RadioScreen() {
   const renderGridItem = useCallback(({ item }: { item: RadioStation }) => (
     <RadioGridCard 
       station={item} 
+      size={gridLayout.itemSize}
       onPlay={() => handlePlayStation(item)}
       baseUrl={baseUrl}
     />
-  ), [handlePlayStation, baseUrl]);
+  ), [handlePlayStation, baseUrl, gridLayout.itemSize]);
 
   const renderListItem = useCallback(({ item }: { item: RadioStation }) => (
     <RadioListRow 
@@ -396,11 +418,11 @@ export default function RadioScreen() {
         </View>
       ) : viewMode === "grid" ? (
         <FlatList
-          key="grid"
+          key={`grid-${gridLayout.numColumns}`}
           data={stations}
           renderItem={renderGridItem}
           keyExtractor={keyExtractor}
-          numColumns={NUM_COLUMNS}
+          numColumns={gridLayout.numColumns}
           contentContainerStyle={[
             styles.gridContent,
             { 
@@ -487,7 +509,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   gridItem: {
-    width: GRID_ITEM_SIZE,
+    // width is set dynamically (gridLayout.itemSize) to be responsive on web
   },
   gridImageContainer: {
     position: "relative",
@@ -495,13 +517,9 @@ const styles = StyleSheet.create({
     ...Shadows.small,
   },
   gridImage: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
     borderRadius: BorderRadius.xs,
   },
   gridImagePlaceholder: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
     borderRadius: BorderRadius.xs,
     backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: "center",

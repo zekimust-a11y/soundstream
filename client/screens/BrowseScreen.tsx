@@ -7,6 +7,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -38,6 +40,7 @@ export default function BrowseScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
+  const { width: windowWidth } = useWindowDimensions();
   const {
     recentlyPlayed,
     recentlyPlayedItems,
@@ -62,6 +65,15 @@ export default function BrowseScreen() {
   const [tidalMixes, setTidalMixes] = useState<any[]>([]);
 
   // (Tidal browse data is loaded below in a single effect to avoid duplicate requests + rate limiting.)
+
+  // Keep all artwork tiles on Browse the same size, and scale a bit up on desktop/web.
+  const browseTileSize = useMemo(() => {
+    if (Platform.OS === "web") {
+      // Clamp: small enough to fit many tiles, big enough to avoid "tiny covers" on large screens.
+      return Math.round(Math.max(110, Math.min(140, windowWidth / 12)));
+    }
+    return 110;
+  }, [windowWidth]);
 
   const recentItems: RecentItem[] = useMemo(() => {
     const items: RecentItem[] = [];
@@ -496,13 +508,14 @@ export default function BrowseScreen() {
                       key={item.id}
                       style={({ pressed }) => [
                         styles.smallCard,
+                        { width: browseTileSize },
                         { opacity: pressed ? 0.6 : 1 },
                       ]}
                       onPress={() => handleRecentItemPress(item)}
                     >
                     <AlbumArtwork
                       source={item.artwork}
-                      style={styles.smallImage}
+                      style={[styles.smallImage, { width: browseTileSize, height: browseTileSize }]}
                       contentFit="cover"
                     />
                       <ThemedText
@@ -533,13 +546,14 @@ export default function BrowseScreen() {
                     key={item.id}
                     style={({ pressed }) => [
                       styles.smallCard,
+                      { width: browseTileSize },
                       { opacity: pressed ? 0.6 : 1 },
                     ]}
                     onPress={() => handleRecentItemPress(item)}
                   >
                   <AlbumArtwork
                     source={track.albumArt}
-                    style={styles.smallImage}
+                    style={[styles.smallImage, { width: browseTileSize, height: browseTileSize }]}
                     contentFit="cover"
                   />
                     <ThemedText
@@ -577,6 +591,7 @@ export default function BrowseScreen() {
                   key={mix.id}
                   style={({ pressed }) => [
                     styles.smallCard,
+                    { width: browseTileSize },
                     { opacity: pressed ? 0.6 : 1 },
                   ]}
                   onPress={() => {
@@ -589,7 +604,7 @@ export default function BrowseScreen() {
                 >
                   <AlbumArtwork
                     source={mix.artwork_url}
-                    style={styles.smallImage}
+                    style={[styles.smallImage, { width: browseTileSize, height: browseTileSize }]}
                     contentFit="cover"
                   />
                   <ThemedText style={styles.smallTitle} numberOfLines={1}>
@@ -636,6 +651,7 @@ export default function BrowseScreen() {
                   key={artist.id}
                   style={({ pressed }) => [
                     styles.smallCard,
+                    { width: browseTileSize },
                     { opacity: pressed ? 0.7 : 1 },
                   ]}
                   onPress={() =>
@@ -648,11 +664,11 @@ export default function BrowseScreen() {
                   {artist.imageUrl ? (
                     <Image
                       source={artist.imageUrl}
-                      style={styles.artistImageRound}
+                      style={[styles.artistImageRound, { width: browseTileSize, height: browseTileSize, borderRadius: browseTileSize / 2 }]}
                       contentFit="cover"
                     />
                   ) : (
-                    <View style={styles.artistImageRoundPlaceholder}>
+                    <View style={[styles.artistImageRoundPlaceholder, { width: browseTileSize, height: browseTileSize, borderRadius: browseTileSize / 2 }]}>
                       <Feather
                         name="user"
                         size={32}
@@ -669,7 +685,7 @@ export default function BrowseScreen() {
                 </Pressable>
               ))}
               {isFetchingNextPage && (
-                <View style={[styles.smallCard, { justifyContent: 'center', alignItems: 'center' }]}>
+                <View style={[styles.smallCard, { width: browseTileSize, justifyContent: 'center', alignItems: 'center' }]}>
                   <ActivityIndicator size="small" color={Colors.light.textSecondary} />
                 </View>
               )}
@@ -694,6 +710,7 @@ export default function BrowseScreen() {
                     key={album.id}
                     style={({ pressed }) => [
                       styles.smallCard,
+                      { width: browseTileSize },
                       { opacity: pressed ? 0.7 : 1 },
                     ]}
                     onPress={() => {
@@ -707,7 +724,7 @@ export default function BrowseScreen() {
                   >
                     <AlbumArtwork
                       source={album.artwork_url}
-                      style={styles.smallImage}
+                      style={[styles.smallImage, { width: browseTileSize, height: browseTileSize }]}
                       contentFit="cover"
                     />
                     <ThemedText style={styles.smallTitle} numberOfLines={1}>
@@ -722,11 +739,12 @@ export default function BrowseScreen() {
                 <Pressable
                   style={({ pressed }) => [
                     styles.smallCard,
+                    { width: browseTileSize },
                     { opacity: pressed ? 0.7 : 1 },
                   ]}
                   onPress={() => navigation.navigate('TidalBrowse')}
                 >
-                  <View style={[styles.artistImageRoundPlaceholder, { backgroundColor: '#000000' }]}>
+                  <View style={[styles.artistImageRoundPlaceholder, { width: browseTileSize, height: browseTileSize, borderRadius: browseTileSize / 2, backgroundColor: '#000000' }]}>
                     <Feather name="music" size={32} color="white" />
                   </View>
                   <ThemedText style={styles.smallTitle} numberOfLines={1}>
@@ -740,11 +758,12 @@ export default function BrowseScreen() {
                 <Pressable
                   style={({ pressed }) => [
                     styles.smallCard,
+                    { width: browseTileSize },
                     { opacity: pressed ? 0.7 : 1 },
                   ]}
                   onPress={() => navigation.navigate('Settings')}
                 >
-                  <View style={[styles.artistImageRoundPlaceholder, { backgroundColor: '#1DB954' }]}>
+                  <View style={[styles.artistImageRoundPlaceholder, { width: browseTileSize, height: browseTileSize, borderRadius: browseTileSize / 2, backgroundColor: '#1DB954' }]}>
                     <Feather name="log-in" size={32} color="white" />
                   </View>
                   <ThemedText style={styles.smallTitle} numberOfLines={1}>
@@ -821,13 +840,14 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.lg,
   },
   smallCard: {
-    width: 100,
+    // Width is set dynamically via browseTileSize for consistent sizing across sections
   },
   smallImage: {
-    width: 100,
-    height: 100,
     borderRadius: BorderRadius.sm,
     marginBottom: Spacing.xs,
+    backgroundColor: Colors.light.backgroundSecondary,
+    alignItems: "center",
+    justifyContent: "center",
   },
   smallTitle: {
     ...Typography.caption,
@@ -839,15 +859,9 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   artistImageRound: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
     marginBottom: Spacing.xs,
   },
   artistImageRoundPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
     backgroundColor: "#4A4A4E",
     justifyContent: "center",
     alignItems: "center",
