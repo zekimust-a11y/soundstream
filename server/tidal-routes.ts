@@ -218,14 +218,36 @@ function requireTokens(res: Response): TidalTokens | null {
 async function openApiGet(url: string, accessToken: string): Promise<any> {
   const resp = await fetch(url, {
     headers: {
+      // IMPORTANT: For TIDAL OpenAPI v2, GET requests should only include Authorization.
+      // Adding Accept/Content-Type can cause unexpected 404/403 behavior.
       Authorization: `Bearer ${accessToken}`,
-      Accept: "application/json",
     },
     signal: AbortSignal.timeout(20000),
   });
   const text = await resp.text();
   if (!resp.ok) throw new Error(`Tidal OpenAPI error: ${resp.status} - ${text.substring(0, 200)}`);
   return JSON.parse(text);
+}
+
+function openApiUrlFromPath(pathOrUrl: string): string {
+  if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) return pathOrUrl;
+  if (pathOrUrl.startsWith("/v2/")) return `https://openapi.tidal.com${pathOrUrl}`;
+  if (pathOrUrl.startsWith("/")) return `https://openapi.tidal.com/v2${pathOrUrl}`;
+  return `https://openapi.tidal.com/v2/${pathOrUrl}`;
+}
+
+function normalizeOpenApiNextLink(next: string): string {
+  // OpenAPI often returns links like "/userCollections/..." (missing "/v2" prefix).
+  if (next.startsWith("http://") || next.startsWith("https://")) return next;
+  if (next.startsWith("/userCollections") || next.startsWith("/albums") || next.startsWith("/playlists") || next.startsWith("/userRecommendations")) {
+    return `https://openapi.tidal.com/v2${next}`;
+  }
+  if (next.startsWith("/v2/")) return `https://openapi.tidal.com${next}`;
+  return `https://openapi.tidal.com${next}`;
+}
+
+async function openApiGetByPath(pathOrUrl: string, accessToken: string): Promise<any> {
+  return openApiGet(openApiUrlFromPath(pathOrUrl), accessToken);
 }
 
 function deriveCountryCodeFromAccessToken(accessToken: string): string | undefined {
@@ -528,8 +550,36 @@ export function registerTidalRoutes(app: Express): void {
     const t = requireTokens(res);
     if (!t) return;
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
-    // TODO: Implement via api.tidal.com once we confirm the correct mixes endpoint for THIRD_PARTY tokens.
-    return res.json({ items: [], total: 0 });
+    try {
+      const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
+      const url = `https://openapi.tidal.com/v2/userRecommendations/${encodeURIComponent(
+        t.userId
+      )}/relationships/myMixes?include=mixes,mixes.coverArt&countryCode=${encodeURIComponent(countryCode)}`;
+      const data = await openApiGet(url, t.accessToken);
+      const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
+      const included: any[] = Array.isArray(data?.included) ? data.included : [];
+      const mixesById = new Map<string, any>(included.filter((x) => x?.type === "mixes").map((x) => [String(x.id), x]));
+      const artworksById = new Map<string, any>(included.filter((x) => x?.type === "artworks").map((x) => [String(x.id), x]));
+
+      const items = dataArr.map((rel: any) => {
+        const mixId = String(rel.id);
+        const mix = mixesById.get(mixId);
+        const artworkId = mix?.relationships?.coverArt?.data?.[0]?.id ? String(mix.relationships.coverArt.data[0].id) : "";
+        const artwork = artworksById.get(artworkId);
+        return {
+          id: mixId,
+          title: mix?.attributes?.title || "Mix",
+          description: mix?.attributes?.subTitle || "",
+          artwork_url: pickArtworkUrl(artwork, "320x320"),
+          lmsUri: `tidal://mix:${mixId}`,
+          source: "tidal",
+        };
+      });
+
+      res.json({ items, total: items.length });
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
   });
 
   app.get("/api/tidal/albums", async (req: Request, res: Response) => {
@@ -537,43 +587,43 @@ export function registerTidalRoutes(app: Express): void {
     if (!t) return;
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
 
-    const limit = Math.min(5000, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
-    const offset = Math.max(0, parseInt(String(req.query.offset || "0"), 10));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
+    // NOTE: OpenAPI uses cursor pagination, not offset. We currently treat offset as unsupported.
     try {
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const resp = await tidalApiGet(
-        `/v2/users/${encodeURIComponent(t.userId)}/favorites/albums?limit=${limit}&offset=${offset}`,
-        t.accessToken,
+      const url = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+        t.userId
+      )}/relationships/albums?include=albums,albums.artists,albums.coverArt&countryCode=${encodeURIComponent(
         countryCode
-      );
-      if (resp.status === 403 && isMissingRUsrScope(resp.json || resp.text)) {
-        return res.status(409).json({
-          error: "Tidal token missing required legacy scope r_usr. Reconnect using preset=legacy.",
-          needsReauth: true,
-          preset: "legacy",
-        });
-      }
-      if (resp.status < 200 || resp.status >= 300) {
-        return res.status(500).json({ error: `Tidal API error: ${resp.status} - ${resp.text.substring(0, 200)}` });
-      }
-      const list: any[] = Array.isArray(resp.json?.items) ? resp.json.items : Array.isArray(resp.json?.data) ? resp.json.data : [];
-      const items = list.map((a: any) => {
-        const artist = a?.artist?.name || a?.artists?.[0]?.name || "Unknown Artist";
-        const artistId = a?.artist?.id ? String(a.artist.id) : a?.artists?.[0]?.id ? String(a.artists[0].id) : "";
-        const cover = a?.cover || a?.image || null;
+      )}&page[size]=${limit}`;
+      const data = await openApiGet(url, t.accessToken);
+
+      const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
+      const included: any[] = Array.isArray(data?.included) ? data.included : [];
+      const albumsById = new Map<string, any>(included.filter((x) => x?.type === "albums").map((x) => [String(x.id), x]));
+      const artistsById = new Map<string, any>(included.filter((x) => x?.type === "artists").map((x) => [String(x.id), x]));
+      const artworksById = new Map<string, any>(included.filter((x) => x?.type === "artworks").map((x) => [String(x.id), x]));
+
+      const items = dataArr.map((rel: any) => {
+        const albumId = String(rel.id);
+        const album = albumsById.get(albumId);
+        const artistId = album?.relationships?.artists?.data?.[0]?.id ? String(album.relationships.artists.data[0].id) : "";
+        const artist = artistsById.get(artistId);
+        const artworkId = album?.relationships?.coverArt?.data?.[0]?.id ? String(album.relationships.coverArt.data[0].id) : "";
+        const artwork = artworksById.get(artworkId);
         return {
-          id: String(a?.id),
-          title: a?.title || "Album",
-          artist,
+          id: albumId,
+          title: album?.attributes?.title || "Album",
+          artist: artist?.attributes?.name || album?.attributes?.artistName || "Unknown Artist",
           artistId,
-          year: a?.releaseDate ? new Date(a.releaseDate).getFullYear() : undefined,
-          numberOfTracks: a?.numberOfTracks,
-          artwork_url: cover,
-          lmsUri: `tidal://album:${a?.id}`,
+          year: album?.attributes?.releaseDate ? new Date(album.attributes.releaseDate).getFullYear() : undefined,
+          numberOfTracks: album?.attributes?.numberOfItems,
+          artwork_url: pickArtworkUrl(artwork, "320x320"),
+          lmsUri: `tidal://album:${albumId}`,
           source: "tidal",
         };
       });
-      res.json({ items, total: resp.json?.totalNumberOfItems || resp.json?.total || items.length });
+      res.json({ items, total: items.length });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
@@ -584,38 +634,30 @@ export function registerTidalRoutes(app: Express): void {
     if (!t) return;
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
 
-    const limit = Math.min(5000, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
-    const offset = Math.max(0, parseInt(String(req.query.offset || "0"), 10));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
     try {
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const resp = await tidalApiGet(
-        `/v2/users/${encodeURIComponent(t.userId)}/favorites/artists?limit=${limit}&offset=${offset}`,
-        t.accessToken,
-        countryCode
-      );
-      if (resp.status === 403 && isMissingRUsrScope(resp.json || resp.text)) {
-        return res.status(409).json({
-          error: "Tidal token missing required legacy scope r_usr. Reconnect using preset=legacy.",
-          needsReauth: true,
-          preset: "legacy",
-        });
-      }
-      if (resp.status < 200 || resp.status >= 300) {
-        return res.status(500).json({ error: `Tidal API error: ${resp.status} - ${resp.text.substring(0, 200)}` });
-      }
-      const list: any[] = Array.isArray(resp.json?.items) ? resp.json.items : Array.isArray(resp.json?.data) ? resp.json.data : [];
-      const items = list.map((a: any) => {
-        const picture = a?.picture || a?.image || null;
+      const url = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+        t.userId
+      )}/relationships/artists?include=artists&countryCode=${encodeURIComponent(countryCode)}&page[size]=${limit}`;
+      const data = await openApiGet(url, t.accessToken);
+      const included: any[] = Array.isArray(data?.included) ? data.included : [];
+      const artistsById = new Map<string, any>(included.filter((x) => x?.type === "artists").map((x) => [String(x.id), x]));
+      const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
+      const items = dataArr.map((rel: any) => {
+        const artistId = String(rel.id);
+        const artist = artistsById.get(artistId);
+        const picture = artist?.attributes?.picture?.[0]?.url || null;
         return {
-          id: String(a?.id),
-          name: a?.name || "Artist",
+          id: artistId,
+          name: artist?.attributes?.name || "Artist",
           picture,
           imageUrl: picture,
-          lmsUri: `tidal://artist:${a?.id}`,
+          lmsUri: `tidal://artist:${artistId}`,
           source: "tidal",
         };
       });
-      res.json({ items, total: resp.json?.totalNumberOfItems || resp.json?.total || items.length });
+      res.json({ items, total: items.length });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
@@ -626,40 +668,38 @@ export function registerTidalRoutes(app: Express): void {
     if (!t) return;
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
 
-    const limit = Math.min(5000, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
-    const offset = Math.max(0, parseInt(String(req.query.offset || "0"), 10));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
     try {
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const resp = await tidalApiGet(
-        `/v2/users/${encodeURIComponent(t.userId)}/playlists?limit=${limit}&offset=${offset}`,
-        t.accessToken,
+      const url = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+        t.userId
+      )}/relationships/playlists?include=playlists,playlists.coverArt&countryCode=${encodeURIComponent(
         countryCode
-      );
-      if (resp.status === 403 && isMissingRUsrScope(resp.json || resp.text)) {
-        return res.status(409).json({
-          error: "Tidal token missing required legacy scope r_usr. Reconnect using preset=legacy.",
-          needsReauth: true,
-          preset: "legacy",
-        });
-      }
-      if (resp.status < 200 || resp.status >= 300) {
-        return res.status(500).json({ error: `Tidal API error: ${resp.status} - ${resp.text.substring(0, 200)}` });
-      }
-      const list: any[] = Array.isArray(resp.json?.items) ? resp.json.items : Array.isArray(resp.json?.data) ? resp.json.data : [];
-      const items = list.map((p: any) => {
-        const cover = p?.squareImage || p?.image || p?.cover || null;
-        const pid = String(p?.uuid || p?.id);
+      )}&page[size]=${limit}`;
+      const data = await openApiGet(url, t.accessToken);
+      const included: any[] = Array.isArray(data?.included) ? data.included : [];
+      const playlistsById = new Map<string, any>(included.filter((x) => x?.type === "playlists").map((x) => [String(x.id), x]));
+      const artworksById = new Map<string, any>(included.filter((x) => x?.type === "artworks").map((x) => [String(x.id), x]));
+
+      const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
+      const items = dataArr.map((rel: any) => {
+        const playlistId = String(rel.id);
+        const playlist = playlistsById.get(playlistId);
+        const artworkId = playlist?.relationships?.coverArt?.data?.[0]?.id
+          ? String(playlist.relationships.coverArt.data[0].id)
+          : "";
+        const artwork = artworksById.get(artworkId);
         return {
-          id: pid,
-          title: p?.title || "Playlist",
-          description: p?.description || "",
-          numberOfTracks: p?.numberOfTracks,
-          artwork_url: cover,
-          lmsUri: `tidal://playlist:${pid}`,
+          id: playlistId,
+          title: playlist?.attributes?.name || playlist?.attributes?.title || "Playlist",
+          description: playlist?.attributes?.description || "",
+          numberOfTracks: playlist?.attributes?.numberOfItems,
+          artwork_url: pickArtworkUrl(artwork, "320x320"),
+          lmsUri: `tidal://playlist:${playlistId}`,
           source: "tidal",
         };
       });
-      res.json({ items, total: resp.json?.totalNumberOfItems || resp.json?.total || items.length });
+      res.json({ items, total: items.length });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
@@ -670,48 +710,46 @@ export function registerTidalRoutes(app: Express): void {
     if (!t) return;
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
 
-    const limit = Math.min(5000, Math.max(1, parseInt(String(req.query.limit || "200"), 10)));
-    const offset = Math.max(0, parseInt(String(req.query.offset || "0"), 10));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "200"), 10)));
     try {
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const resp = await tidalApiGet(
-        `/v2/users/${encodeURIComponent(t.userId)}/favorites/tracks?limit=${limit}&offset=${offset}`,
-        t.accessToken,
+      const url = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+        t.userId
+      )}/relationships/tracks?include=tracks,tracks.albums,tracks.artists,tracks.albums.coverArt&countryCode=${encodeURIComponent(
         countryCode
-      );
-      if (resp.status === 403 && isMissingRUsrScope(resp.json || resp.text)) {
-        return res.status(409).json({
-          error: "Tidal token missing required legacy scope r_usr. Reconnect using preset=legacy.",
-          needsReauth: true,
-          preset: "legacy",
-        });
-      }
-      if (resp.status < 200 || resp.status >= 300) {
-        return res.status(500).json({ error: `Tidal API error: ${resp.status} - ${resp.text.substring(0, 200)}` });
-      }
-      const list: any[] = Array.isArray(resp.json?.items) ? resp.json.items : Array.isArray(resp.json?.data) ? resp.json.data : [];
-      const items = list.map((tr: any) => {
-        const artist = tr?.artist?.name || tr?.artists?.[0]?.name || "Unknown Artist";
-        const artistId = tr?.artist?.id ? String(tr.artist.id) : tr?.artists?.[0]?.id ? String(tr.artists[0].id) : "";
-        const album = tr?.album?.title || tr?.album?.name || "Unknown Album";
-        const albumId = tr?.album?.id ? String(tr.album.id) : "";
-        const cover = tr?.album?.cover || tr?.cover || tr?.image || null;
-        const trackId = String(tr?.id);
+      )}&page[size]=${limit}`;
+      const data = await openApiGet(url, t.accessToken);
+      const included: any[] = Array.isArray(data?.included) ? data.included : [];
+      const tracksById = new Map<string, any>(included.filter((x) => x?.type === "tracks").map((x) => [String(x.id), x]));
+      const albumsById = new Map<string, any>(included.filter((x) => x?.type === "albums").map((x) => [String(x.id), x]));
+      const artistsById = new Map<string, any>(included.filter((x) => x?.type === "artists").map((x) => [String(x.id), x]));
+      const artworksById = new Map<string, any>(included.filter((x) => x?.type === "artworks").map((x) => [String(x.id), x]));
+      const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
+
+      const items = dataArr.map((rel: any) => {
+        const trackId = String(rel.id);
+        const track = tracksById.get(trackId);
+        const artistId = track?.relationships?.artists?.data?.[0]?.id ? String(track.relationships.artists.data[0].id) : "";
+        const artist = artistsById.get(artistId);
+        const albumId = track?.relationships?.albums?.data?.[0]?.id ? String(track.relationships.albums.data[0].id) : "";
+        const album = albumsById.get(albumId);
+        const artworkId = album?.relationships?.coverArt?.data?.[0]?.id ? String(album.relationships.coverArt.data[0].id) : "";
+        const artwork = artworksById.get(artworkId);
         return {
           id: trackId,
-          title: tr?.title || "Track",
-          artist,
+          title: track?.attributes?.title || "Track",
+          artist: artist?.attributes?.name || track?.attributes?.artistName || "Unknown Artist",
           artistId,
-          album,
+          album: album?.attributes?.title || track?.attributes?.albumName || "Unknown Album",
           albumId,
-          duration: tr?.duration || 0,
-          artwork_url: cover,
+          duration: track?.attributes?.duration ? Number(track.attributes.duration) : 0,
+          artwork_url: pickArtworkUrl(artwork, "320x320"),
           uri: `tidal://track:${trackId}`,
           lmsUri: `tidal://track:${trackId}`,
           source: "tidal",
         };
       });
-      res.json({ items, total: resp.json?.totalNumberOfItems || resp.json?.total || items.length });
+      res.json({ items, total: items.length });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
@@ -723,18 +761,13 @@ export function registerTidalRoutes(app: Express): void {
     const albumId = String(req.params.albumId);
     try {
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const resp = await tidalApiGet(`/v2/albums/${encodeURIComponent(albumId)}/tracks`, t.accessToken, countryCode);
-      if (resp.status === 403 && isMissingRUsrScope(resp.json || resp.text)) {
-        return res.status(409).json({
-          error: "Tidal token missing required legacy scope r_usr. Reconnect using preset=legacy.",
-          needsReauth: true,
-          preset: "legacy",
-        });
-      }
-      if (resp.status < 200 || resp.status >= 300) {
-        return res.status(500).json({ error: `Tidal API error: ${resp.status} - ${resp.text.substring(0, 200)}` });
-      }
-      return res.json(resp.json);
+      const url = `https://openapi.tidal.com/v2/albums/${encodeURIComponent(
+        albumId
+      )}/relationships/items?include=items,items.artists,items.albums,items.albums.coverArt&countryCode=${encodeURIComponent(
+        countryCode
+      )}&page[size]=100`;
+      const data = await openApiGet(url, t.accessToken);
+      return res.json(data);
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
@@ -746,22 +779,13 @@ export function registerTidalRoutes(app: Express): void {
     const playlistId = String(req.params.playlistId);
     try {
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const resp = await tidalApiGet(
-        `/v2/playlists/${encodeURIComponent(playlistId)}/tracks`,
-        t.accessToken,
+      const url = `https://openapi.tidal.com/v2/playlists/${encodeURIComponent(
+        playlistId
+      )}/relationships/items?include=items,items.artists,items.albums,items.albums.coverArt&countryCode=${encodeURIComponent(
         countryCode
-      );
-      if (resp.status === 403 && isMissingRUsrScope(resp.json || resp.text)) {
-        return res.status(409).json({
-          error: "Tidal token missing required legacy scope r_usr. Reconnect using preset=legacy.",
-          needsReauth: true,
-          preset: "legacy",
-        });
-      }
-      if (resp.status < 200 || resp.status >= 300) {
-        return res.status(500).json({ error: `Tidal API error: ${resp.status} - ${resp.text.substring(0, 200)}` });
-      }
-      return res.json(resp.json);
+      )}&page[size]=100`;
+      const data = await openApiGet(url, t.accessToken);
+      return res.json(data);
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
@@ -772,29 +796,33 @@ export function registerTidalRoutes(app: Express): void {
     if (!t) return;
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
     try {
+      // OpenAPI doesn’t provide a cheap "total count" field; count by walking cursors (bounded).
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const [albums, artists, tracks, playlists] = await Promise.all([
-        tidalApiGet(`/v2/users/${encodeURIComponent(t.userId)}/favorites/albums?limit=1&offset=0`, t.accessToken, countryCode),
-        tidalApiGet(`/v2/users/${encodeURIComponent(t.userId)}/favorites/artists?limit=1&offset=0`, t.accessToken, countryCode),
-        tidalApiGet(`/v2/users/${encodeURIComponent(t.userId)}/favorites/tracks?limit=1&offset=0`, t.accessToken, countryCode),
-        tidalApiGet(`/v2/users/${encodeURIComponent(t.userId)}/playlists?limit=1&offset=0`, t.accessToken, countryCode),
-      ]);
 
-      const anyMissing = [albums, artists, tracks, playlists].some((r) => r.status === 403 && isMissingRUsrScope(r.json || r.text));
-      if (anyMissing) {
-        return res.status(409).json({
-          error: "Tidal token missing required legacy scope r_usr. Reconnect using preset=legacy.",
-          needsReauth: true,
-          preset: "legacy",
-        });
+      async function countRelationship(rel: "albums" | "artists" | "tracks" | "playlists", maxItems = 5000): Promise<number> {
+        let count = 0;
+        let nextUrl = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+          t.userId!
+        )}/relationships/${rel}?countryCode=${encodeURIComponent(countryCode)}&page[size]=100`;
+        while (nextUrl && count < maxItems) {
+          const page = await openApiGet(nextUrl, t.accessToken);
+          const dataArr: any[] = Array.isArray(page?.data) ? page.data : [];
+          count += dataArr.length;
+          const next = page?.links?.next;
+          nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : "";
+          if (!nextUrl) break;
+        }
+        return count;
       }
 
-      res.json({
-        albums: albums.json?.totalNumberOfItems || albums.json?.total || 0,
-        artists: artists.json?.totalNumberOfItems || artists.json?.total || 0,
-        tracks: tracks.json?.totalNumberOfItems || tracks.json?.total || 0,
-        playlists: playlists.json?.totalNumberOfItems || playlists.json?.total || 0,
-      });
+      const [albums, artists, tracks, playlists] = await Promise.all([
+        countRelationship("albums"),
+        countRelationship("artists"),
+        countRelationship("tracks"),
+        countRelationship("playlists"),
+      ]);
+
+      res.json({ albums, artists, tracks, playlists });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
