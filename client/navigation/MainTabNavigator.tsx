@@ -292,7 +292,9 @@ const TrackIcon = ({ focused, size = 26 }: { focused: boolean; size?: number }) 
 export default function MainTabNavigator() {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
-  const isLargeWeb = Platform.OS === "web" && width >= 1100;
+  // Desktop layout (left sidebar + bottom now playing bar).
+  // Use a slightly lower breakpoint so common laptop widths (e.g. 1024) reliably get the desktop UI.
+  const isLargeWeb = Platform.OS === "web" && width >= 980;
 
   const tabScreenOptions = React.useMemo(() => {
     const tabBarStyle = isLargeWeb
