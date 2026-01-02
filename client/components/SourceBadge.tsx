@@ -27,9 +27,11 @@ export function SourceBadge({ source, size = 24 }: SourceBadgeProps) {
           contentFit="contain"
         />
       ) : source === "tidal" ? (
-        <View style={[styles.libraryIconContainer, { width: size - 4, height: size - 4 }]}>
-          <Feather name="music" size={size - 8} color="#ffffff" />
-        </View>
+        <Image
+          source={require("../assets/images/tidal-icon.png")}
+          style={[styles.icon, { width: size - 4, height: size - 4 }]}
+          contentFit="contain"
+        />
       ) : (
         <View style={[styles.libraryIconContainer, { width: size - 4, height: size - 4 }]}>
           <Feather name="folder" size={size - 8} color="#ffffff" />
