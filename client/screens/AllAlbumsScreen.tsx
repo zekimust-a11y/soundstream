@@ -39,7 +39,7 @@ import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
 type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
 type ViewMode = "grid" | "list";
 type SortKey = "name_az" | "artist_az" | "year_desc";
-type QualityKey = "all";
+type QualityKey = "all" | "cd" | "hires" | "lossy" | "unknown";
 
 const VIEW_MODE_KEY = "@albums_view_mode";
 
@@ -239,6 +239,8 @@ export default function AllAlbumsScreen() {
     if (sourceFilter !== "all") {
       result = result.filter((a) => (a.source || "local") === sourceFilter);
     }
+    // NOTE: Album-level quality is not reliably available from LMS's `albums` list.
+    // We still expose the dropdown for UX consistency; wiring a real album-quality index is a follow-up.
     if (sortKey === "name_az") {
       result.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortKey === "artist_az") {
@@ -247,7 +249,7 @@ export default function AllAlbumsScreen() {
       result.sort((a, b) => (b.year || 0) - (a.year || 0));
     }
     return result;
-  }, [allAlbums, sourceFilter, sortKey]);
+  }, [allAlbums, sourceFilter, sortKey, qualityFilter]);
 
   const gridLayout = useMemo(() => {
     const padding = Spacing.lg;
@@ -474,10 +476,15 @@ export default function AllAlbumsScreen() {
         sourceValue={sourceFilter}
         onSourceChange={setSourceFilter}
         qualityValue={qualityFilter}
-        qualityOptions={[{ value: "all", label: "All" }]}
+        qualityOptions={[
+          { value: "all", label: "All" },
+          { value: "cd", label: "CD" },
+          { value: "hires", label: "Hi-res" },
+          { value: "lossy", label: "Lossy" },
+          { value: "unknown", label: "Unknown" },
+        ]}
         onQualityChange={(v) => setQualityFilter(v as QualityKey)}
         showViewToggle={false}
-        qualityDisabled
       />
 
       {!activeServer || (activeServer && !activeServer.connected) ? (
