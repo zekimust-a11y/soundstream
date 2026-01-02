@@ -216,11 +216,11 @@ export function registerTidalRoutes(app: Express): void {
     const codeChallenge = generateCodeChallenge(codeVerifier);
     const state = crypto.randomBytes(16).toString("hex");
 
-    // NOTE: TIDAL currently requires the legacy `r_usr` scope for many api.tidal.com endpoints,
-    // even when newer granular scopes (user.read, collection.read, etc.) are granted.
-    // Without `r_usr`, browse endpoints will 403 with `missing_scope`.
+    // NOTE: Requesting the legacy `r_usr` scope can trigger TIDAL OAuth error 1002 for some public client IDs.
+    // We start with the modern granular scopes; if TIDAL later requires extra scopes, we can revisit with a
+    // compatible client id / scope set.
     const scope =
-      "r_usr user.read collection.read collection.write playlists.read playlists.write search.read search.write playback recommendations.read entitlements.read";
+      "user.read collection.read collection.write playlists.read playlists.write search.read search.write playback recommendations.read entitlements.read";
 
     const params = new URLSearchParams({
       response_type: "code",
