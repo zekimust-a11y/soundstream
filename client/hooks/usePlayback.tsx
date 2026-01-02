@@ -1299,6 +1299,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           debugLog.info('Playing Tidal track via LMS', `URI: ${track.uri}`);
           await lmsClient.clearPlaylist(activePlayer.id);
           await lmsClient.playUrl(activePlayer.id, track.uri);
+          // Force LMS to jump to the newly-loaded item. Without this, `play` can resume the
+          // previously-playing track even after a `cmd:load`.
+          await lmsClient.playPlaylistIndex(activePlayer.id, 0);
           await lmsClient.play(activePlayer.id);
 
           // If we have a list of tracks (album page), append the rest after playback starts.
