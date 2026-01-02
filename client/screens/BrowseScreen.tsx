@@ -533,6 +533,8 @@ export default function BrowseScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <AppHeader title="Browse" onPressShuffle={handleShuffleAll} />
+
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={[
@@ -548,7 +550,6 @@ export default function BrowseScreen() {
           />
         }
       >
-        <AppHeader title="Browse" onPressShuffle={handleShuffleAll} />
 
         {/* Recent selector (Played / Added) */}
         {(recentItems.length > 0 || recentlyAdded.length > 0) && (
