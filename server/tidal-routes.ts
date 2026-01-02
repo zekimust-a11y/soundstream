@@ -476,6 +476,30 @@ export function registerTidalRoutes(app: Express): void {
     return msg.includes("Tidal OpenAPI error: 429");
   }
 
+  function toFiniteNumber(v: any): number | undefined {
+    const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+    return Number.isFinite(n) ? n : undefined;
+  }
+
+  // Tidal OpenAPI responses sometimes include a total count in `meta`.
+  // We opportunistically use it to avoid cursor-walking (which triggers 429 and returns partial counts).
+  function extractOpenApiTotal(page: any): number | undefined {
+    if (!page || typeof page !== "object") return undefined;
+    const meta: any = (page as any).meta;
+    if (!meta || typeof meta !== "object") return undefined;
+
+    // Try common shapes we've seen across APIs.
+    return (
+      toFiniteNumber(meta.total) ??
+      toFiniteNumber(meta.totalNumberOfItems) ??
+      toFiniteNumber(meta.totalItems) ??
+      toFiniteNumber(meta.totalCount) ??
+      toFiniteNumber(meta.totalResults) ??
+      toFiniteNumber(meta?.page?.total) ??
+      toFiniteNumber(meta?.page?.totalItems)
+    );
+  }
+
   app.get("/api/tidal/client-id", (req: Request, res: Response) => {
     const resolved = resolveClientIdFromRequest(req);
     res.json({
@@ -1172,9 +1196,25 @@ export function registerTidalRoutes(app: Express): void {
         let count = 0;
         let requests = 0;
         let rateLimited = false;
-        let nextUrl = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+        // First try a cheap request and use `meta.total*` if available.
+        const baseUrl = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
           t.userId!
-        )}/relationships/${rel}?countryCode=${encodeURIComponent(countryCode)}&page[size]=100`;
+        )}/relationships/${rel}?countryCode=${encodeURIComponent(countryCode)}`;
+        try {
+          const first = await openApiGet(`${baseUrl}&page[size]=1`, t.accessToken);
+          const metaTotal = extractOpenApiTotal(first);
+          if (metaTotal !== undefined && metaTotal >= 0) {
+            return { count: metaTotal, rateLimited: false };
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("Tidal OpenAPI error: 429")) {
+            return { count: 0, rateLimited: true };
+          }
+          // If meta fetch fails for another reason, fall through to cursor-walk attempt below.
+        }
+
+        let nextUrl = `${baseUrl}&page[size]=100`;
         while (nextUrl && count < maxItems && requests < maxRequests) {
           requests += 1;
           try {
