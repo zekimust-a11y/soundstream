@@ -116,7 +116,40 @@ const RECENT_ITEMS_KEY = "@soundstream_recent_items"; // New unified format
 const FAVORITES_KEY = "@soundstream_favorites";
 const PLAYLISTS_KEY = "@soundstream_playlists";
 
+const MAX_RECENT_ITEMS = 30;
+
 const DEFAULT_FAVORITES: Favorites = { artists: [], albums: [], tracks: [] };
+
+function isArray(value: unknown): value is any[] {
+  return Array.isArray(value);
+}
+
+function filterRecentlyPlayedItemsBySettings(
+  items: RecentlyPlayedItem[],
+  opts: { qobuzEnabled: boolean; tidalEnabled: boolean; spotifyEnabled: boolean; soundcloudEnabled: boolean }
+): RecentlyPlayedItem[] {
+  return items.filter((i) => {
+    if (i.type === "track") {
+      const src = (i.track as any)?.source as string | undefined;
+      if (src === "tidal" && !opts.tidalEnabled) return false;
+      if (src === "qobuz" && !opts.qobuzEnabled) return false;
+      if (src === "spotify" && !opts.spotifyEnabled) return false;
+      if (src === "soundcloud" && !opts.soundcloudEnabled) return false;
+      return true;
+    }
+
+    // Playlist items: infer source from name (legacy naming conventions)
+    const name = (i.name || "").toLowerCase();
+    const isSoundCloud = name.includes("soundcloud:") || name.startsWith("soundcloud");
+    const isSpotify = name.includes("spotify:") || name.startsWith("spotify");
+    const isTidal = name.includes("tidal:") || name.startsWith("tidal");
+
+    if (isSoundCloud && !opts.soundcloudEnabled) return false;
+    if (isSpotify && !opts.spotifyEnabled) return false;
+    if (isTidal && !opts.tidalEnabled) return false;
+    return true;
+  });
+}
 
 const convertLmsArtistToArtist = (lmsArtist: LmsArtist): Artist => {
   const artist: Artist = {
@@ -276,20 +309,51 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         checkTidalStatus();
       }
 
-      if (recentData) {
-        // Clear cached recently played tracks to force refresh with new filtering
-        // This will remove old Tidal content that was cached before filtering was implemented
-        setRecentlyPlayed([]);
-        // Clear the stored data so it doesn't get reloaded on future app starts
-        AsyncStorage.removeItem(RECENT_KEY);
-      }
+      // Load persisted "recently played" (and migrate legacy format if needed).
+      // NOTE: Previously this code intentionally cleared RECENT_* on startup, which caused history to be lost
+      // on every web refresh. We now load + filter + re-save instead.
+      try {
+        let loadedItems: RecentlyPlayedItem[] = [];
 
-      if (recentItemsData) {
-        // Clear cached recently played items to force refresh with new filtering
-        // This will remove old Tidal content that was cached before filtering was implemented
-        setRecentlyPlayedItems([]);
-        // Clear the stored data so it doesn't get reloaded on future app starts
-        AsyncStorage.removeItem(RECENT_ITEMS_KEY);
+        if (recentItemsData) {
+          const parsed = JSON.parse(recentItemsData);
+          if (isArray(parsed)) loadedItems = parsed as RecentlyPlayedItem[];
+        } else if (recentData) {
+          const parsed = JSON.parse(recentData);
+          if (isArray(parsed)) {
+            const tracks = parsed as Track[];
+            loadedItems = tracks.map((t) => ({
+              type: "track",
+              id: t.id,
+              name: t.title,
+              artwork: t.albumArt,
+              track: t,
+            }));
+            // Migrate forward to the unified key; keep the legacy key for now.
+            await AsyncStorage.setItem(RECENT_ITEMS_KEY, JSON.stringify(loadedItems.slice(0, MAX_RECENT_ITEMS)));
+          }
+        }
+
+        // Apply source toggles so disabled services don't appear.
+        const filtered = filterRecentlyPlayedItemsBySettings(loadedItems, {
+          qobuzEnabled,
+          tidalEnabled,
+          spotifyEnabled,
+          soundcloudEnabled,
+        }).slice(0, MAX_RECENT_ITEMS);
+
+        setRecentlyPlayedItems(filtered);
+        const tracks = filtered
+          .filter((i) => i.type === "track" && i.track)
+          .map((i) => i.track as Track)
+          .slice(0, MAX_RECENT_ITEMS);
+        setRecentlyPlayed(tracks);
+
+        // Persist the filtered list so old/disabled content doesn't keep returning.
+        await AsyncStorage.setItem(RECENT_ITEMS_KEY, JSON.stringify(filtered));
+        await AsyncStorage.setItem(RECENT_KEY, JSON.stringify(tracks));
+      } catch (e) {
+        console.warn("Failed to load recently played from storage:", e);
       }
 
       if (favoritesData) {
