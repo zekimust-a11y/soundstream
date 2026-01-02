@@ -219,16 +219,64 @@ export default function AllAlbumsScreen() {
   const [sortKey, setSortKey] = useState<SortKey>("name_az");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [qualityFilter, setQualityFilter] = useState<QualityKey>("all");
+  const [albumQuality, setAlbumQuality] = useState<Record<string, QualityKey>>({});
   
   console.log(`🎵 AllAlbumsScreen: allAlbums.length=${allAlbums.length}, total=${total}, hasNextPage=${hasNextPage}`);
+
+  // When the user selects a quality filter, probe local LMS albums for quality (best-effort) and cache results in-memory.
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!activeServer) return;
+      if (qualityFilter === "all") return;
+
+      // Only probe local albums; Tidal quality metadata isn't available here yet.
+      const locals = allAlbums
+        .filter((a) => (a.source || "local") === "local")
+        .slice(0, 400); // bound work to what's currently loaded + avoid huge bursts
+
+      const missing = locals.filter((a) => albumQuality[a.id] === undefined).slice(0, 80);
+      if (missing.length === 0) return;
+
+      lmsClient.setServer(activeServer.host, activeServer.port);
+
+      // Small concurrency to avoid hammering LMS
+      const CONCURRENCY = 5;
+      let idx = 0;
+      const workers = Array.from({ length: CONCURRENCY }, async () => {
+        while (!cancelled) {
+          const a = missing[idx++];
+          if (!a) break;
+          const q = await lmsClient.getLocalAlbumQuality(String(a.id));
+          if (cancelled) break;
+          setAlbumQuality((prev) => (prev[a.id] ? prev : { ...prev, [a.id]: q as QualityKey }));
+        }
+      });
+      await Promise.all(workers);
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [qualityFilter, allAlbums, activeServer, albumQuality]);
 
   const filteredAlbums = useMemo(() => {
     let result = allAlbums.slice();
     if (sourceFilter !== "all") {
       result = result.filter((a) => (a.source || "local") === sourceFilter);
     }
-    // NOTE: Album-level quality is not reliably available from LMS's `albums` list.
-    // We still expose the dropdown for UX consistency; wiring a real album-quality index is a follow-up.
+    if (qualityFilter !== "all") {
+      result = result.filter((a) => {
+        const src = (a.source || "local") as string;
+        if (src !== "local") {
+          // For non-local sources we currently don't have reliable quality metadata.
+          // Treat them as unknown so the filter behaves predictably.
+          return qualityFilter === "unknown";
+        }
+        const q = albumQuality[a.id] || "unknown";
+        return q === qualityFilter;
+      });
+    }
     if (sortKey === "name_az") {
       result.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortKey === "artist_az") {

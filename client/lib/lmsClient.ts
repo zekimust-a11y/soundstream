@@ -72,6 +72,8 @@ export interface LmsTrack {
   bitDepth?: string;
 }
 
+export type AlbumQualityKey = "cd" | "hires" | "lossy" | "unknown";
+
 export interface LmsPlaylistTrack extends LmsTrack {
   playlist_index: number;
 }
@@ -2284,6 +2286,73 @@ class LmsClient {
     const titlesLoop = (result.titles_loop || []) as Array<Record<string, unknown>>;
     
     return titlesLoop.map((t, i) => this.parseTrack(t, i));
+  }
+
+  /**
+   * Best-effort album quality classification for local LMS albums.
+   * We sample up to 20 tracks from the album and derive max sample rate / bit depth and lossy/lossless.
+   *
+   * Returns one of: cd | hires | lossy | unknown
+   */
+  async getLocalAlbumQuality(albumId: string): Promise<AlbumQualityKey> {
+    try {
+      const result = await this.request("", [
+        "titles",
+        "0",
+        "20",
+        `album_id:${albumId}`,
+        "library_id:0",
+        "tags:acdlKNuTsSp",
+        "sort:tracknum",
+      ]);
+      const titlesLoop = (result.titles_loop || []) as Array<Record<string, unknown>>;
+      const tracks = titlesLoop.map((t, i) => this.parseTrack(t, i));
+      if (tracks.length === 0) return "unknown";
+
+      const parseKHz = (s?: string): number | null => {
+        if (!s) return null;
+        const n = Number(String(s).replace(/[^\d.]/g, ""));
+        if (!isFinite(n) || n <= 0) return null;
+        // parseTrack formats kHz as "44.1 kHz" and Hz as "44100 Hz"
+        if (String(s).toLowerCase().includes("hz") && !String(s).toLowerCase().includes("khz")) {
+          return n / 1000;
+        }
+        return n;
+      };
+
+      const parseBitDepth = (s?: string): number | null => {
+        if (!s) return null;
+        const n = Number(String(s).replace(/[^\d]/g, ""));
+        if (!isFinite(n) || n <= 0) return null;
+        return n;
+      };
+
+      let maxKHz = 0;
+      let maxBits = 0;
+      let sawLossy = false;
+      let sawLossless = false;
+
+      for (const t of tracks) {
+        const fmt = (t.format || "").toUpperCase();
+        if (fmt) {
+          if (["MP3", "AAC", "OGG"].includes(fmt)) sawLossy = true;
+          if (["FLAC", "WAV", "AIFF", "ALAC", "DSD"].includes(fmt)) sawLossless = true;
+        }
+        const sr = parseKHz(t.sampleRate);
+        if (sr) maxKHz = Math.max(maxKHz, sr);
+        const bd = parseBitDepth(t.bitDepth);
+        if (bd) maxBits = Math.max(maxBits, bd);
+      }
+
+      if (sawLossy && !sawLossless) return "lossy";
+      if (maxBits >= 24 || maxKHz > 48) return "hires";
+      if (maxBits === 16 && maxKHz > 0 && maxKHz <= 48) return "cd";
+      if (sawLossy) return "lossy";
+      return "unknown";
+    } catch (e) {
+      debugLog.info("getLocalAlbumQuality", `Failed: ${e instanceof Error ? e.message : String(e)}`);
+      return "unknown";
+    }
   }
 
   /**
