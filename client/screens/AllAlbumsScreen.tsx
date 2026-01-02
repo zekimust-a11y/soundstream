@@ -136,6 +136,9 @@ const AlbumGridCard = memo(({ album, size, onPress, onPlay, onShuffle }: {
       <ThemedText style={styles.gridTitle} numberOfLines={2}>
         {album.name}
       </ThemedText>
+      <ThemedText style={styles.gridSubtitle} numberOfLines={1}>
+        {album.artist}
+      </ThemedText>
     </AnimatedPressable>
   );
 });
@@ -629,6 +632,11 @@ const styles = StyleSheet.create({
     ...Typography.headline,
     color: Colors.light.text,
     marginTop: Spacing.xs,
+  },
+  gridSubtitle: {
+    ...Typography.caption,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
   },
   listContent: {
     paddingHorizontal: Spacing.lg,

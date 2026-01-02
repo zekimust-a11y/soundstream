@@ -816,26 +816,69 @@ export default function SettingsScreen() {
 
                   {(() => {
                     const fmt = (v: number | null | undefined) => (v === null || v === undefined ? "—" : Number(v).toLocaleString());
+                    const sum = (vals: Array<number | null | undefined>): number | null => {
+                      const present = vals.filter((v) => typeof v === "number" && Number.isFinite(v)) as number[];
+                      if (present.length === 0) return null;
+                      // If any enabled source is unknown for this column, show "—" rather than a misleading partial sum.
+                      if (present.length !== vals.filter((v) => v !== undefined).length) return null;
+                      return present.reduce((a, b) => a + b, 0);
+                    };
                     const rows: Array<{ key: "local" | "tidal" | "soundcloud"; label: string; show: boolean }> = [
                       { key: "local", label: "Local (LMS)", show: !!localLibraryEnabled },
                     { key: "tidal", label: "Tidal (API)", show: !!tidalEnabled },
                       { key: "soundcloud", label: "SoundCloud", show: !!soundcloudEnabled },
                     ];
 
-                    return rows
-                      .filter((r) => r.show)
-                      .map((r) => {
-                        const data = libraryCountsBySource?.[r.key];
-                        return (
-                          <View key={r.key} style={[styles.statsRow, { borderColor: theme.border }]}>
-                            <ThemedText style={[styles.statsCell, { color: theme.text }]}>{r.label}</ThemedText>
-                            <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.albums)}</ThemedText>
-                            <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.artists)}</ThemedText>
-                            <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.tracks)}</ThemedText>
-                            <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.playlists)}</ThemedText>
-                          </View>
-                        );
-                      });
+                    const visible = rows.filter((r) => r.show);
+                    const local = libraryCountsBySource?.local;
+                    const tidal = libraryCountsBySource?.tidal;
+                    const sc = libraryCountsBySource?.soundcloud;
+                    const totalAlbums = sum([
+                      localLibraryEnabled ? local?.albums : undefined,
+                      tidalEnabled ? tidal?.albums : undefined,
+                      soundcloudEnabled ? sc?.albums : undefined,
+                    ]);
+                    const totalTracks = sum([
+                      localLibraryEnabled ? local?.tracks : undefined,
+                      tidalEnabled ? tidal?.tracks : undefined,
+                      soundcloudEnabled ? sc?.tracks : undefined,
+                    ]);
+                    const totalPlaylists = sum([
+                      localLibraryEnabled ? local?.playlists : undefined,
+                      tidalEnabled ? tidal?.playlists : undefined,
+                      soundcloudEnabled ? sc?.playlists : undefined,
+                    ]);
+                    // Artists overlap heavily across sources; avoid inflated sums by using max when both are known.
+                    const artistVals = [
+                      localLibraryEnabled ? local?.artists : undefined,
+                      tidalEnabled ? tidal?.artists : undefined,
+                      soundcloudEnabled ? sc?.artists : undefined,
+                    ].filter((v) => typeof v === "number" && Number.isFinite(v)) as number[];
+                    const totalArtists = artistVals.length > 0 ? Math.max(...artistVals) : null;
+
+                    return (
+                      <>
+                        <View style={[styles.statsRow, { borderColor: theme.border }]}>
+                          <ThemedText style={[styles.statsCell, { color: theme.text }]}>{`Total`}</ThemedText>
+                          <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(totalAlbums)}</ThemedText>
+                          <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(totalArtists)}</ThemedText>
+                          <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(totalTracks)}</ThemedText>
+                          <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(totalPlaylists)}</ThemedText>
+                        </View>
+                        {visible.map((r) => {
+                          const data = libraryCountsBySource?.[r.key];
+                          return (
+                            <View key={r.key} style={[styles.statsRow, { borderColor: theme.border }]}>
+                              <ThemedText style={[styles.statsCell, { color: theme.text }]}>{r.label}</ThemedText>
+                              <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.albums)}</ThemedText>
+                              <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.artists)}</ThemedText>
+                              <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.tracks)}</ThemedText>
+                              <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.playlists)}</ThemedText>
+                            </View>
+                          );
+                        })}
+                      </>
+                    );
                   })()}
                 </View>
 

@@ -293,7 +293,8 @@ export default function AllTracksScreen() {
   return (
     <ThemedView style={styles.container}>
       <AppHeader
-        title={`Tracks (${(lmsTotal ?? filteredTracks.length).toLocaleString()})`}
+        // Don't show a misleading "loaded so far" number (e.g. 520) while totals are still loading.
+        title={lmsTotal !== null ? `Tracks (${lmsTotal.toLocaleString()})` : "Tracks"}
       />
 
       <LibraryToolbar

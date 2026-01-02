@@ -307,8 +307,10 @@ export function useInfiniteAlbums(artistId?: string) {
       // Sort albums by name
       albums.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-      // Total includes local and Tidal albums
-      const totalAlbumsCount = (result.total || 0) + (tidalTotalCount || 0);
+      // Total should reflect enabled sources (otherwise headers show "wrong" counts when local/tidal toggles are off).
+      const totalAlbumsCount =
+        (localLibraryEnabled ? (result.total || 0) : 0) +
+        (tidalEnabled && !artistId ? (tidalTotalCount || 0) : 0);
       const nextLmsOffset = (lmsOffset + LMS_PAGE_SIZE < (result.total || 0)) ? (lmsOffset + LMS_PAGE_SIZE) : lmsOffset;
       const nextTidalOffset = (tidalEnabled && !artistId && (tidalOffset + TIDAL_PAGE_SIZE < (tidalTotalCount || 0))) ? (tidalOffset + TIDAL_PAGE_SIZE) : tidalOffset;
       const hasMoreLocal = nextLmsOffset !== lmsOffset;
