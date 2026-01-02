@@ -32,7 +32,7 @@ The code is in place and should work. If the error persists after server restart
 ## Files Modified
 
 - `server/index.ts` - Added error handling and Metro check
-- (Removed) `cursor client instructions.md` - Obsolete / misleading (localhost-based)
+- `cursor client instructions.md` - Canonical Cursor/agent operational rules (no popups, `.21`-only, LMS safety)
 
 
 

@@ -1,17 +1,35 @@
-# Soundstream — Cursor Agent Operational Notes (Deprecated)
+# Soundstream — Cursor Client Instructions (Read Before Doing Anything)
 
-This file exists only to satisfy legacy “read before work” checklists.
+These are the operational rules for working in this repo.
 
-**Do not use this as the canonical operational guide.**
+## Canonical docs (read these first)
 
-### Canonical docs (read these instead)
+- `PROJECT_NOTES.md` (repo root)
+- `soundstream/PROJECT_SUMMARY.md`
+- `DEPLOYMENT-STATUS.md` (repo root)
 
-- `PROJECT_NOTES.md` (repo root) — the entrypoint for all project notes
-- `soundstream/PROJECT_SUMMARY.md` — architecture + current state
-- `DEPLOYMENT-STATUS.md` (repo root) — current `.21` deployment status
+If anything disagrees, **stop and ask the user which source is authoritative**.
 
-### Critical operational rule
+## Runtime environment rules (critical)
 
-- **Do not change settings on the LMS web UI without asking the user first.**
+- **No popups / bot-like browser automation**:
+  - Do not attempt to complete Tidal logins automatically.
+  - Do not click through auth flows rapidly or repeatedly.
+- **No localhost services**:
+  - Do not start servers on the developer machine for normal use.
+  - **Everything runs on `.21`** (`192.168.0.21`) for Soundstream (API on `:3000`, Expo web on `:8081`).
+  - Exceptions: **LMS + Roon Core are separate services** and are not to be started on the dev machine as part of Soundstream work.
+
+## LMS safety rule (must follow)
+
+- **Never change settings on the LMS server web interface without asking the user first.**
+  - Includes plugin enable/disable, rescans, player/server prefs, transcoding, networking, security, etc.
+
+## Git rule
+
+- After making code changes:
+  - `git add` the modified files
+  - `git commit` with a descriptive message
+  - `git push`
 
 
