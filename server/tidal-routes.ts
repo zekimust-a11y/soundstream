@@ -15,7 +15,10 @@ type TidalTokens = {
 type TidalAuthSession = {
   createdAt: number;
   clientId: string;
-  redirectUri: string;
+  // Redirect URI registered with TIDAL (must match the developer console entry exactly).
+  oauthRedirectUri: string;
+  // Redirect URI the client listens for (web uses the same http callback; mobile uses app deep link).
+  appRedirectUri: string;
   codeVerifier: string;
   state: string;
   platform: "web" | "mobile";
@@ -193,7 +196,7 @@ async function exchangeCodeForTokens(session: TidalAuthSession, code: string): P
     grant_type: "authorization_code",
     code,
     client_id: session.clientId,
-    redirect_uri: session.redirectUri,
+    redirect_uri: session.oauthRedirectUri,
     code_verifier: session.codeVerifier,
   });
 
@@ -518,10 +521,12 @@ export function registerTidalRoutes(app: Express): void {
     const resolved = resolveClientIdFromRequest(req, { ignoreEnv: preset === "legacy" });
     const clientId = resolved.clientId;
     const clientIdIndex = resolved.usingEnv ? null : resolved.index;
-    const redirectUri =
-      platform === "web"
-        ? `${req.protocol}://${req.get("host")}/api/tidal/callback`
-        : "soundstream://callback";
+    const httpCallback = `${req.protocol}://${req.get("host")}/api/tidal/callback`;
+    // IMPORTANT:
+    // - iOS cannot use a custom-scheme redirect_uri unless it's registered in the TIDAL developer console.
+    // - Use the HTTP callback (registered) for OAuth, then bounce back into the app via deep link.
+    const oauthRedirectUri = platform === "web" ? httpCallback : httpCallback;
+    const appRedirectUri = platform === "web" ? httpCallback : "soundstream://callback";
 
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
@@ -537,7 +542,7 @@ export function registerTidalRoutes(app: Express): void {
     const params = new URLSearchParams({
       response_type: "code",
       client_id: clientId,
-      redirect_uri: redirectUri,
+      redirect_uri: oauthRedirectUri,
       scope,
       code_challenge: codeChallenge,
       code_challenge_method: "S256",
@@ -547,14 +552,15 @@ export function registerTidalRoutes(app: Express): void {
     sessionsByState.set(state, {
       createdAt: Date.now(),
       clientId,
-      redirectUri,
+      oauthRedirectUri,
+      appRedirectUri,
       codeVerifier,
       state,
       platform,
     });
 
     const authUrl = `https://login.tidal.com/authorize?${params.toString()}`;
-    res.json({ authUrl, redirectUri, state, platform, preset, clientId, clientIdIndex });
+    res.json({ authUrl, redirectUri: appRedirectUri, state, platform, preset, clientId, clientIdIndex });
   });
 
   // Convenience endpoint: redirect directly to TIDAL authorize URL (useful for manual browser flows).
@@ -570,10 +576,9 @@ export function registerTidalRoutes(app: Express): void {
     const preset = String(req.query.preset || "modern").toLowerCase();
     const resolved = resolveClientIdFromRequest(req, { ignoreEnv: preset === "legacy" });
     const clientId = resolved.clientId;
-    const redirectUri =
-      platform === "web"
-        ? `${req.protocol}://${req.get("host")}/api/tidal/callback`
-        : "soundstream://callback";
+    const httpCallback = `${req.protocol}://${req.get("host")}/api/tidal/callback`;
+    const oauthRedirectUri = platform === "web" ? httpCallback : httpCallback;
+    const appRedirectUri = platform === "web" ? httpCallback : "soundstream://callback";
 
     const scope =
       preset === "legacy"
@@ -587,7 +592,7 @@ export function registerTidalRoutes(app: Express): void {
     const params = new URLSearchParams({
       response_type: "code",
       client_id: clientId,
-      redirect_uri: redirectUri,
+      redirect_uri: oauthRedirectUri,
       scope,
       code_challenge: codeChallenge,
       code_challenge_method: "S256",
@@ -597,7 +602,8 @@ export function registerTidalRoutes(app: Express): void {
     sessionsByState.set(state, {
       createdAt: Date.now(),
       clientId,
-      redirectUri,
+      oauthRedirectUri,
+      appRedirectUri,
       codeVerifier,
       state,
       platform,
@@ -627,6 +633,26 @@ export function registerTidalRoutes(app: Express): void {
 
     try {
       const session = sessionsByState.get(state)!;
+
+      // MOBILE FLOW:
+      // Do NOT exchange the code here (the app will call /api/tidal/authenticate).
+      // Instead, bounce back into the app via deep link so iOS can complete the flow.
+      if (session.platform === "mobile") {
+        const deepLink = `${session.appRedirectUri}?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+        return res.status(200).send(`<!doctype html>
+<html>
+  <head><meta charset="utf-8" /><title>Tidal Connected</title></head>
+  <body>
+    <h2>Returning to Soundstream…</h2>
+    <p>If you are not redirected automatically, you can close this window and return to the app.</p>
+    <script>
+      try { window.location.href = ${JSON.stringify(deepLink)}; } catch (e) {}
+      setTimeout(() => { try { window.close(); } catch (e) {} }, 500);
+    </script>
+  </body>
+</html>`);
+      }
+
       const newTokens = await exchangeCodeForTokens(session, code);
       tokens = newTokens;
       saveTokensToDisk();
