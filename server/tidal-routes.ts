@@ -1416,6 +1416,7 @@ export function registerTidalRoutes(app: Express): void {
     if (!t) return;
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
     try {
+      const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       // Totals are expensive and prone to 429; cache for longer than list endpoints.
       const TOTALS_TTL_MS = 5 * 60_000; // 5 minutes
       const cacheKey = `totals:${t.userId}`;
@@ -1467,6 +1468,15 @@ export function registerTidalRoutes(app: Express): void {
           }
         }
 
+        // Retry a few times on 429 (Tidal rate limit windows are often short).
+        if (resp.status === 429) {
+          for (const delay of [500, 1200, 2200]) {
+            await sleep(delay);
+            resp = await doFetch(tokens?.accessToken || t.accessToken);
+            if (resp.status !== 429) break;
+          }
+        }
+
         if (resp.status === 429) return { count: null, rateLimited: true };
         if (resp.status < 200 || resp.status >= 300) return { count: null, rateLimited: false };
 
@@ -1496,7 +1506,19 @@ export function registerTidalRoutes(app: Express): void {
           t.userId!
         )}/relationships/${rel}?countryCode=${encodeURIComponent(countryCode)}`;
         try {
-          const first = await openApiGet(`${baseUrl}&page[size]=1`, t.accessToken);
+          let first: any;
+          // Retry a few times on 429 (OpenAPI is aggressively rate-limited, but windows are short).
+          for (const delay of [0, 500, 1200, 2200]) {
+            if (delay) await sleep(delay);
+            try {
+              first = await openApiGet(`${baseUrl}&page[size]=1`, t.accessToken);
+              break;
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              if (!msg.includes("Tidal OpenAPI error: 429")) throw e;
+            }
+          }
+          if (!first) return { count: null, rateLimited: true };
           const metaTotal = extractOpenApiTotal(first);
           if (metaTotal !== undefined && metaTotal >= 0) return { count: metaTotal, rateLimited: false };
           return { count: null, rateLimited: false };
