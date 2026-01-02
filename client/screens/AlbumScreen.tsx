@@ -55,22 +55,23 @@ export default function AlbumScreen() {
     async function loadTracks() {
       setIsLoading(true);
       try {
-        // Use source from route params if available, otherwise detect from albumId
-        const source = route.params.source || 
-                      (route.params.id.startsWith('tidal-') ? "tidal" : 
-                      undefined);
+        // Prefer album-level source (route params / id prefix) so the badge doesn't
+        // incorrectly inherit a stale value from a previous screen.
+        const inferredSource =
+          (route.params as any)?.source ||
+          (route.params.id.startsWith("tidal-") ? "tidal" : "local");
+
+        // Set immediately to avoid showing the wrong badge while tracks load
+        setAlbumSource(inferredSource as any);
         
-        const albumTracks = await getAlbumTracks(route.params.id, source as any);
+        const albumTracks = await getAlbumTracks(route.params.id, inferredSource as any);
         setAllTracks(albumTracks);
         if (albumTracks.length > 0) {
           if (albumTracks[0].albumArt || albumTracks[0].artwork_url) {
             setAlbumImageUrl(albumTracks[0].albumArt || albumTracks[0].artwork_url);
           }
-          if (albumTracks[0].source) {
-            setAlbumSource(albumTracks[0].source as any);
-          } else if (source) {
-            setAlbumSource(source as any);
-          }
+          // Keep the album-level inferred source; do not override from track.source,
+          // because track source detection can be imperfect for LMS metadata.
         }
       } catch (error) {
         console.error("Failed to load album tracks:", error);
