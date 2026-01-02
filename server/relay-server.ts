@@ -57,6 +57,17 @@ let chromecastIp = savedConfig.chromecastIp || process.env.CHROMECAST_IP || '';
 let chromecastName = savedConfig.chromecastName || '';
 let chromecastEnabled = savedConfig.chromecastEnabled !== undefined ? savedConfig.chromecastEnabled : true;
 
+function persistConfig() {
+  saveConfig({
+    lmsHost: LMS_HOST,
+    lmsPort: LMS_PORT,
+    chromecastIp,
+    chromecastName,
+    chromecastEnabled,
+    currentPlayerId,
+  });
+}
+
 // DAC configuration
 const DAC_IP = process.env.DAC_IP || '192.168.0.42';
 const DAC_PORT = process.env.DAC_PORT || 80;
@@ -409,6 +420,14 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
     chromecastService.customChannel.send(message);
   } catch (error) {
     console.error('[Relay] Error sending NOW_PLAYING:', error.message);
+    // Channel likely died; force a recast on next poll.
+    isCasting = false;
+    try {
+      chromecastService.isCasting = false;
+      chromecastService.currentUrl = null;
+    } catch (e) {
+      // ignore
+    }
   }
 }
 
@@ -427,6 +446,18 @@ export function sendCustomMessageToCast(message: any): boolean {
 // LMS status polling
 async function pollLmsStatus(): Promise<void> {
   try {
+    // If we think we're casting but the channel is gone, recover automatically.
+    if (isCasting && !chromecastService.customChannel) {
+      console.warn('[Relay] Cast channel missing while isCasting=true; resetting cast state to recover...');
+      isCasting = false;
+      try {
+        chromecastService.isCasting = false;
+        chromecastService.currentUrl = null;
+      } catch (e) {
+        // ignore
+      }
+    }
+
     if (!currentPlayerId) {
       const players = await getPlayers();
       if (players.length > 0) {
@@ -437,11 +468,30 @@ async function pollLmsStatus(): Promise<void> {
       }
     }
 
-    const status = await getPlayerStatus(currentPlayerId);
+    let status = await getPlayerStatus(currentPlayerId);
     if (!status) return;
 
     const mode = status.mode;
     const hasTrack = status.playlist_loop && status.playlist_loop.length > 0;
+
+    // If playback started on a different player, follow it (prevents "play started but no cast").
+    if ((mode !== 'play' || !hasTrack) && !isCasting) {
+      const players = await getPlayers();
+      for (const p of players.slice(0, 8)) {
+        const pid = p.playerid;
+        if (!pid || pid === currentPlayerId) continue;
+        const s = await getPlayerStatus(pid);
+        const m = s?.mode;
+        const ht = s?.playlist_loop && s.playlist_loop.length > 0;
+        if (m === 'play' && ht) {
+          console.log('[Relay] Detected playback on different player; switching currentPlayerId:', pid, p.name);
+          currentPlayerId = pid;
+          persistConfig();
+          status = s;
+          break;
+        }
+      }
+    }
 
     // Send NOW_PLAYING updates if casting
     if (hasTrack && isCasting && chromecastEnabled) {
@@ -586,6 +636,13 @@ export function initializeRelayServer(app: express.Application): void {
     const lmsPort = port || LMS_PORT;
 
     try {
+      // Keep relay's currentPlayerId in sync with whatever player the app is controlling.
+      if (typeof playerId === 'string' && playerId.length > 0 && playerId !== currentPlayerId) {
+        currentPlayerId = playerId;
+        console.log('[Relay] currentPlayerId updated from /api/lms/proxy:', currentPlayerId);
+        persistConfig();
+      }
+
       const response = await fetch(`http://${lmsHost}:${lmsPort}/jsonrpc.js`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
