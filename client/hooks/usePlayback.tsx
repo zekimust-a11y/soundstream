@@ -1291,12 +1291,48 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         // Ensure player is powered on
         await lmsClient.setPower(activePlayer.id, true);
 
-        // Handle Tidal tracks using URI - only if playing a single track without a queue
-        if (track.source === 'tidal' && track.uri && (!tracks || tracks.length <= 1)) {
-          debugLog.info('Playing single Tidal track', `URI: ${track.uri}`);
+        // --- TIDAL fast-paths (explicit LMS commands) ---
+        // We avoid relying on Qobuz codepaths; for Tidal we send clear → load url → play.
+        if (track.source === 'tidal' && track.uri) {
+          // If we have a track list (album page), prefer loading the whole album via LMS once
+          // then jump to the selected index. This avoids many sequential `cmd:add` calls.
+          if (tracks && tracks.length > 0) {
+            const trackIndex = tracks.findIndex((t) => t.id === track.id);
+            const maybeAlbumId = (track.albumId || '').replace(/^tidal-/, '');
+            const allTidal = tracks.every((t) => t.source === 'tidal' && !!t.uri);
+            const sameAlbum = maybeAlbumId
+              ? tracks.every((t) => String((t as any).albumId || '').replace(/^tidal-/, '') === maybeAlbumId)
+              : false;
+
+            if (allTidal && sameAlbum && maybeAlbumId && trackIndex >= 0) {
+              const albumUri = `tidal://album:${maybeAlbumId}`;
+              debugLog.info('Playing Tidal album via LMS', `Album URI: ${albumUri}, index: ${trackIndex}`);
+              await lmsClient.clearPlaylist(activePlayer.id);
+              await lmsClient.playUrl(activePlayer.id, albumUri);
+              await lmsClient.playPlaylistIndex(activePlayer.id, trackIndex);
+              await lmsClient.play(activePlayer.id);
+
+              // Update UI immediately; sync will reconcile actual state.
+              setCurrentTrack(track);
+              setQueue(tracks);
+              setCurrentTime(0);
+              setIsPlaying(true);
+              setTimeout(() => syncPlayerStatus(), 500);
+              return;
+            }
+          }
+
+          // Single Tidal track (or fallback): clear → load track URI → play
+          debugLog.info('Playing Tidal track via LMS', `URI: ${track.uri}`);
+          await lmsClient.clearPlaylist(activePlayer.id);
           await lmsClient.playUrl(activePlayer.id, track.uri);
+          await lmsClient.play(activePlayer.id);
+
           setCurrentTrack(track);
+          setCurrentTime(0);
           setIsPlaying(true);
+          if (tracks) setQueue(tracks);
+          setTimeout(() => syncPlayerStatus(), 500);
           return;
         }
 
