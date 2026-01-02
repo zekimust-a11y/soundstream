@@ -434,6 +434,27 @@ function mapOpenApiTrackFromItem(item: any, includedMap: Record<string, Record<s
 export function registerTidalRoutes(app: Express): void {
   loadTokensFromDisk();
 
+  // In-memory cache to avoid hammering Tidal OpenAPI (which rate-limits aggressively).
+  // Keyed by userId + endpoint + params. This is per-process (fine for our single `.21` host).
+  const tidalCache = new Map<string, { ts: number; payload: any }>();
+  const CACHE_TTL_MS = 60_000; // 60s: enough to prevent bursts without making data feel stale.
+
+  function cacheGet(key: string) {
+    const v = tidalCache.get(key);
+    if (!v) return null;
+    const fresh = Date.now() - v.ts < CACHE_TTL_MS;
+    return { fresh, payload: v.payload };
+  }
+
+  function cacheSet(key: string, payload: any) {
+    tidalCache.set(key, { ts: Date.now(), payload });
+  }
+
+  function isRateLimitedError(e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return msg.includes("Tidal OpenAPI error: 429");
+  }
+
   app.get("/api/tidal/client-id", (req: Request, res: Response) => {
     const resolved = resolveClientIdFromRequest(req);
     res.json({
@@ -678,6 +699,12 @@ export function registerTidalRoutes(app: Express): void {
     if (!t) return;
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
     try {
+      const cacheKey = `mixes:${t.userId}`;
+      const cached = cacheGet(cacheKey);
+      if (cached?.fresh) {
+        return res.json({ ...cached.payload, cached: true });
+      }
+
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
       const url = `https://openapi.tidal.com/v2/userRecommendations/${encodeURIComponent(
         t.userId
@@ -706,8 +733,18 @@ export function registerTidalRoutes(app: Express): void {
         };
       });
 
-      res.json({ items, total: items.length });
+      const payload = { items, total: items.length };
+      cacheSet(cacheKey, payload);
+      res.json(payload);
     } catch (e) {
+      const cacheKey = `mixes:${t.userId}`;
+      const cached = cacheGet(cacheKey);
+      if (isRateLimitedError(e)) {
+        if (cached?.payload) {
+          return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true });
+        }
+        return res.json({ items: [], total: 0, rateLimited: true });
+      }
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
   });
@@ -720,6 +757,12 @@ export function registerTidalRoutes(app: Express): void {
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
     // NOTE: OpenAPI uses cursor pagination, not offset. We currently treat offset as unsupported.
     try {
+      const cacheKey = `albums:${t.userId}:limit=${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (cached?.fresh) {
+        return res.json({ ...cached.payload, cached: true });
+      }
+
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
       const url = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
         t.userId
@@ -753,8 +796,18 @@ export function registerTidalRoutes(app: Express): void {
           source: "tidal",
         };
       });
-      res.json({ items, total: items.length });
+      const payload = { items, total: items.length };
+      cacheSet(cacheKey, payload);
+      res.json(payload);
     } catch (e) {
+      const cacheKey = `albums:${t.userId}:limit=${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (isRateLimitedError(e)) {
+        if (cached?.payload) {
+          return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true });
+        }
+        return res.json({ items: [], total: 0, rateLimited: true });
+      }
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
   });
@@ -766,6 +819,12 @@ export function registerTidalRoutes(app: Express): void {
 
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
     try {
+      const cacheKey = `artists:${t.userId}:limit=${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (cached?.fresh) {
+        return res.json({ ...cached.payload, cached: true });
+      }
+
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
       const url = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
         t.userId
@@ -787,8 +846,18 @@ export function registerTidalRoutes(app: Express): void {
           source: "tidal",
         };
       });
-      res.json({ items, total: items.length });
+      const payload = { items, total: items.length };
+      cacheSet(cacheKey, payload);
+      res.json(payload);
     } catch (e) {
+      const cacheKey = `artists:${t.userId}:limit=${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (isRateLimitedError(e)) {
+        if (cached?.payload) {
+          return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true });
+        }
+        return res.json({ items: [], total: 0, rateLimited: true });
+      }
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
   });
@@ -800,6 +869,12 @@ export function registerTidalRoutes(app: Express): void {
 
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
     try {
+      const cacheKey = `playlists:${t.userId}:limit=${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (cached?.fresh) {
+        return res.json({ ...cached.payload, cached: true });
+      }
+
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
       const url = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
         t.userId
@@ -829,8 +904,18 @@ export function registerTidalRoutes(app: Express): void {
           source: "tidal",
         };
       });
-      res.json({ items, total: items.length });
+      const payload = { items, total: items.length };
+      cacheSet(cacheKey, payload);
+      res.json(payload);
     } catch (e) {
+      const cacheKey = `playlists:${t.userId}:limit=${limit}`;
+      const cached = cacheGet(cacheKey);
+      if (isRateLimitedError(e)) {
+        if (cached?.payload) {
+          return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true });
+        }
+        return res.json({ items: [], total: 0, rateLimited: true });
+      }
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
   });

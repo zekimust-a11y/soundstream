@@ -61,56 +61,7 @@ export default function BrowseScreen() {
   const [tidalPlaylists, setTidalPlaylists] = useState<LmsPlaylist[]>([]);
   const [tidalMixes, setTidalMixes] = useState<any[]>([]);
 
-  // Load Tidal content
-  useEffect(() => {
-    const loadTidalContent = async () => {
-      if (!tidalEnabled || !tidalConnected) {
-        setTidalAlbums([]);
-        setTidalPlaylists([]);
-        setTidalMixes([]);
-        return;
-      }
-      try {
-        const { getApiUrl } = await import('@/lib/query-client');
-        const apiUrl = getApiUrl();
-        
-        // Load albums
-        fetch(`${apiUrl}/api/tidal/albums?limit=20`)
-          .then(res => res.ok ? res.json() : null)
-          .then(data => data && setTidalAlbums(data.items.map((a: any) => ({
-            id: `tidal-${a.id}`,
-            title: a.title,
-            artist: a.artist,
-            artistId: `tidal-artist-${a.artistId}`,
-            artwork_url: a.artwork_url,
-            trackCount: a.numberOfTracks,
-            year: a.year,
-            source: 'tidal'
-          }))));
-
-        // Load playlists
-        fetch(`${apiUrl}/api/tidal/playlists?limit=20`)
-          .then(res => res.ok ? res.json() : null)
-          .then(data => data && setTidalPlaylists(data.items.map((p: any) => ({
-            id: `tidal-${p.id}`,
-            name: p.title,
-            url: p.lmsUri,
-            artwork_url: p.cover,
-            trackCount: p.numberOfTracks,
-            source: 'tidal'
-          }))));
-
-        // Load mixes
-        fetch(`${apiUrl}/api/tidal/mixes`)
-          .then(res => res.ok ? res.json() : null)
-          .then(data => data && setTidalMixes(data.items));
-
-      } catch (error) {
-        console.error('Error loading Tidal content:', error);
-      }
-    };
-    loadTidalContent();
-  }, [tidalEnabled, tidalConnected]);
+  // (Tidal browse data is loaded below in a single effect to avoid duplicate requests + rate limiting.)
 
   const recentItems: RecentItem[] = useMemo(() => {
     const items: RecentItem[] = [];
@@ -423,16 +374,26 @@ export default function BrowseScreen() {
 
   // Load Tidal albums for the Browse screen
   useEffect(() => {
-    const loadTidalAlbums = async () => {
+    const loadTidalBrowseData = async () => {
       if (!tidalEnabled || !tidalConnected) {
         setTidalAlbums([]);
+        setTidalPlaylists([]);
+        setTidalMixes([]);
         return;
       }
       try {
         const { getApiUrl } = await import('@/lib/query-client');
-        const response = await fetch(`${getApiUrl()}/api/tidal/albums?limit=30`);
-        if (response.ok) {
-          const data = await response.json();
+        const base = getApiUrl();
+
+        const [albumsResp, playlistsResp, mixesResp] = await Promise.all([
+          fetch(`${base}/api/tidal/albums?limit=30`),
+          fetch(`${base}/api/tidal/playlists?limit=20`),
+          fetch(`${base}/api/tidal/mixes`),
+        ]);
+
+        // Albums
+        if (albumsResp.ok) {
+          const data = await albumsResp.json();
           const albums = (data.items || []).map((album: any) => ({
             id: `tidal-${album.id}`,
             title: album.title,
@@ -446,18 +407,44 @@ export default function BrowseScreen() {
           }));
           setTidalAlbums(albums);
         } else {
-          console.warn('Failed to fetch Tidal albums:', response.status);
+          console.warn('Failed to fetch Tidal albums:', albumsResp.status);
           setTidalAlbums([]);
+        }
+
+        // Playlists (currently not rendered on Browse, but used elsewhere / future)
+        if (playlistsResp.ok) {
+          const data = await playlistsResp.json();
+          const pls = (data.items || []).map((p: any) => ({
+            id: `tidal-${p.id}`,
+            name: p.title,
+            url: p.lmsUri,
+            artwork_url: p.artwork_url,
+            trackCount: p.numberOfTracks,
+            source: 'tidal' as const,
+          }));
+          setTidalPlaylists(pls);
+        } else {
+          setTidalPlaylists([]);
+        }
+
+        // Mixes
+        if (mixesResp.ok) {
+          const data = await mixesResp.json();
+          setTidalMixes(Array.isArray(data?.items) ? data.items : []);
+        } else {
+          setTidalMixes([]);
         }
       } catch (e) {
         debugLog.info(
-          "Tidal albums not available",
+          "Tidal browse not available",
           e instanceof Error ? e.message : String(e),
         );
         setTidalAlbums([]);
+        setTidalPlaylists([]);
+        setTidalMixes([]);
       }
     };
-    loadTidalAlbums();
+    loadTidalBrowseData();
   }, [tidalEnabled, tidalConnected]);
 
   return (
