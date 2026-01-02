@@ -47,131 +47,135 @@ export function DesktopBottomBar() {
 
   return (
     <View style={styles.container}>
-      <Pressable
-        onPress={() => navigate("NowPlaying")}
-        disabled={!currentTrack}
-        style={({ pressed }) => [
-          styles.nowPlayingCard,
-          { opacity: pressed ? 0.75 : 1 },
-          !currentTrack ? styles.nowPlayingCardDisabled : null,
-        ]}
-      >
-        {currentTrack?.albumArt ? (
-          <AlbumArtwork
-            source={currentTrack.albumArt}
-            style={styles.nowPlayingArt}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={[styles.nowPlayingArt, styles.nowPlayingArtPlaceholder]}>
-            <Feather name="music" size={18} color={Colors.light.textTertiary} />
-          </View>
-        )}
-        <View style={styles.nowPlayingText}>
-          <ThemedText style={styles.nowPlayingTitle} numberOfLines={1}>
-            {currentTrack?.title || "Nothing playing"}
-          </ThemedText>
-          <ThemedText style={styles.nowPlayingArtist} numberOfLines={1}>
-            {currentTrack?.artist || ""}
-          </ThemedText>
-        </View>
-      </Pressable>
-
-      <View style={styles.middle}>
-        <View style={styles.controlsRow}>
-          <Pressable
-            onPress={previous}
-            style={({ pressed }) => [
-              styles.iconButton,
-              { opacity: pressed ? 0.6 : 1 },
-            ]}
-            hitSlop={10}
-          >
-            <Feather name="skip-back" size={22} color={Colors.light.text} />
-          </Pressable>
-
-          <Pressable
-            onPress={togglePlayPause}
-            style={({ pressed }) => [
-              styles.playButton,
-              { opacity: pressed ? 0.75 : 1 },
-            ]}
-            hitSlop={10}
-          >
-            <Feather
-              name={isPlaying ? "pause" : "play"}
-              size={22}
-              color={Colors.light.text}
-              style={!isPlaying ? { marginLeft: 2 } : undefined}
+      <View style={styles.leftSlot}>
+        <Pressable
+          onPress={() => navigate("NowPlaying")}
+          disabled={!currentTrack}
+          style={({ pressed }) => [
+            styles.nowPlayingCard,
+            { opacity: pressed ? 0.75 : 1 },
+            !currentTrack ? styles.nowPlayingCardDisabled : null,
+          ]}
+        >
+          {currentTrack?.albumArt ? (
+            <AlbumArtwork
+              source={currentTrack.albumArt}
+              style={styles.nowPlayingArt}
+              contentFit="cover"
             />
-          </Pressable>
+          ) : (
+            <View style={[styles.nowPlayingArt, styles.nowPlayingArtPlaceholder]}>
+              <Feather name="music" size={18} color={Colors.light.textTertiary} />
+            </View>
+          )}
+          <View style={styles.nowPlayingText}>
+            <ThemedText style={styles.nowPlayingTitle} numberOfLines={1}>
+              {currentTrack?.title || "Nothing playing"}
+            </ThemedText>
+            <ThemedText style={styles.nowPlayingArtist} numberOfLines={1}>
+              {currentTrack?.artist || ""}
+            </ThemedText>
+          </View>
+        </Pressable>
+      </View>
 
+      <View style={styles.rightSlot}>
+        <View style={styles.middle}>
+          <View style={styles.controlsRow}>
+            <Pressable
+              onPress={previous}
+              style={({ pressed }) => [
+                styles.iconButton,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              hitSlop={10}
+            >
+              <Feather name="skip-back" size={22} color={Colors.light.text} />
+            </Pressable>
+
+            <Pressable
+              onPress={togglePlayPause}
+              style={({ pressed }) => [
+                styles.playButton,
+                { opacity: pressed ? 0.75 : 1 },
+              ]}
+              hitSlop={10}
+            >
+              <Feather
+                name={isPlaying ? "pause" : "play"}
+                size={22}
+                color={Colors.light.text}
+                style={!isPlaying ? { marginLeft: 2 } : undefined}
+              />
+            </Pressable>
+
+            <Pressable
+              onPress={next}
+              style={({ pressed }) => [
+                styles.iconButton,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              hitSlop={10}
+            >
+              <Feather name="skip-forward" size={22} color={Colors.light.text} />
+            </Pressable>
+          </View>
+
+          <View style={styles.progressRow}>
+            <ThemedText style={styles.timeText}>{formatTime(isSeeking ? seekValue : currentTime)}</ThemedText>
+            <Slider
+              style={styles.progressSlider}
+              minimumValue={0}
+              maximumValue={canSeek ? duration : 1}
+              value={canSeek ? (isSeeking ? seekValue : currentTime) : 0}
+              disabled={!canSeek}
+              onSlidingStart={() => setIsSeeking(true)}
+              onValueChange={(v) => setSeekValue(v)}
+              onSlidingComplete={(v) => {
+                setIsSeeking(false);
+                if (canSeek) seek(v);
+              }}
+              minimumTrackTintColor={Colors.light.text}
+              maximumTrackTintColor={Colors.light.backgroundTertiary}
+              thumbTintColor={Colors.light.text}
+            />
+            <ThemedText style={styles.timeText}>{formatTime(duration)}</ThemedText>
+          </View>
+        </View>
+
+        <View style={styles.volume}>
+          <Feather name="volume-2" size={18} color={Colors.light.textSecondary} />
           <Pressable
-            onPress={next}
+            onPress={() => changeVolumeBy(-0.02)}
             style={({ pressed }) => [
-              styles.iconButton,
+              styles.volButton,
               { opacity: pressed ? 0.6 : 1 },
             ]}
             hitSlop={10}
           >
-            <Feather name="skip-forward" size={22} color={Colors.light.text} />
+            <Feather name="minus" size={16} color={Colors.light.text} />
           </Pressable>
-        </View>
-
-        <View style={styles.progressRow}>
-          <ThemedText style={styles.timeText}>{formatTime(isSeeking ? seekValue : currentTime)}</ThemedText>
           <Slider
-            style={styles.progressSlider}
+            style={styles.volumeSlider}
             minimumValue={0}
-            maximumValue={canSeek ? duration : 1}
-            value={canSeek ? (isSeeking ? seekValue : currentTime) : 0}
-            disabled={!canSeek}
-            onSlidingStart={() => setIsSeeking(true)}
-            onValueChange={(v) => setSeekValue(v)}
-            onSlidingComplete={(v) => {
-              setIsSeeking(false);
-              if (canSeek) seek(v);
-            }}
-            minimumTrackTintColor={Colors.light.text}
+            maximumValue={1}
+            value={volume ?? 0}
+            onValueChange={(v) => setVolume(v)}
+            minimumTrackTintColor={Colors.light.accent}
             maximumTrackTintColor={Colors.light.backgroundTertiary}
             thumbTintColor={Colors.light.text}
           />
-          <ThemedText style={styles.timeText}>{formatTime(duration)}</ThemedText>
+          <Pressable
+            onPress={() => changeVolumeBy(0.02)}
+            style={({ pressed }) => [
+              styles.volButton,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+            hitSlop={10}
+          >
+            <Feather name="plus" size={16} color={Colors.light.text} />
+          </Pressable>
         </View>
-      </View>
-
-      <View style={styles.volume}>
-        <Feather name="volume-2" size={18} color={Colors.light.textSecondary} />
-        <Pressable
-          onPress={() => changeVolumeBy(-0.02)}
-          style={({ pressed }) => [
-            styles.volButton,
-            { opacity: pressed ? 0.6 : 1 },
-          ]}
-          hitSlop={10}
-        >
-          <Feather name="minus" size={16} color={Colors.light.text} />
-        </Pressable>
-        <Slider
-          style={styles.volumeSlider}
-          minimumValue={0}
-          maximumValue={1}
-          value={volume ?? 0}
-          onValueChange={(v) => setVolume(v)}
-          minimumTrackTintColor={Colors.light.accent}
-          maximumTrackTintColor={Colors.light.backgroundTertiary}
-          thumbTintColor={Colors.light.text}
-        />
-        <Pressable
-          onPress={() => changeVolumeBy(0.02)}
-          style={({ pressed }) => [
-            styles.volButton,
-            { opacity: pressed ? 0.6 : 1 },
-          ]}
-          hitSlop={10}
-        >
-          <Feather name="plus" size={16} color={Colors.light.text} />
-        </Pressable>
       </View>
     </View>
   );
@@ -185,11 +189,22 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundDefault,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
   },
+  leftSlot: {
+    width: 320,
+    paddingLeft: Spacing.lg,
+    paddingRight: Spacing.md,
+  },
+  rightSlot: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: Spacing.md,
+    paddingRight: Spacing.xl,
+  },
   nowPlayingCard: {
-    width: 360,
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.light.backgroundSecondary,
@@ -197,7 +212,6 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.light.border,
-    marginRight: Spacing.lg,
   },
   nowPlayingCardDisabled: {
     opacity: 0.8,

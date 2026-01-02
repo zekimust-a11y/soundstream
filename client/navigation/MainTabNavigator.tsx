@@ -417,12 +417,12 @@ export default function MainTabNavigator() {
 
   if (isLargeWeb) {
     return (
-      <View style={styles.desktopContainer}>
-        <DesktopSidebar />
-        <View style={styles.desktopMain}>
+      <View style={styles.desktopPage}>
+        <View style={styles.desktopRow}>
+          <DesktopSidebar />
           <View style={styles.desktopNavArea}>{navigator}</View>
-          <DesktopBottomBar />
         </View>
+        <DesktopBottomBar />
       </View>
     );
   }
@@ -439,13 +439,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  desktopContainer: {
+  desktopPage: {
     flex: 1,
-    flexDirection: "row",
     backgroundColor: Colors.light.backgroundRoot,
   },
-  desktopMain: {
+  desktopRow: {
     flex: 1,
+    flexDirection: "row",
     backgroundColor: Colors.light.backgroundRoot,
   },
   desktopNavArea: {
