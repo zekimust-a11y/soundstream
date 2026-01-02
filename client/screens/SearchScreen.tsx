@@ -24,6 +24,7 @@ import { SourceBadge } from "@/components/SourceBadge";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic, type Artist, type Album } from "@/hooks/useMusic";
 import { usePlayback, type Track } from "@/hooks/usePlayback";
+import { lmsClient } from "@/lib/lmsClient";
 import type { SearchStackParamList } from "@/navigation/SearchStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SearchStackParamList>;
@@ -64,6 +65,8 @@ export default function SearchScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearchItem[]>([]);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const artistThumbCacheRef = useRef<Map<string, string>>(new Map());
+  const searchRequestIdRef = useRef(0);
 
   useEffect(() => {
     loadRecentSearches();
@@ -194,6 +197,7 @@ export default function SearchScreen() {
     }
     
     setIsSearching(true);
+    const reqId = ++searchRequestIdRef.current;
     try {
       console.log('Performing search:', { 
         text, 
@@ -223,6 +227,43 @@ export default function SearchScreen() {
     setResults(searchResults);
       // Save search with results for artwork
       saveRecentSearch(text, searchResults);
+
+      // Enrich artist thumbnails (non-blocking). Only update if this is still the latest request.
+      (async () => {
+        try {
+          const missing = searchResults.artists
+            .filter(a => !a.imageUrl && a.name && a.name !== 'Unknown Artist')
+            .slice(0, 12);
+          if (missing.length === 0) return;
+
+          const fetched = await Promise.all(
+            missing.map(async (a) => {
+              const key = a.name.toLowerCase().trim();
+              const cached = artistThumbCacheRef.current.get(key);
+              if (cached) return { key, url: cached };
+              const url = await lmsClient.getArtistImage(a.name);
+              if (url) artistThumbCacheRef.current.set(key, url);
+              return { key, url };
+            })
+          );
+
+          const map = new Map(fetched.filter(x => x.url).map(x => [x.key, x.url as string]));
+          if (map.size === 0) return;
+          if (searchRequestIdRef.current !== reqId) return; // stale
+
+          setResults(prev => ({
+            ...prev,
+            artists: prev.artists.map(a => {
+              if (a.imageUrl) return a;
+              const key = a.name.toLowerCase().trim();
+              const url = map.get(key);
+              return url ? { ...a, imageUrl: url } : a;
+            })
+          }));
+        } catch {
+          // ignore thumbnail enrichment failures
+        }
+      })();
     } catch (error) {
       console.error('Search failed:', error);
       if (error instanceof Error) {

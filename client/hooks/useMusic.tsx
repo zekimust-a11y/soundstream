@@ -904,6 +904,26 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       
       const sourceFilter = filters?.source || "all";
       const typeFilter = filters?.type || "all";
+
+      const normalize = (s: string) =>
+        (s || "")
+          .toLowerCase()
+          .replace(/[()\[\]{}'"?.,!;:]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const cleanQuery = normalize(query);
+
+      const scoreText = (text: string): number => {
+        const t = normalize(text);
+        if (!cleanQuery) return 0;
+        if (t === cleanQuery) return 300;
+        if (t.startsWith(cleanQuery)) return 200;
+        if (t.includes(cleanQuery)) return 120;
+        const qw = cleanQuery.split(" ").filter(Boolean);
+        const matched = qw.filter((w) => t.includes(w)).length;
+        return matched * 20;
+      };
       
       debugLog.info('Starting search', JSON.stringify({ query, sourceFilter, typeFilter, server: `${activeServer.host}:${activeServer.port}` }));
       
@@ -950,16 +970,23 @@ export function MusicProvider({ children }: { children: ReactNode }) {
                 return true;
               });
             
+            const artistsRanked = result.artists
+              .map(convertLmsArtistToArtist)
+              .filter((a) => a.name && a.name !== "Unknown Artist")
+              .sort((a, b) => scoreText(b.name) - scoreText(a.name) || a.name.localeCompare(b.name));
+
+            const albumsRanked = albumsWithSource
+              .filter((a) => a.name && a.name !== "Unknown Album")
+              .sort((a, b) => {
+                const sa = scoreText(a.name) + scoreText(a.artist) * 0.5;
+                const sb = scoreText(b.name) + scoreText(b.artist) * 0.5;
+                return sb - sa || a.name.localeCompare(b.name);
+              });
+
             return {
-              artists: (typeFilter === "all" || typeFilter === "artists") 
-                ? result.artists.map(convertLmsArtistToArtist)
-                : [],
-              albums: (typeFilter === "all" || typeFilter === "albums") 
-                ? albumsWithSource
-                : [],
-              tracks: (typeFilter === "all" || typeFilter === "tracks") 
-                ? tracksWithSource 
-                : [],
+              artists: (typeFilter === "all" || typeFilter === "artists") ? artistsRanked : [],
+              albums: (typeFilter === "all" || typeFilter === "albums") ? albumsRanked : [],
+              tracks: (typeFilter === "all" || typeFilter === "tracks") ? tracksWithSource : [],
             };
           } else {
             debugLog.info('Global search returned no results, falling back to separate searches');
@@ -1026,6 +1053,14 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       const uniqueAlbums = mergedAlbums.filter((a, i, arr) => 
         arr.findIndex(x => x.id === a.id || (x.name === a.name && x.artist === a.artist)) === i
       );
+
+      // Rank artists/albums to avoid "strange" ordering from LMS search endpoints.
+      uniqueArtists.sort((a, b) => scoreText(b.name) - scoreText(a.name) || a.name.localeCompare(b.name));
+      uniqueAlbums.sort((a, b) => {
+        const sa = scoreText(a.name) + scoreText(a.artist) * 0.5;
+        const sb = scoreText(b.name) + scoreText(b.artist) * 0.5;
+        return sb - sa || a.name.localeCompare(b.name);
+      });
       
       return {
         artists: (typeFilter === "all" || typeFilter === "artists") ? uniqueArtists : [],

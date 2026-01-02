@@ -2770,18 +2770,19 @@ class LmsClient {
       const tracks: LmsTrack[] = [];
 
       for (const item of items) {
-        const type = String(item.type || '');
+        const type = String(item.type || '').toLowerCase();
         const hasUrl = Boolean(item.url);
-        const url = item.url ? String(item.url) : '';
-        // Check if item is from Qobuz (Qobuz URLs typically contain 'qobuz' or are streaming URLs)
-        const isQobuz = url.includes('qobuz') || String(item.extid || '').includes('qobuz') || 
-                       String(item.id || '').startsWith('qobuz_');
 
-        if (type === 'artist' || item.artist_id) {
+        // IMPORTANT: `globalsearch` items often include `artist_id` even for albums/tracks.
+        // Only treat an item as an artist when it is explicitly an artist.
+        if (type === 'artist') {
+          const name = String(item.artist || item.name || item.text || 'Unknown Artist');
           artists.push({
-            id: String(item.artist_id || item.id || ''),
-            name: String(item.artist || item.name || item.text || 'Unknown Artist'),
-          });
+            id: String(item.id || item.artist_id || name),
+            name,
+            // Preserve any artwork URL if provided (some LMS setups include it)
+            ...(item.image ? { artworkUrl: String(item.image) } : {}),
+          } as any);
         } else if (type === 'album' || item.album_id) {
           const artworkUrl = item.image ? String(item.image) : 
             (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
@@ -2805,19 +2806,74 @@ class LmsClient {
             url: item.url ? String(item.url) : undefined,
             format: 'FLAC',
           });
+        } else if (item.album_id) {
+          // Fallback: sometimes type is missing but album_id is present
+          const artworkUrl = item.image ? String(item.image) : 
+            (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
+          albums.push({
+            id: String(item.album_id || item.id || ''),
+            title: String(item.album || item.title || item.name || item.text || 'Unknown Album'),
+            artist: String(item.artist || item.albumartist || 'Unknown Artist'),
+            artwork_url: artworkUrl,
+            year: item.year ? Number(item.year) : undefined,
+          });
         }
       }
 
+      // De-dupe artists/albums/tracks (globalsearch can return repeats)
+      const uniqBy = <T>(arr: T[], keyFn: (t: T) => string) => {
+        const seen = new Set<string>();
+        const out: T[] = [];
+        for (const t of arr) {
+          const k = keyFn(t);
+          if (seen.has(k)) continue;
+          seen.add(k);
+          out.push(t);
+        }
+        return out;
+      };
+
+      const normalize = (s: string) =>
+        (s || "")
+          .toLowerCase()
+          .replace(/[()\[\]{}'"?.,!;:]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const queryLower = normalize(query);
+
+      const scoreText = (text: string): number => {
+        const t = normalize(text);
+        if (!queryLower) return 0;
+        if (t === queryLower) return 300;
+        if (t.startsWith(queryLower)) return 200;
+        if (t.includes(queryLower)) return 120;
+        const qw = queryLower.split(" ").filter(Boolean);
+        const matched = qw.filter((w) => t.includes(w)).length;
+        return matched * 20;
+      };
+
+      const uniqueArtists = uniqBy(artists, (a) => `${a.id}::${a.name.toLowerCase()}`)
+        .sort((a, b) => scoreText(b.name) - scoreText(a.name) || a.name.localeCompare(b.name));
+
+      const uniqueAlbums = uniqBy(albums, (a) => `${a.id}::${(a.title || "").toLowerCase()}::${(a.artist || "").toLowerCase()}`)
+        .sort((a, b) => {
+          const sa = scoreText(a.title) + scoreText(a.artist) * 0.5;
+          const sb = scoreText(b.title) + scoreText(b.artist) * 0.5;
+          return sb - sa || a.title.localeCompare(b.title);
+        });
+
+      const uniqueTracks = uniqBy(tracks, (t) => `${t.id}::${(t.url || "").toLowerCase()}`);
+
       // Rank and sort tracks by relevance
-      const queryLower = query.toLowerCase();
-      tracks.sort((a, b) => {
+      uniqueTracks.sort((a, b) => {
         const scoreA = this.calculateTrackRelevanceScore(a, queryLower);
         const scoreB = this.calculateTrackRelevanceScore(b, queryLower);
         return scoreB - scoreA; // Sort descending (highest score first)
       });
       
-      debugLog.info('Global search results', `${artists.length} artists, ${albums.length} albums, ${tracks.length} tracks`);
-      return { artists, albums, tracks };
+      debugLog.info('Global search results', `${uniqueArtists.length} artists, ${uniqueAlbums.length} albums, ${uniqueTracks.length} tracks`);
+      return { artists: uniqueArtists, albums: uniqueAlbums, tracks: uniqueTracks };
     } catch (error) {
       // globalsearch may not be available or may timeout - this is expected, fall back gracefully
       const errorMsg = error instanceof Error ? error.message : String(error);
