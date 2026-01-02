@@ -2,6 +2,7 @@ import React from "react";
 import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
+import SearchStackNavigator from "@/navigation/SearchStackNavigator";
 import NowPlayingScreen from "@/screens/NowPlayingScreen";
 import QueueScreen from "@/screens/QueueScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
@@ -14,6 +15,7 @@ export type RootStackParamList = {
     screen?: keyof import('./MainTabNavigator').MainTabParamList;
     params?: any;
   };
+  SearchModal: { initialQuery?: string } | undefined;
   NowPlaying: undefined;
   Queue: undefined;
 };
@@ -32,6 +34,14 @@ export default function RootStackNavigator() {
               name="Main"
               component={MainTabNavigator}
               options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="SearchModal"
+              component={SearchStackNavigator as any}
+              options={{
+                headerShown: false,
+                presentation: "fullScreenModal",
+              }}
             />
             <Stack.Group
               screenOptions={{

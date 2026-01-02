@@ -9,7 +9,6 @@ import PlaylistsStackNavigator from "@/navigation/PlaylistsStackNavigator";
 import AlbumsStackNavigator from "@/navigation/AlbumsStackNavigator";
 import TracksStackNavigator from "@/navigation/TracksStackNavigator";
 import RadioStackNavigator from "@/navigation/RadioStackNavigator";
-import SearchStackNavigator from "@/navigation/SearchStackNavigator";
 import MiniPlayer from "@/components/MiniPlayer";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing } from "@/constants/theme";
@@ -23,7 +22,6 @@ export type MainTabParamList = {
   AlbumsTab: undefined;
   TracksTab: undefined;
   RadioTab: undefined;
-  SearchTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -344,16 +342,6 @@ export default function MainTabNavigator() {
             title: "Browse",
             tabBarIcon: ({ focused }) => (
               <TidalHomeIcon focused={focused} />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="SearchTab"
-          component={SearchStackNavigator}
-          options={{
-            title: "Search",
-            tabBarIcon: ({ focused }) => (
-              <AnimatedTabIcon name="search" focused={focused} />
             ),
           }}
         />

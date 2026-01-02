@@ -20,6 +20,7 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { AlbumArtwork } from "@/components/AlbumArtwork";
+import { AppHeader } from "@/components/AppHeader";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback, Track } from "@/hooks/usePlayback";
@@ -475,36 +476,19 @@ export default function BrowseScreen() {
           />
         }
       >
-        {/* Header */}
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-          <View style={styles.headerLeft}>
-            <ThemedText style={styles.headerTitle}>Browse</ThemedText>
-          </View>
-          <View style={styles.headerRight}>
-            <Pressable
-              style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
-              onPress={handleShuffleAll}
-            >
-              {isShuffling ? (
-                <ActivityIndicator size="small" color={Colors.light.text} />
-              ) : (
-                <Feather name="shuffle" size={20} color={Colors.light.text} />
-              )}
-            </Pressable>
+        <AppHeader
+          title="Browse"
+          showShuffle
+          onPressShuffle={handleShuffleAll}
+          rightExtra={
             <Pressable
               style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
               onPress={() => navigation.navigate("History")}
             >
               <Feather name="clock" size={20} color={Colors.light.text} />
             </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
-              onPress={() => navigation.navigate("Settings")}
-            >
-              <Feather name="settings" size={20} color={Colors.light.text} />
-            </Pressable>
-          </View>
-        </View>
+          }
+        />
 
         {/* Recently Played Section */}
         {recentItems.length > 0 && (
@@ -802,26 +786,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundRoot,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingBottom: Spacing.lg,
-  },
-  headerLeft: {
-    flexGrow: 1,
-    flexShrink: 1,
-  },
-  headerTitle: {
-    ...Typography.title,
-    color: Colors.light.text,
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: Spacing.sm,
   },
   headerButton: {
     width: 40,

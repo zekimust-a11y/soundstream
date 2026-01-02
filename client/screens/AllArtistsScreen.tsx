@@ -24,6 +24,7 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { AppHeader } from "@/components/AppHeader";
 import { LibraryToolbar, type SourceFilter, type ViewMode } from "@/components/LibraryToolbar";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { ArtistGridSkeleton, AlbumListSkeleton } from "@/components/SkeletonLoader";
@@ -355,9 +356,7 @@ export default function AllArtistsScreen() {
   if (isLoading) {
     return (
       <ThemedView style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-          <ThemedText style={styles.headerTitle}>Artists</ThemedText>
-        </View>
+        <AppHeader title="Artists" />
         <LibraryToolbar
           sortValue={sortKey}
           sortLabel="Sorting"
@@ -394,9 +393,7 @@ export default function AllArtistsScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText style={styles.headerTitle}>Artists</ThemedText>
-      </View>
+      <AppHeader title="Artists" />
       <LibraryToolbar
         sortValue={sortKey}
         sortLabel="Sorting"
@@ -478,25 +475,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: Colors.light.backgroundRoot,
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-  },
-  headerTitle: {
-    fontSize: 22.4, // 30% smaller than Typography.display (32px * 0.7)
-    fontWeight: "700",
-    color: Colors.light.text,
-    textAlign: "left",
-    alignSelf: "flex-start",
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
+  // Header now standardized via `AppHeader`.
   viewToggle: {
     flexDirection: "row",
     backgroundColor: Colors.light.backgroundSecondary,

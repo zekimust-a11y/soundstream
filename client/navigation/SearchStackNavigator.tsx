@@ -7,7 +7,7 @@ import AlbumScreen from "@/screens/AlbumScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type SearchStackParamList = {
-  Search: undefined;
+  Search: { initialQuery?: string } | undefined;
   Artist: { id: string; name: string };
   Album: { id: string; name: string; artistName: string };
 };

@@ -25,6 +25,7 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { AppHeader } from "@/components/AppHeader";
 import { LibraryToolbar, type SourceFilter } from "@/components/LibraryToolbar";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { AlbumGridSkeleton, AlbumListSkeleton } from "@/components/SkeletonLoader";
@@ -546,17 +547,7 @@ export default function PlaylistsScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText style={styles.headerTitle}>Playlists</ThemedText>
-        <View style={styles.viewToggle}>
-          <Pressable style={[styles.toggleButton, viewMode === "grid" && styles.toggleButtonActive]} onPress={() => handleViewModeChange("grid")}>
-            <Feather name="grid" size={18} color={viewMode === "grid" ? Colors.light.accent : Colors.light.textSecondary} />
-          </Pressable>
-          <Pressable style={[styles.toggleButton, viewMode === "list" && styles.toggleButtonActive]} onPress={() => handleViewModeChange("list")}>
-            <Feather name="list" size={18} color={viewMode === "list" ? Colors.light.accent : Colors.light.textSecondary} />
-          </Pressable>
-        </View>
-      </View>
+      <AppHeader title="Playlists" />
 
       <LibraryToolbar
         sortValue={sortKey}
@@ -572,7 +563,9 @@ export default function PlaylistsScreen() {
         qualityValue="all"
         qualityOptions={[{ value: "all", label: "All" }]}
         onQualityChange={() => {}}
-        showViewToggle={false}
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+        showViewToggle
       />
 
       {isLoading && filteredPlaylists.length === 0 ? (
@@ -596,11 +589,7 @@ export default function PlaylistsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundRoot },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
-  headerTitle: { fontSize: 22.4, fontWeight: "700", color: Colors.light.text, textAlign: "left", alignSelf: "flex-start" },
-  viewToggle: { flexDirection: "row", backgroundColor: Colors.light.backgroundSecondary, borderRadius: BorderRadius.sm, padding: 2 },
-  toggleButton: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: BorderRadius.xs },
-  toggleButtonActive: { backgroundColor: Colors.light.backgroundDefault },
+  // Header now standardized via `AppHeader`; view toggle moved into `LibraryToolbar`.
   gridContent: { paddingHorizontal: Spacing.lg },
   gridRow: { gap: Spacing.lg, marginBottom: Spacing.lg },
   gridItem: { width: "100%" },

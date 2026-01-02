@@ -22,6 +22,7 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { AppHeader } from "@/components/AppHeader";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { useFavoriteRadios } from "@/hooks/useLibrary";
 import { useMusic } from "@/hooks/useMusic";
@@ -370,8 +371,8 @@ export default function RadioScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText style={styles.headerTitle}>Radio</ThemedText>
+      <AppHeader title="Radio" />
+      <View style={styles.toolbarRow}>
         <View style={styles.viewToggle}>
           <Pressable
             style={[
@@ -474,19 +475,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: Colors.light.backgroundRoot,
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  // Header now standardized via `AppHeader`.
+  toolbarRow: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-  },
-  headerTitle: {
-    fontSize: 22.4, // 30% smaller than Typography.display (32px * 0.7)
-    fontWeight: "700",
-    color: Colors.light.text,
-    textAlign: "left",
-    alignSelf: "flex-start",
+    paddingBottom: Spacing.md,
+    alignItems: "flex-end",
   },
   viewToggle: {
     flexDirection: "row",

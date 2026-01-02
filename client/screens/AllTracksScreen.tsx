@@ -16,6 +16,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { AlbumArtwork } from "@/components/AlbumArtwork";
 import { LibraryToolbar, type SourceFilter, type ViewMode } from "@/components/LibraryToolbar";
+import { AppHeader } from "@/components/AppHeader";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback, type Track } from "@/hooks/usePlayback";
@@ -280,11 +281,9 @@ export default function AllTracksScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText style={styles.headerTitle}>
-          Tracks ({filteredTracks.length.toLocaleString()}{lmsTotal ? ` / ${lmsTotal.toLocaleString()}` : ""})
-        </ThemedText>
-      </View>
+      <AppHeader
+        title={`Tracks (${filteredTracks.length.toLocaleString()}${lmsTotal ? ` / ${lmsTotal.toLocaleString()}` : ""})`}
+      />
 
       <LibraryToolbar
         sortValue={sortKey}
@@ -374,17 +373,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-  },
-  headerTitle: {
-    ...Typography.title,
-    color: Colors.light.text,
-  },
+  // Header now standardized via `AppHeader`.
   listContent: {
     paddingHorizontal: Spacing.lg,
   },

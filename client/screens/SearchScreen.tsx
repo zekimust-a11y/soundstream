@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -50,6 +51,7 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<RouteProp<SearchStackParamList, "Search">>();
   const searchInputRef = useRef<TextInput>(null);
   const { searchMusic, addToRecentlyPlayed, isFavoriteTrack, toggleFavoriteTrack, activeServer } = useMusic();
   const { playTrack } = usePlayback();
@@ -78,6 +80,15 @@ export default function SearchScreen() {
       }
     };
   }, []);
+
+  // If opened from the global header search, prefill and run search
+  useEffect(() => {
+    const initial = (route.params as any)?.initialQuery;
+    if (typeof initial === "string" && initial.trim().length > 0) {
+      setQuery(initial);
+      performSearch(initial, sourceFilter, activeTab);
+    }
+  }, [route.params]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFocusEffect(
     useCallback(() => {
