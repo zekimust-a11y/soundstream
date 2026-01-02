@@ -304,6 +304,70 @@ function pickArtworkUrl(artwork: any, preferred = "320x320"): string | null {
   return (preferredFile?.href || first?.href || null) as string | null;
 }
 
+function parseIsoDuration(isoDuration: string): number {
+  // e.g. PT3M45S, PT1H2M3S
+  const matches = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!matches) return 0;
+  const hours = parseInt(matches[1] || "0", 10);
+  const minutes = parseInt(matches[2] || "0", 10);
+  const seconds = parseInt(matches[3] || "0", 10);
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
+function buildIncludedMap(included: any[]): Record<string, Record<string, any>> {
+  const map: Record<string, Record<string, any>> = {};
+  for (const i of included) {
+    const type = String(i?.type || "");
+    const id = String(i?.id || "");
+    if (!type || !id) continue;
+    if (!map[type]) map[type] = {};
+    map[type][id] = i;
+  }
+  return map;
+}
+
+function mapOpenApiTrackFromItem(item: any, includedMap: Record<string, Record<string, any>>): any {
+  // In relationships/items, the actual resource is in included under 'items' type usually,
+  // but TIDAL sometimes maps them to 'tracks'
+  const itemId = String(item?.id || "");
+  const track = (includedMap.items && includedMap.items[itemId]) || (includedMap.tracks && includedMap.tracks[itemId]) || {
+    id: itemId,
+    attributes: {},
+  };
+
+  const artistRel = track?.relationships?.artists?.data?.[0];
+  const artist = artistRel ? includedMap.artists?.[String(artistRel.id)] : null;
+
+  const albumRel = track?.relationships?.albums?.data?.[0];
+  const album = albumRel ? includedMap.albums?.[String(albumRel.id)] : null;
+
+  const artworkRel = album?.relationships?.coverArt?.data?.[0];
+  const artwork = artworkRel ? includedMap.artworks?.[String(artworkRel.id)] : null;
+
+  const coverUrl = pickArtworkUrl(artwork, "320x320");
+
+  const rawDuration = track?.attributes?.duration;
+  const duration =
+    typeof rawDuration === "string" ? parseIsoDuration(rawDuration) : typeof rawDuration === "number" ? rawDuration : 0;
+
+  const id = String(track?.id || itemId);
+
+  return {
+    id,
+    title: track?.attributes?.title || "Unknown Track",
+    artist: artist?.attributes?.name || track?.attributes?.artistName || "Unknown Artist",
+    artistId: String(artist?.id || ""),
+    album: album?.attributes?.title || track?.attributes?.albumName || "Unknown Album",
+    albumId: String(album?.id || ""),
+    duration,
+    trackNumber: item?.meta?.trackNumber || track?.attributes?.trackNumber || 0,
+    artwork_url: coverUrl || null,
+    uri: `tidal://track:${id}`,
+    lmsUri: `tidal://track:${id}`,
+    source: "tidal",
+  };
+}
+
 export function registerTidalRoutes(app: Express): void {
   loadTokensFromDisk();
 
@@ -758,7 +822,8 @@ export function registerTidalRoutes(app: Express): void {
   app.get("/api/tidal/albums/:albumId/tracks", async (req: Request, res: Response) => {
     const t = requireTokens(res);
     if (!t) return;
-    const albumId = String(req.params.albumId);
+    let albumId = String(req.params.albumId);
+    if (albumId.startsWith("tidal-")) albumId = albumId.replace(/^tidal-/, "");
     try {
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
       const url = `https://openapi.tidal.com/v2/albums/${encodeURIComponent(
@@ -767,7 +832,11 @@ export function registerTidalRoutes(app: Express): void {
         countryCode
       )}&page[size]=100`;
       const data = await openApiGet(url, t.accessToken);
-      return res.json(data);
+      const itemsArr: any[] = Array.isArray(data?.data) ? data.data : [];
+      const included: any[] = Array.isArray(data?.included) ? data.included : [];
+      const includedMap = buildIncludedMap(included);
+      const items = itemsArr.map((it: any) => mapOpenApiTrackFromItem(it, includedMap));
+      return res.json({ items, total: items.length });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
@@ -776,7 +845,8 @@ export function registerTidalRoutes(app: Express): void {
   app.get("/api/tidal/playlists/:playlistId/tracks", async (req: Request, res: Response) => {
     const t = requireTokens(res);
     if (!t) return;
-    const playlistId = String(req.params.playlistId);
+    let playlistId = String(req.params.playlistId);
+    if (playlistId.startsWith("tidal-")) playlistId = playlistId.replace(/^tidal-/, "");
     try {
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
       const url = `https://openapi.tidal.com/v2/playlists/${encodeURIComponent(
@@ -785,7 +855,11 @@ export function registerTidalRoutes(app: Express): void {
         countryCode
       )}&page[size]=100`;
       const data = await openApiGet(url, t.accessToken);
-      return res.json(data);
+      const itemsArr: any[] = Array.isArray(data?.data) ? data.data : [];
+      const included: any[] = Array.isArray(data?.included) ? data.included : [];
+      const includedMap = buildIncludedMap(included);
+      const items = itemsArr.map((it: any) => mapOpenApiTrackFromItem(it, includedMap));
+      return res.json({ items, total: items.length });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
