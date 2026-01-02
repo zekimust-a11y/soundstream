@@ -8,6 +8,7 @@
 #   sudo udevadm info -a -n /dev/input/eventX | head -n 80
 #
 # FLIRC keyboard interface (flirc.tv flirc Keyboard)
-KERNEL=="event*", SUBSYSTEM=="input", ATTRS{idVendor}=="20a0", ATTRS{idProduct}=="0006", ATTRS{name}=="flirc.tv flirc Keyboard", SYMLINK+="input/flirc-kbd", MODE="0660", GROUP="input"
+# Note: on the input device parent, the IDs are exposed as id/vendor + id/product (not idVendor/idProduct).
+KERNEL=="event*", SUBSYSTEM=="input", ATTRS{id/vendor}=="20a0", ATTRS{id/product}=="0006", ATTRS{name}=="flirc.tv flirc Keyboard", SYMLINK+="input/flirc-kbd", MODE="0660", GROUP="input"
 
 
