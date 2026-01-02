@@ -84,9 +84,12 @@ export default function SearchScreen() {
   // If opened from the global header search, prefill and run search
   useEffect(() => {
     const initial = (route.params as any)?.initialQuery;
-    if (typeof initial === "string" && initial.trim().length > 0) {
-      setQuery(initial);
-      performSearch(initial, sourceFilter, activeTab);
+    if (typeof initial === "string") {
+      const next = initial.trim();
+      if (next.length > 0) {
+        setQuery(next);
+        performSearch(next, sourceFilter, activeTab);
+      }
     }
   }, [route.params]); // eslint-disable-line react-hooks/exhaustive-deps
 

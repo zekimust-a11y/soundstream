@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,12 +35,17 @@ export function AppHeader({
   const { width } = useWindowDimensions();
   const navigation = useNavigation<Nav>();
   const [q, setQ] = useState("");
+  const redirectingRef = useRef(false);
 
   const isWide = Platform.OS === "web" && width >= 980;
 
   const goSearch = (query?: string) => {
     if (onPressSearch) return onPressSearch(query);
-    navigation.navigate("SearchModal", { initialQuery: query || "" });
+    // Navigate to the nested Search screen so it behaves like the real Search page.
+    navigation.navigate("SearchModal", {
+      screen: "Search",
+      params: { initialQuery: query || "" },
+    } as any);
   };
 
   const goSettings = () => {
@@ -67,12 +72,34 @@ export function AppHeader({
             <Feather name="search" size={16} color={Colors.light.textSecondary} />
             <TextInput
               value={q}
-              onChangeText={setQ}
+              onChangeText={(text) => {
+                setQ(text);
+                // As soon as the user types, open the Search screen and show results there.
+                if (!redirectingRef.current && text.trim().length > 0) {
+                  redirectingRef.current = true;
+                  goSearch(text);
+                  setQ("");
+                  setTimeout(() => {
+                    redirectingRef.current = false;
+                  }, 400);
+                }
+              }}
               placeholder="Search…"
               placeholderTextColor={Colors.light.textTertiary}
               style={styles.searchInput}
               returnKeyType="search"
               onSubmitEditing={onSubmit}
+              onFocus={() => {
+                // Clicking into the box should behave like Search page.
+                if (!redirectingRef.current) {
+                  redirectingRef.current = true;
+                  goSearch(q);
+                  setQ("");
+                  setTimeout(() => {
+                    redirectingRef.current = false;
+                  }, 400);
+                }
+              }}
             />
           </View>
         ) : (

@@ -15,7 +15,8 @@ export type RootStackParamList = {
     screen?: keyof import('./MainTabNavigator').MainTabParamList;
     params?: any;
   };
-  SearchModal: { initialQuery?: string } | undefined;
+  // Nested Search stack (SearchScreen is the initial route). We keep params loose here.
+  SearchModal: any;
   NowPlaying: undefined;
   Queue: undefined;
 };
