@@ -123,6 +123,7 @@ export default function SettingsScreen() {
 
   const [libraryCountsBySource, setLibraryCountsBySource] = useState<LibraryCountsBySource | null>(null);
   const [libraryRadioCount, setLibraryRadioCount] = useState<number | null>(null);
+  const [tidalTotalsNote, setTidalTotalsNote] = useState<string | null>(null);
   
   const [isChromecastDiscovering, setIsChromecastDiscovering] = useState(false);
   const [discoveredChromecastDevices, setDiscoveredChromecastDevices] = useState<Array<{ip: string; name: string}>>([]);
@@ -430,6 +431,15 @@ export default function SettingsScreen() {
           });
           if (resp.ok) {
             const data = await resp.json();
+            if (data?.missingScope) {
+              setTidalTotalsNote(
+                `Tidal counts need legacy scope (${String(data.missingScope)}). Reconnect Tidal with legacy permissions if you want totals here.`
+              );
+            } else if (data?.rateLimited) {
+              setTidalTotalsNote("Tidal totals are temporarily rate-limited. Try again in a minute.");
+            } else {
+              setTidalTotalsNote(null);
+            }
             tidalCounts = {
               albums: toNumOrNull(data.albums),
               artists: toNumOrNull(data.artists),
@@ -469,6 +479,7 @@ export default function SettingsScreen() {
       console.error("Failed to load library stats:", e);
       setLibraryCountsBySource(null);
       setLibraryRadioCount(null);
+      setTidalTotalsNote(null);
     }
   };
 
@@ -881,6 +892,11 @@ export default function SettingsScreen() {
                     );
                   })()}
                 </View>
+                {tidalTotalsNote ? (
+                  <ThemedText style={[styles.hintText, { color: theme.textTertiary, marginTop: Spacing.sm }]}>
+                    {tidalTotalsNote}
+                  </ThemedText>
+                ) : null}
 
                 <View style={[styles.radioRow, { borderColor: theme.border }]}>
                   <ThemedText style={[styles.radioLabel, { color: theme.textTertiary }]}>Radio (LMS)</ThemedText>

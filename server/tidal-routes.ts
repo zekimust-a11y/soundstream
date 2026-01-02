@@ -1440,7 +1440,7 @@ export function registerTidalRoutes(app: Express): void {
 
       const apiTotal = async (
         pathWithQuery: string
-      ): Promise<{ count: number | null; rateLimited: boolean }> => {
+      ): Promise<{ count: number | null; rateLimited: boolean; missingScope?: boolean }> => {
         const doFetch = async (token: string) => tidalApiGet(pathWithQuery, token, countryCode);
         let resp = await doFetch(t.accessToken);
 
@@ -1478,7 +1478,13 @@ export function registerTidalRoutes(app: Express): void {
         }
 
         if (resp.status === 429) return { count: null, rateLimited: true };
-        if (resp.status < 200 || resp.status >= 300) return { count: null, rateLimited: false };
+        if (resp.status < 200 || resp.status >= 300) {
+          // These v2 favorites endpoints require the legacy `r_usr` scope for some client IDs / grants.
+          if (resp.status === 403 && isMissingRUsrScope(resp.json || resp.text)) {
+            return { count: null, rateLimited: false, missingScope: true };
+          }
+          return { count: null, rateLimited: false };
+        }
 
         const body = resp.json || {};
         const n = Number(
@@ -1580,6 +1586,9 @@ export function registerTidalRoutes(app: Express): void {
         tracksMeta.rateLimited ||
         playlistsMeta.rateLimited;
 
+      const missingScope =
+        !!albumsV2.missingScope || !!artistsV2.missingScope || !!tracksV2.missingScope || !!playlistsV2.missingScope;
+
       const payload = {
         albums: albumsV2.count ?? albumsMeta.count,
         artists: artistsV2.count ?? artistsMeta.count,
@@ -1588,6 +1597,7 @@ export function registerTidalRoutes(app: Express): void {
         rateLimited,
         partial: rateLimited,
         source: "api.tidal.com + openapi(meta)",
+        missingScope: missingScope ? "r_usr" : null,
       };
 
       // If we got rate-limited, prefer cached values instead of returning null/partial.
