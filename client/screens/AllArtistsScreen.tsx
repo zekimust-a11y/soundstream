@@ -4,9 +4,9 @@ import {
   StyleSheet,
   FlatList,
   Pressable,
-  Dimensions,
   ActivityIndicator,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -33,10 +33,6 @@ import { usePlayback } from "@/hooks/usePlayback";
 import { lmsClient } from "@/lib/lmsClient";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
 
-const { width } = Dimensions.get("window");
-const NUM_COLUMNS = 3;
-const GRID_ITEM_SIZE = (width - Spacing.lg * 4) / NUM_COLUMNS;
-
 type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
 type SortKey = "name_az" | "albums_desc" | "recently_played";
 type QualityKey = "all";
@@ -54,8 +50,9 @@ const springConfig: WithSpringConfig = {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const ArtistGridCard = memo(({ artist, onPress, onPlay }: { 
+const ArtistGridCard = memo(({ artist, size, onPress, onPlay }: { 
   artist: Artist; 
+  size: number;
   onPress: () => void;
   onPlay: () => void;
 }) => {
@@ -76,10 +73,10 @@ const ArtistGridCard = memo(({ artist, onPress, onPlay }: {
   }));
 
   return (
-    <Animated.View style={[styles.gridItem, cardAnimatedStyle]}>
-      <View style={styles.gridImageContainer}>
+    <Animated.View style={[styles.gridItem, { width: size }, cardAnimatedStyle]}>
+      <View style={[styles.gridImageContainer, { width: size, height: size }]}>
         <AnimatedPressable
-          style={styles.gridImagePressable}
+          style={[styles.gridImagePressable, { width: size, height: size, borderRadius: size / 2 }]}
           onPress={onPress}
           onPressIn={() => {
             cardScale.value = withSpring(0.96, springConfig);
@@ -92,17 +89,17 @@ const ArtistGridCard = memo(({ artist, onPress, onPlay }: {
           {artist.imageUrl ? (
             <Image
               source={artist.imageUrl}
-              style={styles.gridImageRound}
+              style={[styles.gridImageRound, { width: size, height: size, borderRadius: size / 2 }]}
               contentFit="cover"
             />
           ) : (
-            <View style={styles.gridImageRoundPlaceholder}>
-              <Feather name="user" size={GRID_ITEM_SIZE * 0.3} color={Colors.light.textTertiary} />
+            <View style={[styles.gridImageRoundPlaceholder, { width: size, height: size, borderRadius: size / 2 }]}>
+              <Feather name="user" size={Math.max(20, size * 0.3)} color={Colors.light.textTertiary} />
             </View>
           )}
         </AnimatedPressable>
         <Animated.View 
-          style={[styles.gridOverlay, overlayAnimatedStyle]}
+          style={[styles.gridOverlay, { borderRadius: size / 2 }, overlayAnimatedStyle]}
           pointerEvents="box-none"
         >
           <AnimatedPressable
@@ -184,6 +181,7 @@ export default function AllArtistsScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
+  const { width: windowWidth } = useWindowDimensions();
   const { activeServer, recentlyPlayed } = useMusic();
   const { activePlayer, syncPlayerStatus } = usePlayback();
   
@@ -259,6 +257,28 @@ export default function AllArtistsScreen() {
     return result;
   }, [allArtists, sortKey, sourceFilter, recentlyPlayed]);
 
+  const gridLayout = useMemo(() => {
+    const padding = Spacing.lg;
+    const gap = Spacing.lg;
+    const available = Math.max(0, windowWidth - padding * 2);
+
+    if (Platform.OS !== "web") {
+      const cols = 3;
+      const size = Math.floor((available - gap * (cols - 1)) / cols);
+      return { numColumns: cols, itemSize: Math.max(90, size) };
+    }
+
+    const min = 140;
+    const max = 210;
+    let cols = Math.max(3, Math.min(10, Math.floor((available + gap) / (min + gap)) || 3));
+    let size = (available - gap * (cols - 1)) / cols;
+    while (size > max && cols < 10) {
+      cols += 1;
+      size = (available - gap * (cols - 1)) / cols;
+    }
+    return { numColumns: cols, itemSize: Math.floor(Math.max(min, Math.min(max, size))) };
+  }, [windowWidth]);
+
   const handleArtistPress = useCallback((artist: Artist) => {
     navigation.navigate("Artist", { id: artist.id, name: artist.name });
   }, [navigation]);
@@ -306,10 +326,11 @@ export default function AllArtistsScreen() {
   const renderGridItem = useCallback(({ item }: { item: Artist }) => (
     <ArtistGridCard 
       artist={item} 
+      size={gridLayout.itemSize}
       onPress={() => handleArtistPress(item)}
       onPlay={() => handlePlayArtist(item)}
     />
-  ), [handleArtistPress, handlePlayArtist]);
+  ), [handleArtistPress, handlePlayArtist, gridLayout.itemSize]);
 
   const renderListItem = useCallback(({ item }: { item: Artist }) => (
     <ArtistListRow 
@@ -396,11 +417,11 @@ export default function AllArtistsScreen() {
 
       {viewMode === "grid" ? (
         <FlatList
-          key="grid"
+          key={`grid-${gridLayout.numColumns}`}
           data={filteredArtists}
           renderItem={renderGridItem}
           keyExtractor={keyExtractor}
-          numColumns={NUM_COLUMNS}
+          numColumns={gridLayout.numColumns}
           contentContainerStyle={[
             styles.gridContent,
             { 
@@ -497,30 +518,19 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   gridItem: {
-    width: GRID_ITEM_SIZE,
+    width: "100%",
   },
   gridImageContainer: {
     position: "relative",
     marginBottom: Spacing.sm,
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
   },
   gridImagePressable: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
-    borderRadius: GRID_ITEM_SIZE / 2,
     overflow: "hidden",
   },
   gridImageRound: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
-    borderRadius: GRID_ITEM_SIZE / 2,
     backgroundColor: "transparent",
   },
   gridImageRoundPlaceholder: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
-    borderRadius: GRID_ITEM_SIZE / 2,
     backgroundColor: "#4A4A4E", // Darker grey to match overlay behind play button
     justifyContent: "center",
     alignItems: "center",
@@ -534,7 +544,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "transparent",
-    borderRadius: GRID_ITEM_SIZE / 2,
     pointerEvents: "box-none",
   },
   gridOverlayButton: {

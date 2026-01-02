@@ -4,9 +4,9 @@ import {
   StyleSheet,
   FlatList,
   Pressable,
-  Dimensions,
   ActivityIndicator,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -36,10 +36,6 @@ import { lmsClient } from "@/lib/lmsClient";
 import type { Track } from "@/hooks/useLibrary";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
 
-const { width } = Dimensions.get("window");
-const NUM_COLUMNS = 3;
-const GRID_ITEM_SIZE = (width - Spacing.lg * 4) / NUM_COLUMNS;
-
 type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
 type ViewMode = "grid" | "list";
 type SortKey = "name_az" | "artist_az" | "year_desc";
@@ -58,8 +54,9 @@ const springConfig: WithSpringConfig = {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 
-const AlbumGridCard = memo(({ album, onPress, onPlay, onShuffle }: {
+const AlbumGridCard = memo(({ album, size, onPress, onPlay, onShuffle }: {
   album: Album;
+  size: number;
   onPress: () => void;
   onPlay: () => void;
   onShuffle?: () => void;
@@ -83,7 +80,7 @@ const AlbumGridCard = memo(({ album, onPress, onPlay, onShuffle }: {
   const imageUrl = album.imageUrl;
 
   return (
-    <Animated.View style={[styles.gridItem, cardAnimatedStyle]}>
+    <Animated.View style={[styles.gridItem, { width: size }, cardAnimatedStyle]}>
       <View style={styles.gridImageContainer}>
         <AnimatedPressable
           style={cardAnimatedStyle}
@@ -98,12 +95,12 @@ const AlbumGridCard = memo(({ album, onPress, onPlay, onShuffle }: {
           {imageUrl ? (
             <Image
               source={imageUrl}
-              style={styles.gridImage}
+              style={[styles.gridImage, { width: size, height: size }]}
               contentFit="cover"
             />
           ) : (
-            <View style={styles.gridImagePlaceholder}>
-              <Feather name="disc" size={GRID_ITEM_SIZE * 0.3} color={Colors.light.textTertiary} />
+            <View style={[styles.gridImagePlaceholder, { width: size, height: size }]}>
+              <Feather name="disc" size={Math.max(20, size * 0.3)} color={Colors.light.textTertiary} />
             </View>
           )}
         </AnimatedPressable>
@@ -202,6 +199,7 @@ export default function AllAlbumsScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
+  const { width: windowWidth } = useWindowDimensions();
   const { activeServer } = useMusic();
   const { activePlayer, setCurrentTrack, syncPlayerStatus } = usePlayback();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -250,6 +248,29 @@ export default function AllAlbumsScreen() {
     }
     return result;
   }, [allAlbums, sourceFilter, sortKey]);
+
+  const gridLayout = useMemo(() => {
+    const padding = Spacing.lg;
+    const gap = Spacing.lg;
+    const available = Math.max(0, windowWidth - padding * 2);
+
+    // Preserve mobile layout, improve desktop/web.
+    if (Platform.OS !== "web") {
+      const cols = 3;
+      const size = Math.floor((available - gap * (cols - 1)) / cols);
+      return { numColumns: cols, itemSize: Math.max(90, size) };
+    }
+
+    const min = 150;
+    const max = 240;
+    let cols = Math.max(3, Math.min(10, Math.floor((available + gap) / (min + gap)) || 3));
+    let size = (available - gap * (cols - 1)) / cols;
+    while (size > max && cols < 10) {
+      cols += 1;
+      size = (available - gap * (cols - 1)) / cols;
+    }
+    return { numColumns: cols, itemSize: Math.floor(Math.max(min, Math.min(max, size))) };
+  }, [windowWidth]);
 
   const handlePlayAlbum = useCallback(async (album: Album) => {
     if (!activePlayer || !activeServer) return;
@@ -340,6 +361,7 @@ export default function AllAlbumsScreen() {
   const renderGridItem = useCallback(({ item }: { item: Album }) => (
     <AlbumGridCard
       album={item}
+      size={gridLayout.itemSize}
       onPress={() => {
         navigation.navigate("Album", { 
           id: item.id, 
@@ -351,7 +373,7 @@ export default function AllAlbumsScreen() {
       onPlay={() => handlePlayAlbum(item)}
       onShuffle={() => handleShuffleAlbum(item)}
     />
-  ), [navigation, handlePlayAlbum, handleShuffleAlbum]);
+  ), [navigation, handlePlayAlbum, handleShuffleAlbum, gridLayout.itemSize]);
 
   const renderListItem = useCallback(({ item }: { item: Album }) => (
     <AlbumListRow
@@ -472,11 +494,11 @@ export default function AllAlbumsScreen() {
         </View>
       ) : (
         <FlatList
-          key={viewMode}
+          key={viewMode === "grid" ? `grid-${gridLayout.numColumns}` : "list"}
           data={filteredAlbums}
           renderItem={viewMode === "grid" ? renderGridItem : renderListItem}
           keyExtractor={keyExtractor}
-          numColumns={viewMode === "grid" ? NUM_COLUMNS : 1}
+          numColumns={viewMode === "grid" ? gridLayout.numColumns : 1}
           contentContainerStyle={[
             viewMode === "grid" ? styles.gridContent : styles.listContent,
             {
@@ -547,7 +569,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   gridItem: {
-    width: GRID_ITEM_SIZE,
+    width: "100%",
   },
   gridImageContainer: {
     position: "relative",
@@ -555,9 +577,13 @@ const styles = StyleSheet.create({
     ...Shadows.small,
   },
   gridImage: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
     borderRadius: BorderRadius.xs,
+  },
+  gridImagePlaceholder: {
+    borderRadius: BorderRadius.xs,
+    backgroundColor: Colors.light.backgroundSecondary,
+    alignItems: "center",
+    justifyContent: "center",
   },
   gridOverlay: {
     position: "absolute",

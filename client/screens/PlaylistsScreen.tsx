@@ -6,7 +6,8 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
-  Dimensions,
+  Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -34,11 +35,6 @@ import { lmsClient, type LmsPlaylist, type LmsTrack } from "@/lib/lmsClient";
 import type { PlaylistsStackParamList } from "@/navigation/PlaylistsStackNavigator";
 import { useTheme } from "@/hooks/useTheme";
 
-const { width } = Dimensions.get("window");
-const NUM_COLUMNS = 2;
-const GRID_ITEM_SIZE = (width - Spacing.lg * 3) / NUM_COLUMNS;
-const TILE_SIZE = GRID_ITEM_SIZE / 2;
-
 type NavigationProp = NativeStackNavigationProp<PlaylistsStackParamList>;
 type ViewMode = "grid" | "list";
 type SortKey = "name_az" | "tracks_desc";
@@ -59,12 +55,14 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const PlaylistGridItem = memo(({ 
   item, 
   artworks, 
+  size,
   onPress, 
   onPlay, 
   onShuffle 
 }: { 
   item: LmsPlaylist;
   artworks: string[];
+  size: number;
   onPress: () => void;
   onPlay: () => void;
   onShuffle: () => void;
@@ -94,7 +92,7 @@ const PlaylistGridItem = memo(({
   }));
 
   return (
-    <Animated.View style={[styles.gridItem, cardAnimatedStyle]}>
+    <Animated.View style={[styles.gridItem, { width: size }, cardAnimatedStyle]}>
       <View style={styles.gridImageContainer}>
         <AnimatedPressable
           style={[{ flex: 1 }, cardAnimatedStyle]}
@@ -107,7 +105,7 @@ const PlaylistGridItem = memo(({
             cardScale.value = withSpring(1, springConfig);
           }}
         >
-          <PlaylistMosaic artworks={artworks || []} size={GRID_ITEM_SIZE} />
+          <PlaylistMosaic artworks={artworks || []} size={size} />
         </AnimatedPressable>
         <Animated.View style={[styles.gridOverlay, overlayAnimatedStyle]} pointerEvents="box-none">
           <AnimatedPressable
@@ -246,6 +244,7 @@ export default function PlaylistsScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
+  const { width: windowWidth } = useWindowDimensions();
   const { 
     playlists: contextPlaylists, 
     activeServer, 
@@ -328,6 +327,29 @@ export default function PlaylistsScreen() {
     }
     return result;
   }, [contextPlaylists, playlistSource, sourceFilter, sortKey, tidalEnabled, soundcloudEnabled]);
+
+  const gridLayout = useMemo(() => {
+    const padding = Spacing.lg;
+    const gap = Spacing.lg;
+    const available = Math.max(0, windowWidth - padding * 2);
+
+    // Preserve mobile feel; scale up on desktop web.
+    if (Platform.OS !== "web") {
+      const cols = 2;
+      const size = Math.floor((available - gap * (cols - 1)) / cols);
+      return { numColumns: cols, itemSize: Math.max(160, size) };
+    }
+
+    const min = 210;
+    const max = 340;
+    let cols = Math.max(2, Math.min(8, Math.floor((available + gap) / (min + gap)) || 2));
+    let size = (available - gap * (cols - 1)) / cols;
+    while (size > max && cols < 8) {
+      cols += 1;
+      size = (available - gap * (cols - 1)) / cols;
+    }
+    return { numColumns: cols, itemSize: Math.floor(Math.max(min, Math.min(max, size))) };
+  }, [windowWidth]);
 
   const hashString = (str: string): number => {
     let hash = 0;
@@ -456,6 +478,7 @@ export default function PlaylistsScreen() {
       <PlaylistGridItem
         item={item}
         artworks={displayArtworks}
+        size={gridLayout.itemSize}
         onPress={() => handleOpenPlaylist(item)}
         onPlay={() => handlePlayPlaylist(item)}
         onShuffle={() => handleShufflePlaylist(item)}
@@ -555,11 +578,11 @@ export default function PlaylistsScreen() {
         viewMode === "grid" ? <AlbumGridSkeleton /> : <AlbumListSkeleton />
       ) : (
         <FlatList
-          key={viewMode}
+          key={viewMode === "grid" ? `grid-${gridLayout.numColumns}` : "list"}
           data={filteredPlaylists}
           renderItem={viewMode === "grid" ? renderGridItem : renderListItem}
           keyExtractor={(item) => item.id}
-          numColumns={viewMode === "grid" ? NUM_COLUMNS : 1}
+          numColumns={viewMode === "grid" ? gridLayout.numColumns : 1}
           contentContainerStyle={[styles.gridContent, { paddingBottom: tabBarHeight + Spacing["5xl"] }, filteredPlaylists.length === 0 && styles.emptyListContent]}
           columnWrapperStyle={viewMode === "grid" ? styles.gridRow : undefined}
           ListEmptyComponent={renderEmptyState}
@@ -579,7 +602,7 @@ const styles = StyleSheet.create({
   toggleButtonActive: { backgroundColor: Colors.light.backgroundDefault },
   gridContent: { paddingHorizontal: Spacing.lg },
   gridRow: { gap: Spacing.lg, marginBottom: Spacing.lg },
-  gridItem: { width: GRID_ITEM_SIZE },
+  gridItem: { width: "100%" },
   gridImageContainer: { position: "relative", marginBottom: Spacing.sm, ...Shadows.small },
   gridOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.md, backgroundColor: "transparent", borderRadius: BorderRadius.sm, pointerEvents: "box-none", zIndex: 1 },
   gridOverlayButton: { pointerEvents: "auto", width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0, 0, 0, 0.6)", alignItems: "center", justifyContent: "center" },
