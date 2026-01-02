@@ -179,14 +179,8 @@ export default function BrowseScreen() {
       // Build a combined pool from LMS (local library) + Tidal (direct API) and then pick ~1000 random tracks.
       const TARGET_TRACKS = 1000;
 
-      // LMS local tracks
+      // LMS local tracks (may be empty)
       const lmsTracks = await lmsClient.getAllLibraryTracks(5000);
-
-      if (lmsTracks.length === 0) {
-        Alert.alert('No Tracks', 'No tracks found in library to shuffle.');
-        setIsShuffling(false);
-        return;
-      }
 
       console.log(`[Shuffle] Found ${lmsTracks.length} tracks in library`);
       console.log(`[Shuffle] Sample track IDs:`, lmsTracks.slice(0, 3).map(t => t.id));
@@ -240,6 +234,12 @@ export default function BrowseScreen() {
       } catch (e) {
         console.warn('[Shuffle] Failed to fetch Tidal track sample:', e instanceof Error ? e.message : String(e));
         tidalTracks = [];
+      }
+
+      if (tracks.length === 0 && tidalTracks.length === 0) {
+        Alert.alert('No Tracks', 'No tracks found (Local or Tidal) to shuffle.');
+        setIsShuffling(false);
+        return;
       }
 
       // Decide how many to pull from each source (prefer a mix when Tidal is available)

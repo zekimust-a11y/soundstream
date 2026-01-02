@@ -8,6 +8,7 @@ type TidalTokens = {
   refreshToken?: string;
   userId?: string;
   obtainedAt?: number;
+  clientId?: string;
 };
 
 type TidalAuthSession = {
@@ -203,6 +204,7 @@ async function exchangeCodeForTokens(session: TidalAuthSession, code: string): P
     refreshToken,
     userId: finalUserId,
     obtainedAt: Date.now(),
+    clientId: session.clientId,
   };
 }
 
@@ -214,18 +216,76 @@ function requireTokens(res: Response): TidalTokens | null {
   return tokens;
 }
 
+async function refreshAccessToken(refreshToken: string, clientId: string): Promise<{ accessToken: string; refreshToken?: string; userId?: string }> {
+  const params = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: clientId,
+  });
+
+  const resp = await fetch("https://login.tidal.com/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+    signal: AbortSignal.timeout(15000),
+  });
+
+  const text = await resp.text();
+  if (!resp.ok) {
+    throw new Error(`Token refresh failed: ${resp.status} - ${text.substring(0, 200)}`);
+  }
+
+  const tokenData: any = JSON.parse(text);
+  const accessToken = tokenData?.access_token;
+  const newRefreshToken = tokenData?.refresh_token;
+  const userId = tokenData?.user?.id ? String(tokenData.user.id) : undefined;
+  if (!accessToken) throw new Error("Token refresh succeeded but no access_token returned");
+  return { accessToken, refreshToken: newRefreshToken, userId };
+}
+
 // NOTE: OpenAPI endpoints (openapi.tidal.com) use a JSON:API-ish schema with `data` + `included`.
 // We return simplified shapes matching the existing Soundstream client usage.
 async function openApiGet(url: string, accessToken: string): Promise<any> {
-  const resp = await fetch(url, {
-    headers: {
-      // IMPORTANT: For TIDAL OpenAPI v2, GET requests should only include Authorization.
-      // Adding Accept/Content-Type can cause unexpected 404/403 behavior.
-      Authorization: `Bearer ${accessToken}`,
-    },
-    signal: AbortSignal.timeout(20000),
-  });
+  const doFetch = async (token: string) =>
+    fetch(url, {
+      headers: {
+        // IMPORTANT: For TIDAL OpenAPI v2, GET requests should only include Authorization.
+        // Adding Accept/Content-Type can cause unexpected 404/403 behavior.
+        Authorization: `Bearer ${token}`,
+      },
+      signal: AbortSignal.timeout(20000),
+    });
+
+  const resp = await doFetch(accessToken);
   const text = await resp.text();
+
+  // Auto-refresh expired tokens (common on long-running .21 server).
+  if (resp.status === 401 && tokens?.refreshToken) {
+    const msg = text || "";
+    const looksExpired = msg.includes("Expired token") || msg.includes("AUTHENTICATION_ERROR") || msg.includes("UNAUTHORIZED");
+    if (looksExpired) {
+      try {
+        const clientId = tokens.clientId || process.env.TIDAL_CLIENT_ID || getClientId();
+        const refreshed = await refreshAccessToken(tokens.refreshToken, clientId);
+        tokens = {
+          ...tokens,
+          accessToken: refreshed.accessToken,
+          refreshToken: refreshed.refreshToken || tokens.refreshToken,
+          userId: tokens.userId || refreshed.userId || deriveUserIdFromAccessToken(refreshed.accessToken),
+          obtainedAt: Date.now(),
+          clientId,
+        };
+        saveTokensToDisk();
+        const resp2 = await doFetch(tokens.accessToken);
+        const text2 = await resp2.text();
+        if (!resp2.ok) throw new Error(`Tidal OpenAPI error: ${resp2.status} - ${text2.substring(0, 200)}`);
+        return JSON.parse(text2);
+      } catch (e) {
+        // Fall through to original error below.
+      }
+    }
+  }
+
   if (!resp.ok) throw new Error(`Tidal OpenAPI error: ${resp.status} - ${text.substring(0, 200)}`);
   return JSON.parse(text);
 }
