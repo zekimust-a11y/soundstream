@@ -91,7 +91,7 @@ export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { servers, tidalConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer, playlists, getTidalAuthUrl, connectTidal, disconnectTidal, checkTidalStatus, tidalEnabled, soundcloudEnabled, spotifyEnabled } = useMusic();
+  const { servers, tidalConnected, refreshLibrary, clearAllData, isLoading, addServer, activeServer, removeServer, playlists, getTidalAuthUrl, connectTidal, disconnectTidal, checkTidalStatus, tidalEnabled, soundcloudEnabled } = useMusic();
   const { theme } = useTheme();
   const {
     chromecastIp, setChromecastIp,
@@ -103,7 +103,6 @@ export default function SettingsScreen() {
     localLibraryEnabled, setLocalLibraryEnabled,
     setTidalEnabled,
     setSoundcloudEnabled,
-    setSpotifyEnabled,
     isLoaded: settingsLoaded,
   } = useSettings();
   const { players, activePlayer, setActivePlayer, refreshPlayers, allPlayers, disabledPlayers, togglePlayerDisabled, dacConfig, setDacConfig, dacVolume } = usePlayback();
@@ -118,8 +117,12 @@ export default function SettingsScreen() {
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveredServers, setDiscoveredServers] = useState<Array<{host: string; port: number; name: string}>>([]);
 
-  // Manual server addition
-  const [libraryStats, setLibraryStats] = useState<{ albums: number; artists: number; tracks: number; radioStations: number; playlists: number } | null>(null);
+  type SourceKey = "local" | "tidal" | "soundcloud";
+  type LibraryCounts = { albums: number | null; artists: number | null; tracks: number | null; playlists: number | null };
+  type LibraryCountsBySource = Record<SourceKey, LibraryCounts>;
+
+  const [libraryCountsBySource, setLibraryCountsBySource] = useState<LibraryCountsBySource | null>(null);
+  const [libraryRadioCount, setLibraryRadioCount] = useState<number | null>(null);
   
   const [isChromecastDiscovering, setIsChromecastDiscovering] = useState(false);
   const [discoveredChromecastDevices, setDiscoveredChromecastDevices] = useState<Array<{ip: string; name: string}>>([]);
@@ -356,20 +359,117 @@ export default function SettingsScreen() {
         lmsClient.setServer(activeServer.host, activeServer.port);
       }
 
-      console.log("Calling lmsClient.getLibraryTotals() with enabled services:", { tidalEnabled });
-      const stats = await lmsClient.getLibraryTotals(tidalEnabled);
-      console.log("Library stats loaded:", stats);
-      setLibraryStats(stats);
+      // --- Local (LMS) counts ---
+      let localAlbums = 0;
+      let localArtists = 0;
+      let localTracks = 0;
+      try {
+        // Use lmsClient.getServerStatus() style request wrapper via existing proxy plumbing.
+        // Note: request() is private, so use the public proxy path by sending through getApiUrl().
+        const apiUrl = getApiUrl();
+        const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
+        const resp = await fetch(`${cleanApiUrl}/api/lms/proxy`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            host: activeServer?.host,
+            port: activeServer?.port,
+            playerId: "",
+            command: ["serverstatus", "0", "1", "library_id:0"],
+            id: 1,
+          }),
+          signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(8000) : undefined,
+        });
+        const statusResult = resp.ok ? ((await resp.json())?.result || {}) : {};
+        localAlbums = Number(statusResult["info total albums"] || 0);
+        localArtists = Number(statusResult["info total artists"] || 0);
+        localTracks = Number(statusResult["info total songs"] || 0);
+      } catch (e) {
+        console.warn("Failed to get LMS local totals:", e instanceof Error ? e.message : String(e));
+      }
+
+      // LMS playlists count (local playlists only; plugin playlists filtered out elsewhere)
+      let localPlaylists = 0;
+      try {
+        const apiUrl = getApiUrl();
+        const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
+        const resp = await fetch(`${cleanApiUrl}/api/lms/proxy`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            host: activeServer?.host,
+            port: activeServer?.port,
+            playerId: "",
+            command: ["playlists", "0", "1", "tags:u"],
+            id: 1,
+          }),
+          signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(8000) : undefined,
+        });
+        const result = resp.ok ? ((await resp.json())?.result || {}) : {};
+        localPlaylists = Number(result.count || 0);
+      } catch (e) {
+        console.warn("Failed to count LMS playlists:", e instanceof Error ? e.message : String(e));
+      }
+
+      // LMS radio count
+      let radioCount = 0;
+      try {
+        const radios = await lmsClient.getFavoriteRadios();
+        radioCount = radios.length;
+      } catch (e) {
+        console.warn("Failed to count radio stations:", e instanceof Error ? e.message : String(e));
+      }
+
+      // --- Tidal counts (direct API) ---
+      let tidalCounts: LibraryCounts = { albums: null, artists: null, tracks: null, playlists: null };
+      if (tidalEnabled) {
+        try {
+          const apiUrl = getApiUrl();
+          const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
+          const resp = await fetch(`${cleanApiUrl}/api/tidal/totals`, {
+            signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(30000) : undefined,
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            tidalCounts = {
+              albums: Number(data.albums || 0),
+              artists: Number(data.artists || 0),
+              tracks: Number(data.tracks || 0),
+              playlists: Number(data.playlists || 0),
+            };
+          }
+        } catch (e) {
+          console.warn("Failed to fetch Tidal totals:", e instanceof Error ? e.message : String(e));
+        }
+      }
+
+      // --- SoundCloud counts (via LMS plugin) ---
+      // SoundCloud integration is playlist-centric in our UI; we show playlist count and leave other columns as N/A.
+      let soundcloudCounts: LibraryCounts = { albums: null, artists: null, tracks: null, playlists: null };
+      if (soundcloudEnabled) {
+        try {
+          const playlists = await lmsClient.getPlaylists(false, true, false, false);
+          const scCount = playlists.filter((p) => (p.name || "").toLowerCase().startsWith("soundcloud:")).length;
+          soundcloudCounts = { albums: null, artists: null, tracks: null, playlists: scCount };
+        } catch (e) {
+          console.warn("Failed to count SoundCloud playlists:", e instanceof Error ? e.message : String(e));
+        }
+      }
+
+      const countsBySource: LibraryCountsBySource = {
+        local: localLibraryEnabled
+          ? { albums: localAlbums, artists: localArtists, tracks: localTracks, playlists: localPlaylists }
+          : { albums: null, artists: null, tracks: null, playlists: null },
+        tidal: tidalEnabled ? tidalCounts : { albums: null, artists: null, tracks: null, playlists: null },
+        soundcloud: soundcloudEnabled ? soundcloudCounts : { albums: null, artists: null, tracks: null, playlists: null },
+      };
+
+      setLibraryCountsBySource(countsBySource);
+      setLibraryRadioCount(localLibraryEnabled ? radioCount : null);
     } catch (e) {
       console.error("Failed to load library stats:", e);
-      // Set zeros on error so UI shows something
-      setLibraryStats({
-        albums: 0,
-        artists: 0,
-        tracks: 0,
-        radioStations: 0,
-        playlists: 0,
-      });
+      setLibraryCountsBySource(null);
+      setLibraryRadioCount(null);
     }
   };
 
@@ -708,38 +808,48 @@ export default function SettingsScreen() {
               {activeServer ? `Connected to ${activeServer.name}` : "No server connected"}
             </ThemedText>
             {activeServer && (
-              <View style={styles.libraryStats}>
-                <View style={styles.statItem}>
-                  <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Albums</ThemedText>
-                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>
-                    {libraryStats?.albums?.toLocaleString() || '—'}
+              <>
+                <View style={styles.libraryStatsTable}>
+                  <View style={[styles.statsRow, { borderColor: theme.border }]}>
+                    <ThemedText style={[styles.statsHeaderCell, { color: theme.textTertiary }]}>Source</ThemedText>
+                    <ThemedText style={[styles.statsHeaderCell, { color: theme.textTertiary }]}>Albums</ThemedText>
+                    <ThemedText style={[styles.statsHeaderCell, { color: theme.textTertiary }]}>Artists</ThemedText>
+                    <ThemedText style={[styles.statsHeaderCell, { color: theme.textTertiary }]}>Tracks</ThemedText>
+                    <ThemedText style={[styles.statsHeaderCell, { color: theme.textTertiary }]}>Playlists</ThemedText>
+                  </View>
+
+                  {(() => {
+                    const fmt = (v: number | null | undefined) => (v === null || v === undefined ? "—" : Number(v).toLocaleString());
+                    const rows: Array<{ key: "local" | "tidal" | "soundcloud"; label: string; show: boolean }> = [
+                      { key: "local", label: "Local (LMS)", show: !!localLibraryEnabled },
+                      { key: "tidal", label: "Tidal", show: !!tidalEnabled },
+                      { key: "soundcloud", label: "SoundCloud", show: !!soundcloudEnabled },
+                    ];
+
+                    return rows
+                      .filter((r) => r.show)
+                      .map((r) => {
+                        const data = libraryCountsBySource?.[r.key];
+                        return (
+                          <View key={r.key} style={[styles.statsRow, { borderColor: theme.border }]}>
+                            <ThemedText style={[styles.statsCell, { color: theme.text }]}>{r.label}</ThemedText>
+                            <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.albums)}</ThemedText>
+                            <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.artists)}</ThemedText>
+                            <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.tracks)}</ThemedText>
+                            <ThemedText style={[styles.statsCell, { color: theme.accent }]}>{fmt(data?.playlists)}</ThemedText>
+                          </View>
+                        );
+                      });
+                  })()}
+                </View>
+
+                <View style={[styles.radioRow, { borderColor: theme.border }]}>
+                  <ThemedText style={[styles.radioLabel, { color: theme.textTertiary }]}>Radio (LMS)</ThemedText>
+                  <ThemedText style={[styles.radioValue, { color: theme.accent }]}>
+                    {libraryRadioCount === null ? "—" : libraryRadioCount.toLocaleString()}
                   </ThemedText>
                 </View>
-                <View style={styles.statItem}>
-                  <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Artists</ThemedText>
-                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>
-                    {libraryStats?.artists?.toLocaleString() || '—'}
-                  </ThemedText>
-                </View>
-                <View style={styles.statItem}>
-                  <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Tracks</ThemedText>
-                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>
-                    {libraryStats?.tracks?.toLocaleString() || '—'}
-                  </ThemedText>
-                </View>
-                <View style={styles.statItem}>
-                  <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Playlists</ThemedText>
-                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>
-                    {libraryStats?.playlists?.toLocaleString() || '—'}
-                  </ThemedText>
-                </View>
-                <View style={styles.statItem}>
-                  <ThemedText style={[styles.statLabel, { color: theme.textTertiary }]}>Radio</ThemedText>
-                  <ThemedText style={[styles.statValue, { color: theme.accent }]}>
-                    {libraryStats?.radioStations?.toLocaleString() || '—'}
-                  </ThemedText>
-                </View>
-              </View>
+              </>
             )}
             <Pressable
               style={({ pressed }) => [
@@ -1087,27 +1197,6 @@ export default function SettingsScreen() {
                 onValueChange={setSoundcloudEnabled}
                 trackColor={{ false: theme.border, true: theme.accent + '40' }}
                 thumbColor={soundcloudEnabled ? theme.accent : theme.textTertiary}
-              />
-            </View>
-            <View style={[styles.serverRow, { borderColor: theme.border }]}>
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                <View style={[styles.serverIcon, { backgroundColor: '#1DB954' + '20' }]}>
-                  <Feather name="music" size={16} color="#1DB954" />
-                </View>
-                <View style={styles.serverInfo}>
-                  <ThemedText style={[styles.serverName, { color: theme.text }]}>
-                    Spotify
-                  </ThemedText>
-                  <ThemedText style={[styles.serverAddress, { color: theme.textSecondary }]}>
-                    Available via LMS plugin
-                  </ThemedText>
-                </View>
-              </View>
-              <Switch
-                value={spotifyEnabled}
-                onValueChange={setSpotifyEnabled}
-                trackColor={{ false: theme.border, true: theme.accent + '40' }}
-                thumbColor={spotifyEnabled ? theme.accent : theme.textTertiary}
               />
             </View>
             <View style={[styles.serverRow, { borderColor: theme.border }]}>
@@ -1813,6 +1902,51 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: Colors.light.backgroundTertiary,
+  },
+  libraryStatsTable: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    overflow: "hidden",
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  statsHeaderCell: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  statsCell: {
+    flex: 1,
+    fontSize: 12,
+    textAlign: "center",
+  },
+  radioRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  radioLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  radioValue: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   statItem: {
     alignItems: "center",
