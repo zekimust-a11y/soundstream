@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
+import React, { useMemo, useRef, useState } from "react";
+import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
@@ -27,6 +27,8 @@ export function SelectMenu<T extends string>({
   testID,
 }: SelectMenuProps<T>) {
   const [open, setOpen] = useState(false);
+  const buttonRef = useRef<View>(null);
+  const [anchor, setAnchor] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
   const currentLabel = useMemo(() => {
     return options.find((o) => o.value === value)?.label ?? "";
@@ -35,9 +37,22 @@ export function SelectMenu<T extends string>({
   return (
     <>
       <Pressable
+        ref={buttonRef as any}
         testID={testID}
         disabled={disabled}
-        onPress={() => setOpen(true)}
+        onPress={() => {
+          if (Platform.OS === "web") {
+            // @ts-expect-error RN Web supports measureInWindow via host component
+            (buttonRef.current as any)?.measureInWindow?.((x: number, y: number, w: number, h: number) => {
+              setAnchor({ x, y, w, h });
+              setOpen(true);
+            });
+            // If measure isn't available, still open (centered modalCard)
+            setOpen(true);
+          } else {
+            setOpen(true);
+          }
+        }}
         style={({ pressed }) => [
           styles.button,
           disabled ? styles.buttonDisabled : null,
@@ -55,7 +70,18 @@ export function SelectMenu<T extends string>({
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.overlay} onPress={() => setOpen(false)} />
-        <View style={styles.modalCard}>
+        <View
+          style={[
+            Platform.OS === "web" ? styles.popoverCard : styles.modalCard,
+            Platform.OS === "web" && anchor
+              ? {
+                  left: Math.max(Spacing.lg, Math.min(anchor.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 280)),
+                  top: anchor.y + anchor.h + 8,
+                  right: undefined,
+                }
+              : null,
+          ]}
+        >
           <View style={styles.modalHeader}>
             <ThemedText style={styles.modalTitle}>{label}</ThemedText>
             <Pressable onPress={() => setOpen(false)} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
@@ -131,6 +157,22 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.light.border,
+  },
+  popoverCard: {
+    position: "absolute",
+    width: 280,
+    backgroundColor: Colors.light.backgroundRoot,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.light.border,
+    // Web-only shadow
+    ...Platform.select({
+      web: {
+        boxShadow: "0px 12px 28px rgba(0,0,0,0.22)",
+      },
+      default: {},
+    }),
   },
   modalHeader: {
     flexDirection: "row",
