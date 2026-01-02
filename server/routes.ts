@@ -42,6 +42,8 @@ function sha1(input: string): string {
 function isAllowedPublicHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
   if (h === "localhost" || h === "127.0.0.1") return true;
+  // Allow typical LAN hostnames (mDNS / local DNS)
+  if (h.endsWith(".local") || h.endsWith(".home") || h.endsWith(".lan")) return true;
   // Allowlist common artwork CDNs we rely on
   if (h === "resources.tidal.com") return true;
   if (h.endsWith(".theaudiodb.com")) return true;
