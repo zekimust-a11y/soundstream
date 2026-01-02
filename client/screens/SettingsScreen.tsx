@@ -851,7 +851,8 @@ export default function SettingsScreen() {
                     const fmt = (v: number | null | undefined) => (v === null || v === undefined ? "—" : Number(v).toLocaleString());
                     const rows: Array<{ key: "local" | "tidal" | "soundcloud"; label: string; show: boolean }> = [
                       { key: "local", label: "Local (LMS)", show: !!localLibraryEnabled },
-                      { key: "tidal", label: "Tidal", show: !!tidalEnabled },
+                      // Counts come from LMS plugin (preferred) with direct-API as a fallback.
+                      { key: "tidal", label: "Tidal (LMS)", show: !!tidalEnabled },
                       { key: "soundcloud", label: "SoundCloud", show: !!soundcloudEnabled },
                     ];
 
@@ -1044,10 +1045,12 @@ export default function SettingsScreen() {
                 </View>
                 <View style={styles.serverInfo}>
                   <ThemedText style={[styles.serverName, { color: theme.text }]}>
-                    Tidal
+                    Tidal API (Browse)
                   </ThemedText>
                   <ThemedText style={[styles.serverAddress, { color: theme.textSecondary }]}>
-                    {tidalConnected ? 'Connected to Tidal API' : 'Direct API integration - Content loaded from Tidal API'}
+                    {tidalConnected
+                      ? "API connected (browse updates in-app)"
+                      : "API not connected (browse won’t refresh). LMS Tidal plugin can still show counts/playback."}
                   </ThemedText>
                 </View>
               </View>
@@ -1080,7 +1083,7 @@ export default function SettingsScreen() {
                       );
                     }}
                   >
-                    <ThemedText style={{ color: 'white', fontSize: 12 }}>Disconnect</ThemedText>
+                    <ThemedText style={{ color: 'white', fontSize: 12 }}>Disconnect API</ThemedText>
                   </Pressable>
                 ) : (
                   <Pressable
@@ -1196,7 +1199,7 @@ export default function SettingsScreen() {
                       }
                     }}
                   >
-                    <ThemedText style={{ color: 'white', fontSize: 12 }}>Connect</ThemedText>
+                    <ThemedText style={{ color: 'white', fontSize: 12 }}>Connect API</ThemedText>
                   </Pressable>
                 )}
                 <Switch
