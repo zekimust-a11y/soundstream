@@ -67,12 +67,27 @@ export default function BrowseScreen() {
   // (Tidal browse data is loaded below in a single effect to avoid duplicate requests + rate limiting.)
 
   // Keep all artwork tiles on Browse the same size, and scale a bit up on desktop/web.
+  // Match Browse tile sizing to the Albums screen sizing rules.
   const browseTileSize = useMemo(() => {
-    if (Platform.OS === "web") {
-      // Clamp: small enough to fit many tiles, big enough to avoid "tiny covers" on large screens.
-      return Math.round(Math.max(110, Math.min(140, windowWidth / 12)));
+    const padding = Spacing.lg;
+    const gap = Spacing.lg;
+    const available = Math.max(0, windowWidth - padding * 2);
+
+    if (Platform.OS !== "web") {
+      const cols = 3;
+      const size = Math.floor((available - gap * (cols - 1)) / cols);
+      return Math.max(90, size);
     }
-    return 110;
+
+    const min = 170;
+    const max = 280;
+    let cols = Math.max(3, Math.min(10, Math.floor((available + gap) / (min + gap)) || 3));
+    let size = (available - gap * (cols - 1)) / cols;
+    while (size > max && cols < 10) {
+      cols += 1;
+      size = (available - gap * (cols - 1)) / cols;
+    }
+    return Math.floor(Math.max(min, Math.min(max, size)));
   }, [windowWidth]);
 
   const recentItems: RecentItem[] = useMemo(() => {
