@@ -1146,14 +1146,32 @@ export function registerTidalRoutes(app: Express): void {
     if (!t) return;
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
 
-    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "200"), 10)));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "100"), 10)));
+    const nextParam = typeof req.query.next === "string" ? req.query.next : "";
     try {
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const url = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+      const baseUrl = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
         t.userId
       )}/relationships/tracks?include=tracks,tracks.albums,tracks.artists,tracks.albums.coverArt&countryCode=${encodeURIComponent(
         countryCode
       )}&page[size]=${limit}`;
+
+      // Support paging by allowing the client to pass the `links.next` URL back.
+      // Validate it is a Tidal OpenAPI URL to avoid turning this into a general proxy.
+      let url = baseUrl;
+      if (nextParam) {
+        const decoded = decodeURIComponent(nextParam);
+        try {
+          const u = new URL(decoded);
+          if (u.hostname !== "openapi.tidal.com") {
+            return res.status(400).json({ error: "Invalid next URL (host not allowed)" });
+          }
+          url = decoded;
+        } catch {
+          // ignore malformed next
+        }
+      }
+
       const data = await openApiGet(url, t.accessToken);
       const included: any[] = Array.isArray(data?.included) ? data.included : [];
       const tracksById = new Map<string, any>(included.filter((x) => x?.type === "tracks").map((x) => [String(x.id), x]));
@@ -1185,7 +1203,9 @@ export function registerTidalRoutes(app: Express): void {
           source: "tidal",
         };
       });
-      res.json({ items, total: items.length });
+      const next = data?.links?.next;
+      const nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : null;
+      res.json({ items, total: items.length, next: nextUrl });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }

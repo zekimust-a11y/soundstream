@@ -2271,6 +2271,22 @@ class LmsClient {
     }
   }
 
+  /**
+   * Fetch a single page of local library tracks (fast for UI paging).
+   * Uses LMS `titles` with `library_id:0` (local library only).
+   */
+  async getLibraryTracksPage(
+    start: number,
+    count: number
+  ): Promise<{ tracks: LmsTrack[]; total: number | null }> {
+    const result = await this.request('', ['titles', String(start), String(count), 'library_id:0', 'tags:acdlKNuTsSp']);
+    const titlesLoop = (result.titles_loop || []) as Array<Record<string, unknown>>;
+    const tracks = titlesLoop.map((t, i) => this.parseTrack(t, start + i));
+    const totalRaw = (result as any)?.count;
+    const totalNum = typeof totalRaw === "number" ? totalRaw : parseInt(String(totalRaw ?? ""), 10);
+    return { tracks, total: Number.isFinite(totalNum) && totalNum > 0 ? totalNum : null };
+  }
+
   async search(query: string): Promise<{ artists: LmsArtist[]; albums: LmsAlbum[]; tracks: LmsTrack[] }> {
     if (!this.baseUrl) {
       throw new Error('LMS server not configured');

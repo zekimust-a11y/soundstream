@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -14,6 +14,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { AlbumArtwork } from "@/components/AlbumArtwork";
 import { LibraryToolbar, type SourceFilter, type ViewMode } from "@/components/LibraryToolbar";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useMusic } from "@/hooks/useMusic";
@@ -49,102 +50,148 @@ export default function AllTracksScreen() {
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [lmsOffset, setLmsOffset] = useState(0);
+  const [lmsTotal, setLmsTotal] = useState<number | null>(null);
+  const [tidalNext, setTidalNext] = useState<string | null>(null);
+  const [hasMoreLms, setHasMoreLms] = useState(true);
+  const [hasMoreTidal, setHasMoreTidal] = useState(true);
+  const seenKeysRef = useRef<Set<string>>(new Set());
+  const loadIdRef = useRef(0);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [sortKey, setSortKey] = useState<SortKey>("title_az");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [qualityFilter, setQualityFilter] = useState<QualityKey>("all");
 
-  useEffect(() => {
-    const loadTracks = async () => {
-      if (!activeServer) {
-        setTracks([]);
-        setIsLoading(false);
+  const mergeInTracks = useCallback((incoming: Track[]) => {
+    if (incoming.length === 0) return;
+    setTracks((prev) => {
+      const next = prev.slice();
+      for (const t of incoming) {
+        const key = `${(t.source || "local")}:${t.lmsTrackId || t.id}:${t.title.toLowerCase()}|${t.artist.toLowerCase()}`;
+        if (seenKeysRef.current.has(key)) continue;
+        seenKeysRef.current.add(key);
+        next.push(t);
+      }
+      return next;
+    });
+  }, []);
+
+  const fetchNextLmsPage = useCallback(async () => {
+    if (!activeServer || !hasMoreLms) return;
+    lmsClient.setServer(activeServer.host, activeServer.port);
+
+    // Fetch total once (fast)
+    if (lmsTotal === null) {
+      try {
+        const status: any = await (lmsClient as any).request("", ["serverstatus", "0", "1", "library_id:0"]);
+        const total = Number(status?.["info total songs"] || 0);
+        if (Number.isFinite(total) && total > 0) setLmsTotal(total);
+      } catch {
+        // ignore
+      }
+    }
+
+    const PAGE = 500;
+    const { tracks: fetched } = await lmsClient.getLibraryTracksPage(lmsOffset, PAGE);
+    const mapped: Track[] = fetched.map((t: LmsTrack) => ({
+      id: `${activeServer.id}-${t.id}`,
+      title: t.title,
+      artist: t.artist,
+      album: t.album,
+      albumId: t.albumId,
+      duration: t.duration,
+      albumArt: t.artwork_url ? lmsClient.getArtworkUrl(t as any) : undefined,
+      source: "local" as const,
+      uri: t.url,
+      lmsTrackId: t.id,
+      format: t.format,
+      sampleRate: t.sampleRate,
+      bitDepth: t.bitDepth,
+      bitrate: t.bitrate,
+    }));
+    mergeInTracks(mapped);
+    setLmsOffset((o) => o + fetched.length);
+    if (fetched.length < PAGE) setHasMoreLms(false);
+    if (lmsTotal !== null && lmsOffset + fetched.length >= lmsTotal) setHasMoreLms(false);
+  }, [activeServer, hasMoreLms, lmsOffset, lmsTotal, mergeInTracks]);
+
+  const fetchNextTidalPage = useCallback(async () => {
+    if (!tidalEnabled || !hasMoreTidal) return;
+    try {
+      const { getApiUrl } = await import("@/lib/query-client");
+      const apiUrl = getApiUrl();
+      const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
+      const PAGE = 100;
+      const url =
+        `${cleanApiUrl}/api/tidal/tracks?limit=${PAGE}` + (tidalNext ? `&next=${encodeURIComponent(tidalNext)}` : "");
+      const response = await fetch(url);
+      if (!response.ok) {
+        setHasMoreTidal(false);
         return;
       }
+      const data = await response.json();
+      const items: any[] = Array.isArray(data?.items) ? data.items : [];
+      const mapped: Track[] = items.map((t: any) => ({
+        id: `tidal-track-${t.id}`,
+        title: t.title,
+        artist: t.artist,
+        album: t.album,
+        albumId: t.albumId,
+        duration: t.duration,
+        albumArt: t.artwork_url,
+        source: "tidal" as const,
+        uri: t.lmsUri,
+        lmsTrackId: t.id,
+        format: t.format || t.audioQuality,
+        sampleRate: t.sampleRate,
+        bitDepth: t.bitDepth,
+      }));
+      mergeInTracks(mapped);
+      const next = typeof data?.next === "string" && data.next ? data.next : null;
+      setTidalNext(next);
+      if (!next || items.length === 0) setHasMoreTidal(false);
+    } catch {
+      setHasMoreTidal(false);
+    }
+  }, [tidalEnabled, hasMoreTidal, tidalNext, mergeInTracks]);
 
+  useEffect(() => {
+    // Reset and load the first page quickly
+    const loadId = ++loadIdRef.current;
+    seenKeysRef.current = new Set();
+    setTracks([]);
+    setIsLoading(true);
+    setIsLoadingMore(false);
+    setLmsOffset(0);
+    setLmsTotal(null);
+    setHasMoreLms(true);
+    setHasMoreTidal(true);
+    setTidalNext(null);
+
+    (async () => {
       try {
-        setIsLoading(true);
-        lmsClient.setServer(activeServer.host, activeServer.port);
-        
-        // Load tracks from standard LMS library
-        const fetchedLmsTracks: LmsTrack[] = await lmsClient.getAllLibraryTracks(5000);
-        const lmsTracks: Track[] = fetchedLmsTracks.map(t => ({
-          id: `${activeServer.id}-${t.id}`,
-          title: t.title,
-          artist: t.artist,
-          album: t.album,
-          albumId: t.albumId,
-          duration: t.duration,
-          albumArt: t.artwork_url ? lmsClient.getArtworkUrl(t as any) : undefined,
-          source: 'local' as const,
-          uri: t.url,
-          lmsTrackId: t.id,
-          format: t.format,
-          sampleRate: t.sampleRate,
-          bitDepth: t.bitDepth,
-          bitrate: t.bitrate,
-        }));
-
-        // Tidal tracks from the Tidal API
-        let tidalApiTracks: Track[] = [];
-        if (tidalEnabled) {
-          try {
-            const { getApiUrl } = await import('@/lib/query-client');
-            const apiUrl = getApiUrl();
-            const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
-            console.log(`[AllTracksScreen] Fetching Tidal tracks from: ${cleanApiUrl}/api/tidal/tracks`);
-            const response = await fetch(`${cleanApiUrl}/api/tidal/tracks?limit=5000`);
-            if (response.ok) {
-              const data = await response.json();
-              if (data.items) {
-                tidalApiTracks = data.items.map((t: any) => ({
-                  id: `tidal-track-${t.id}`,
-                  title: t.title,
-                  artist: t.artist,
-                  album: t.album,
-                  albumId: t.albumId,
-                  duration: t.duration,
-                  albumArt: t.artwork_url,
-                  source: 'tidal' as const,
-                  uri: t.lmsUri,
-                  lmsTrackId: t.id,
-                  format: t.format || t.audioQuality,
-                  sampleRate: t.sampleRate,
-                  bitDepth: t.bitDepth,
-                }));
-                console.log(`[AllTracksScreen] Loaded ${tidalApiTracks.length} Tidal tracks`);
-              }
-            }
-          } catch (e) {
-            console.warn('[AllTracksScreen] Failed to fetch Tidal tracks from API:', e);
-          }
-        }
-
-        // Merge tracks, avoiding duplicates by ID or title+artist
-        const allTracks: Track[] = [...lmsTracks];
-        const existingIds = new Set(lmsTracks.map(t => t.lmsTrackId || t.id));
-        const existingKeys = new Set(lmsTracks.map(t => `${t.title.toLowerCase()}|${t.artist.toLowerCase()}`));
-
-        // Add Tidal API tracks
-        tidalApiTracks.forEach(t => {
-          const key = `${t.title.toLowerCase()}|${t.artist.toLowerCase()}`;
-          if (!existingIds.has(t.lmsTrackId || t.id) && !existingKeys.has(key)) {
-            allTracks.push(t);
-            existingIds.add(t.lmsTrackId || t.id);
-            existingKeys.add(key);
-          }
-        });
-
-        setTracks(allTracks);
-      } catch (e) {
-        console.error("Failed to load tracks:", e);
+        await Promise.all([fetchNextLmsPage(), tidalEnabled ? fetchNextTidalPage() : Promise.resolve()]);
       } finally {
-        setIsLoading(false);
+        if (loadId === loadIdRef.current) setIsLoading(false);
       }
-    };
+    })();
+  }, [activeServer?.id, tidalEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    loadTracks();
-  }, [activeServer, tidalEnabled]);
+  const handleLoadMore = useCallback(async () => {
+    if (isLoading || isLoadingMore) return;
+    if (!hasMoreLms && !(tidalEnabled && hasMoreTidal)) return;
+    setIsLoadingMore(true);
+    try {
+      if (hasMoreLms) {
+        await fetchNextLmsPage();
+      } else if (tidalEnabled && hasMoreTidal) {
+        await fetchNextTidalPage();
+      }
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoading, isLoadingMore, hasMoreLms, hasMoreTidal, tidalEnabled, fetchNextLmsPage, fetchNextTidalPage]);
 
   const qualityKeyForTrack = useCallback((t: Track): QualityKey => {
     const bit = t.bitDepth ? Number(String(t.bitDepth).replace(/[^\d.]/g, "")) : NaN;
@@ -207,17 +254,7 @@ export default function AllTracksScreen() {
       onPress={() => playTrack(item, filteredTracks)}
     >
       <View style={styles.trackImageContainer}>
-        {item.albumArt ? (
-          <Image
-            source={item.albumArt}
-            style={styles.trackImage}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={styles.trackImagePlaceholder}>
-            <Feather name="music" size={20} color={Colors.light.textTertiary} />
-          </View>
-        )}
+        <AlbumArtwork source={item.albumArt} style={styles.trackImage} contentFit="cover" />
       </View>
       <View style={styles.trackInfo}>
         <ThemedText style={styles.trackTitle} numberOfLines={1}>
@@ -244,7 +281,9 @@ export default function AllTracksScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <ThemedText style={styles.headerTitle}>Tracks ({filteredTracks.length})</ThemedText>
+        <ThemedText style={styles.headerTitle}>
+          Tracks ({filteredTracks.length.toLocaleString()}{lmsTotal ? ` / ${lmsTotal.toLocaleString()}` : ""})
+        </ThemedText>
       </View>
 
       <LibraryToolbar
@@ -277,6 +316,15 @@ export default function AllTracksScreen() {
             { paddingBottom: tabBarHeight + Spacing.xl },
           ]}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={
+            isLoadingMore ? (
+              <View style={{ paddingVertical: Spacing.lg }}>
+                <ActivityIndicator size="small" color={Colors.light.accent} />
+              </View>
+            ) : null
+          }
         />
       ) : (
         <FlatList
@@ -293,13 +341,7 @@ export default function AllTracksScreen() {
               style={({ pressed }) => [styles.gridCard, { opacity: pressed ? 0.7 : 1 }]}
               onPress={() => playTrack(item, filteredTracks)}
             >
-              {item.albumArt ? (
-                <Image source={item.albumArt} style={styles.gridImage} contentFit="cover" />
-              ) : (
-                <View style={styles.gridImagePlaceholder}>
-                  <Feather name="music" size={22} color={Colors.light.textTertiary} />
-                </View>
-              )}
+              <AlbumArtwork source={item.albumArt} style={styles.gridImage} contentFit="cover" />
               <ThemedText style={styles.gridTitle} numberOfLines={1}>
                 {item.title}
               </ThemedText>
@@ -308,6 +350,15 @@ export default function AllTracksScreen() {
               </ThemedText>
             </Pressable>
           )}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={
+            isLoadingMore ? (
+              <View style={{ paddingVertical: Spacing.lg }}>
+                <ActivityIndicator size="small" color={Colors.light.accent} />
+              </View>
+            ) : null
+          }
         />
       )}
     </ThemedView>
