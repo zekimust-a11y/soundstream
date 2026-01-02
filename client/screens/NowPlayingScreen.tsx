@@ -1336,7 +1336,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   albumArtContainer: {
+    position: "relative",
+    alignSelf: "center",
     alignItems: "center",
+    width: ALBUM_ART_SIZE,
+    height: ALBUM_ART_SIZE,
     marginBottom: Spacing.lg,
   },
   albumArt: {
