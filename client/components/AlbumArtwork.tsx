@@ -1,7 +1,8 @@
-import React from "react";
-import { View, StyleSheet, ImageSourcePropType } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { StyleSheet, ImageSourcePropType } from "react-native";
 import { Image } from "expo-image";
-import { Colors, BorderRadius } from "@/constants/theme";
+
+const PLACEHOLDER_IMAGE = require("../assets/images/placeholder-album.png");
 
 interface AlbumArtworkProps {
   source?: string | ImageSourcePropType;
@@ -20,6 +21,13 @@ export function AlbumArtwork({
   contentFit = "cover",
   placeholderColor = "#3A3A3C" // Dark grey color (slightly lighter for better visibility)
 }: AlbumArtworkProps) {
+  const [failed, setFailed] = useState(false);
+
+  // Reset failure state when source changes
+  useEffect(() => {
+    setFailed(false);
+  }, [source]);
+
   // Check if source is valid (not empty string, null, or undefined)
   // Also check if it's a valid URI (not just whitespace or placeholder text)
   const hasArtwork = source && 
@@ -30,25 +38,23 @@ export function AlbumArtwork({
         !source.includes('null')
       : true);
 
-  if (!hasArtwork) {
-    // Return dark grey placeholder View with same dimensions as Image
-    // Merge style to ensure dimensions are preserved
-    const mergedStyle = style 
-      ? (Array.isArray(style) 
-          ? [...style, styles.placeholder, { backgroundColor: placeholderColor }]
-          : [style, styles.placeholder, { backgroundColor: placeholderColor }])
-      : [styles.placeholder, { backgroundColor: placeholderColor, width: 100, height: 100 }];
-    
-    return (
-      <View style={mergedStyle} />
-    );
+  const mergedStyle = useMemo(() => {
+    if (!style) return [styles.placeholder, { backgroundColor: placeholderColor, width: 100, height: 100 }];
+    if (Array.isArray(style)) return [...style, styles.placeholder, { backgroundColor: placeholderColor }];
+    return [style, styles.placeholder, { backgroundColor: placeholderColor }];
+  }, [style, placeholderColor]);
+
+  // Use the shared placeholder image when artwork is missing or fails to load.
+  if (!hasArtwork || failed) {
+    return <Image source={PLACEHOLDER_IMAGE} style={mergedStyle} contentFit="cover" />;
   }
 
   return (
     <Image
       source={typeof source === 'string' ? { uri: source } : source}
-      style={style}
+      style={mergedStyle}
       contentFit={contentFit}
+      onError={() => setFailed(true)}
     />
   );
 }
