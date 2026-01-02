@@ -1724,6 +1724,21 @@ class LmsClient {
     }
     
     try {
+      // Web: TheAudioDB JSON endpoint is blocked by CORS. Use our server proxy endpoint instead.
+      if (typeof window !== 'undefined') {
+        try {
+          const apiUrl = getApiUrl();
+          const r = await fetch(`${apiUrl}/api/artist-image?name=${encodeURIComponent(artistName.trim())}`);
+          if (r.ok) {
+            const j: any = await r.json();
+            const imageUrl = typeof j?.imageUrl === 'string' ? j.imageUrl : null;
+            return imageUrl || undefined;
+          }
+        } catch {
+          // fall through to direct fetch (may still work in some environments)
+        }
+      }
+
       // TheAudioDB free API key
       const apiKey = '2';
       const encodedName = encodeURIComponent(artistName.trim());

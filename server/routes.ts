@@ -875,6 +875,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Artist image lookup (TheAudioDB) - server-side fetch to avoid browser CORS
+  app.get('/api/artist-image', async (req: Request, res: Response) => {
+    const name = typeof req.query?.name === 'string' ? req.query.name : '';
+    const artistName = name.trim();
+    if (!artistName) {
+      return res.status(400).json({ error: 'Missing name parameter' });
+    }
+
+    try {
+      const apiKey = '2';
+      const url = `https://www.theaudiodb.com/api/v1/json/${apiKey}/search.php?s=${encodeURIComponent(artistName)}`;
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'Lyriq/1.0' },
+      });
+      if (!response.ok) {
+        return res.status(200).json({ imageUrl: null });
+      }
+      const data: any = await response.json();
+      const artist = Array.isArray(data?.artists) && data.artists.length > 0 ? data.artists[0] : null;
+      const imageUrl =
+        (artist?.strArtistThumb as string | undefined) ||
+        (artist?.strArtistWideThumb as string | undefined) ||
+        (artist?.strArtistFanart as string | undefined) ||
+        null;
+      return res.json({ imageUrl });
+    } catch (e) {
+      return res.status(200).json({ imageUrl: null });
+    }
+  });
+
   // SSDP discovery endpoint - discovers UPnP/OpenHome devices on the network
   app.get('/api/discover', async (req: Request, res: Response) => {
     try {
