@@ -293,7 +293,7 @@ export default function AllTracksScreen() {
   return (
     <ThemedView style={styles.container}>
       <AppHeader
-        title={`Tracks (${filteredTracks.length.toLocaleString()}${lmsTotal ? ` / ${lmsTotal.toLocaleString()}` : ""})`}
+        title={`Tracks (${(lmsTotal ?? filteredTracks.length).toLocaleString()})`}
       />
 
       <LibraryToolbar

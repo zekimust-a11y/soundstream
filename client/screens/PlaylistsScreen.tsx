@@ -386,6 +386,7 @@ export default function PlaylistsScreen() {
     loadingArtworksRef.current.add(playlist.id);
     try {
       lmsClient.setServer(activeServer.host, activeServer.port);
+      const baseUrl = lmsClient.getBaseUrl();
       const tracks = await lmsClient.getPlaylistTracks(playlist.id, playlist.url, playlist.name);
       const uniqueArtworks: string[] = [];
       const seen = new Set<string>();
@@ -394,8 +395,18 @@ export default function PlaylistsScreen() {
         let artworkUrl = track.artwork_url || (track as any).cover || (track as any).coverart;
         if (artworkUrl) {
           let normalizedUrl = artworkUrl;
-          if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-            normalizedUrl = lmsClient.getArtworkUrl(track) || normalizedUrl;
+          // IMPORTANT:
+          // - TIDAL/LMS plugin tracks often provide `artwork_url` as a relative `/imageproxy/...` path.
+          // - If we "upgrade" that to `/music/<coverid>/cover.jpg`, it can break (coverid may not be a real local id).
+          // Prefer the provided artwork_url by making it absolute. Only fall back to LMS cover URLs when we *don't* have one.
+          if (typeof normalizedUrl === "string") {
+            if (normalizedUrl.startsWith("/")) {
+              normalizedUrl = `${baseUrl}${normalizedUrl}`;
+            } else if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
+              const fromCover = lmsClient.getArtworkUrl(track as any);
+              if (fromCover) normalizedUrl = fromCover;
+              else if (normalizedUrl.startsWith("/")) normalizedUrl = `${baseUrl}${normalizedUrl}`;
+            }
           }
           if (normalizedUrl && !seen.has(normalizedUrl)) {
             seen.add(normalizedUrl);

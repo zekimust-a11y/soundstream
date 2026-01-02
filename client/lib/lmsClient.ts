@@ -530,7 +530,8 @@ class LmsClient {
       const albums = albumsLoop.map((a) => ({
         id: String(a.id || ''),
         title: String(a.album || a.title || ''),
-        artist: String(a.artist || ''),
+        // Some LMS setups return album artist under `albumartist` (or variants) instead of `artist`.
+        artist: String(a.artist || a.albumartist || a.album_artist || a.albumArtist || ''),
         artistId: a.artist_id ? String(a.artist_id) : undefined,
         artwork_url: a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` :
           (a.artwork_url ? (String(a.artwork_url).startsWith('http') ? String(a.artwork_url) : `${this.baseUrl}${a.artwork_url}`) : undefined),
@@ -575,7 +576,7 @@ class LmsClient {
       const albums = albumsLoop.map((a) => ({
         id: String(a.id || ''),
         title: String(a.album || a.title || ''),
-        artist: String(a.artist || ''),
+        artist: String(a.artist || a.albumartist || a.album_artist || a.albumArtist || ''),
         artistId: a.artist_id ? String(a.artist_id) : undefined,
         artwork_url: a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` :
           (a.artwork_url ? (String(a.artwork_url).startsWith('http') ? String(a.artwork_url) : `${this.baseUrl}${a.artwork_url}`) : undefined),
@@ -4003,7 +4004,7 @@ class LmsClient {
   async getFavoriteRadios(): Promise<LmsRadioStation[]> {
     const result = await this.request('', ['favorites', 'items', '0', '500', 'want_url:1', 'tags:stc']);
     // LMS returns favorites in 'loop_loop' or 'favorites_loop' depending on version
-    const favoritesLoop = (result.loop_loop || result.favorites_loop || []) as Array<Record<string, unknown>>;
+    const favoritesLoop = (result.loop_loop || result.favorites_loop || result.item_loop || result.items_loop || []) as Array<Record<string, unknown>>;
 
     return favoritesLoop
       .filter((f) => {

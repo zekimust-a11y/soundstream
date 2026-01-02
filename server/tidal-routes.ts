@@ -888,6 +888,20 @@ export function registerTidalRoutes(app: Express): void {
       )}/relationships/myMixes?countryCode=${encodeURIComponent(countryCode)}`;
       const listData = await openApiGet(listUrl, t.accessToken);
       const dataArr: any[] = Array.isArray(listData?.data) ? listData.data : [];
+      const metaTotal =
+        Number(
+          listData?.meta?.page?.totalNumberOfItems ??
+            listData?.meta?.totalNumberOfItems ??
+            listData?.meta?.page?.total ??
+            listData?.meta?.total ??
+            0
+        ) || 0;
+
+      const byId = new Map<string, any>();
+      for (const x of dataArr) {
+        const id = String(x?.id || "");
+        if (id) byId.set(id, x);
+      }
 
       const ids = dataArr
         .map((x: any) => String(x?.id || ""))
@@ -940,8 +954,9 @@ export function registerTidalRoutes(app: Express): void {
       for (const id of ids) {
         const playlistResp = await getPlaylist(id);
         const pl = playlistResp?.data;
-        const title = String(pl?.attributes?.name || "Mix");
-        const description = String(pl?.attributes?.description || "");
+        const rel = byId.get(id);
+        const title = String(pl?.attributes?.name || rel?.attributes?.name || "Mix");
+        const description = String(pl?.attributes?.description || rel?.attributes?.description || "");
         const coverArtId = await getCoverArtId(id);
         const artwork = coverArtId ? await getArtwork(coverArtId) : null;
         items.push({
@@ -954,7 +969,7 @@ export function registerTidalRoutes(app: Express): void {
         });
       }
 
-      const payload = { items, total: items.length };
+      const payload = { items, total: metaTotal || items.length };
       cacheSet(cacheKey, payload);
       res.json(payload);
     } catch (e) {
@@ -1088,6 +1103,14 @@ export function registerTidalRoutes(app: Express): void {
       const included: any[] = Array.isArray(data?.included) ? data.included : [];
       const artistsById = new Map<string, any>(included.filter((x) => x?.type === "artists").map((x) => [String(x.id), x]));
       const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
+      const metaTotal =
+        Number(
+          data?.meta?.page?.totalNumberOfItems ??
+            data?.meta?.totalNumberOfItems ??
+            data?.meta?.page?.total ??
+            data?.meta?.total ??
+            0
+        ) || 0;
       const items = dataArr.map((rel: any) => {
         const artistId = String(rel.id);
         const artist = artistsById.get(artistId);
@@ -1101,7 +1124,7 @@ export function registerTidalRoutes(app: Express): void {
           source: "tidal",
         };
       });
-      const payload = { items, total: items.length };
+      const payload = { items, total: metaTotal || items.length };
       cacheSet(cacheKey, payload);
       res.json(payload);
     } catch (e) {
@@ -1140,6 +1163,14 @@ export function registerTidalRoutes(app: Express): void {
       const included: any[] = Array.isArray(data?.included) ? data.included : [];
       const playlistsById = new Map<string, any>(included.filter((x) => x?.type === "playlists").map((x) => [String(x.id), x]));
       const artworksById = new Map<string, any>(included.filter((x) => x?.type === "artworks").map((x) => [String(x.id), x]));
+      const metaTotal =
+        Number(
+          data?.meta?.page?.totalNumberOfItems ??
+            data?.meta?.totalNumberOfItems ??
+            data?.meta?.page?.total ??
+            data?.meta?.total ??
+            0
+        ) || 0;
 
       const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
       const items = dataArr.map((rel: any) => {
@@ -1159,7 +1190,7 @@ export function registerTidalRoutes(app: Express): void {
           source: "tidal",
         };
       });
-      const payload = { items, total: items.length };
+      const payload = { items, total: metaTotal || items.length };
       cacheSet(cacheKey, payload);
       res.json(payload);
     } catch (e) {
@@ -1432,28 +1463,63 @@ export function registerTidalRoutes(app: Express): void {
       };
 
       // These endpoints map closely to what users expect as "My Collection" counts.
+      // IMPORTANT: Never return partial low counts when rate-limited — that is misleading.
+      // If we can't get a reliable total for a category, return null (unknown) and let the UI show "—".
       const albumsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/albums?limit=1&offset=0`);
       const artistsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/artists?limit=1&offset=0`);
       const playlistsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/playlists?limit=1&offset=0`);
-      // Best-effort; if unsupported it returns null.
+      // Best-effort; not all tokens support this endpoint.
       const tracksV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/tracks?limit=1&offset=0`);
 
-      const v2RateLimited = albumsV2.rateLimited || artistsV2.rateLimited || playlistsV2.rateLimited || tracksV2.rateLimited;
-      const v2Payload = {
-        albums: albumsV2.count,
-        artists: artistsV2.count,
-        tracks: tracksV2.count,
-        playlists: playlistsV2.count,
-        rateLimited: v2RateLimited,
-        partial: v2RateLimited || [albumsV2.count, artistsV2.count, tracksV2.count, playlistsV2.count].some((x) => x === null),
-        source: "api.tidal.com",
+      // If v2 doesn't support a category, try OpenAPI meta totals (cheap) instead of cursor-walking.
+      async function openApiMetaTotal(rel: "albums" | "artists" | "tracks" | "playlists"): Promise<{ count: number | null; rateLimited: boolean }> {
+        const baseUrl = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+          t.userId!
+        )}/relationships/${rel}?countryCode=${encodeURIComponent(countryCode)}`;
+        try {
+          const first = await openApiGet(`${baseUrl}&page[size]=1`, t.accessToken);
+          const metaTotal = extractOpenApiTotal(first);
+          if (metaTotal !== undefined && metaTotal >= 0) return { count: metaTotal, rateLimited: false };
+          return { count: null, rateLimited: false };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("Tidal OpenAPI error: 429")) return { count: null, rateLimited: true };
+          return { count: null, rateLimited: false };
+        }
+      }
+
+      const albumsMeta = albumsV2.count === null ? await openApiMetaTotal("albums") : { count: null, rateLimited: false };
+      const artistsMeta = artistsV2.count === null ? await openApiMetaTotal("artists") : { count: null, rateLimited: false };
+      const tracksMeta = tracksV2.count === null ? await openApiMetaTotal("tracks") : { count: null, rateLimited: false };
+      const playlistsMeta = playlistsV2.count === null ? await openApiMetaTotal("playlists") : { count: null, rateLimited: false };
+
+      const rateLimited =
+        albumsV2.rateLimited ||
+        artistsV2.rateLimited ||
+        tracksV2.rateLimited ||
+        playlistsV2.rateLimited ||
+        albumsMeta.rateLimited ||
+        artistsMeta.rateLimited ||
+        tracksMeta.rateLimited ||
+        playlistsMeta.rateLimited;
+
+      const payload = {
+        albums: albumsV2.count ?? albumsMeta.count,
+        artists: artistsV2.count ?? artistsMeta.count,
+        tracks: tracksV2.count ?? tracksMeta.count,
+        playlists: playlistsV2.count ?? playlistsMeta.count,
+        rateLimited,
+        partial: rateLimited,
+        source: "api.tidal.com + openapi(meta)",
       };
 
-      // If v2 returned at least one usable number, prefer it (and cache it).
-      if ([v2Payload.albums, v2Payload.artists, v2Payload.tracks, v2Payload.playlists].some((x) => typeof x === "number")) {
-        cacheSet(cacheKey, v2Payload);
-        return res.json(v2Payload);
+      // If we got rate-limited, prefer cached values instead of returning null/partial.
+      if (rateLimited && cached?.payload) {
+        return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true, partial: true });
       }
+
+      cacheSet(cacheKey, payload);
+      return res.json(payload);
 
       // OpenAPI doesn’t provide a cheap "total count" field; count by walking cursors (bounded).
       // IMPORTANT: Tidal may rate-limit (429). When that happens, return partial counts with a flag
