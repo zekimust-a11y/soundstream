@@ -1521,6 +1521,42 @@ export function registerTidalRoutes(app: Express): void {
           if (!first) return { count: null, rateLimited: true };
           const metaTotal = extractOpenApiTotal(first);
           if (metaTotal !== undefined && metaTotal >= 0) return { count: metaTotal, rateLimited: false };
+
+          // Some OpenAPI endpoints don't include totals in `meta`; try common total headers as a fallback.
+          const extractHeaderTotal = (headers: Headers): number | undefined => {
+            const candidates = [
+              "x-total-number-of-items",
+              "x-total-numberofitems",
+              "x-total-count",
+              "x-total",
+              "x-pagination-total",
+              "x-pagination-total-items",
+            ];
+            for (const k of candidates) {
+              const v = headers.get(k);
+              if (!v) continue;
+              const n = Number(v);
+              if (Number.isFinite(n) && n >= 0) return n;
+            }
+            return undefined;
+          };
+
+          const url = `${baseUrl}&page[size]=1`;
+          let headerTotal: number | undefined;
+          for (const delay of [0, 500, 1200, 2200]) {
+            if (delay) await sleep(delay);
+            const resp = await fetch(url, {
+              headers: {
+                Authorization: `Bearer ${(tokens?.accessToken || t.accessToken) as string}`,
+              },
+              signal: AbortSignal.timeout(20000),
+            });
+            if (resp.status === 429) continue;
+            if (!resp.ok) break;
+            headerTotal = extractHeaderTotal(resp.headers as any);
+            break;
+          }
+          if (headerTotal !== undefined) return { count: headerTotal, rateLimited: false };
           return { count: null, rateLimited: false };
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
