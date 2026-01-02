@@ -117,7 +117,8 @@ const RECENT_ITEMS_KEY = "@soundstream_recent_items"; // New unified format
 const FAVORITES_KEY = "@soundstream_favorites";
 const PLAYLISTS_KEY = "@soundstream_playlists";
 
-const MAX_RECENT_ITEMS = 30;
+// Keep more history for the History screen
+const MAX_RECENT_ITEMS = 50;
 
 const DEFAULT_FAVORITES: Favorites = { artists: [], albums: [], tracks: [] };
 
@@ -1289,7 +1290,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const addToRecentlyPlayed = useCallback(async (track: Track) => {
     setRecentlyPlayed((prev) => {
       const filtered = prev.filter((t) => t.id !== track.id);
-      const updated = [track, ...filtered].slice(0, 30);
+      const updated = [track, ...filtered].slice(0, MAX_RECENT_ITEMS);
       AsyncStorage.setItem(RECENT_KEY, JSON.stringify(updated));
       return updated;
     });
@@ -1304,7 +1305,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     };
     setRecentlyPlayedItems((prev) => {
       const filtered = prev.filter((i) => !(i.type === 'track' && i.id === item.id));
-      const updated = [item, ...filtered].slice(0, 30);
+      const updated = [item, ...filtered].slice(0, MAX_RECENT_ITEMS);
       AsyncStorage.setItem(RECENT_ITEMS_KEY, JSON.stringify(updated));
       return updated;
     });
@@ -1320,7 +1321,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     };
     setRecentlyPlayedItems((prev) => {
       const filtered = prev.filter((i) => !(i.type === 'playlist' && i.playlistId === playlistId));
-      const updated = [item, ...filtered].slice(0, 30);
+      const updated = [item, ...filtered].slice(0, MAX_RECENT_ITEMS);
       AsyncStorage.setItem(RECENT_ITEMS_KEY, JSON.stringify(updated));
       return updated;
     });

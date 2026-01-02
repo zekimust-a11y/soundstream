@@ -14,7 +14,7 @@ SoundStream is a React Native (Expo) application that provides a modern, polishe
 - **Albums**: Grid/list view with source badges (Local/Qobuz)
 - **Artists**: Round tiles with artist portraits from TheAudioDB API
 - **Radio**: Favorite radio stations from LMS with station logos
-- **History**: Recently played tracks (last 20)
+- **History**: Recently played tracks (last 50)
 
 ### 2. Search
 - Combined search across local library and Qobuz catalog
