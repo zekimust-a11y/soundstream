@@ -244,17 +244,19 @@ async function startCasting(): Promise<void> {
   if (success) {
     isCasting = true;
     console.log('[Relay] Cast started successfully');
-    // Send NOW_PLAYING immediately so the receiver doesn't sit on a black screen
-    // waiting for the next 2s poll tick.
-    try {
-      const s = await getPlayerStatus(currentPlayerId);
-      const hasTrack = s?.playlist_loop && s.playlist_loop.length > 0;
-      if (hasTrack && chromecastEnabled) {
-        await sendNowPlayingToCast(s);
+    // Important: sending to the custom channel *immediately* after launch can cause EPIPE on some devices
+    // (receiver not fully ready yet). Send shortly after cast start instead.
+    setTimeout(async () => {
+      try {
+        const s = await getPlayerStatus(currentPlayerId);
+        const hasTrack = s?.playlist_loop && s.playlist_loop.length > 0;
+        if (hasTrack && chromecastEnabled) {
+          await sendNowPlayingToCast(s);
+        }
+      } catch {
+        // ignore; next poll will update
       }
-    } catch {
-      // ignore immediate send failures; next poll will update
-    }
+    }, 1200);
   } else {
     console.error('[Relay] Failed to start cast');
     isCasting = false;
