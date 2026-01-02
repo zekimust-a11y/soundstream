@@ -881,32 +881,78 @@ export function registerTidalRoutes(app: Express): void {
       }
 
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const url = `https://openapi.tidal.com/v2/userRecommendations/${encodeURIComponent(
+      // NOTE: This OpenAPI endpoint does NOT return `included` even with `include=*`.
+      // The items are actually `playlists` of type MIX, and cover art is accessed via a relationship link.
+      const listUrl = `https://openapi.tidal.com/v2/userRecommendations/${encodeURIComponent(
         t.userId
-      )}/relationships/myMixes?include=mixes,mixes.coverArt&countryCode=${encodeURIComponent(countryCode)}`;
-      const data = await openApiGet(url, t.accessToken);
-      const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
-      const included: any[] = Array.isArray(data?.included) ? data.included : [];
-      const mixesById = new Map<string, any>(included.filter((x) => x?.type === "mixes").map((x) => [String(x.id), x]));
-      const artworksById = new Map<string, any>(included.filter((x) => x?.type === "artworks").map((x) => [String(x.id), x]));
+      )}/relationships/myMixes?countryCode=${encodeURIComponent(countryCode)}`;
+      const listData = await openApiGet(listUrl, t.accessToken);
+      const dataArr: any[] = Array.isArray(listData?.data) ? listData.data : [];
 
-      const items = dataArr.map((rel: any) => {
-        // OpenAPI relationships often return relationship ids, not the mix ids.
-        // The actual mix id is usually in rel.relationships.mix.data[0].id (or rel.relationships.mixes...)
-        const mixId =
-          String(rel?.relationships?.mix?.data?.[0]?.id || rel?.relationships?.mixes?.data?.[0]?.id || rel?.id || "");
-        const mix = mixesById.get(mixId);
-        const artworkId = mix?.relationships?.coverArt?.data?.[0]?.id ? String(mix.relationships.coverArt.data[0].id) : "";
-        const artwork = artworksById.get(artworkId);
-        return {
-          id: mixId,
-          title: mix?.attributes?.title || "Mix",
-          description: mix?.attributes?.subTitle || "",
+      const ids = dataArr
+        .map((x: any) => String(x?.id || ""))
+        .filter((id: string) => id.length > 0)
+        .slice(0, 50);
+
+      async function getPlaylist(id: string): Promise<any | null> {
+        try {
+          return await openApiGet(
+            `https://openapi.tidal.com/v2/playlists/${encodeURIComponent(id)}?countryCode=${encodeURIComponent(countryCode)}`,
+            t.accessToken
+          );
+        } catch (e) {
+          return null;
+        }
+      }
+
+      async function getCoverArtId(playlistId: string): Promise<string | null> {
+        try {
+          const rel = await openApiGet(
+            `https://openapi.tidal.com/v2/playlists/${encodeURIComponent(
+              playlistId
+            )}/relationships/coverArt?countryCode=${encodeURIComponent(countryCode)}`,
+            t.accessToken
+          );
+          const first = Array.isArray(rel?.data) ? rel.data[0] : null;
+          const id = first?.id ? String(first.id) : "";
+          return id ? id : null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      async function getArtwork(artworkId: string): Promise<any | null> {
+        try {
+          const art = await openApiGet(
+            `https://openapi.tidal.com/v2/artworks/${encodeURIComponent(artworkId)}?countryCode=${encodeURIComponent(
+              countryCode
+            )}`,
+            t.accessToken
+          );
+          return art?.data || null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      const items: any[] = [];
+      // Keep this sequential to avoid burst rate-limiting.
+      for (const id of ids) {
+        const playlistResp = await getPlaylist(id);
+        const pl = playlistResp?.data;
+        const title = String(pl?.attributes?.name || "Mix");
+        const description = String(pl?.attributes?.description || "");
+        const coverArtId = await getCoverArtId(id);
+        const artwork = coverArtId ? await getArtwork(coverArtId) : null;
+        items.push({
+          id,
+          title,
+          description,
           artwork_url: pickArtworkUrl(artwork, "320x320"),
-          lmsUri: `tidal://mix:${mixId}`,
+          lmsUri: `tidal://mix:${id}`,
           source: "tidal",
-        };
-      });
+        });
+      }
 
       const payload = { items, total: items.length };
       cacheSet(cacheKey, payload);
