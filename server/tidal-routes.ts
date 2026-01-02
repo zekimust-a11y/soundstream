@@ -616,7 +616,16 @@ export function registerTidalRoutes(app: Express): void {
     // - iOS cannot use a custom-scheme redirect_uri unless it's registered in the TIDAL developer console.
     // - Use the HTTP callback (registered) for OAuth, then bounce back into the app via deep link.
     const oauthRedirectUri = platform === "web" ? httpCallback : httpCallback;
-    const appRedirectUri = platform === "web" ? httpCallback : "soundstream://callback";
+    let appRedirectUri = platform === "web" ? httpCallback : "soundstream://callback";
+    // Allow the client to tell us what deep link it can actually handle (Expo Go vs dev build vs standalone).
+    // Security: only allow known safe schemes.
+    const requestedAppRedirectUri = typeof req.query.appRedirectUri === "string" ? req.query.appRedirectUri : "";
+    if (platform === "mobile" && requestedAppRedirectUri) {
+      const v = requestedAppRedirectUri.trim();
+      if (v.startsWith("soundstream://") || v.startsWith("exp://") || v.startsWith("exps://")) {
+        appRedirectUri = v;
+      }
+    }
 
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
@@ -669,7 +678,14 @@ export function registerTidalRoutes(app: Express): void {
     const clientId = resolved.clientId;
     const httpCallback = `${req.protocol}://${req.get("host")}/api/tidal/callback`;
     const oauthRedirectUri = platform === "web" ? httpCallback : httpCallback;
-    const appRedirectUri = platform === "web" ? httpCallback : "soundstream://callback";
+    let appRedirectUri = platform === "web" ? httpCallback : "soundstream://callback";
+    const requestedAppRedirectUri = typeof req.query.appRedirectUri === "string" ? req.query.appRedirectUri : "";
+    if (platform === "mobile" && requestedAppRedirectUri) {
+      const v = requestedAppRedirectUri.trim();
+      if (v.startsWith("soundstream://") || v.startsWith("exp://") || v.startsWith("exps://")) {
+        appRedirectUri = v;
+      }
+    }
 
     const scope =
       preset === "legacy"

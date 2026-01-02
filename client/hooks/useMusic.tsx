@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Linking from "expo-linking";
 import type { Track } from "@/hooks/usePlayback";
 import { lmsClient, LmsAlbum, LmsArtist, LmsTrack } from "@/lib/lmsClient";
 import { debugLog } from "@/lib/debugLog";
@@ -771,7 +772,12 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     try {
       // Detect platform for appropriate redirect URI
       const platform = Platform.OS === 'web' ? 'web' : 'mobile';
-      const response = await fetch(`${getApiUrl()}/api/tidal/auth-url?platform=${platform}`);
+      const appRedirectUri = platform === "mobile" ? Linking.createURL("callback") : "";
+      const qs = new URLSearchParams({
+        platform,
+        ...(platform === "mobile" ? { appRedirectUri } : {}),
+      });
+      const response = await fetch(`${getApiUrl()}/api/tidal/auth-url?${qs.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to get Tidal auth URL');
       }
