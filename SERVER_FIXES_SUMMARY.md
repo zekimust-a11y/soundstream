@@ -6,7 +6,7 @@
 2. ✅ **Added process-level error handlers** - Catches uncaught exceptions  
 3. ✅ **Created Metro availability check** - Checks if Metro is running before proxying
 4. ✅ **Created helpful error page** - Shows instructions when Metro isn't running
-5. ✅ **Created cursor client instructions.md** - Documents how to handle server restarts
+5. ✅ **Removed localhost-only operational instructions** - Runtime host is `.21` (LMS + Roon Core are separate)
 
 ## Current Status
 
@@ -32,7 +32,7 @@ The code is in place and should work. If the error persists after server restart
 ## Files Modified
 
 - `server/index.ts` - Added error handling and Metro check
-- `cursor client instructions.md` - Created instruction file
+- (Removed) `cursor client instructions.md` - Obsolete / misleading (localhost-based)
 
 
 

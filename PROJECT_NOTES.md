@@ -16,8 +16,8 @@ This is the **single canonical “project notes” entrypoint** for Soundstream.
 4. `DEVELOPMENT_GUIDELINES.md` and `CODE_REVIEW_PROCESS.md`
    - How we want changes made, reviewed, and tested.
 
-5. `cursor client instructions.md`
-   - Repo-specific operational rules and command conventions.
+5. `../DEPLOYMENT-STATUS.md`
+   - Treat `.21` as the runtime host. Nothing should be started on localhost (except LMS + Roon Core, which live elsewhere).
 
 ## Where things live
 
