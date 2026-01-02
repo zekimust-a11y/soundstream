@@ -609,7 +609,17 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
   // Send fast first, then enrich with artwork + artist backgrounds.
   // This avoids a black screen while we fetch external resources.
   const primaryArtist = overrides ? '' : normalizePrimaryArtist(track?.artist || '');
-  const baseMessage = formatNowPlayingMessage(status, [], overrides);
+  // IMPORTANT: We poll LMS frequently (~2s). If we always send an empty artist_images array here,
+  // the receiver will keep resetting its background rotation and it will look "broken".
+  // So, include cached artist images in the fast message (if we already have them).
+  const cachedArtistImages = (() => {
+    if (!primaryArtist) return [];
+    const cached = artistImageCache.get(primaryArtist);
+    if (cached && Date.now() - cached.fetchedAt < ARTIST_IMAGE_CACHE_TTL_MS) return cached.images || [];
+    return [];
+  })();
+
+  const baseMessage = formatNowPlayingMessage(status, cachedArtistImages, overrides);
   if (!baseMessage) return;
 
   try {
@@ -632,6 +642,18 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
   (async () => {
     try {
       const artistImages = primaryArtist ? await fetchArtistImages(primaryArtist) : [];
+      const cachedKey = Array.isArray(cachedArtistImages) ? cachedArtistImages.join('|') : '';
+      const fetchedKey = Array.isArray(artistImages) ? artistImages.join('|') : '';
+
+      // If fetching didn't improve anything (same images as cache), skip the extra message.
+      if (fetchedKey === cachedKey) {
+        return;
+      }
+
+      if (primaryArtist && artistImages.length === 0) {
+        console.warn(`[Relay] No artist images found for: ${primaryArtist}`);
+      }
+
       const enriched = formatNowPlayingMessage(status, artistImages, overrides);
       if (!enriched) return;
 
@@ -660,8 +682,8 @@ async function sendNowPlayingToCast(status: any): Promise<void> {
       } catch {
         // ignore
       }
-    } catch {
-      // ignore background enrichment failures
+    } catch (e) {
+      console.warn('[Relay] Background enrichment failed:', e instanceof Error ? e.message : String(e));
     }
   })();
 }
