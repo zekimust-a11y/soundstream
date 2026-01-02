@@ -415,11 +415,9 @@ export default function SettingsScreen() {
         console.warn("Failed to count radio stations:", e instanceof Error ? e.message : String(e));
       }
 
-      // --- Tidal counts ---
-      // Prefer LMS-derived totals (matches what LMS shows after its plugin scan).
-      // Fallback to direct API totals if needed.
+      // --- Tidal counts (Direct API ONLY) ---
       let tidalCounts: LibraryCounts = { albums: null, artists: null, tracks: null, playlists: null };
-      if (tidalEnabled) {
+      if (tidalEnabled && tidalConnected) {
         const apiUrl = getApiUrl();
         const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
         const toNumOrNull = (v: any) => {
@@ -427,14 +425,10 @@ export default function SettingsScreen() {
           return Number.isFinite(n) ? n : null;
         };
 
-        // 1) LMS totals (best signal)
+        // Direct API totals (may be rate-limited; server returns null when unknown/partial)
         try {
-          const qs = new URLSearchParams({
-            host: String(activeServer?.host || ""),
-            port: String(activeServer?.port || ""),
-          });
-          const resp = await fetch(`${cleanApiUrl}/api/lms/tidal/totals?${qs.toString()}`, {
-            signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(12000) : undefined,
+          const resp = await fetch(`${cleanApiUrl}/api/tidal/totals`, {
+            signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(30000) : undefined,
           });
           if (resp.ok) {
             const data = await resp.json();
@@ -446,32 +440,7 @@ export default function SettingsScreen() {
             };
           }
         } catch (e) {
-          console.warn("Failed to fetch LMS Tidal totals:", e instanceof Error ? e.message : String(e));
-        }
-
-        // 2) Direct API fallback (may be rate-limited)
-        if (
-          tidalCounts.albums === null &&
-          tidalCounts.artists === null &&
-          tidalCounts.tracks === null &&
-          tidalCounts.playlists === null
-        ) {
-          try {
-            const resp = await fetch(`${cleanApiUrl}/api/tidal/totals`, {
-              signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(30000) : undefined,
-            });
-            if (resp.ok) {
-              const data = await resp.json();
-              tidalCounts = {
-                albums: toNumOrNull(data.albums),
-                artists: toNumOrNull(data.artists),
-                tracks: toNumOrNull(data.tracks),
-                playlists: toNumOrNull(data.playlists),
-              };
-            }
-          } catch (e) {
-            console.warn("Failed to fetch Tidal totals:", e instanceof Error ? e.message : String(e));
-          }
+          console.warn("Failed to fetch Tidal totals:", e instanceof Error ? e.message : String(e));
         }
       }
 
@@ -851,8 +820,7 @@ export default function SettingsScreen() {
                     const fmt = (v: number | null | undefined) => (v === null || v === undefined ? "—" : Number(v).toLocaleString());
                     const rows: Array<{ key: "local" | "tidal" | "soundcloud"; label: string; show: boolean }> = [
                       { key: "local", label: "Local (LMS)", show: !!localLibraryEnabled },
-                      // Counts come from LMS plugin (preferred) with direct-API as a fallback.
-                      { key: "tidal", label: "Tidal (LMS)", show: !!tidalEnabled },
+                    { key: "tidal", label: "Tidal (API)", show: !!tidalEnabled },
                       { key: "soundcloud", label: "SoundCloud", show: !!soundcloudEnabled },
                     ];
 
