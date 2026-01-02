@@ -457,10 +457,10 @@ export function registerTidalRoutes(app: Express): void {
   const tidalCache = new Map<string, { ts: number; payload: any }>();
   const CACHE_TTL_MS = 60_000; // 60s: enough to prevent bursts without making data feel stale.
 
-  function cacheGet(key: string) {
+  function cacheGet(key: string, ttlMs: number = CACHE_TTL_MS) {
     const v = tidalCache.get(key);
     if (!v) return null;
-    const fresh = Date.now() - v.ts < CACHE_TTL_MS;
+    const fresh = Date.now() - v.ts < ttlMs;
     return { fresh, payload: v.payload };
   }
 
@@ -1124,6 +1124,14 @@ export function registerTidalRoutes(app: Express): void {
     if (!t) return;
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
     try {
+      // Totals are expensive and prone to 429; cache for longer than list endpoints.
+      const TOTALS_TTL_MS = 5 * 60_000; // 5 minutes
+      const cacheKey = `totals:${t.userId}`;
+      const cached = cacheGet(cacheKey, TOTALS_TTL_MS);
+      if (cached?.fresh) {
+        return res.json({ ...cached.payload, cached: true });
+      }
+
       // OpenAPI doesn’t provide a cheap "total count" field; count by walking cursors (bounded).
       // IMPORTANT: Tidal may rate-limit (429). When that happens, return partial counts with a flag
       // instead of failing (so the client doesn't show 0).
@@ -1170,15 +1178,39 @@ export function registerTidalRoutes(app: Express): void {
         countRelationship("playlists", { maxItems: 5000, maxRequests: 80 }),
       ]);
 
-      res.json({
+      const rateLimited = albumsR.rateLimited || artistsR.rateLimited || tracksR.rateLimited || playlistsR.rateLimited;
+      const partial = rateLimited;
+
+      // If we got rate-limited before we could count anything, return nulls (unknown) instead of 0s.
+      // This avoids the UI incorrectly showing "0" across the board.
+      const allZero = albumsR.count === 0 && artistsR.count === 0 && tracksR.count === 0 && playlistsR.count === 0;
+      if (rateLimited && allZero) {
+        if (cached?.payload) {
+          return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true, partial: true });
+        }
+        return res.json({ albums: null, artists: null, tracks: null, playlists: null, rateLimited: true, partial: true });
+      }
+
+      const payload = {
         albums: albumsR.count,
         artists: artistsR.count,
         tracks: tracksR.count,
         playlists: playlistsR.count,
-        rateLimited: albumsR.rateLimited || artistsR.rateLimited || tracksR.rateLimited || playlistsR.rateLimited,
-        partial: albumsR.rateLimited || artistsR.rateLimited || tracksR.rateLimited || playlistsR.rateLimited,
-      });
+        rateLimited,
+        partial,
+      };
+      cacheSet(cacheKey, payload);
+      res.json(payload);
     } catch (e) {
+      // If we fail due to rate limit, return cached totals (even if stale) rather than 500.
+      const cacheKey = `totals:${t.userId}`;
+      const cached = cacheGet(cacheKey, 5 * 60_000);
+      if (isRateLimitedError(e)) {
+        if (cached?.payload) {
+          return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true, partial: true });
+        }
+        return res.json({ albums: null, artists: null, tracks: null, playlists: null, rateLimited: true, partial: true });
+      }
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
   });
