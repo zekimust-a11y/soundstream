@@ -45,8 +45,8 @@ ROON_STEP=1
 # Hold ramp cadence (seconds)
 ROON_REPEAT_S=0.06
 
-# FLIRC input device path (udev symlink)
-FLIRC_DEVICE=/dev/input/flirc
+# FLIRC input device path (udev symlink to the keyboard event device)
+FLIRC_DEVICE=/dev/input/flirc-kbd
 
 # If you don't want to "grab" the keyboard device, set to 0
 FLIRC_GRAB=1
@@ -57,8 +57,16 @@ FLIRC_GRAB=1
 
 # HTTP timeout
 HTTP_TIMEOUT_S=1.5
+
+# Set to 1 to log each API call response line
+# ROON_LOG_API=0
 ENV
   chmod 0644 "${ENV_FILE}"
+fi
+
+# If env exists but points to an old/unstable path, try to upgrade it.
+if grep -q '^FLIRC_DEVICE=/dev/input/flirc$' "${ENV_FILE}" 2>/dev/null; then
+  sed -i 's#^FLIRC_DEVICE=/dev/input/flirc$#FLIRC_DEVICE=/dev/input/flirc-kbd#' "${ENV_FILE}" || true
 fi
 
 echo "[install] Installing systemd service..."

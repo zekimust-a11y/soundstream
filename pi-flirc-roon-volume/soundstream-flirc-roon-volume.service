@@ -5,10 +5,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/etc/soundstream-flirc-roon-volume.env
 ExecStart=/opt/soundstream-flirc-roon-volume/venv/bin/python /opt/soundstream-flirc-roon-volume/flirc_roon_volume.py
 Restart=always
-RestartSec=1
+RestartSec=0.25
 
 [Install]
 WantedBy=multi-user.target

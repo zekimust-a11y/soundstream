@@ -1,10 +1,13 @@
-# Create a stable path for FLIRC input device so systemd service can open it reliably.
+# Create stable paths for FLIRC input devices so systemd can open them reliably.
 #
-# This matches common FLIRC USB strings. If your device string differs,
-# update the match after checking:
-#   cat /proc/bus/input/devices
+# FLIRC exposes multiple input interfaces. We care about the *keyboard* event device
+# (the one that emits KEY_F9/KEY_F10 for volume).
+#
+# Check devices with:
 #   ls -l /dev/input/by-id/
+#   sudo udevadm info -a -n /dev/input/eventX | head -n 80
 #
-KERNEL=="event*", SUBSYSTEM=="input", ATTRS{name}=="*FLIRC*", SYMLINK+="input/flirc", MODE="0660", GROUP="input"
+# FLIRC keyboard interface (flirc.tv flirc Keyboard)
+KERNEL=="event*", SUBSYSTEM=="input", ATTRS{idVendor}=="20a0", ATTRS{idProduct}=="0006", ATTRS{name}=="flirc.tv flirc Keyboard", SYMLINK+="input/flirc-kbd", MODE="0660", GROUP="input"
 
 
