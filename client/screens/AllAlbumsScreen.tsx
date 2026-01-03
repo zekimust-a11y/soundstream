@@ -31,6 +31,8 @@ import { LibraryToolbar, type SourceFilter } from "@/components/LibraryToolbar";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { useInfiniteAlbums, Album } from "@/hooks/useLibrary";
 import { DESKTOP_SIDEBAR_WIDTH } from "@/constants/layout";
+import { useQuery } from "@tanstack/react-query";
+import { getApiUrl } from "@/lib/query-client";
 
 interface AlbumItem extends Album {}
 import { useMusic } from "@/hooks/useMusic";
@@ -218,7 +220,34 @@ export default function AllAlbumsScreen() {
     AsyncStorage.setItem(VIEW_MODE_KEY, mode);
   };
 
-  const allAlbums = data?.pages.flatMap(page => page.albums) || [];
+  const allAlbumsRaw = data?.pages.flatMap(page => page.albums) || [];
+
+  // De-dupe across pages (Tidal can repeat the same album across cursor pages, sometimes with different IDs).
+  const allAlbums = useMemo(() => {
+    const keyOf = (a: Album): string => {
+      const src = (a.source || "local") as string;
+      if (src === "tidal") {
+        const name = (a.name || "").trim().toLowerCase();
+        const artist = (a.artist || "").trim().toLowerCase();
+        const year = a.year != null ? String(a.year) : "";
+        const tracks = a.trackCount != null ? String(a.trackCount) : "";
+        return `tidal|${name}|${artist}|${year}|${tracks}`;
+      }
+      return `${src}|${String(a.id || "")}`;
+    };
+    const pickBetter = (existing: Album, next: Album): Album => {
+      if (!existing.imageUrl && next.imageUrl) return next;
+      return existing;
+    };
+    const map = new Map<string, Album>();
+    for (const a of allAlbumsRaw) {
+      const k = keyOf(a);
+      const ex = map.get(k);
+      map.set(k, ex ? pickBetter(ex, a) : a);
+    }
+    return Array.from(map.values());
+  }, [allAlbumsRaw]);
+
   const totalAll = data?.pages[0]?.total || 0;
   const totalLocal = data?.pages[0]?.localTotal || 0;
   const totalTidal = data?.pages[0]?.tidalTotal || 0;
@@ -228,8 +257,28 @@ export default function AllAlbumsScreen() {
   const [albumQuality, setAlbumQuality] = useState<Record<string, QualityKey>>({});
   const [textFilter, setTextFilter] = useState("");
   
+  const tidalTotalsQuery = useQuery({
+    queryKey: ["tidal", "totals", "albums"],
+    queryFn: async () => {
+      const base = getApiUrl().replace(/\/$/, "");
+      const r = await fetch(`${base}/api/tidal/totals`);
+      if (!r.ok) throw new Error(`Tidal totals failed: ${r.status}`);
+      return r.json() as Promise<{ albums?: number | null; computing?: boolean; partial?: boolean; rateLimited?: boolean }>;
+    },
+    // Light polling so the number converges while the server is still computing counts.
+    refetchInterval: 8000,
+    staleTime: 15_000,
+  });
+
+  const tidalAlbumsTotalFromTotalsApi =
+    typeof tidalTotalsQuery.data?.albums === "number" ? tidalTotalsQuery.data.albums : null;
+
   const displayTotal =
-    sourceFilter === "local" ? totalLocal : sourceFilter === "tidal" ? totalTidal : totalAll;
+    sourceFilter === "local"
+      ? totalLocal
+      : sourceFilter === "tidal"
+        ? (tidalAlbumsTotalFromTotalsApi ?? totalTidal)
+        : (tidalAlbumsTotalFromTotalsApi != null ? (totalLocal + tidalAlbumsTotalFromTotalsApi) : totalAll);
 
   console.log(`🎵 AllAlbumsScreen: allAlbums.length=${allAlbums.length}, total=${totalAll}, hasNextPage=${hasNextPage}`);
 

@@ -1085,6 +1085,33 @@ export function registerTidalRoutes(app: Express): void {
         };
       });
 
+      // De-dupe: Tidal collections can contain duplicates across pages and sometimes within a page.
+      // Prefer the entry with artwork, then the most recent addedAt.
+      const stableKeyForAlbum = (it: any): string => {
+        const title = String(it?.title || "").trim().toLowerCase();
+        const artistName = String(it?.artist || "").trim().toLowerCase();
+        const year = it?.year != null ? String(it.year) : "";
+        const tracks = it?.numberOfTracks != null ? String(it.numberOfTracks) : "";
+        return `${title}|${artistName}|${year}|${tracks}`;
+      };
+      const pickBetter = (a: any, b: any): any => {
+        const aHasArt = !!a?.artwork_url;
+        const bHasArt = !!b?.artwork_url;
+        if (aHasArt !== bHasArt) return bHasArt ? b : a;
+        const aAt = typeof a?.addedAt === "string" ? a.addedAt : "";
+        const bAt = typeof b?.addedAt === "string" ? b.addedAt : "";
+        if (aAt && bAt) return bAt > aAt ? b : a;
+        if (!aAt && bAt) return b;
+        return a;
+      };
+      const byStable = new Map<string, any>();
+      for (const it of items) {
+        const k = stableKeyForAlbum(it);
+        const existing = byStable.get(k);
+        byStable.set(k, existing ? pickBetter(existing, it) : it);
+      }
+      const dedupedItems = Array.from(byStable.values());
+
       // NOTE: This endpoint often does NOT include a reliable total in OpenAPI meta.
       // Fall back to our computed totals cache (which slowly converges without requiring `r_usr`).
       const totalFromMeta = extractOpenApiTotal(data);
@@ -1094,7 +1121,7 @@ export function registerTidalRoutes(app: Express): void {
       const next = data?.links?.next;
       const nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : null;
 
-      const payload = { items, total: typeof total === "number" ? total : items.length, next: nextUrl };
+      const payload = { items: dedupedItems, total: typeof total === "number" ? total : dedupedItems.length, next: nextUrl };
       cacheSet(cacheKey, payload);
       res.json(payload);
     } catch (e) {
