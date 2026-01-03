@@ -33,6 +33,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { usePlayback } from "@/hooks/usePlayback";
 import { lmsClient } from "@/lib/lmsClient";
 import { roonVolumeClient } from "@/lib/roonVolumeClient";
+import { getApiUrl } from "@/lib/query-client";
 import type { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SettingsStackParamList>;
@@ -124,6 +125,8 @@ export default function SettingsScreen() {
   const [libraryCountsBySource, setLibraryCountsBySource] = useState<LibraryCountsBySource | null>(null);
   const [libraryRadioCount, setLibraryRadioCount] = useState<number | null>(null);
   const [tidalTotalsNote, setTidalTotalsNote] = useState<string | null>(null);
+  const [tidalTotalsCache, setTidalTotalsCache] = useState<LibraryCounts | null>(null);
+  const TIDAL_TOTALS_CACHE_KEY = "@soundstream_tidal_totals_cache_v1";
   
   const [isChromecastDiscovering, setIsChromecastDiscovering] = useState(false);
   const [discoveredChromecastDevices, setDiscoveredChromecastDevices] = useState<Array<{ip: string; name: string}>>([]);
@@ -238,6 +241,144 @@ export default function SettingsScreen() {
   useEffect(() => {
     loadLibraryStats();
   }, []); // Load on mount
+
+  // Load last-known Tidal totals so Settings can show meaningful numbers immediately after server restarts.
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(TIDAL_TOTALS_CACHE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const pick = (v: any) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+        const next: LibraryCounts = {
+          albums: pick(parsed?.albums),
+          artists: pick(parsed?.artists),
+          tracks: pick(parsed?.tracks),
+          playlists: pick(parsed?.playlists),
+        };
+        if (cancelled) return;
+        // Only set if we have at least one value.
+        if ([next.albums, next.artists, next.tracks, next.playlists].some((v) => v !== null)) {
+          setTidalTotalsCache(next);
+        }
+      } catch {
+        // ignore cache parse errors
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const fetchTidalTotals = async (): Promise<{
+    counts: LibraryCounts;
+    note: string | null;
+    computing: boolean;
+    partial: boolean;
+    rateLimited: boolean;
+  } | null> => {
+    if (!tidalEnabled) return null;
+    const apiUrl = getApiUrl();
+    const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
+    const toNumOrNull = (v: any) => {
+      const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+      return Number.isFinite(n) ? n : null;
+    };
+
+    try {
+      const resp = await fetch(`${cleanApiUrl}/api/tidal/totals`, {
+        signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(30000) : undefined,
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const computing = !!data?.computing;
+      const partial = !!data?.partial;
+      const rateLimited = !!data?.rateLimited;
+
+      let note: string | null = null;
+      if (computing) {
+        note = "Calculating Tidal totals in the background… this can take a bit the first time (and after server restarts).";
+      } else if (data?.missingScope) {
+        note = `Tidal totals are unavailable with the current TIDAL app credentials (scope ${String(
+          data.missingScope
+        )} triggers OAuth error 1002). Library browsing still works.`;
+      } else if (partial) {
+        note = "Tidal totals are partial (rate-limited). They’ll improve over time as the background counter retries.";
+      } else if (rateLimited) {
+        note = "Tidal totals are temporarily rate-limited. Try again in a minute.";
+      }
+
+      const counts: LibraryCounts = {
+        albums: toNumOrNull(data.albums),
+        artists: toNumOrNull(data.artists),
+        tracks: toNumOrNull(data.tracks),
+        playlists: toNumOrNull(data.playlists),
+      };
+
+      // Persist best-known values so Settings can show them immediately even if the server restarts and recomputes.
+      if ([counts.albums, counts.artists, counts.tracks, counts.playlists].some((v) => v !== null)) {
+        setTidalTotalsCache((prev) => ({
+          albums: counts.albums ?? prev?.albums ?? null,
+          artists: counts.artists ?? prev?.artists ?? null,
+          tracks: counts.tracks ?? prev?.tracks ?? null,
+          playlists: counts.playlists ?? prev?.playlists ?? null,
+        }));
+        AsyncStorage.setItem(
+          TIDAL_TOTALS_CACHE_KEY,
+          JSON.stringify({
+            albums: counts.albums ?? tidalTotalsCache?.albums ?? null,
+            artists: counts.artists ?? tidalTotalsCache?.artists ?? null,
+            tracks: counts.tracks ?? tidalTotalsCache?.tracks ?? null,
+            playlists: counts.playlists ?? tidalTotalsCache?.playlists ?? null,
+            cachedAt: Date.now(),
+          })
+        ).catch(() => {});
+      }
+
+      return { counts, note, computing, partial, rateLimited };
+    } catch (e) {
+      console.warn("Failed to fetch Tidal totals:", e instanceof Error ? e.message : String(e));
+      return null;
+    }
+  };
+
+  // Poll Tidal totals while they're still computing so the Settings table updates from "—" to real numbers.
+  useEffect(() => {
+    if (!activeServer) return;
+    if (!tidalEnabled) return;
+
+    let cancelled = false;
+    const tick = async () => {
+      const r = await fetchTidalTotals();
+      if (cancelled || !r) return;
+
+      setTidalTotalsNote(r.note);
+
+      // Use cached values as a fallback while computing/partial so we don't show all dashes after restarts.
+      const allowCache = r.computing || r.partial || r.rateLimited;
+      const merged: LibraryCounts = {
+        albums: r.counts.albums ?? (allowCache ? tidalTotalsCache?.albums ?? null : null),
+        artists: r.counts.artists ?? (allowCache ? tidalTotalsCache?.artists ?? null : null),
+        tracks: r.counts.tracks ?? (allowCache ? tidalTotalsCache?.tracks ?? null : null),
+        playlists: r.counts.playlists ?? (allowCache ? tidalTotalsCache?.playlists ?? null : null),
+      };
+
+      setLibraryCountsBySource((prev) => {
+        if (!prev) return prev;
+        return { ...prev, tidal: merged };
+      });
+    };
+
+    tick();
+    const id = setInterval(tick, 8000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeServer, tidalEnabled]);
 
   useEffect(() => {
     if (activeServer) {
@@ -416,47 +557,17 @@ export default function SettingsScreen() {
 
       // --- Tidal counts (Direct API ONLY) ---
       let tidalCounts: LibraryCounts = { albums: null, artists: null, tracks: null, playlists: null };
-      if (tidalEnabled && tidalConnected) {
-        const apiUrl = getApiUrl();
-        const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
-        const toNumOrNull = (v: any) => {
-          const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
-          return Number.isFinite(n) ? n : null;
-        };
-
-        // Direct API totals (may be rate-limited; server returns null when unknown/partial)
-        try {
-          const resp = await fetch(`${cleanApiUrl}/api/tidal/totals`, {
-            signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(30000) : undefined,
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data?.computing) {
-              setTidalTotalsNote("Calculating Tidal totals in the background… this can take a bit the first time.");
-            } else if (data?.missingScope) {
-              setTidalTotalsNote(
-                `Tidal totals are unavailable with the current TIDAL app credentials (scope ${String(
-                  data.missingScope
-                )} triggers OAuth error 1002). Library browsing still works.`
-              );
-            } else if (data?.partial) {
-              setTidalTotalsNote(
-                "Tidal totals are partial (rate-limited). They’ll improve over time as the background counter retries."
-              );
-            } else if (data?.rateLimited) {
-              setTidalTotalsNote("Tidal totals are temporarily rate-limited. Try again in a minute.");
-            } else {
-              setTidalTotalsNote(null);
-            }
-            tidalCounts = {
-              albums: toNumOrNull(data.albums),
-              artists: toNumOrNull(data.artists),
-              tracks: toNumOrNull(data.tracks),
-              playlists: toNumOrNull(data.playlists),
-            };
-          }
-        } catch (e) {
-          console.warn("Failed to fetch Tidal totals:", e instanceof Error ? e.message : String(e));
+      if (tidalEnabled) {
+        const r = await fetchTidalTotals();
+        if (r) {
+          setTidalTotalsNote(r.note);
+          const allowCache = r.computing || r.partial || r.rateLimited;
+          tidalCounts = {
+            albums: r.counts.albums ?? (allowCache ? tidalTotalsCache?.albums ?? null : null),
+            artists: r.counts.artists ?? (allowCache ? tidalTotalsCache?.artists ?? null : null),
+            tracks: r.counts.tracks ?? (allowCache ? tidalTotalsCache?.tracks ?? null : null),
+            playlists: r.counts.playlists ?? (allowCache ? tidalTotalsCache?.playlists ?? null : null),
+          };
         }
       }
 
