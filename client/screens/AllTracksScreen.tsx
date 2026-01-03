@@ -44,7 +44,7 @@ type QualityKey = "all" | "cd" | "hires" | "lossy" | "unknown";
 export default function AllTracksScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
-  const { activeServer } = useMusic();
+  const { activeServer, tidalConnected } = useMusic();
   const { activePlayer, playTrack } = usePlayback();
   const { tidalEnabled } = useSettings();
   const { width } = useWindowDimensions();
@@ -134,10 +134,6 @@ export default function AllTracksScreen() {
         return;
       }
       const data = await response.json();
-      // Cache the Tidal total once we see it (server may return partial while totals compute).
-      if (tidalTotal === null && typeof data?.total === "number") {
-        setTidalTotal(data.total);
-      }
       const items: any[] = Array.isArray(data?.items) ? data.items : [];
       const mapped: Track[] = items.map((t: any) => ({
         id: `tidal-track-${t.id}`,
@@ -161,7 +157,33 @@ export default function AllTracksScreen() {
     } catch {
       setHasMoreTidal(false);
     }
-  }, [tidalEnabled, hasMoreTidal, tidalNext, mergeInTracks, tidalTotal]);
+  }, [tidalEnabled, hasMoreTidal, tidalNext, mergeInTracks]);
+
+  // Get a real Tidal tracks total (cached + converging) from /api/tidal/totals, not from a page size.
+  useEffect(() => {
+    let cancelled = false;
+    if (!tidalEnabled || !tidalConnected) {
+      setTidalTotal(null);
+      return;
+    }
+    (async () => {
+      try {
+        const { getApiUrl } = await import("@/lib/query-client");
+        const apiUrl = getApiUrl();
+        const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
+        const resp = await fetch(`${cleanApiUrl}/api/tidal/totals`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const n = typeof data?.tracks === "number" ? data.tracks : null;
+        if (!cancelled && n !== null) setTidalTotal(n);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tidalEnabled, tidalConnected]);
 
   useEffect(() => {
     // Reset and load the first page quickly
