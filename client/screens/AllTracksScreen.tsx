@@ -60,6 +60,7 @@ export default function AllTracksScreen() {
   const [hasMoreTidal, setHasMoreTidal] = useState(true);
   const seenKeysRef = useRef<Set<string>>(new Set());
   const loadIdRef = useRef(0);
+  const totalsReqIdRef = useRef(0);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [sortKey, setSortKey] = useState<SortKey>("title_az");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
@@ -161,7 +162,7 @@ export default function AllTracksScreen() {
 
   // Get a real Tidal tracks total (cached + converging) from /api/tidal/totals, not from a page size.
   useEffect(() => {
-    let cancelled = false;
+    const reqId = ++totalsReqIdRef.current;
     if (!tidalEnabled || !tidalConnected) {
       setTidalTotal(null);
       return;
@@ -175,14 +176,11 @@ export default function AllTracksScreen() {
         if (!resp.ok) return;
         const data = await resp.json();
         const n = typeof data?.tracks === "number" ? data.tracks : null;
-        if (!cancelled && n !== null) setTidalTotal(n);
+        if (totalsReqIdRef.current === reqId && n !== null) setTidalTotal(n);
       } catch {
         // ignore
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [tidalEnabled, tidalConnected]);
 
   useEffect(() => {
