@@ -31,6 +31,637 @@ export interface LmsAlbum {
   year?: number;
   trackCount?: number;
   url?: string; // URL for source detection (Tidal, Spotify, etc.)
+  /**
+   * When known, the time this album was added to the library (ISO string).
+   * Not all backends/sources provide it; use ordering as a fallback.
+   */
+  addedAt?: string;
+}
+
+export interface LmsArtist {
+  id: string;
+  name: string;
+  albumCount?: number;
+  artworkUrl?: string;
+}
+
+export interface LmsPlaylist {
+  id: string;
+  name: string;
+  url?: string;
+  trackCount?: number;
+  artwork_url?: string;
+}
+
+export interface LmsRadioStation {
+  id: string;
+  name: string;
+  url?: string;
+  image?: string;
+}
+
+export interface LmsTrack {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  albumId?: string;
+  artistId?: string;
+  duration: number;
+  trackNumber?: number;
+  artwork_url?: string;
+  url?: string;
+  format?: string;
+  bitrate?: string;
+  sampleRate?: string;
+  bitDepth?: string;
+}
+
+export type AlbumQualityKey = "cd" | "hires" | "lossy" | "unknown";
+
+export interface LmsPlaylistTrack extends LmsTrack {
+  playlist_index: number;
+}
+
+export interface LmsPlayerStatus {
+  power: boolean;
+  mode: 'play' | 'pause' | 'stop';
+  volume: number;
+  shuffle: number;
+  repeat: number;
+  time: number;
+  duration: number;
+  currentTrack?: LmsTrack;
+  playlist: LmsPlaylistTrack[];
+  playlistLength: number;
+}
+
+interface LmsJsonRpcResponse {
+  id: number;
+  method: string;
+  params: [string, string[]];
+  result?: Record<string, unknown>;
+  error?: string;
+}
+
+class LmsClient {
+  private baseUrl: string = '';
+  private serverHost: string = '';
+  private serverPort: number = 9000;
+  private serverProtocol: 'http' | 'https' = 'http';
+  private requestId: number = 1;
+  private appsCache: { fetchedAt: number; apps: Array<{ name?: string; cmd?: string }> } | null = null;
+
+  /**
+   * Set LMS server connection
+   * Supports both formats:
+   * - setServer('192.168.1.100', 9000) - legacy format
+   * - setServer('https://lms.example.com:9000') - full URL format for remote access
+   */
+  setServer(hostOrUrl: string, port?: number): void {
+    // Check if it's a full URL (starts with http:// or https://)
+    if (hostOrUrl.startsWith('http://') || hostOrUrl.startsWith('https://')) {
+      try {
+        const url = new URL(hostOrUrl);
+        this.serverProtocol = url.protocol === 'https:' ? 'https' : 'http';
+        this.serverHost = url.hostname;
+        this.serverPort = url.port ? parseInt(url.port, 10) : (this.serverProtocol === 'https' ? 443 : 9000);
+        this.baseUrl = `${this.serverProtocol}://${url.hostname}${url.port ? `:${url.port}` : ''}`;
+        debugLog.info('LMS server set (remote URL)', `${this.baseUrl}`);
+      } catch (error) {
+        throw new Error(`Invalid LMS server URL: ${hostOrUrl}`);
+      }
+    } else {
+      // Legacy format: host and port
+      this.serverHost = hostOrUrl;
+      this.serverPort = port || 9000;
+      this.serverProtocol = 'http';
+      this.baseUrl = `http://${hostOrUrl}:${this.serverPort}`;
+      debugLog.info('LMS server set (local)', `${this.baseUrl}`);
+    }
+  }
+
+  /**
+   * List LMS apps (LMS "apps" menu). Used to detect whether a given integration/plugin exists.
+   */
+  async getApps(forceRefresh: boolean = false): Promise<Array<{ name?: string; cmd?: string }>> {
+    const now = Date.now();
+    // Cache for 5 minutes (apps list doesn't change often)
+    if (!forceRefresh && this.appsCache && now - this.appsCache.fetchedAt < 5 * 60 * 1000) {
+      return this.appsCache.apps;
+    }
+
+    // apps is a server-level command (no player required)
+    const result = await this.request('', ['apps', '0', '200']);
+    const raw = (result.appss_loop || result.apps_loop || result.items_loop || result.item_loop || result.items || []) as Array<Record<string, unknown>>;
+    const apps = raw.map((a) => ({
+      name: a.name ? String(a.name) : a.title ? String(a.title) : a.text ? String(a.text) : undefined,
+      cmd: a.cmd ? String(a.cmd) : undefined,
+    }));
+
+    this.appsCache = { fetchedAt: now, apps };
+    return apps;
+  }
+
+  /**
+   * Returns true if LMS has an app/plugin whose cmd or name matches Tidal.
+   * NOTE: Without an LMS-side Tidal plugin, `tidal://...` URIs will not play.
+   */
+  async supportsTidalApp(forceRefresh: boolean = false): Promise<boolean> {
+    try {
+      const apps = await this.getApps(forceRefresh);
+      return apps.some((a) => {
+        const name = (a.name || '').toLowerCase();
+        const cmd = (a.cmd || '').toLowerCase();
+        return name.includes('tidal') || cmd === 'tidal' || cmd.startsWith('tidal');
+      });
+    } catch (e) {
+      // If apps listing fails, assume not supported to avoid accidentally triggering local fallback.
+      debugLog.info('supportsTidalApp', `Failed to query apps: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    }
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  private async request(playerId: string, command: string[]): Promise<Record<string, unknown>> {
+    if (!this.baseUrl) {
+      throw new Error('LMS server not configured');
+    }
+
+    const requestBody = {
+      id: this.requestId++,
+      method: 'slim.request',
+      params: [playerId, command],
+    };
+
+    debugLog.request('LMS', `${command.join(' ')}`);
+
+    // On web platform, use server-side proxy to avoid CORS restrictions
+    if (Platform.OS === 'web') {
+      try {
+        // Ensure we have server host/port - extract from baseUrl if needed
+        let host = this.serverHost;
+        let port = this.serverPort;
+        
+        if (!host && this.baseUrl) {
+          // Extract host and port from baseUrl
+          try {
+            const url = new URL(this.baseUrl);
+            host = url.hostname;
+            port = url.port ? parseInt(url.port, 10) : 9000;
+          } catch {
+            // Fallback to regex parsing for older format
+            const urlMatch = this.baseUrl.match(/^(https?):\/\/([^:]+)(?::(\d+))?/);
+            if (urlMatch) {
+              host = urlMatch[2];
+              port = urlMatch[3] ? parseInt(urlMatch[3], 10) : 9000;
+            }
+          }
+        }
+        
+        if (!host) {
+          throw new Error('LMS server not configured - no host available');
+        }
+        
+        // Use server proxy endpoint
+        const apiUrl = getApiUrl();
+        const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+        const proxyUrl = `${cleanApiUrl}/api/lms/proxy`;
+        
+        console.log('[LMS Client] Web proxy request:', { host, port, command: command.join(' '), playerId });
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout for plugin commands
+
+        const response = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            host: host,
+            port: port,
+            playerId: playerId || '',
+            command: command,
+            id: requestBody.id,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { error: errorText };
+          }
+          console.error('[LMS Client] Proxy error response:', response.status, errorData);
+          throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data: LmsJsonRpcResponse = await response.json();
+
+        if (data.error) {
+          console.error('[LMS Client] LMS error in response:', data.error);
+          throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+        }
+
+        debugLog.response('LMS', 'OK (via proxy)');
+        return data.result || {};
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (error instanceof Error && error.name === 'AbortError') {
+          debugLog.error('LMS proxy request timeout', 'Request took longer than 30 seconds');
+          throw new Error('Request timeout - LMS server may be slow or unreachable');
+        }
+        console.error('[LMS Client] Proxy request failed:', errorMessage);
+        debugLog.error('LMS proxy request failed', errorMessage);
+        throw error;
+      }
+    }
+
+    // On native platforms, use direct connection (supports both HTTP and HTTPS)
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      // baseUrl now supports both http:// and https:// for remote access
+      const jsonRpcUrl = `${this.baseUrl}/jsonrpc.js`;
+      const response = await fetch(jsonRpcUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: LmsJsonRpcResponse = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      debugLog.response('LMS', 'OK');
+      return data.result || {};
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        // Timeout errors are expected when server is unreachable - log as info
+        debugLog.info('LMS request timeout', 'Request took longer than 10 seconds');
+        throw new Error('Request timeout - server may be unreachable');
+      }
+      // For network errors when no server is configured, log as info instead of error
+      // This prevents red error screens when the app starts without a server
+      if (errorMessage.includes('Network request failed') || 
+          errorMessage.includes('Failed to fetch') ||
+          errorMessage.includes('LMS server not configured')) {
+        // Only log network errors occasionally to avoid spam
+        if (Math.random() < 0.1) { // Log ~10% of network errors
+          debugLog.info('LMS request failed (expected when no server configured)', errorMessage);
+        }
+      } else {
+        debugLog.error('LMS request failed', errorMessage);
+      }
+      throw error;
+    }
+  }
+
+  async getServerStatus(): Promise<{ name: string; version: string; playerCount: number }> {
+    const result = await this.request('', ['serverstatus', '0', '999']);
+    return {
+      name: String(result.player_count !== undefined ? 'Logitech Media Server' : 'LMS'),
+      version: String(result.version || 'unknown'),
+      playerCount: Number(result.player_count || 0),
+    };
+  }
+
+  async getPlayers(): Promise<LmsPlayer[]> {
+    const result = await this.request('', ['players', '0', '100']);
+    const playersLoop = (result.players_loop || []) as Array<Record<string, unknown>>;
+    
+    return playersLoop.map((p) => ({
+      id: String(p.playerid || ''),
+      name: String(p.name || 'Unknown Player'),
+      model: String(p.model || 'Unknown'),
+      isPlaying: p.isplaying === 1,
+      power: p.power === 1,
+      volume: Number(p['mixer volume'] || 0),
+      connected: p.connected === 1,
+      ip: String(p.ip || ''),
+    }));
+  }
+
+  async getPlayerStatus(playerId: string): Promise<LmsPlayerStatus> {
+    // Use '0' to fetch from start so playlist_cur_index aligns with array indices
+    // Include 'S' tag for samplesize (bit depth) information
+    const result = await this.request(playerId, ['status', '0', '100', 'tags:acdlKNuTS']);
+    
+    const playlistLoop = (result.playlist_loop || []) as Array<Record<string, unknown>>;
+    const playlist = playlistLoop.map((t, index) => this.parseTrack(t, index));
+
+    // Get current track using playlist_cur_index
+    const curIndex = Number(result.playlist_cur_index || 0);
+    const currentTrack = playlist.length > 0 ? playlist[curIndex] : undefined;
+
+    return {
+      power: result.power === 1,
+      mode: String(result.mode || 'stop') as 'play' | 'pause' | 'stop',
+      volume: Number(result['mixer volume'] || 0),
+      shuffle: Number(result.playlist_shuffle || 0),
+      repeat: Number(result.playlist_repeat || 0),
+      time: Number(result.time || 0),
+      duration: Number(result.duration || 0),
+      currentTrack,
+      playlist,
+      playlistLength: Number(result.playlist_tracks || 0),
+    };
+  }
+
+  private parseTrack(data: Record<string, unknown>, playlistIndex?: number): LmsPlaylistTrack {
+    // Check multiple duration fields ( uses 'duration', LMS uses 'duration' in seconds)
+    const durationSec = Number(data.duration || data.secs || data.time || 0);
+    
+    let format: string | undefined;
+    let bitrate: string | undefined;
+    let sampleRate: string | undefined;
+    let bitDepth: string | undefined;
+
+    const contentType = String(data.type || data.content_type || '');
+    if (contentType.includes('flac') || contentType.includes('flc')) format = 'FLAC';
+    else if (contentType.includes('wav')) format = 'WAV';
+    else if (contentType.includes('mp3')) format = 'MP3';
+    else if (contentType.includes('aac') || contentType.includes('m4a')) format = 'AAC';
+    else if (contentType.includes('aiff')) format = 'AIFF';
+    else if (contentType.includes('dsf') || contentType.includes('dsd')) format = 'DSD';
+    else if (contentType.includes('ogg')) format = 'OGG';
+    else if (contentType.includes('alac')) format = 'ALAC';
+
+    if (data.bitrate) {
+      const br = Number(data.bitrate);
+      bitrate = br >= 1000 ? `${(br / 1000).toFixed(0)} kbps` : `${br} bps`;
+    }
+
+    if (data.samplerate) {
+      const sr = Number(data.samplerate);
+      sampleRate = sr >= 1000 ? `${(sr / 1000).toFixed(1)} kHz` : `${sr} Hz`;
+    }
+
+    // Check multiple possible field names for bit depth
+    if (data.samplesize) {
+      bitDepth = `${data.samplesize}-bit`;
+    } else if (data.bits_per_sample) {
+      bitDepth = `${data.bits_per_sample}-bit`;
+    } else if (data.bitdepth) {
+      bitDepth = `${data.bitdepth}-bit`;
+    } else if (data.bits) {
+      bitDepth = `${data.bits}-bit`;
+    }
+
+    let artworkUrl: string | undefined;
+    // Try multiple field names for artwork URL (LMS uses various field names depending on source)
+    // /Material Skin uses "image" or "icon" fields
+    // Priority order: image > icon > artwork_url > other direct URL fields, then ID-based fields
+    if (data.image) {
+      artworkUrl = String(data.image);
+    } else if (data.icon) {
+      artworkUrl = this.normalizeArtworkUrl(String(data.icon));
+    } else if (data.artwork_url) {
+      artworkUrl = this.normalizeArtworkUrl(String(data.artwork_url));
+    } else if (data.cover) {
+      const rawUrl = String(data.cover);
+      artworkUrl = rawUrl.startsWith('http') ? rawUrl : `${this.baseUrl}${rawUrl}`;
+    } else if (data.coverart) {
+      const rawUrl = String(data.coverart);
+      artworkUrl = rawUrl.startsWith('http') ? rawUrl : `${this.baseUrl}${rawUrl}`;
+    } else if (data.artwork_track_id) {
+      artworkUrl = `${this.baseUrl}/music/${data.artwork_track_id}/cover.jpg`;
+    } else if (data.coverid) {
+      artworkUrl = `${this.baseUrl}/music/${data.coverid}/cover.jpg`;
+    } else if (data['icon-id']) {
+      artworkUrl = `${this.baseUrl}/music/${data['icon-id']}/cover.jpg`;
+    }
+    
+    // Log if no artwork found for debugging (only log first 3 per session to avoid spam)
+    if (!artworkUrl && playlistIndex !== undefined && playlistIndex < 3) {
+      debugLog.info('parseTrack', `No artwork found for track. Available fields: ${Object.keys(data).join(', ')}`);
+    }
+
+    // For  menu items, extract track info from text field (format: "Title - Artist" or just "Title")
+    let trackTitle = String(data.title || 'Unknown');
+    let trackArtist = String(data.artist || data.trackartist || 'Unknown Artist');
+    
+    //  items often have 'text' field instead of 'title'
+    if (!data.title && data.text) {
+      const text = String(data.text);
+      // Check if text contains " - " separator (common format for "Title - Artist")
+      if (text.includes(' - ')) {
+        const parts = text.split(' - ');
+        trackTitle = parts[0].trim();
+        // If no artist field, use the second part as artist
+        if (!data.artist && !data.trackartist) {
+          trackArtist = parts.slice(1).join(' - ').trim();
+        }
+      } else {
+        trackTitle = text;
+      }
+    }
+    
+    // Also check 'name' field as fallback
+    if (trackTitle === 'Unknown' && data.name) {
+      trackTitle = String(data.name);
+    }
+
+    return {
+      id: String(data.id || data.track_id || data.item_id || `${playlistIndex}`),
+      title: trackTitle,
+      artist: trackArtist,
+      album: String(data.album || 'Unknown Album'),
+      albumId: data.album_id ? String(data.album_id) : undefined,
+      artistId: data.artist_id ? String(data.artist_id) : undefined,
+      duration: durationSec,
+      trackNumber: data.tracknum ? Number(data.tracknum) : undefined,
+      artwork_url: artworkUrl,
+      url: data.url ? String(data.url) : undefined,
+      format,
+      bitrate,
+      sampleRate,
+      bitDepth,
+      playlist_index: playlistIndex ?? 0,
+    };
+  }
+
+  async getAlbumsPage(start: number = 0, limit: number = 50, artistId?: string): Promise<{ albums: LmsAlbum[], total: number }> {
+    // Ensure limit is at least 1 to avoid requesting 0 albums
+    const actualLimit = Math.max(1, limit);
+
+    debugLog.info('getAlbumsPage', `Requesting albums: start=${start}, limit=${actualLimit}, artistId=${artistId || 'none'}`);
+
+    try {
+      // Use standard albums command with library_id:0 to get only local library content
+      // This matches how getLibraryTotals counts albums
+      const command = [
+        'albums',
+        String(start),
+        String(actualLimit),
+        'library_id:0',
+        'tags:aajlyST'
+      ];
+
+      if (artistId) {
+        command.push(`artist_id:${artistId}`);
+      }
+
+      debugLog.info('getAlbumsPage', `Using command: ${command.join(' ')}`);
+      const result = await this.request('', command);
+
+      const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
+      const total = Number(result.count) || 0;
+
+      debugLog.info('getAlbumsPage', `Returned ${albumsLoop.length} albums, total=${total}`);
+
+      const albums = albumsLoop.map((a) => ({
+        id: String(a.id || ''),
+        title: String(a.album || a.title || ''),
+        // Some LMS setups return album artist under `albumartist` (or variants) instead of `artist`.
+        artist: String(a.artist || a.albumartist || a.album_artist || a.albumArtist || ''),
+        artistId: a.artist_id ? String(a.artist_id) : undefined,
+        artwork_url: a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` :
+          (a.artwork_url ? (String(a.artwork_url).startsWith('http') ? String(a.artwork_url) : `${this.baseUrl}${a.artwork_url}`) : undefined),
+        year: a.year ? Number(a.year) : undefined,
+        trackCount: a.track_count ? Number(a.track_count) : undefined,
+        url: a.url ? String(a.url) : undefined,
+      }));
+
+      return { albums, total };
+
+    } catch (error) {
+      debugLog.error('getAlbumsPage failed', error instanceof Error ? error.message : String(error));
+      return { albums: [], total: 0 };
+    }
+  }
+
+  /**
+   * Recently added albums (local library).
+   * NOTE: LMS supports sort parameters on the `albums` command; `sort:new` is commonly supported.
+   * If the server doesn't support the sort, we fall back to the normal albums paging.
+   */
+  async getRecentlyAddedAlbumsPage(start: number = 0, limit: number = 30): Promise<{ albums: LmsAlbum[], total: number }> {
+    const actualLimit = Math.max(1, limit);
+    debugLog.info('getRecentlyAddedAlbumsPage', `Requesting recently added albums: start=${start}, limit=${actualLimit}`);
+
+    try {
+      const command = [
+        'albums',
+        String(start),
+        String(actualLimit),
+        'library_id:0',
+        'tags:aajlyST',
+        'sort:new',
+      ];
+
+      debugLog.info('getRecentlyAddedAlbumsPage', `Using command: ${command.join(' ')}`);
+      const result = await this.request('', command);
+
+      const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
+      const total = Number(result.count) || 0;
+
+      const toIsoAddedAt = (raw: unknown): string | undefined => {
+        if (raw == null) return undefined;
+        if (typeof raw === "number" && Number.isFinite(raw)) {
+          // Heuristic: seconds vs ms.
+          const ms = raw > 1e12 ? raw : raw * 1000;
+          const d = new Date(ms);
+          return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
+        }
+        if (typeof raw === "string") {
+          const s = raw.trim();
+          if (!s) return undefined;
+          if (/^\d+$/.test(s)) {
+            const n = Number(s);
+            if (!Number.isFinite(n)) return undefined;
+            const ms = n > 1e12 ? n : n * 1000;
+            const d = new Date(ms);
+            return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
+          }
+          const d = new Date(s);
+          return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
+        }
+        return undefined;
+      };
+
+      const albums = albumsLoop.map((a) => ({
+        id: String(a.id || ''),
+        title: String(a.album || a.title || ''),
+        artist: String(a.artist || a.albumartist || a.album_artist || a.albumArtist || ''),
+        artistId: a.artist_id ? String(a.artist_id) : undefined,
+        artwork_url: a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` :
+          (a.artwork_url ? (String(a.artwork_url).startsWith('http') ? String(a.artwork_url) : `${this.baseUrl}${a.artwork_url}`) : undefined),
+        year: a.year ? Number(a.year) : undefined,
+        trackCount: a.track_count ? Number(a.track_count) : undefined,
+        url: a.url ? String(a.url) : undefined,
+        // Best-effort: some LMS builds include an added-time field when sorting by "new".
+        addedAt: toIsoAddedAt((a as any).added_time ?? (a as any).addedAt ?? (a as any).added_at ?? (a as any).timestamp ?? (a as any).added),
+      }));
+
+      // If LMS doesn't understand sort:new it may return empty; fall back.
+      if (albums.length === 0) {
+        debugLog.info('getRecentlyAddedAlbumsPage', 'No albums returned; falling back to getAlbumsPage');
+        return this.getAlbumsPage(start, actualLimit);
+      }
+
+      return { albums, total };
+    } catch (error) {
+      debugLog.info('getRecentlyAddedAlbumsPage', `Failed (${error instanceof Error ? error.message : String(error)}); falling back to getAlbumsPage`);
+      return this.getAlbumsPage(start, actualLimit);
+    }
+  }
+
+  async getAlbums(artistId?: string): Promise<LmsAlbum[]> {
+    const command = artistId
+      ? ['albums', '0', '100', `artist_id:${artistId}`, 'library_id:0', 'tags:aajlyST']
+      : ['albums', '0', '100', 'library_id:0', 'tags:aajlyST'];
+
+    const result = await this.request('', command);
+    const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
+
+    // Filter out plugin content (Tidal, , Spotify, SoundCloud)
+    return albumsLoop
+      .filter((a) => {
+        const url = String(a.url || '').toLowerCase();
+        const id = String(a.id || '').toLowerCase();
+        const artworkUrl = String(a.artwork_url || '').toLowerCase();
+
+        const isPluginContent = url.includes('tidal') || id.includes('tidal') || artworkUrl.includes('tidal') ||
+                               artworkUrl.includes('') ||
+                               url.includes('spotify') || id.includes('spotify') || artworkUrl.includes('spotify') ||
+                               url.includes('soundcloud') || id.includes('soundcloud') || artworkUrl.includes('soundcloud');
+
+        return !isPluginContent;
+      })
+      .map((a) => ({
+        id: String(a.id || ''),
+        title: String(a.album || 'Unknown Album'),
+        artist: String(a.artist || a.albumartist || 'Unknown Artist'),
+        artistId: a.artist_id ? String(a.artist_id) : undefined,
+        artwork_url: a.artwork_url ? String(a.artwork_url) :
+          (a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` : undefined),
+        year: a.year ? Number(a.year) : undefined,
+        trackCount: a.track_count ? Number(a.track_count) : undefined,
+      }));
+  }
 
   async getAlbumsByArtistName(artistName: string): Promise<LmsAlbum[]> {
     if (!artistName || artistName.trim() === '') {
@@ -51,6 +682,7 @@ export interface LmsAlbum {
         const artworkUrl = String(a.artwork_url || '').toLowerCase();
 
         const isPluginContent = url.includes('tidal') || id.includes('tidal') || artworkUrl.includes('tidal') ||
+                               artworkUrl.includes('') ||
                                url.includes('spotify') || id.includes('spotify') || artworkUrl.includes('spotify') ||
                                url.includes('soundcloud') || id.includes('soundcloud') || artworkUrl.includes('soundcloud');
 
@@ -76,7 +708,9 @@ export interface LmsAlbum {
 
   async getArtistsPage(
     start: number = 0,
-    limit: number = 50
+    limit: number = 50,
+    // Legacy/unused in current lib client; kept for compatibility with older call sites.
+    _include: boolean = false
   ): Promise<{ artists: LmsArtist[]; total: number }> {
     try {
       // Use LMS's built-in `artists` query with album_count tag.
@@ -222,7 +856,7 @@ export interface LmsAlbum {
       .filter((a): a is LmsArtist => a !== null);
   }
 
-  async getPlaylists(includeSoundCloud: boolean = false, includeSpotify: boolean = false, includeTidal: boolean = false): Promise<LmsPlaylist[]> {
+  async getPlaylists(include: boolean = false, includeSoundCloud: boolean = false, includeSpotify: boolean = false, includeTidal: boolean = false): Promise<LmsPlaylist[]> {
     // First try the standard playlists command
     const result = await this.request('', ['playlists', '0', '10000', 'tags:u']);
     // LMS can return playlists_loop or playlists (array)
@@ -254,7 +888,94 @@ export interface LmsAlbum {
       allPlaylists.push(...filteredPlaylists);
       debugLog.info('getPlaylists', `Standard playlists: ${playlistsLoop.length} total, ${filteredPlaylists.length} after filtering plugin content`);
     }
-
+    
+    // Try to get  playlists using items command to navigate menu
+    if (include) {
+      try {
+      const PlayerId = await this.getPlayerIdFor();
+      if (PlayerId) {
+        debugLog.info('getPlaylists', 'Trying to fetch  playlists');
+        
+        // Step 1: Get  main menu using  items command
+        try {
+          const MainResult = await this.request(PlayerId, ['', 'items', '0', '100', 'menu:']);
+          const MainItems = (MainResult.items_loop || MainResult.item_loop || MainResult.items || []) as Array<Record<string, unknown>>;
+          
+          debugLog.info('getPlaylists', ` main menu returned ${MainItems.length} items`);
+          
+          // Step 2: Find "My Playlists" or similar in  menu
+          let myPlaylistsId: string | undefined;
+          for (let i = 0; i < MainItems.length; i++) {
+            const item = MainItems[i];
+            const name = String(item.name || item.text || item.title || '').toLowerCase();
+            
+            // Extract item ID from actions.params.item_id if available, otherwise use index or item.id
+            const actions = item.actions as Record<string, unknown> | undefined;
+            const goAction = actions?.go as Record<string, unknown> | undefined;
+            const actionParams = goAction?.params as Record<string, unknown> | undefined;
+            const actionItemId = actionParams?.item_id ? String(actionParams.item_id) : undefined;
+            
+            const itemId = String(item.id || (item as Record<string, unknown>).item_id || '');
+            const params = item.params as Record<string, unknown> | undefined;
+            const paramItemId = params?.item_id ? String(params.item_id) : undefined;
+            
+            if (name.includes('my playlist') && !name.includes(' playlist')) {
+              // Prefer actionParams.item_id, then paramItemId, then itemId, then index
+              myPlaylistsId = actionItemId || paramItemId || (itemId || String(i));
+              debugLog.info('getPlaylists', `Found  My Playlists with id: ${myPlaylistsId}, name: ${name}`);
+              break;
+            }
+          }
+          
+          if (myPlaylistsId) {
+            // Step 3: Get playlists from My Playlists using  items command
+            const playlistsResult = await this.request(PlayerId, ['', 'items', '0', '100', `item_id:${myPlaylistsId}`, 'menu:']);
+            const playlistItems = (playlistsResult.items_loop || playlistsResult.item_loop || playlistsResult.items || []) as Array<Record<string, unknown>>;
+            
+            debugLog.info('getPlaylists', ` My Playlists returned ${playlistItems.length} items`);
+            
+            const Playlists = playlistItems.map((item: Record<string, unknown>) => {
+              const itemParams = item.params as Record<string, unknown> | undefined;
+              // Get artwork URL -  playlists may have icon or image fields
+              let artworkUrl: string | undefined;
+              if (item.image) {
+                artworkUrl = String(item.image);
+              } else if (item.icon) {
+                artworkUrl = this.normalizeArtworkUrl(String(item.icon));
+              } else if (item.artwork_url) {
+                artworkUrl = this.normalizeArtworkUrl(String(item.artwork_url));
+              }
+              return {
+                id: String(item.id || (item as Record<string, unknown>).item_id || itemParams?.item_id || ''),
+                playlist: `: ${String(item.name || item.text || item.title || 'Unknown Playlist')}`,
+                url: item.url ? String(item.url) : undefined,
+                tracks: item.track_count ? Number(item.track_count) : undefined,
+                artwork_url: artworkUrl,
+              };
+            });
+            
+            if (Playlists.length > 0) {
+              debugLog.info('getPlaylists', `Found ${Playlists.length}  playlists`);
+              allPlaylists.push(...Playlists.map((p) => ({
+                id: String(p.id || ''),
+                name: String(p.playlist || 'Unknown Playlist'),
+                url: p.url ? String(p.url) : undefined,
+                trackCount: p.tracks ? Number(p.tracks) : undefined,
+                artwork_url: p.artwork_url,
+              })));
+            }
+          } else if (MainItems.length > 0) {
+            // If we couldn't find "My Playlists" but got items, log them for debugging
+            debugLog.info('getPlaylists', ` items (first 5): ${MainItems.slice(0, 5).map((i: Record<string, unknown>) => String(i.name || i.text || i.title || 'Unknown')).join(', ')}`);
+          }
+        } catch (browseError) {
+          debugLog.info('getPlaylists', ` browse failed: ${browseError instanceof Error ? browseError.message : String(browseError)}`);
+        }
+      }
+      } catch (e) {
+        debugLog.info('getPlaylists', ` playlists fetch failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
     
     // Try to get SoundCloud playlists from apps>soundcloud>my playlists
     if (includeSoundCloud) {
@@ -452,7 +1173,12 @@ export interface LmsAlbum {
     // Plugin "items" commands expect plugin item ids/uris, not the LMS playlist id.
     const isNumericPlaylistId = /^\d+$/.test(String(playlistId || ""));
 
-    // Check URL, ID, and name to detect plugin playlists we can browse via plugin menus.
+    // Check if this is a , SoundCloud, or Tidal playlist
+    // Check URL, ID, and name to detect /SoundCloud/Tidal playlists
+    const is = playlistUrl?.includes('') || 
+                    playlistId.includes('') || 
+                    playlistName?.toLowerCase().includes('') ||
+                    playlistName?.startsWith(':');
     const isSoundCloud = playlistUrl?.includes('soundcloud') || 
                          playlistId.includes('soundcloud') || 
                          playlistName?.toLowerCase().includes('soundcloud') ||
@@ -469,7 +1195,19 @@ export interface LmsAlbum {
       return playlistTracksLoop.map((t, i) => this.parseTrack(t, i));
     }
 
-    if (isSoundCloud) {
+    if (is) {
+      // For  playlists, use  items command
+      try {
+        const playerId = await this.getPlayerIdFor();
+        if (playerId) {
+          const result = await this.request(playerId, ['', 'items', '0', '500', `item_id:${playlistId}`, 'menu:']);
+          const items = (result.items_loop || result.item_loop || result.items || []) as Array<Record<string, unknown>>;
+          return items.map((t, i) => this.parseTrack(t, i));
+        }
+      } catch (e) {
+        debugLog.info('getPlaylistTracks', ` playlist tracks failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    } else if (isSoundCloud) {
       // For SoundCloud playlists, use squeezecloud items command
       try {
         const playerId = await this.getPlayerIdForSoundCloud();
@@ -522,7 +1260,30 @@ export interface LmsAlbum {
     await this.request(playerId, ["play"]);
   }
 
-  async getAlbumTracks(albumId: string): Promise<LmsTrack[]> {
+  async getAlbumTracks(albumId: string, source?: "" | "local"): Promise<LmsTrack[]> {
+    // Check if this is a  album
+    const is = source === "" || albumId.includes('') || albumId.startsWith('-');
+    
+    if (is) {
+      // For  albums, use  items command
+      try {
+        const playerId = await this.getPlayerIdFor();
+        if (playerId) {
+          const result = await this.request(playerId, ['', 'items', '0', '500', `item_id:${albumId}`, 'menu:']);
+          const items = (result.items_loop || result.item_loop || result.items || []) as Array<Record<string, unknown>>;
+          // Filter to only tracks (not albums or other items)
+          const tracks = items.filter(item => {
+            const type = String(item.type || '').toLowerCase();
+            return type === 'track' || type === 'song' || !type || type === '';
+          });
+          return tracks.map((t, i) => this.parseTrack(t, i));
+        }
+      } catch (e) {
+        debugLog.info('getAlbumTracks', ` album tracks failed: ${e instanceof Error ? e.message : String(e)}`);
+        // Fall through to try standard method
+      }
+    }
+    
     // Default: use standard titles command for local albums
     const result = await this.request('', ['titles', '0', '100', `album_id:${albumId}`, 'library_id:0', 'tags:acdlKNuTsSp', 'sort:tracknum']);
     const titlesLoop = (result.titles_loop || []) as Array<Record<string, unknown>>;
@@ -1891,14 +2652,12 @@ export interface LmsAlbum {
   }
 
   async playAlbum(playerId: string, albumId: string): Promise<void> {
-    // For Tidal albums, use the plugin URL format.
-    if (albumId.includes("tidal") || albumId.startsWith("tidal-")) {
-      const cleanId = String(albumId)
-        .replace(/^tidal[-:]/, "")
-        .replace(/^album[-:]/, "")
-        .replace(/^tidal-/, "")
-        .replace(/^album-/, "");
-      const uri = `tidal://album:${cleanId}`;
+    // For Tidal/ albums, we might need to use the URL format
+    if (albumId.includes('tidal') || albumId.includes('')) {
+      // Extract clean numeric ID if it has a prefix
+      const cleanId = albumId.replace(/^(tidal|)[-:]/, '');
+      const prefix = albumId.includes('tidal') ? 'tidal' : '';
+      const uri = `${prefix}://album:${cleanId}`;
       await this.request(playerId, ['playlistcontrol', 'cmd:load', `url:${uri}`]);
     } else {
       await this.request(playerId, ['playlistcontrol', 'cmd:load', `album_id:${albumId}`]);
@@ -1906,13 +2665,10 @@ export interface LmsAlbum {
   }
 
   async addAlbumToPlaylist(playerId: string, albumId: string): Promise<void> {
-    if (albumId.includes("tidal") || albumId.startsWith("tidal-")) {
-      const cleanId = String(albumId)
-        .replace(/^tidal[-:]/, "")
-        .replace(/^album[-:]/, "")
-        .replace(/^tidal-/, "")
-        .replace(/^album-/, "");
-      const uri = `tidal://album:${cleanId}`;
+    if (albumId.includes('tidal') || albumId.includes('')) {
+      const cleanId = albumId.replace(/^(tidal|)[-:]/, '');
+      const prefix = albumId.includes('tidal') ? 'tidal' : '';
+      const uri = `${prefix}://album:${cleanId}`;
       await this.request(playerId, ['playlistcontrol', 'cmd:add', `url:${uri}`]);
     } else {
       await this.request(playerId, ['playlistcontrol', 'cmd:add', `album_id:${albumId}`]);
@@ -1967,7 +2723,7 @@ export interface LmsAlbum {
     }
   }
 
-  async playTrack(playerId: string, trackId: string, format?: string, sampleRate?: string, bitDepth?: string, playerModel?: string): Promise<void> {
+  async playTrack(playerId: string, trackId: string, is: boolean = false, format?: string, sampleRate?: string, bitDepth?: string, playerModel?: string): Promise<void> {
     // Check if this format needs transcoding (only for unsupported formats like DSD)
     const needsTranscoding = this.shouldForceTranscoding(format, sampleRate, bitDepth, playerModel);
     
@@ -2061,7 +2817,7 @@ export interface LmsAlbum {
 
   async addTrackToPlaylist(playerId: string, trackId: string): Promise<void> {
     if (trackId.includes('://')) {
-      // Works for both HTTP URLs and plugin URLs (tidal://, etc) on our LMS.
+      // Works for both HTTP URLs and plugin URLs (tidal://, ://, etc) on our LMS.
       await this.request(playerId, ['playlist', 'add', trackId]);
     } else {
       await this.request(playerId, ['playlistcontrol', 'cmd:add', `track_id:${trackId}`]);
@@ -2301,13 +3057,242 @@ export interface LmsAlbum {
   /**
    * Get  favorites (tracks, albums, artists)
    */
+  async getFavorites(): Promise<{ tracks: string[]; albums: string[]; artists: string[] }> {
+    try {
+      const result = await this.request('', ['', 'favorites', 'items', '0', '1000']);
+      const items = (result.item_loop || result.loop_loop || []) as Array<Record<string, unknown>>;
+      
+      const tracks: string[] = [];
+      const albums: string[] = [];
+      const artists: string[] = [];
+      
+      for (const item of items) {
+        const type = String(item.type || '');
+        const id = String(item.id || '');
+        
+        if (type === 'audio' || type === 'track') {
+          tracks.push(id);
+        } else if (type === 'album') {
+          albums.push(id);
+        } else if (type === 'artist') {
+          artists.push(id);
+        }
+      }
+      
+      return { tracks, albums, artists };
+    } catch (error) {
+      debugLog.error('Failed to get  favorites', error instanceof Error ? error.message : String(error));
+      return { tracks: [], albums: [], artists: [] };
+    }
+  }
 
-  /*  favorites removed */
+  /**
+   * Get detailed  favorite albums (mapped to LmsAlbum)
+   * Uses the same ' favorites items' call but returns album metadata
+   * so we can display them alongside local albums.
+   */
+  async getFavoriteAlbums(): Promise<LmsAlbum[]> {
+    try {
+      const result = await this.request("", [
+        "",
+        "favorites",
+        "items",
+        "0",
+        "1000",
+      ]);
+      const items = (result.item_loop ||
+        result.loop_loop ||
+        []) as Array<Record<string, unknown>>;
 
-  /*  favorites removed */
+      const albums: LmsAlbum[] = [];
 
-  /*  favorites removed */
+      for (const item of items) {
+        const type = String(item.type || "");
+        if (type !== "album") continue;
 
+        const id = String(item.id || item.album_id || "");
+        if (!id) continue;
+
+        const title = String(item.album || item.title || "Unknown Album");
+        const artist = String(
+          item.artist || item.albumartist || "Unknown Artist",
+        );
+
+        let artworkUrl: string | undefined;
+        const rawArtwork = item.artwork_url || item.cover || item.image;
+        if (rawArtwork) {
+          const s = String(rawArtwork);
+          artworkUrl = s.startsWith("http") ? s : `${this.baseUrl}${s}`;
+        }
+
+        const year = item.year ? Number(item.year) : undefined;
+        const trackCount = item.track_count
+          ? Number(item.track_count)
+          : undefined;
+
+        albums.push({
+          id,
+          title,
+          artist,
+          artistId: item.artist_id ? String(item.artist_id) : undefined,
+          artwork_url: artworkUrl,
+          year,
+          trackCount,
+        });
+      }
+
+      return albums;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      // Log network failures as info since they're expected when server is unavailable
+      if (errorMessage.includes('Network request failed') || 
+          errorMessage.includes('Failed to fetch') ||
+          errorMessage.includes('ERR_CONNECTION_REFUSED')) {
+        debugLog.info(
+          " favorite albums unavailable",
+          "Server may be offline or unreachable",
+        );
+      } else {
+        debugLog.error(
+          "Failed to get detailed  favorite albums",
+          errorMessage,
+        );
+      }
+      return [];
+    }
+  }
+
+  /**
+   * Get detailed  favorite tracks (mapped to LmsTrack)
+   * Uses the same ' favorites items' call but returns track metadata
+   * so we can display them alongside local tracks.
+   */
+  async getFavoriteTracks(): Promise<LmsTrack[]> {
+    try {
+      const result = await this.request("", [
+        "",
+        "favorites",
+        "items",
+        "0",
+        "1000",
+      ]);
+      const items = (result.item_loop ||
+        result.loop_loop ||
+        []) as Array<Record<string, unknown>>;
+
+      const tracks: LmsTrack[] = [];
+
+      for (const item of items) {
+        const type = String(item.type || "");
+        if (type !== "audio" && type !== "track") continue;
+
+        const id = String(item.id || item.track_id || "");
+        if (!id) continue;
+
+        const title = String(item.title || item.track || "Unknown Track");
+        const artist = String(
+          item.artist || item.albumartist || "Unknown Artist",
+        );
+        const album = String(item.album || "Unknown Album");
+
+        let artworkUrl: string | undefined;
+        const rawArtwork = item.artwork_url || item.cover || item.image;
+        if (rawArtwork) {
+          const s = String(rawArtwork);
+          artworkUrl = s.startsWith("http") ? s : `${this.baseUrl}${s}`;
+        }
+
+        const duration = item.duration ? Number(item.duration) : 0;
+        const trackNumber = item.tracknum ? Number(item.tracknum) : undefined;
+        const albumId = item.album_id ? String(item.album_id) : undefined;
+        const artistId = item.artist_id ? String(item.artist_id) : undefined;
+
+        // Parse format and quality info
+        let format: string | undefined;
+        let bitrate: string | undefined;
+        let sampleRate: string | undefined;
+        let bitDepth: string | undefined;
+
+        const contentType = String(item.type || item.content_type || "");
+        if (contentType.includes("flac") || contentType.includes("flc"))
+          format = "FLAC";
+        else if (contentType.includes("wav")) format = "WAV";
+        else if (contentType.includes("mp3")) format = "MP3";
+        else if (contentType.includes("aac") || contentType.includes("m4a"))
+          format = "AAC";
+        else if (contentType.includes("aiff")) format = "AIFF";
+        else if (contentType.includes("dsf") || contentType.includes("dsd"))
+          format = "DSD";
+        else if (contentType.includes("ogg")) format = "OGG";
+
+        if (item.bitrate) bitrate = String(item.bitrate);
+        if (item.samplerate || item.sample_rate) {
+          sampleRate = String(item.samplerate || item.sample_rate);
+        }
+        if (item.samplesize || item.bits_per_sample || item.bitdepth || item.bits) {
+          bitDepth = String(
+            item.samplesize || item.bits_per_sample || item.bitdepth || item.bits
+          );
+        }
+
+        tracks.push({
+          id,
+          title,
+          artist,
+          album,
+          albumId,
+          artistId,
+          duration,
+          trackNumber,
+          artwork_url: artworkUrl,
+          format,
+          bitrate,
+          sampleRate,
+          bitDepth,
+        });
+      }
+
+      return tracks;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      // Log network failures as info since they're expected when server is unavailable
+      if (
+        errorMessage.includes("Network request failed") ||
+        errorMessage.includes("Failed to fetch") ||
+        errorMessage.includes("ERR_CONNECTION_REFUSED")
+      ) {
+        debugLog.info(
+          " favorite tracks unavailable",
+          "Server may be offline or unreachable",
+        );
+      } else {
+        debugLog.error(
+          "Failed to get detailed  favorite tracks",
+          errorMessage,
+        );
+      }
+      return [];
+    }
+  }
+
+  /**
+   * Get player ID for Tidal browsing (similar to )
+   */
+  private async getPlayerIdForTidal(): Promise<string | null> {
+    try {
+      const playersResult = await this.request('', ['players', '0', '1']);
+      const playersLoop = (playersResult.players_loop || []) as Array<Record<string, unknown>>;
+      return playersLoop.length > 0 ? String(playersLoop[0].playerid || '') : null;
+    } catch (e) {
+      debugLog.info('Failed to get player ID for Tidal', e instanceof Error ? e.message : String(e));
+      return null;
+    }
+  }
+
+  /**
+   * Get Tidal favorite albums (mapped to LmsAlbum)
+   * Browses Tidal menu to find "My Albums" or "Favorites" and returns album metadata
+   */
   async getTidalFavoriteAlbums(): Promise<LmsAlbum[]> {
     try {
       const playerId = await this.getPlayerIdForTidal();

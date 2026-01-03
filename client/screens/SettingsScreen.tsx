@@ -495,30 +495,48 @@ export default function SettingsScreen() {
       lmsClient.setServer(activeServer.host, activeServer.port);
 
       // --- Local (LMS) counts ---
-      let localAlbums = 0;
-      let localArtists = 0;
-      let localTracks = 0;
+      let localAlbums: number | null = 0;
+      let localArtists: number | null = 0;
+      let localTracks: number | null = 0;
       try {
-        // Use lmsClient.getServerStatus() style request wrapper via existing proxy plumbing.
-        // Note: request() is private, so use the public proxy path by sending through getApiUrl().
+        // IMPORTANT:
+        // `serverstatus` totals often still include LMS plugin libraries (e.g. LMS Tidal) even with `library_id:0`.
+        // These list queries respect `library_id:0` and provide correct local-only totals in `count`.
         const apiUrl = getApiUrl();
         const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
-        const resp = await fetch(`${cleanApiUrl}/api/lms/proxy`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            host: activeServer?.host,
-            port: activeServer?.port,
-            playerId: "",
-            command: ["serverstatus", "0", "1", "library_id:0"],
-            id: 1,
-          }),
-          signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(8000) : undefined,
-        });
-        const statusResult = resp.ok ? ((await resp.json())?.result || {}) : {};
-        localAlbums = Number(statusResult["info total albums"] || 0);
-        localArtists = Number(statusResult["info total artists"] || 0);
-        localTracks = Number(statusResult["info total songs"] || 0);
+
+        const proxy = async (command: string[]) => {
+          const resp = await fetch(`${cleanApiUrl}/api/lms/proxy`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              host: activeServer?.host,
+              port: activeServer?.port,
+              playerId: "",
+              command,
+              id: 1,
+            }),
+            signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(8000) : undefined,
+          });
+          if (!resp.ok) return null;
+          const json = await resp.json().catch(() => null);
+          return json?.result ?? null;
+        };
+
+        const [albumsRes, artistsRes, tracksRes] = await Promise.all([
+          proxy(["albums", "0", "0", "library_id:0"]),
+          proxy(["artists", "0", "0", "library_id:0"]),
+          proxy(["titles", "0", "0", "library_id:0"]),
+        ]);
+
+        const n = (v: any) => {
+          const x = Number(v ?? 0);
+          return Number.isFinite(x) ? x : 0;
+        };
+
+        localAlbums = n(albumsRes?.count ?? albumsRes?.total);
+        localArtists = n(artistsRes?.count ?? artistsRes?.total);
+        localTracks = n(tracksRes?.count ?? tracksRes?.total);
       } catch (e) {
         console.warn("Failed to get LMS local totals:", e instanceof Error ? e.message : String(e));
       }
@@ -526,22 +544,10 @@ export default function SettingsScreen() {
       // LMS playlists count (local playlists only; plugin playlists filtered out elsewhere)
       let localPlaylists = 0;
       try {
-        const apiUrl = getApiUrl();
-        const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
-        const resp = await fetch(`${cleanApiUrl}/api/lms/proxy`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            host: activeServer?.host,
-            port: activeServer?.port,
-            playerId: "",
-            command: ["playlists", "0", "1", "tags:u"],
-            id: 1,
-          }),
-          signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(8000) : undefined,
-        });
-        const result = resp.ok ? ((await resp.json())?.result || {}) : {};
-        localPlaylists = Number(result.count || 0);
+        // Use client-side filtering (excludes plugin playlists like LMS Tidal/SoundCloud/etc.)
+        lmsClient.setServer(activeServer.host, activeServer.port);
+        const playlists = await lmsClient.getPlaylists(false, false, false);
+        localPlaylists = playlists.length;
       } catch (e) {
         console.warn("Failed to count LMS playlists:", e instanceof Error ? e.message : String(e));
       }
@@ -576,7 +582,7 @@ export default function SettingsScreen() {
       let soundcloudCounts: LibraryCounts = { albums: null, artists: null, tracks: null, playlists: null };
       if (soundcloudEnabled) {
         try {
-          const playlists = await lmsClient.getPlaylists(false, true, false, false);
+          const playlists = await lmsClient.getPlaylists(true, false, false);
           const scCount = playlists.filter((p) => (p.name || "").toLowerCase().startsWith("soundcloud:")).length;
           soundcloudCounts = { albums: null, artists: null, tracks: null, playlists: scCount };
         } catch (e) {
