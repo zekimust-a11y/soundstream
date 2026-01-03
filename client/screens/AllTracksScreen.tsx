@@ -22,6 +22,7 @@ import { useMusic } from "@/hooks/useMusic";
 import { usePlayback, type Track } from "@/hooks/usePlayback";
 import { useSettings } from "@/hooks/useSettings";
 import { lmsClient, type LmsTrack } from "@/lib/lmsClient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 function normalizeDuration(duration: number): number {
   if (!duration || !isFinite(duration) || duration <= 0) return 0;
@@ -55,6 +56,7 @@ export default function AllTracksScreen() {
   const [lmsOffset, setLmsOffset] = useState(0);
   const [lmsTotal, setLmsTotal] = useState<number | null>(null);
   const [tidalTotal, setTidalTotal] = useState<number | null>(null);
+  const [tidalTotalCache, setTidalTotalCache] = useState<number | null>(null);
   const [tidalNext, setTidalNext] = useState<string | null>(null);
   const [hasMoreLms, setHasMoreLms] = useState(true);
   const [hasMoreTidal, setHasMoreTidal] = useState(true);
@@ -81,23 +83,48 @@ export default function AllTracksScreen() {
     });
   }, []);
 
+  // Load last-known Tidal tracks total so the header doesn't drop to a tiny partial count after server restarts.
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const raw = await AsyncStorage.getItem("@soundstream_tidal_totals_cache_v1");
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const n = typeof parsed?.tracks === "number" && Number.isFinite(parsed.tracks) ? parsed.tracks : null;
+        if (!cancelled) setTidalTotalCache(n);
+      } catch {
+        // ignore
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const fetchNextLmsPage = useCallback(async () => {
     if (!activeServer || !hasMoreLms) return;
     lmsClient.setServer(activeServer.host, activeServer.port);
 
-    // Fetch total once (fast)
-    if (lmsTotal === null) {
-      try {
-        const status: any = await (lmsClient as any).request("", ["serverstatus", "0", "1", "library_id:0"]);
-        const total = Number(status?.["info total songs"] || 0);
-        if (Number.isFinite(total) && total > 0) setLmsTotal(total);
-      } catch {
-        // ignore
-      }
-    }
-
     const PAGE = 500;
-    const { tracks: fetched } = await lmsClient.getLibraryTracksPage(lmsOffset, PAGE);
+    const { tracks: fetched, total } = await lmsClient.getLibraryTracksPage(lmsOffset, PAGE);
+    if (lmsTotal === null && typeof total === "number" && total > 0) setLmsTotal(total);
+
+    // Extra safety: exclude LMS Tidal-plugin tracks from the "LMS" list/counts.
+    const isTidalFromLms = (t: any) => {
+      const id = String(t?.id || "").toLowerCase();
+      const url = String(t?.url || "").toLowerCase();
+      const art = String(t?.artwork_url || "").toLowerCase();
+      return (
+        id.includes("tidal") ||
+        url.includes("tidal") ||
+        url.startsWith("tidal://") ||
+        art.includes("tidal") ||
+        art.includes("resources.tidal.com")
+      );
+    };
+    const localOnly = fetched.filter((t) => !isTidalFromLms(t));
     const mapped: Track[] = fetched.map((t: LmsTrack) => ({
       id: `${activeServer.id}-${t.id}`,
       title: t.title,
@@ -114,7 +141,22 @@ export default function AllTracksScreen() {
       bitDepth: t.bitDepth,
       bitrate: t.bitrate,
     }));
-    mergeInTracks(mapped);
+    mergeInTracks(localOnly.map((t: LmsTrack) => ({
+      id: `${activeServer.id}-${t.id}`,
+      title: t.title,
+      artist: t.artist,
+      album: t.album,
+      albumId: t.albumId,
+      duration: t.duration,
+      albumArt: t.artwork_url ? lmsClient.getArtworkUrl(t as any) : undefined,
+      source: "local" as const,
+      uri: t.url,
+      lmsTrackId: t.id,
+      format: t.format,
+      sampleRate: t.sampleRate,
+      bitDepth: t.bitDepth,
+      bitrate: t.bitrate,
+    })));
     setLmsOffset((o) => o + fetched.length);
     if (fetched.length < PAGE) setHasMoreLms(false);
     if (lmsTotal !== null && lmsOffset + fetched.length >= lmsTotal) setHasMoreLms(false);
@@ -178,15 +220,28 @@ export default function AllTracksScreen() {
         const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
         const resp = await fetch(`${cleanApiUrl}/api/tidal/totals`);
         if (!resp.ok) {
-          if (totalsReqIdRef.current === reqId) setTidalTotal(null);
+          if (totalsReqIdRef.current === reqId) setTidalTotal(tidalTotalCache ?? null);
           return;
         }
         const data = await resp.json();
         const n = typeof data?.tracks === "number" ? data.tracks : null;
+        const allowCache = !!data?.computing || !!data?.partial || !!data?.rateLimited;
         if (totalsReqIdRef.current !== reqId) return;
         if (n !== null) {
-          setTidalTotal(n);
+          const next = allowCache ? Math.max(n, tidalTotalCache ?? 0) : n;
+          setTidalTotal(next);
+          // persist best-known tracks total
+          if (next && Number.isFinite(next)) {
+            setTidalTotalCache(next);
+            AsyncStorage.setItem(
+              "@soundstream_tidal_totals_cache_v1",
+              JSON.stringify({ tracks: next, cachedAt: Date.now() })
+            ).catch(() => {});
+          }
           return;
+        }
+        if (allowCache && tidalTotalCache != null) {
+          setTidalTotal(tidalTotalCache);
         }
         // While totals are being computed server-side, poll a few times so the header updates
         // as soon as `tracks` becomes available.
