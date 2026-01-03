@@ -7,6 +7,23 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 export function getApiUrl(): string {
   let host = process.env.EXPO_PUBLIC_DOMAIN;
 
+  // On web, always prefer the current page hostname for the API server.
+  // This avoids stale build-time EXPO_PUBLIC_DOMAIN values (e.g. localhost or an old LAN IP)
+  // causing the app to call the wrong API and appear "disconnected" even when the server has tokens.
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    const currentHost = window.location.hostname; // e.g. "192.168.0.21"
+    const inferred = `${currentHost}:3000`;
+    const hostNameOnly = typeof host === "string" && host.includes(":") ? host.split(":")[0] : host;
+    const looksWrong =
+      !host ||
+      host.includes("localhost") ||
+      host.includes("127.0.0.1") ||
+      (typeof hostNameOnly === "string" && hostNameOnly && hostNameOnly !== currentHost);
+    if (looksWrong) {
+      host = inferred;
+    }
+  }
+
   // Provide fallback values to prevent crashes
   if (!host) {
     // Try to detect the API server from current location
