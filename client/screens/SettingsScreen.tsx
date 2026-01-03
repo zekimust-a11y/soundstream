@@ -433,7 +433,7 @@ export default function SettingsScreen() {
             const data = await resp.json();
             if (data?.missingScope) {
               setTidalTotalsNote(
-                `Tidal counts need legacy scope (${String(data.missingScope)}). Reconnect Tidal with legacy permissions if you want totals here.`
+                `Tidal counts need extra scope (${String(data.missingScope)}). Reconnect Tidal to grant it (hybrid permissions) if you want totals here.`
               );
             } else if (data?.rateLimited) {
               setTidalTotalsNote("Tidal totals are temporarily rate-limited. Try again in a minute.");

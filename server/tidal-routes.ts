@@ -635,12 +635,14 @@ export function registerTidalRoutes(app: Express): void {
     const codeChallenge = generateCodeChallenge(codeVerifier);
     const state = crypto.randomBytes(16).toString("hex");
 
-    // `preset=legacy` opts into the legacy scope that some api.tidal.com endpoints require.
-    // Warning: some client IDs may cause OAuth error 1002 when requesting legacy scopes.
-    const scope =
-      preset === "legacy"
-        ? "r_usr"
-        : "user.read collection.read collection.write playlists.read playlists.write search.read search.write playback recommendations.read entitlements.read";
+    // Scopes:
+    // - modern: Developer Platform scopes (OpenAPI userCollections, etc.)
+    // - legacy: legacy scope used by some api.tidal.com v2 endpoints (notably favorites totals)
+    // - hybrid: modern scopes + r_usr so we can use fast totals from api.tidal.com when available
+    // Note: some client IDs may fail with OAuth error 1002 when requesting legacy scopes.
+    const modernScope =
+      "user.read collection.read collection.write playlists.read playlists.write search.read search.write playback recommendations.read entitlements.read";
+    const scope = preset === "legacy" ? "r_usr" : preset === "hybrid" ? `r_usr ${modernScope}` : modernScope;
 
     const params = new URLSearchParams({
       response_type: "code",
@@ -691,10 +693,9 @@ export function registerTidalRoutes(app: Express): void {
       }
     }
 
-    const scope =
-      preset === "legacy"
-        ? "r_usr"
-        : "user.read collection.read collection.write playlists.read playlists.write search.read search.write playback recommendations.read entitlements.read";
+    const modernScope =
+      "user.read collection.read collection.write playlists.read playlists.write search.read search.write playback recommendations.read entitlements.read";
+    const scope = preset === "legacy" ? "r_usr" : preset === "hybrid" ? `r_usr ${modernScope}` : modernScope;
 
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
@@ -1474,155 +1475,87 @@ export function registerTidalRoutes(app: Express): void {
         return res.json({ ...cached.payload, cached: true });
       }
 
-      // Use OpenAPI userCollections meta totals. This avoids legacy scopes (r_usr) required by some
-      // api.tidal.com endpoints and matches the modern TIDAL Developer Platform model.
+      // For fast & accurate totals, prefer api.tidal.com v2 endpoints that return totalNumberOfItems.
+      // These require the legacy `r_usr` scope. If the current token doesn't have it, return nulls
+      // and surface `missingScope` so the UI can instruct a "hybrid" reconnect.
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
 
-      // Some OpenAPI deployments expose aggregate counts directly on the userCollections resource.
-      // Try this first (fast), then fall back to relationship meta/header totals.
-      const toFiniteNumber = (v: any): number | null => {
-        const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
-        return Number.isFinite(n) && n >= 0 ? n : null;
-      };
+      const apiTotal = async (
+        pathWithQuery: string
+      ): Promise<{ count: number | null; rateLimited: boolean; missingScope?: boolean }> => {
+        const doFetch = async (token: string) => tidalApiGet(pathWithQuery, token, countryCode);
+        let resp = await doFetch(t.accessToken);
 
-      const tryUserCollectionsSummary = async (): Promise<{
-        albums: number | null;
-        artists: number | null;
-        tracks: number | null;
-        playlists: number | null;
-      } | null> => {
-        try {
-          const summary = await openApiGet(
-            `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(t.userId!)}?countryCode=${encodeURIComponent(
-              countryCode
-            )}`,
-            t.accessToken
-          );
-          const attrs = (summary?.data?.attributes || summary?.attributes || {}) as any;
-          const albums =
-            toFiniteNumber(attrs?.albums) ??
-            toFiniteNumber(attrs?.albumCount) ??
-            toFiniteNumber(attrs?.numberOfAlbums) ??
-            toFiniteNumber(attrs?.totalAlbums) ??
-            null;
-          const artists =
-            toFiniteNumber(attrs?.artists) ??
-            toFiniteNumber(attrs?.artistCount) ??
-            toFiniteNumber(attrs?.numberOfArtists) ??
-            toFiniteNumber(attrs?.totalArtists) ??
-            null;
-          const tracks =
-            toFiniteNumber(attrs?.tracks) ??
-            toFiniteNumber(attrs?.trackCount) ??
-            toFiniteNumber(attrs?.numberOfTracks) ??
-            toFiniteNumber(attrs?.totalTracks) ??
-            null;
-          const playlists =
-            toFiniteNumber(attrs?.playlists) ??
-            toFiniteNumber(attrs?.playlistCount) ??
-            toFiniteNumber(attrs?.numberOfPlaylists) ??
-            toFiniteNumber(attrs?.totalPlaylists) ??
-            null;
-          const any = albums !== null || artists !== null || tracks !== null || playlists !== null;
-          return any ? { albums, artists, tracks, playlists } : null;
-        } catch {
-          return null;
-        }
-      };
-
-      const summaryCounts = await tryUserCollectionsSummary();
-      async function openApiMetaTotal(rel: "albums" | "artists" | "tracks" | "playlists"): Promise<{ count: number | null; rateLimited: boolean }> {
-        // In practice, OpenAPI totals are most reliably present when requesting an `include=...`
-        // matching the relationship type (JSON:API-ish pagination).
-        const include =
-          rel === "albums"
-            ? "albums,albums.artists,albums.coverArt"
-            : rel === "artists"
-              ? "artists"
-              : rel === "tracks"
-                ? "tracks,tracks.albums,tracks.artists,tracks.albums.coverArt"
-                : "playlists,playlists.coverArt";
-        const baseUrl = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
-          t.userId!
-        )}/relationships/${rel}?include=${encodeURIComponent(include)}&countryCode=${encodeURIComponent(countryCode)}`;
-        try {
-          let first: any;
-          // Retry a few times on 429 (OpenAPI is aggressively rate-limited, but windows are short).
-          for (const delay of [0, 500, 1200, 2200]) {
-            if (delay) await sleep(delay);
+        // Auto-refresh expired tokens for long-running .21 server.
+        if (resp.status === 401 && tokens?.refreshToken) {
+          const msg = resp.text || "";
+          const looksExpired =
+            msg.includes("Expired token") || msg.includes("AUTHENTICATION_ERROR") || msg.includes("UNAUTHORIZED");
+          if (looksExpired) {
             try {
-              first = await openApiGet(`${baseUrl}&page[size]=1`, t.accessToken);
-              break;
-            } catch (e) {
-              const msg = e instanceof Error ? e.message : String(e);
-              if (!msg.includes("Tidal OpenAPI error: 429")) throw e;
+              const clientId = tokens.clientId || process.env.TIDAL_CLIENT_ID || getClientId();
+              const refreshed = await refreshAccessToken(tokens.refreshToken, clientId);
+              tokens = {
+                ...tokens,
+                accessToken: refreshed.accessToken,
+                refreshToken: refreshed.refreshToken || tokens.refreshToken,
+                userId: tokens.userId || refreshed.userId || deriveUserIdFromAccessToken(refreshed.accessToken),
+                obtainedAt: Date.now(),
+                clientId,
+              };
+              saveTokensToDisk();
+              resp = await doFetch(tokens.accessToken);
+            } catch {
+              // fall through
             }
           }
-          if (!first) return { count: null, rateLimited: true };
-          const metaTotal = extractOpenApiTotal(first);
-          if (metaTotal !== undefined && metaTotal >= 0) return { count: metaTotal, rateLimited: false };
+        }
 
-          // Some OpenAPI endpoints don't include totals in `meta`; try common total headers as a fallback.
-          const extractHeaderTotal = (headers: Headers): number | undefined => {
-            const candidates = [
-              "x-total-number-of-items",
-              "x-total-numberofitems",
-              "x-total-count",
-              "x-total",
-              "x-pagination-total",
-              "x-pagination-total-items",
-            ];
-            for (const k of candidates) {
-              const v = headers.get(k);
-              if (!v) continue;
-              const n = Number(v);
-              if (Number.isFinite(n) && n >= 0) return n;
-            }
-            return undefined;
-          };
-
-          const url = `${baseUrl}&page[size]=1`;
-          let headerTotal: number | undefined;
-          for (const delay of [0, 500, 1200, 2200]) {
-            if (delay) await sleep(delay);
-            const resp = await fetch(url, {
-              headers: {
-                Authorization: `Bearer ${(tokens?.accessToken || t.accessToken) as string}`,
-              },
-              signal: AbortSignal.timeout(20000),
-            });
-            if (resp.status === 429) continue;
-            if (!resp.ok) break;
-            headerTotal = extractHeaderTotal(resp.headers as any);
-            break;
+        // Retry a few times on 429 (Tidal rate limit windows are often short).
+        if (resp.status === 429) {
+          for (const delay of [500, 1200, 2200]) {
+            await sleep(delay);
+            resp = await doFetch(tokens?.accessToken || t.accessToken);
+            if (resp.status !== 429) break;
           }
-          if (headerTotal !== undefined) return { count: headerTotal, rateLimited: false };
-          return { count: null, rateLimited: false };
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          if (msg.includes("Tidal OpenAPI error: 429")) return { count: null, rateLimited: true };
+        }
+
+        if (resp.status === 429) return { count: null, rateLimited: true };
+        if (resp.status < 200 || resp.status >= 300) {
+          if (resp.status === 403 && isMissingRUsrScope(resp.json || resp.text)) {
+            return { count: null, rateLimited: false, missingScope: true };
+          }
           return { count: null, rateLimited: false };
         }
-      }
 
-      const [albumsMeta, artistsMeta, tracksMeta, playlistsMeta] = await Promise.all([
-        openApiMetaTotal("albums"),
-        openApiMetaTotal("artists"),
-        openApiMetaTotal("tracks"),
-        openApiMetaTotal("playlists"),
-      ]);
+        const body = resp.json || {};
+        const n = Number(
+          body?.totalNumberOfItems ??
+            body?.total ??
+            body?.metadata?.totalNumberOfItems ??
+            body?.metadata?.total ??
+            NaN
+        );
+        return { count: Number.isFinite(n) ? n : null, rateLimited: false };
+      };
 
-      const rateLimited = albumsMeta.rateLimited || artistsMeta.rateLimited || tracksMeta.rateLimited || playlistsMeta.rateLimited;
+      const albumsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/albums?limit=1&offset=0`);
+      const artistsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/artists?limit=1&offset=0`);
+      const playlistsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/playlists?limit=1&offset=0`);
+      const tracksV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/tracks?limit=1&offset=0`);
+
+      const rateLimited = albumsV2.rateLimited || artistsV2.rateLimited || tracksV2.rateLimited || playlistsV2.rateLimited;
+      const missingScope = !!albumsV2.missingScope || !!artistsV2.missingScope || !!tracksV2.missingScope || !!playlistsV2.missingScope;
 
       const payload = {
-        albums: summaryCounts?.albums ?? albumsMeta.count,
-        artists: summaryCounts?.artists ?? artistsMeta.count,
-        tracks: summaryCounts?.tracks ?? tracksMeta.count,
-        playlists: summaryCounts?.playlists ?? playlistsMeta.count,
+        albums: albumsV2.count,
+        artists: artistsV2.count,
+        tracks: tracksV2.count,
+        playlists: playlistsV2.count,
         rateLimited,
         partial: rateLimited,
-        source: summaryCounts ? "openapi(userCollections + meta)" : "openapi(meta)",
-        missingScope: null,
+        source: "api.tidal.com(v2)",
+        missingScope: missingScope ? "r_usr" : null,
       };
 
       // If we got rate-limited, prefer cached values instead of returning null/partial.
