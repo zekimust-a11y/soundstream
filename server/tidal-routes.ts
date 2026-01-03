@@ -1478,9 +1478,19 @@ export function registerTidalRoutes(app: Express): void {
       // api.tidal.com endpoints and matches the modern TIDAL Developer Platform model.
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
       async function openApiMetaTotal(rel: "albums" | "artists" | "tracks" | "playlists"): Promise<{ count: number | null; rateLimited: boolean }> {
+        // In practice, OpenAPI totals are most reliably present when requesting an `include=...`
+        // matching the relationship type (JSON:API-ish pagination).
+        const include =
+          rel === "albums"
+            ? "albums,albums.artists,albums.coverArt"
+            : rel === "artists"
+              ? "artists"
+              : rel === "tracks"
+                ? "tracks,tracks.albums,tracks.artists,tracks.albums.coverArt"
+                : "playlists,playlists.coverArt";
         const baseUrl = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
           t.userId!
-        )}/relationships/${rel}?countryCode=${encodeURIComponent(countryCode)}`;
+        )}/relationships/${rel}?include=${encodeURIComponent(include)}&countryCode=${encodeURIComponent(countryCode)}`;
         try {
           let first: any;
           // Retry a few times on 429 (OpenAPI is aggressively rate-limited, but windows are short).
