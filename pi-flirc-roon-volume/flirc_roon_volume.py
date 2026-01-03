@@ -23,9 +23,10 @@ API_BASE = os.getenv("SOUNDSTREAM_API_URL", "http://192.168.0.21:3000").rstrip("
 TAP_STEP = float(os.getenv("ROON_STEP", "1"))
 
 # Hold behavior:
-# - We send ONE tap immediately on KeyDown.
-# - We send ONE /api/roon/hold/start after HOLD_DELAY_S (or once repeats are observed),
-#   and ONE /api/roon/hold/stop after release.
+# - We send ONE tap on release (KeyUp) ONLY if a hold never started.
+#   This avoids "tap + ramp" double-adjustments when a "tap" is slightly long.
+# - We send ONE /api/roon/hold/start after HOLD_DELAY_S, OR immediately once repeat events
+#   (value=2) are observed, and ONE /api/roon/hold/stop after release.
 # Important: FLIRC can emit spurious KeyUp events during a long press (while repeats still
 # arrive). To make holds reliable, we use a short "release grace" window and treat repeat
 # (value=2) as evidence the key is still held.
@@ -100,6 +101,15 @@ class HoldWorker:
     self.is_active = is_active
     self.hold_started = False
 
+  def start_hold_now(self) -> None:
+    # Start the server-side hold immediately (used when repeats are observed).
+    if self.hold_started:
+      return
+    if not self.is_active():
+      return
+    post_hold("start", self.action, HOLD_STEP, HOLD_TICK_MS)
+    self.hold_started = True
+
   def start(self) -> None:
     if self.running:
       return
@@ -120,8 +130,9 @@ class HoldWorker:
       return
     if not self.is_active():
       return
-    post_hold("start", self.action, HOLD_STEP, HOLD_TICK_MS)
-    self.hold_started = True
+    if not self.hold_started:
+      post_hold("start", self.action, HOLD_STEP, HOLD_TICK_MS)
+      self.hold_started = True
     # Wait until stop, then send stop.
     self.stop_event.wait()
     if self.hold_started:
@@ -140,6 +151,8 @@ def main() -> None:
   down_held = False
   up_down_at = 0.0
   down_down_at = 0.0
+  up_up_at = 0.0
+  down_up_at = 0.0
   up_last_active_at = 0.0
   down_last_active_at = 0.0
   up_release_timer: Optional[threading.Timer] = None
@@ -170,6 +183,12 @@ def main() -> None:
       if time.time() - up_last_active_at < (RELEASE_GRACE_MS / 1000.0):
         return
       if up_held:
+        # If a hold never started, treat this as a tap (send on release).
+        if not up_worker.hold_started and up_down_at > 0 and up_up_at > 0:
+          press_s = max(0.0, up_up_at - up_down_at)
+          if press_s < HOLD_DELAY_S:
+            print(f"[{ts()}] Tap UP (press={press_s:.3f}s) -> volume +{TAP_STEP}")
+            post_volume("up", TAP_STEP)
         up_held = False
         print(f"[{ts()}] KeyUp UP -> hold stop")
         up_worker.stop()
@@ -179,6 +198,11 @@ def main() -> None:
       if time.time() - down_last_active_at < (RELEASE_GRACE_MS / 1000.0):
         return
       if down_held:
+        if not down_worker.hold_started and down_down_at > 0 and down_up_at > 0:
+          press_s = max(0.0, down_up_at - down_down_at)
+          if press_s < HOLD_DELAY_S:
+            print(f"[{ts()}] Tap DOWN (press={press_s:.3f}s) -> volume -{TAP_STEP}")
+            post_volume("down", TAP_STEP)
         down_held = False
         print(f"[{ts()}] KeyUp DOWN -> hold stop")
         down_worker.stop()
@@ -222,19 +246,16 @@ def main() -> None:
             up_held = True
             up_down_at = now
             print(f"[{ts()}] KeyDown UP -> tap + hold start")
-            post_volume("up", TAP_STEP)
             up_worker.start()
           elif val == 0 and up_held:
+            up_up_at = now
             # Don't stop immediately; FLIRC may send spurious KeyUp while repeats are still coming.
             # We'll stop only if no activity arrives within RELEASE_GRACE_MS.
             schedule_release("up")
           elif val == 2 and up_held:
-            # If repeats are arriving but the hold start delay hasn't elapsed yet, ensure we don't
-            # miss starting the hold due to brief key-up blips.
-            if (now - up_down_at) >= HOLD_DELAY_S and not up_worker.hold_started:
-              # Best-effort: if the worker hasn't started yet, start it (it will fire immediately
-              # if delay already elapsed and key is active).
-              up_worker.start()
+            # Repeat events are strong evidence of a real hold: start hold immediately for responsiveness.
+            if not up_worker.hold_started:
+              up_worker.start_hold_now()
 
         elif key == KEY_DOWN:
           if val in (1, 2):
@@ -244,13 +265,13 @@ def main() -> None:
             down_held = True
             down_down_at = now
             print(f"[{ts()}] KeyDown DOWN -> tap + hold start")
-            post_volume("down", TAP_STEP)
             down_worker.start()
           elif val == 0 and down_held:
+            down_up_at = now
             schedule_release("down")
           elif val == 2 and down_held:
-            if (now - down_down_at) >= HOLD_DELAY_S and not down_worker.hold_started:
-              down_worker.start()
+            if not down_worker.hold_started:
+              down_worker.start_hold_now()
 
     except FileNotFoundError:
       # Device not present yet; wait and retry.
