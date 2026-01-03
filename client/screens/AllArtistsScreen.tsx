@@ -29,6 +29,7 @@ import { LibraryToolbar, type SourceFilter, type ViewMode } from "@/components/L
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { ArtistGridSkeleton, AlbumListSkeleton } from "@/components/SkeletonLoader";
 import { useInfiniteArtists, Artist } from "@/hooks/useLibrary";
+import { DESKTOP_SIDEBAR_WIDTH } from "@/constants/layout";
 import { useMusic } from "@/hooks/useMusic";
 import { usePlayback } from "@/hooks/usePlayback";
 import { lmsClient } from "@/lib/lmsClient";
@@ -196,11 +197,18 @@ export default function AllArtistsScreen() {
   } = useInfiniteArtists();
 
   const allArtists = data?.pages.flatMap(page => page.artists) || [];
-  const total = data?.pages[0]?.total || 0;
+  const totalAll = data?.pages[0]?.total || 0;
+  const totalLocal = data?.pages[0]?.localTotal || 0;
+  const totalTidal = data?.pages[0]?.tidalTotal || 0;
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [sortKey, setSortKey] = useState<SortKey>("name_az");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [qualityFilter, setQualityFilter] = useState<QualityKey>("all");
+  const displayTotal =
+    sourceFilter === "local" ? totalLocal : sourceFilter === "tidal" ? totalTidal : totalAll;
+  const countsSuffix = `Tidal ${Number(totalTidal || 0).toLocaleString()} • LMS ${Number(
+    totalLocal || 0
+  ).toLocaleString()}`;
 
   useEffect(() => {
     AsyncStorage.getItem(VIEW_MODE_KEY).then((mode) => {
@@ -259,9 +267,11 @@ export default function AllArtistsScreen() {
   }, [allArtists, sortKey, sourceFilter, recentlyPlayed]);
 
   const gridLayout = useMemo(() => {
+    const isLargeWeb = Platform.OS === "web" && windowWidth >= 900;
     const padding = Spacing.lg;
     const gap = Spacing.lg;
-    const available = Math.max(0, windowWidth - padding * 2);
+    const contentWidth = isLargeWeb ? Math.max(0, windowWidth - DESKTOP_SIDEBAR_WIDTH) : windowWidth;
+    const available = Math.max(0, contentWidth - padding * 2);
 
     if (Platform.OS !== "web") {
       const cols = 3;
@@ -356,7 +366,7 @@ export default function AllArtistsScreen() {
   if (isLoading) {
     return (
       <ThemedView style={styles.container}>
-        <AppHeader title="Artists" />
+        <AppHeader title={`Artists (${Number(displayTotal || 0).toLocaleString()}) — ${countsSuffix}`} />
         <LibraryToolbar
           sortValue={sortKey}
           sortLabel="Sorting"
@@ -393,7 +403,7 @@ export default function AllArtistsScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <AppHeader title="Artists" />
+      <AppHeader title={`Artists (${Number(displayTotal || 0).toLocaleString()}) — ${countsSuffix}`} />
       <LibraryToolbar
         sortValue={sortKey}
         sortLabel="Sorting"
@@ -413,7 +423,14 @@ export default function AllArtistsScreen() {
         onViewModeChange={handleViewModeChange}
       />
 
-      {viewMode === "grid" ? (
+      {filteredArtists.length === 0 ? (
+        <View style={styles.centered}>
+          <ThemedText style={styles.emptyTitle}>No artists found</ThemedText>
+          <ThemedText style={styles.emptySubtitle}>
+            {activeServer ? "Try refreshing the library in Settings." : "Connect to an LMS server first."}
+          </ThemedText>
+        </View>
+      ) : viewMode === "grid" ? (
         <FlatList
           key={`grid-${gridLayout.numColumns}`}
           data={filteredArtists}
@@ -474,6 +491,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: Colors.light.backgroundRoot,
+  },
+  emptyTitle: {
+    ...Typography.title,
+    color: Colors.light.text,
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.sm,
   },
   // Header now standardized via `AppHeader`.
   viewToggle: {

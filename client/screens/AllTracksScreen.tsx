@@ -54,6 +54,7 @@ export default function AllTracksScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [lmsOffset, setLmsOffset] = useState(0);
   const [lmsTotal, setLmsTotal] = useState<number | null>(null);
+  const [tidalTotal, setTidalTotal] = useState<number | null>(null);
   const [tidalNext, setTidalNext] = useState<string | null>(null);
   const [hasMoreLms, setHasMoreLms] = useState(true);
   const [hasMoreTidal, setHasMoreTidal] = useState(true);
@@ -133,6 +134,10 @@ export default function AllTracksScreen() {
         return;
       }
       const data = await response.json();
+      // Cache the Tidal total once we see it (server may return partial while totals compute).
+      if (tidalTotal === null && typeof data?.total === "number") {
+        setTidalTotal(data.total);
+      }
       const items: any[] = Array.isArray(data?.items) ? data.items : [];
       const mapped: Track[] = items.map((t: any) => ({
         id: `tidal-track-${t.id}`,
@@ -156,7 +161,7 @@ export default function AllTracksScreen() {
     } catch {
       setHasMoreTidal(false);
     }
-  }, [tidalEnabled, hasMoreTidal, tidalNext, mergeInTracks]);
+  }, [tidalEnabled, hasMoreTidal, tidalNext, mergeInTracks, tidalTotal]);
 
   useEffect(() => {
     // Reset and load the first page quickly
@@ -167,6 +172,7 @@ export default function AllTracksScreen() {
     setIsLoadingMore(false);
     setLmsOffset(0);
     setLmsTotal(null);
+    setTidalTotal(null);
     setHasMoreLms(true);
     setHasMoreTidal(true);
     setTidalNext(null);
@@ -292,10 +298,25 @@ export default function AllTracksScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <AppHeader
-        // Don't show a misleading "loaded so far" number (e.g. 520) while totals are still loading.
-        title={lmsTotal !== null ? `Tracks (${lmsTotal.toLocaleString()})` : "Tracks"}
-      />
+      {(() => {
+        const lms = lmsTotal;
+        const tidal = tidalEnabled ? tidalTotal : null;
+        const display =
+          sourceFilter === "local"
+            ? lms
+            : sourceFilter === "tidal"
+              ? tidal
+              : lms !== null && tidal !== null
+                ? lms + tidal
+                : lms !== null
+                  ? lms
+                  : tidal;
+        const displayStr = display !== null ? `Tracks (${display.toLocaleString()})` : "Tracks";
+        const countsSuffix = `Tidal ${tidal !== null ? tidal.toLocaleString() : "—"} • LMS ${
+          lms !== null ? lms.toLocaleString() : "—"
+        }`;
+        return <AppHeader title={`${displayStr} — ${countsSuffix}`} />;
+      })()}
 
       <LibraryToolbar
         sortValue={sortKey}

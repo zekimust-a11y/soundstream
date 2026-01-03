@@ -8,6 +8,7 @@ import { useSettings } from './useSettings';
 // LMS can handle large pages; TIDAL v2 endpoints typically cap at 100 and use offset pagination.
 const LMS_PAGE_SIZE = 500;
 const TIDAL_PAGE_SIZE = 100;
+const ARTISTS_PAGE_SIZE = 500;
 
 export interface Album {
   id: string;
@@ -344,28 +345,32 @@ export function useInfiniteAlbums(artistId?: string) {
 }
 
 export function useInfiniteArtists() {
-  const { activeServer } = useMusic();
+  const { activeServer, tidalConnected } = useMusic();
   const {  tidalEnabled, localLibraryEnabled, isLoaded } = useSettings();
 
   return useInfiniteQuery({
-    queryKey: ['artists', 'infinite', activeServer?.id,  tidalEnabled, localLibraryEnabled],
+    queryKey: ['artists', 'infinite', activeServer?.id,  tidalEnabled, tidalConnected, localLibraryEnabled],
     queryFn: async ({ pageParam = 0 }) => {
       if (!activeServer) {
         console.log('[useInfiniteArtists] No active server');
-        return { artists: [], total: 0, nextPage: undefined };
+        return { artists: [], total: 0, localTotal: 0, tidalTotal: 0, nextPage: undefined };
       }
       console.log('[useInfiniteArtists] Fetching artists, pageParam:', pageParam);
       lmsClient.setServer(activeServer.host, activeServer.port);
-      const result = await lmsClient.getArtistsPage(pageParam, PAGE_SIZE);
+      const result = localLibraryEnabled
+        ? await lmsClient.getArtistsPage(pageParam, ARTISTS_PAGE_SIZE)
+        : { artists: [], total: 0 };
 
       // Add Tidal artists if Tidal is enabled
       let tidalArtists: Artist[] = [];
       let tidalTotalCount = 0;
-      if (tidalEnabled) {
+      // NOTE: Our /api/tidal/artists endpoint currently doesn't support paging.
+      // Only fetch Tidal artists on the first page to avoid duplicates / reloading the same list.
+      if (tidalEnabled && tidalConnected && pageParam === 0) {
         try {
           const apiUrl = getApiUrl();
           const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
-          const tidalResponse = await fetch(`${cleanApiUrl}/api/tidal/artists?limit=${PAGE_SIZE}&offset=${pageParam}`);
+          const tidalResponse = await fetch(`${cleanApiUrl}/api/tidal/artists?limit=${TIDAL_PAGE_SIZE}`);
           if (tidalResponse.ok) {
             const tidalResult = await tidalResponse.json();
             tidalTotalCount = tidalResult.total || 0;
@@ -419,9 +424,16 @@ export function useInfiniteArtists() {
         );
 
       // Calculate total including Tidal artists
-      const totalArtistsCount = (result.total || 0) + (tidalTotalCount || 0);
-      const nextPage = pageParam + PAGE_SIZE < totalArtistsCount ? pageParam + PAGE_SIZE : undefined;
-      return { artists, total: totalArtistsCount, nextPage };
+      const localTotal = localLibraryEnabled ? (result.total || 0) : 0;
+      const tidalTotal = tidalEnabled && tidalConnected ? (tidalTotalCount || 0) : 0;
+      const totalArtistsCount = localTotal + tidalTotal;
+
+      // Next page is LMS-only (Tidal artists are first-page only for now).
+      const nextPage =
+        localLibraryEnabled && pageParam + ARTISTS_PAGE_SIZE < (result.total || 0)
+          ? pageParam + ARTISTS_PAGE_SIZE
+          : undefined;
+      return { artists, total: totalArtistsCount, localTotal, tidalTotal, nextPage };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
