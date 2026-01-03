@@ -1046,6 +1046,28 @@ export function registerTidalRoutes(app: Express): void {
       const rawItems: any[] = Array.isArray(body?.items) ? body.items : Array.isArray(body?.data) ? body.data : [];
       const totalNumberOfItems = Number(body?.totalNumberOfItems ?? body?.total ?? 0) || 0;
 
+      const toIsoAddedAt = (raw: any): string | undefined => {
+        if (raw == null) return undefined;
+        if (typeof raw === "number" && Number.isFinite(raw)) {
+          const ms = raw > 1e12 ? raw : raw * 1000;
+          const d = new Date(ms);
+          return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
+        }
+        if (typeof raw === "string") {
+          const s = raw.trim();
+          if (!s) return undefined;
+          if (/^\d+$/.test(s)) {
+            const n = Number(s);
+            const ms = n > 1e12 ? n : n * 1000;
+            const d = new Date(ms);
+            return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
+          }
+          const d = new Date(s);
+          return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
+        }
+        return undefined;
+      };
+
       const coverUrl = (cover: any, size: string = "320x320") => {
         const c = typeof cover === "string" ? cover : "";
         if (!c) return null;
@@ -1057,6 +1079,16 @@ export function registerTidalRoutes(app: Express): void {
         const id = String(a?.id || "");
         const artist = a?.artist || (Array.isArray(a?.artists) ? a.artists[0] : null) || {};
         const artistId = String(artist?.id || a?.artistId || "");
+        const addedAt = toIsoAddedAt(
+          a?.addedAt ??
+            a?.added_at ??
+            a?.created ??
+            a?.createdAt ??
+            a?.created_at ??
+            a?.dateAdded ??
+            a?.timeAdded ??
+            a?.time_added
+        );
         return {
           id,
           title: a?.title || a?.name || "Album",
@@ -1067,6 +1099,7 @@ export function registerTidalRoutes(app: Express): void {
           artwork_url: coverUrl(a?.cover || a?.imageId || a?.coverId, "320x320"),
           lmsUri: `tidal://album:${id}`,
           source: "tidal",
+          addedAt,
         };
       });
 

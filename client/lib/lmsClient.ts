@@ -31,6 +31,11 @@ export interface LmsAlbum {
   year?: number;
   trackCount?: number;
   url?: string; // URL for source detection (Tidal, Spotify, etc.)
+  /**
+   * When known, the time this album was added to the library (ISO string).
+   * Not all backends/sources provide it; use ordering as a fallback.
+   */
+  addedAt?: string;
 }
 
 export interface LmsArtist {
@@ -573,6 +578,30 @@ class LmsClient {
       const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
       const total = Number(result.count) || 0;
 
+      const toIsoAddedAt = (raw: unknown): string | undefined => {
+        if (raw == null) return undefined;
+        if (typeof raw === "number" && Number.isFinite(raw)) {
+          // Heuristic: seconds vs ms.
+          const ms = raw > 1e12 ? raw : raw * 1000;
+          const d = new Date(ms);
+          return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
+        }
+        if (typeof raw === "string") {
+          const s = raw.trim();
+          if (!s) return undefined;
+          if (/^\d+$/.test(s)) {
+            const n = Number(s);
+            if (!Number.isFinite(n)) return undefined;
+            const ms = n > 1e12 ? n : n * 1000;
+            const d = new Date(ms);
+            return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
+          }
+          const d = new Date(s);
+          return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
+        }
+        return undefined;
+      };
+
       const albums = albumsLoop.map((a) => ({
         id: String(a.id || ''),
         title: String(a.album || a.title || ''),
@@ -583,6 +612,8 @@ class LmsClient {
         year: a.year ? Number(a.year) : undefined,
         trackCount: a.track_count ? Number(a.track_count) : undefined,
         url: a.url ? String(a.url) : undefined,
+        // Best-effort: some LMS builds include an added-time field when sorting by "new".
+        addedAt: toIsoAddedAt((a as any).added_time ?? (a as any).addedAt ?? (a as any).added_at ?? (a as any).timestamp ?? (a as any).added),
       }));
 
       // If LMS doesn't understand sort:new it may return empty; fall back.
@@ -1681,89 +1712,43 @@ class LmsClient {
       }));
   }
 
-  async getArtistsPage(start: number = 0, limit: number = 50): Promise<{ artists: LmsArtist[], total: number }> {
+  async getArtistsPage(
+    start: number = 0,
+    limit: number = 50,
+    // Legacy/unused in current lib client; kept for compatibility with older call sites.
+    _includeQobuz: boolean = false
+  ): Promise<{ artists: LmsArtist[]; total: number }> {
     try {
-      // First, get the total number of albums to know how many to fetch
-      const totalAlbumsResult = await this.request('', ['info', 'total', 'albums', '?']);
-      const totalAlbums = Number(totalAlbumsResult._albums || 0);
-      
-      // Fetch ALL albums to get accurate album counts per artist
-      // Use a large batch size to fetch all albums efficiently
-      const batchSize = 10000; // Fetch in large batches
-      const albumsToFetch = Math.min(totalAlbums, batchSize);
-      
-      const result = await this.request('', ['albums', '0', String(albumsToFetch), 'tags:al']);
-      const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
-      
-      // If we have more albums than we fetched, fetch the rest in additional batches
-      let allAlbums = [...albumsLoop];
-      if (totalAlbums > albumsToFetch) {
-        // Fetch remaining albums in batches
-        for (let offset = albumsToFetch; offset < totalAlbums; offset += batchSize) {
-          const remainingCount = Math.min(batchSize, totalAlbums - offset);
-          const additionalResult = await this.request('', ['albums', String(offset), String(remainingCount), 'tags:al']);
-          const additionalAlbums = (additionalResult.albums_loop || []) as Array<Record<string, unknown>>;
-          allAlbums.push(...additionalAlbums);
-        }
-      }
-      
-      // Build a map of unique artists with their accurate album counts
-      // Use artist name as key since albums don't have artist_id
-      const artistMap = new Map<string, { id: string; name: string; albumCount: number }>();
+      // Use LMS's built-in `artists` query with album_count tag.
+      // This is fast and avoids fetching huge album lists (which can timeout and render the Artists screen blank).
+      const result = await this.request("", ["artists", String(start), String(limit), "tags:al"]);
+      const artistsLoop = (result.artists_loop || []) as Array<Record<string, unknown>>;
 
-      for (const album of allAlbums) {
-        // Filter out plugin content (Tidal, Qobuz, Spotify, SoundCloud)
-        const url = String(album.url || '').toLowerCase();
-        const id = String(album.id || '').toLowerCase();
-        const artworkUrl = String(album.artwork_url || '').toLowerCase();
-
-        const isPluginContent = url.includes('tidal') || id.includes('tidal') || artworkUrl.includes('tidal') ||
-                               url.includes('qobuz') || id.includes('qobuz') || artworkUrl.includes('qobuz') ||
-                               url.includes('spotify') || id.includes('spotify') || artworkUrl.includes('spotify') ||
-                               url.includes('soundcloud') || id.includes('soundcloud') || artworkUrl.includes('soundcloud');
-
-        if (isPluginContent) {
-          continue; // Skip plugin content
-        }
-
-        const artistName = String(album.artist || album.albumartist || '').trim();
-
-        // Skip invalid artist names
-        if (!artistName || artistName === '-' || artistName === '') {
-          continue;
-        }
-
-        // Use artist name as the key (normalize to handle case differences)
-        const artistKey = artistName.toLowerCase();
-
-        if (artistMap.has(artistKey)) {
-          artistMap.get(artistKey)!.albumCount++;
-        } else {
-          // Generate a simple ID from the artist name (or use name as ID)
-          artistMap.set(artistKey, {
-            id: artistName, // Use name as ID since we don't have artist_id
+      const artists = artistsLoop
+        .map((a) => {
+          const artistName = String((a as any).artist || (a as any).name || "").trim();
+          if (!artistName || artistName === "-") return null;
+          const albumCount =
+            (a as any).album_count !== undefined
+              ? Number((a as any).album_count)
+              : (a as any).albums !== undefined
+                ? Number((a as any).albums)
+                : 0;
+          return {
+            id: String((a as any).id || artistName),
             name: artistName,
-            albumCount: 1,
-          });
-        }
-      }
-      
-      // Convert map to array, sort by name, and paginate
-      const allArtists = Array.from(artistMap.values())
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map(a => ({
-          id: a.id,
-          name: a.name,
-          albumCount: a.albumCount,
-        } as LmsArtist));
-      
-      const total = allArtists.length;
-      const artists = allArtists.slice(start, start + limit);
-    
-    return { artists, total };
+            albumCount: Number.isFinite(albumCount) ? albumCount : 0,
+          } as LmsArtist;
+        })
+        .filter((a): a is LmsArtist => a !== null);
+
+      const totalRaw = (result as any).count ?? (result as any).total;
+      const total = Number(totalRaw);
+
+      return { artists, total: Number.isFinite(total) ? total : Math.max(artists.length, 0) };
     } catch (error) {
-      debugLog.error('getArtistsPage failed', error instanceof Error ? error.message : String(error));
-      return { artists: [], total: 0 };
+      debugLog.error("getArtistsPage failed", error instanceof Error ? error.message : String(error));
+      throw error;
     }
   }
   

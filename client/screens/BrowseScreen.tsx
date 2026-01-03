@@ -30,6 +30,7 @@ import { lmsClient, type LmsAlbum } from "@/lib/lmsClient";
 import { debugLog } from "@/lib/debugLog";
 import { useInfiniteArtists, type Artist } from "@/hooks/useLibrary";
 import type { BrowseStackParamList } from "@/navigation/BrowseStackNavigator";
+import { DESKTOP_SIDEBAR_WIDTH } from "@/constants/layout";
 
 type NavigationProp = NativeStackNavigationProp<BrowseStackParamList>;
 type BrowseRouteProp = RouteProp<BrowseStackParamList, "Browse">;
@@ -94,9 +95,11 @@ export default function BrowseScreen() {
   // Keep all artwork tiles on Browse the same size, and scale a bit up on desktop/web.
   // Match Browse tile sizing to the Albums screen sizing rules.
   const browseTileSize = useMemo(() => {
+    const isLargeWeb = Platform.OS === "web" && windowWidth >= 900;
     const padding = Spacing.lg;
     const gap = Spacing.lg;
-    const available = Math.max(0, windowWidth - padding * 2);
+    const contentWidth = isLargeWeb ? Math.max(0, windowWidth - DESKTOP_SIDEBAR_WIDTH) : windowWidth;
+    const available = Math.max(0, contentWidth - padding * 2);
 
     if (Platform.OS !== "web") {
       const cols = 3;
@@ -180,15 +183,41 @@ export default function BrowseScreen() {
       // Tidal "My Albums" (already fetched for Browse; treat as "recently added" ordering from API)
       const tidal = (tidalAlbums || []).slice(0, 20).map((a) => ({ ...a, source: "tidal" as const }));
 
-      // Interleave so both sources appear
-      const combined: RecentAddedAlbum[] = [];
-      const max = Math.max(local.length, tidal.length);
-      for (let i = 0; i < max; i++) {
-        if (tidal[i]) combined.push(tidal[i]);
-        if (local[i]) combined.push(local[i]);
-      }
+      const parseAddedAtMs = (iso?: string) => {
+        if (!iso) return undefined;
+        const t = Date.parse(iso);
+        return Number.isFinite(t) ? t : undefined;
+      };
 
-      setRecentlyAdded(combined.slice(0, 30));
+      // If either source provides addedAt timestamps, sort globally by recency.
+      const combinedRaw: RecentAddedAlbum[] = [...tidal, ...local];
+      const anyHasTimestamp = combinedRaw.some((a) => parseAddedAtMs(a.addedAt) != null);
+      if (anyHasTimestamp) {
+        const combined = combinedRaw
+          .map((a, idx) => ({
+            a,
+            ts: parseAddedAtMs(a.addedAt),
+            // Preserve a stable fallback ordering (tidal first, then local) when timestamps are missing.
+            fallback: (a.source === "tidal" ? 0 : 1) * 1000 + idx,
+          }))
+          .sort((x, y) => {
+            const xt = x.ts ?? -Infinity;
+            const yt = y.ts ?? -Infinity;
+            if (yt !== xt) return yt - xt;
+            return x.fallback - y.fallback;
+          })
+          .map((x) => x.a);
+        setRecentlyAdded(combined.slice(0, 30));
+      } else {
+        // Fallback: interleave so both sources appear.
+        const combined: RecentAddedAlbum[] = [];
+        const max = Math.max(local.length, tidal.length);
+        for (let i = 0; i < max; i++) {
+          if (tidal[i]) combined.push(tidal[i]);
+          if (local[i]) combined.push(local[i]);
+        }
+        setRecentlyAdded(combined.slice(0, 30));
+      }
     } catch (e) {
       console.warn("[Browse] Failed to load recently added:", e instanceof Error ? e.message : String(e));
       setRecentlyAdded([]);
@@ -488,6 +517,7 @@ export default function BrowseScreen() {
             trackCount: album.numberOfTracks,
             lmsUri: album.lmsUri,
             source: 'tidal' as const,
+            addedAt: album.addedAt || undefined,
           }));
           setTidalAlbums(albums);
         } else {
