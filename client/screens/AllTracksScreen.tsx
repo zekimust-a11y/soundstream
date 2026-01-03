@@ -163,8 +163,6 @@ export default function AllTracksScreen() {
   // Get a real Tidal tracks total (cached + converging) from /api/tidal/totals, not from a page size.
   useEffect(() => {
     const reqId = ++totalsReqIdRef.current;
-    // Don't gate on `tidalConnected` here: it can be stale during rehydrate, and the server is the
-    // source of truth (it will 401 if not connected). We still want counts when Tidal content loads.
     if (!tidalEnabled) {
       setTidalTotal(null);
       return;
@@ -175,7 +173,10 @@ export default function AllTracksScreen() {
         const apiUrl = getApiUrl();
         const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
         const resp = await fetch(`${cleanApiUrl}/api/tidal/totals`);
-        if (!resp.ok) return;
+        if (!resp.ok) {
+          if (totalsReqIdRef.current === reqId) setTidalTotal(null);
+          return;
+        }
         const data = await resp.json();
         const n = typeof data?.tracks === "number" ? data.tracks : null;
         if (totalsReqIdRef.current === reqId && n !== null) setTidalTotal(n);
@@ -183,7 +184,7 @@ export default function AllTracksScreen() {
         // ignore
       }
     })();
-  }, [tidalEnabled]);
+  }, [tidalEnabled, tidalConnected]);
 
   useEffect(() => {
     // Reset and load the first page quickly
@@ -194,7 +195,6 @@ export default function AllTracksScreen() {
     setIsLoadingMore(false);
     setLmsOffset(0);
     setLmsTotal(null);
-    setTidalTotal(null);
     setHasMoreLms(true);
     setHasMoreTidal(true);
     setTidalNext(null);
