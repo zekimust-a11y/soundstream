@@ -1616,11 +1616,12 @@ export function registerTidalRoutes(app: Express): void {
             return { total, requests, rateLimited, partial };
           }
 
-          // Sequential to reduce 429s (tracks is the heavy one).
+          // Sequential to reduce 429s. Count `tracks` first so the Tracks screen gets a useful
+          // (partial-but-improving) number quickly instead of sitting at null for a long time.
+          const tracks = await countRel("tracks");
           const albums = await countRel("albums");
           const artists = await countRel("artists");
           const playlists = await countRel("playlists");
-          const tracks = await countRel("tracks");
 
           const payload = {
             albums: albums.total,
