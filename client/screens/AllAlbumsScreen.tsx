@@ -99,7 +99,7 @@ const AlbumGridCard = memo(({ album, size, onPress, onPlay, onShuffle }: {
             style={[styles.gridImage, { width: size, height: size }]}
             contentFit="cover"
           />
-        <SourceBadge source={album.source || 'local'} size={20} />
+        <SourceBadge source={album.source || 'local'} size={32} />
         <Animated.View style={[styles.gridOverlay, overlayAnimatedStyle]}>
           <View style={styles.gridOverlayButtons}>
             <AnimatedPressable

@@ -124,7 +124,7 @@ export default function AlbumScreen() {
                 style={[styles.albumArt, { width: albumArtSize, height: albumArtSize }]}
                 contentFit="cover"
               />
-              <SourceBadge source={albumSource} size={24} />
+              <SourceBadge source={albumSource} size={32} />
             </View>
 
             <View style={[styles.albumInfo, isDesktop ? styles.albumInfoDesktop : null]}>

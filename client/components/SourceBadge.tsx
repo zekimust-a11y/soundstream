@@ -17,24 +17,24 @@ export function SourceBadge({ source, size = 24 }: SourceBadgeProps) {
       {source === "qobuz" ? (
         <Image
           source={require("../assets/images/qobuz-icon.png")}
-          style={[styles.icon, { width: size - 4, height: size - 4 }]}
+          style={[styles.icon, { width: size - 8, height: size - 8 }]}
           contentFit="contain"
         />
       ) : source === "soundcloud" ? (
         <Image
           source={require("../assets/images/soundcloud-icon.png")}
-          style={[styles.icon, { width: size - 4, height: size - 4 }]}
+          style={[styles.icon, { width: size - 8, height: size - 8 }]}
           contentFit="contain"
         />
       ) : source === "tidal" ? (
         <Image
           source={require("../assets/images/tidal-icon.png")}
-          style={[styles.icon, { width: size - 4, height: size - 4 }]}
+          style={[styles.icon, { width: size - 8, height: size - 8 }]}
           contentFit="contain"
         />
       ) : (
-        <View style={[styles.libraryIconContainer, { width: size - 4, height: size - 4 }]}>
-          <Feather name="folder" size={size - 8} color="#ffffff" />
+        <View style={[styles.libraryIconContainer, { width: size - 8, height: size - 8 }]}>
+          <Feather name="folder" size={size - 12} color="#000000" />
         </View>
       )}
     </View>
@@ -46,9 +46,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: Spacing.xs,
     left: Spacing.xs,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    borderRadius: BorderRadius.xs,
-    padding: 2,
+    // Match Now Playing badge: readable on top of dark/bright artwork.
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderRadius: 6,
+    padding: 4,
     justifyContent: "center",
     alignItems: "center",
     ...Platform.select({
