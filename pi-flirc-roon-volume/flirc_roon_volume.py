@@ -36,6 +36,9 @@ HOLD_DELAY_S = float(os.getenv("ROON_HOLD_DELAY_S", "0.08"))
 HOLD_REPEAT_S = float(os.getenv("ROON_REPEAT_S", "0.03"))
 HOLD_TICK_MS = int(float(os.getenv("ROON_HOLD_TICK_MS", "40")))
 RELEASE_GRACE_MS = int(float(os.getenv("ROON_RELEASE_GRACE_MS", "180")))
+# Debounce taps so FLIRC key bounce / multiple KeyDown/KeyUp pairs in quick succession
+# don't cause multiple API volume calls for a single physical press.
+TAP_DEBOUNCE_MS = int(float(os.getenv("ROON_TAP_DEBOUNCE_MS", "220")))
 
 DEVICE_PATH = os.getenv("FLIRC_DEVICE", "/dev/input/flirc-kbd")
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "1.5"))
@@ -101,15 +104,6 @@ class HoldWorker:
     self.is_active = is_active
     self.hold_started = False
 
-  def start_hold_now(self) -> None:
-    # Start the server-side hold immediately (used when repeats are observed).
-    if self.hold_started:
-      return
-    if not self.is_active():
-      return
-    post_hold("start", self.action, HOLD_STEP, HOLD_TICK_MS)
-    self.hold_started = True
-
   def start(self) -> None:
     if self.running:
       return
@@ -166,6 +160,8 @@ def main() -> None:
 
   up_worker = HoldWorker("up", up_is_active)
   down_worker = HoldWorker("down", down_is_active)
+  last_tap_up_at = 0.0
+  last_tap_down_at = 0.0
 
   def cancel_timer(t: Optional[threading.Timer]) -> None:
     try:
@@ -178,7 +174,7 @@ def main() -> None:
     nonlocal up_release_timer, down_release_timer, up_held, down_held
 
     def do_release_up() -> None:
-      nonlocal up_held
+      nonlocal up_held, last_tap_up_at
       # Only release if we haven't seen activity within the grace window.
       if time.time() - up_last_active_at < (RELEASE_GRACE_MS / 1000.0):
         return
@@ -187,22 +183,32 @@ def main() -> None:
         if not up_worker.hold_started and up_down_at > 0 and up_up_at > 0:
           press_s = max(0.0, up_up_at - up_down_at)
           if press_s < HOLD_DELAY_S:
-            print(f"[{ts()}] Tap UP (press={press_s:.3f}s) -> volume +{TAP_STEP}")
-            post_volume("up", TAP_STEP)
+            now2 = time.time()
+            if (now2 - last_tap_up_at) * 1000.0 >= TAP_DEBOUNCE_MS:
+              last_tap_up_at = now2
+              print(f"[{ts()}] Tap UP (press={press_s:.3f}s) -> volume +{TAP_STEP}")
+              post_volume("up", TAP_STEP)
+            else:
+              print(f"[{ts()}] Tap UP ignored (debounce {TAP_DEBOUNCE_MS}ms)")
         up_held = False
         print(f"[{ts()}] KeyUp UP -> hold stop")
         up_worker.stop()
 
     def do_release_down() -> None:
-      nonlocal down_held
+      nonlocal down_held, last_tap_down_at
       if time.time() - down_last_active_at < (RELEASE_GRACE_MS / 1000.0):
         return
       if down_held:
         if not down_worker.hold_started and down_down_at > 0 and down_up_at > 0:
           press_s = max(0.0, down_up_at - down_down_at)
           if press_s < HOLD_DELAY_S:
-            print(f"[{ts()}] Tap DOWN (press={press_s:.3f}s) -> volume -{TAP_STEP}")
-            post_volume("down", TAP_STEP)
+            now2 = time.time()
+            if (now2 - last_tap_down_at) * 1000.0 >= TAP_DEBOUNCE_MS:
+              last_tap_down_at = now2
+              print(f"[{ts()}] Tap DOWN (press={press_s:.3f}s) -> volume -{TAP_STEP}")
+              post_volume("down", TAP_STEP)
+            else:
+              print(f"[{ts()}] Tap DOWN ignored (debounce {TAP_DEBOUNCE_MS}ms)")
         down_held = False
         print(f"[{ts()}] KeyUp DOWN -> hold stop")
         down_worker.stop()
@@ -245,7 +251,7 @@ def main() -> None:
           if val == 1 and not up_held:
             up_held = True
             up_down_at = now
-            print(f"[{ts()}] KeyDown UP -> tap + hold start")
+            print(f"[{ts()}] KeyDown UP")
             up_worker.start()
           elif val == 0 and up_held:
             up_up_at = now
@@ -253,9 +259,9 @@ def main() -> None:
             # We'll stop only if no activity arrives within RELEASE_GRACE_MS.
             schedule_release("up")
           elif val == 2 and up_held:
-            # Repeat events are strong evidence of a real hold: start hold immediately for responsiveness.
-            if not up_worker.hold_started:
-              up_worker.start_hold_now()
+            # Treat repeats as "still held" (for spurious key-up handling), but do not
+            # start holds early. Holds start after HOLD_DELAY_S to keep taps predictable.
+            pass
 
         elif key == KEY_DOWN:
           if val in (1, 2):
@@ -264,14 +270,13 @@ def main() -> None:
           if val == 1 and not down_held:
             down_held = True
             down_down_at = now
-            print(f"[{ts()}] KeyDown DOWN -> tap + hold start")
+            print(f"[{ts()}] KeyDown DOWN")
             down_worker.start()
           elif val == 0 and down_held:
             down_up_at = now
             schedule_release("down")
           elif val == 2 and down_held:
-            if not down_worker.hold_started:
-              down_worker.start_hold_now()
+            pass
 
     except FileNotFoundError:
       # Device not present yet; wait and retry.
