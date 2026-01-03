@@ -9,7 +9,7 @@ import { useMusic } from "@/hooks/useMusic";
 import { navigate } from "@/navigation/navigationRef";
 
 function stripPlaylistName(name: string) {
-  return name.replace(/^(SoundCloud|Tidal|Qobuz)\s*:?\s*/i, "").trim();
+  return name.replace(/^(SoundCloud|Tidal)\s*:?\s*/i, "").trim();
 }
 
 function SidebarItem({

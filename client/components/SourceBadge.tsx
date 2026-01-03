@@ -5,7 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import { Colors, BorderRadius, Spacing } from "@/constants/theme";
 
 interface SourceBadgeProps {
-  source?: "local" | "qobuz" | "soundcloud" | "spotify" | "tidal";
+  source?: "local" | "soundcloud" | "spotify" | "tidal";
   size?: number;
 }
 
@@ -14,13 +14,7 @@ export function SourceBadge({ source, size = 24 }: SourceBadgeProps) {
 
   return (
     <View pointerEvents="none" style={[styles.badge, { width: size, height: size }]}>
-      {source === "qobuz" ? (
-        <Image
-          source={require("../assets/images/qobuz-icon.png")}
-          style={[styles.icon, { width: size - 8, height: size - 8 }]}
-          contentFit="contain"
-        />
-      ) : source === "soundcloud" ? (
+      {source === "soundcloud" ? (
         <Image
           source={require("../assets/images/soundcloud-icon.png")}
           style={[styles.icon, { width: size - 8, height: size - 8 }]}

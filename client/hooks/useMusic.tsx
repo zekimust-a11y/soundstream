@@ -133,13 +133,12 @@ function isArray(value: unknown): value is any[] {
 
 function filterRecentlyPlayedItemsBySettings(
   items: RecentlyPlayedItem[],
-  opts: { qobuzEnabled: boolean; tidalEnabled: boolean; spotifyEnabled: boolean; soundcloudEnabled: boolean }
+  opts: { tidalEnabled: boolean; spotifyEnabled: boolean; soundcloudEnabled: boolean }
 ): RecentlyPlayedItem[] {
   return items.filter((i) => {
     if (i.type === "track") {
       const src = (i.track as any)?.source as string | undefined;
       if (src === "tidal" && !opts.tidalEnabled) return false;
-      if (src === "qobuz" && !opts.qobuzEnabled) return false;
       if (src === "spotify" && !opts.spotifyEnabled) return false;
       if (src === "soundcloud" && !opts.soundcloudEnabled) return false;
       return true;
@@ -186,9 +185,8 @@ const convertLmsTrackToTrack = (lmsTrack: LmsTrack, serverId: string): Track => 
   const url = (lmsTrack.url || '').toLowerCase();
   const id = (lmsTrack.id || '').toLowerCase();
   
-  let source: "local" | "qobuz" | "tidal" = 'local';
+  let source: "local" | "tidal" = 'local';
   if (url.includes('tidal') || id.includes('tidal')) source = 'tidal';
-  else if (url.includes('qobuz') || id.includes('qobuz')) source = 'qobuz';
 
   return {
     id: `${serverId}-${lmsTrack.id}`,
@@ -210,7 +208,7 @@ const convertLmsTrackToTrack = (lmsTrack: LmsTrack, serverId: string): Track => 
 
 export function MusicProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const { qobuzEnabled, spotifyEnabled, tidalEnabled, soundcloudEnabled } = useSettings();
+  const { spotifyEnabled, tidalEnabled, soundcloudEnabled } = useSettings();
   const [servers, setServers] = useState<Server[]>([]);
   const [activeServer, setActiveServerState] = useState<Server | null>(null);
   const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
@@ -345,7 +343,6 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
         // Apply source toggles so disabled services don't appear.
         const filtered = filterRecentlyPlayedItemsBySettings(loadedItems, {
-          qobuzEnabled,
           tidalEnabled,
           spotifyEnabled,
           soundcloudEnabled,
@@ -1217,7 +1214,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         // Use defaults if settings can't be loaded
       }
 
-      const lmsPlaylists = await lmsClient.getPlaylists(false, soundcloudEnabled, spotifyEnabled, false); // Don't include Tidal from LMS
+      const lmsPlaylists = await lmsClient.getPlaylists(soundcloudEnabled, spotifyEnabled, false); // Don't include Tidal from LMS
 
       // Add Tidal playlists if enabled
       let tidalPlaylists: any[] = [];

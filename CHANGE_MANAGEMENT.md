@@ -12,7 +12,7 @@ When fixing one feature, we accidentally break another feature that was working.
 4. **No Git Branches**: All changes in main branch, hard to track what broke
 
 ### Why It Happened
-- Both features use similar Qobuz menu navigation code
+- Both features used similar navigation/parsing code paths
 - Shared helper functions were modified
 - No clear separation between "In the Press" fix and playlist code
 
@@ -42,28 +42,6 @@ When fixing one feature, we accidentally break another feature that was working.
 - `git diff` to see what changed
 - Verify no unrelated code was modified
 - Check if shared functions were changed
-
-## Current Issue: Qobuz Playlists
-
-### Status Check
-The current `getPlaylists` implementation:
-- ✅ Finds "My Playlists" at index 3
-- ✅ Extracts item_id correctly (from actions.go.params.item_id = "3")
-- ✅ Fetches 28 playlists successfully (verified via curl test)
-
-### If Playlists Still Don't Show
-The issue might be:
-1. **Display logic**: PlaylistsScreen not rendering them
-2. **Caching**: Old cached data
-3. **Server connection**: Not properly connected
-4. **Error handling**: Errors being silently caught
-
-### Debugging Steps
-1. Check browser console for errors
-2. Check if `getPlaylists` is being called
-3. Check if playlists are being returned but not displayed
-4. Clear cache and reload
-5. Check network tab for API calls
 
 ## Prevention Strategy
 

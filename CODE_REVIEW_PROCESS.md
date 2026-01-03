@@ -74,36 +74,18 @@ git commit -m "Fix: specific issue description"
 - Note any limitations or edge cases
 - Explain why a particular approach was chosen
 
-## Example: Fixing "In the Press" Without Breaking Playlists
+## Example: Fixing Feature A Without Breaking Feature B
 
 **WRONG Approach:**
-- Modify `getQobuzSelectionAlbums` 
-- Also "improve" `getPlaylists` while you're there
-- Change shared helper functions
-- Result: Playlists break
+- Fix Feature A
+- Also "improve" unrelated shared code while you're there
+- Change shared helper functions without validating downstream impact
+- Result: a different feature breaks
 
 **RIGHT Approach:**
-- Identify that `getQobuzSelectionAlbums` handles "In the Press"
-- Only modify the item_id extraction logic in that function
-- Don't touch `getPlaylists` at all
-- Test "In the Press" works
-- Test playlists still work
-- Result: Both features work
-
-## Current Status
-The `getPlaylists` function should now work correctly. The code:
-- Finds "My Playlists" in Qobuz menu (at index 3)
-- Extracts item_id from `actions.go.params.item_id` (which is "3")
-- Fetches playlists from that menu item
-- Should return 28 playlists
-
-If playlists still don't show, the issue might be:
-1. The playlist fetching logic itself
-2. The playlist display logic
-3. Caching issues
-4. Server connection issues
-
-Let's test and verify the current implementation works.
+- Identify the smallest possible change that fixes Feature A
+- Keep the diff tightly scoped
+- Add a regression check for the shared path(s) you touched
 
 
 

@@ -31,1644 +31,7 @@ export interface LmsAlbum {
   year?: number;
   trackCount?: number;
   url?: string; // URL for source detection (Tidal, Spotify, etc.)
-  /**
-   * When known, the time this album was added to the library (ISO string).
-   * Not all backends/sources provide it; use ordering as a fallback.
-   */
-  addedAt?: string;
-}
 
-export interface LmsArtist {
-  id: string;
-  name: string;
-  albumCount?: number;
-  artworkUrl?: string;
-}
-
-export interface LmsPlaylist {
-  id: string;
-  name: string;
-  url?: string;
-  trackCount?: number;
-  artwork_url?: string;
-}
-
-export interface LmsRadioStation {
-  id: string;
-  name: string;
-  url?: string;
-  image?: string;
-}
-
-export interface LmsTrack {
-  id: string;
-  title: string;
-  artist: string;
-  album: string;
-  albumId?: string;
-  artistId?: string;
-  duration: number;
-  trackNumber?: number;
-  artwork_url?: string;
-  url?: string;
-  format?: string;
-  bitrate?: string;
-  sampleRate?: string;
-  bitDepth?: string;
-}
-
-export type AlbumQualityKey = "cd" | "hires" | "lossy" | "unknown";
-
-export interface LmsPlaylistTrack extends LmsTrack {
-  playlist_index: number;
-}
-
-export interface LmsPlayerStatus {
-  power: boolean;
-  mode: 'play' | 'pause' | 'stop';
-  volume: number;
-  shuffle: number;
-  repeat: number;
-  time: number;
-  duration: number;
-  currentTrack?: LmsTrack;
-  playlist: LmsPlaylistTrack[];
-  playlistLength: number;
-}
-
-interface LmsJsonRpcResponse {
-  id: number;
-  method: string;
-  params: [string, string[]];
-  result?: Record<string, unknown>;
-  error?: string;
-}
-
-class LmsClient {
-  private baseUrl: string = '';
-  private serverHost: string = '';
-  private serverPort: number = 9000;
-  private serverProtocol: 'http' | 'https' = 'http';
-  private requestId: number = 1;
-  private appsCache: { fetchedAt: number; apps: Array<{ name?: string; cmd?: string }> } | null = null;
-
-  /**
-   * Set LMS server connection
-   * Supports both formats:
-   * - setServer('192.168.1.100', 9000) - legacy format
-   * - setServer('https://lms.example.com:9000') - full URL format for remote access
-   */
-  setServer(hostOrUrl: string, port?: number): void {
-    // Check if it's a full URL (starts with http:// or https://)
-    if (hostOrUrl.startsWith('http://') || hostOrUrl.startsWith('https://')) {
-      try {
-        const url = new URL(hostOrUrl);
-        this.serverProtocol = url.protocol === 'https:' ? 'https' : 'http';
-        this.serverHost = url.hostname;
-        this.serverPort = url.port ? parseInt(url.port, 10) : (this.serverProtocol === 'https' ? 443 : 9000);
-        this.baseUrl = `${this.serverProtocol}://${url.hostname}${url.port ? `:${url.port}` : ''}`;
-        debugLog.info('LMS server set (remote URL)', `${this.baseUrl}`);
-      } catch (error) {
-        throw new Error(`Invalid LMS server URL: ${hostOrUrl}`);
-      }
-    } else {
-      // Legacy format: host and port
-      this.serverHost = hostOrUrl;
-      this.serverPort = port || 9000;
-      this.serverProtocol = 'http';
-      this.baseUrl = `http://${hostOrUrl}:${this.serverPort}`;
-      debugLog.info('LMS server set (local)', `${this.baseUrl}`);
-    }
-  }
-
-  /**
-   * List LMS apps (LMS "apps" menu). Used to detect whether a given integration/plugin exists.
-   */
-  async getApps(forceRefresh: boolean = false): Promise<Array<{ name?: string; cmd?: string }>> {
-    const now = Date.now();
-    // Cache for 5 minutes (apps list doesn't change often)
-    if (!forceRefresh && this.appsCache && now - this.appsCache.fetchedAt < 5 * 60 * 1000) {
-      return this.appsCache.apps;
-    }
-
-    // apps is a server-level command (no player required)
-    const result = await this.request('', ['apps', '0', '200']);
-    const raw = (result.appss_loop || result.apps_loop || result.items_loop || result.item_loop || result.items || []) as Array<Record<string, unknown>>;
-    const apps = raw.map((a) => ({
-      name: a.name ? String(a.name) : a.title ? String(a.title) : a.text ? String(a.text) : undefined,
-      cmd: a.cmd ? String(a.cmd) : undefined,
-    }));
-
-    this.appsCache = { fetchedAt: now, apps };
-    return apps;
-  }
-
-  /**
-   * Returns true if LMS has an app/plugin whose cmd or name matches Tidal.
-   * NOTE: Without an LMS-side Tidal plugin, `tidal://...` URIs will not play.
-   */
-  async supportsTidalApp(forceRefresh: boolean = false): Promise<boolean> {
-    try {
-      const apps = await this.getApps(forceRefresh);
-      return apps.some((a) => {
-        const name = (a.name || '').toLowerCase();
-        const cmd = (a.cmd || '').toLowerCase();
-        return name.includes('tidal') || cmd === 'tidal' || cmd.startsWith('tidal');
-      });
-    } catch (e) {
-      // If apps listing fails, assume not supported to avoid accidentally triggering local fallback.
-      debugLog.info('supportsTidalApp', `Failed to query apps: ${e instanceof Error ? e.message : String(e)}`);
-      return false;
-    }
-  }
-
-  getBaseUrl(): string {
-    return this.baseUrl;
-  }
-
-  private async request(playerId: string, command: string[]): Promise<Record<string, unknown>> {
-    if (!this.baseUrl) {
-      throw new Error('LMS server not configured');
-    }
-
-    const requestBody = {
-      id: this.requestId++,
-      method: 'slim.request',
-      params: [playerId, command],
-    };
-
-    debugLog.request('LMS', `${command.join(' ')}`);
-
-    // On web platform, use server-side proxy to avoid CORS restrictions
-    if (Platform.OS === 'web') {
-      try {
-        // Ensure we have server host/port - extract from baseUrl if needed
-        let host = this.serverHost;
-        let port = this.serverPort;
-        
-        if (!host && this.baseUrl) {
-          // Extract host and port from baseUrl
-          try {
-            const url = new URL(this.baseUrl);
-            host = url.hostname;
-            port = url.port ? parseInt(url.port, 10) : 9000;
-          } catch {
-            // Fallback to regex parsing for older format
-            const urlMatch = this.baseUrl.match(/^(https?):\/\/([^:]+)(?::(\d+))?/);
-            if (urlMatch) {
-              host = urlMatch[2];
-              port = urlMatch[3] ? parseInt(urlMatch[3], 10) : 9000;
-            }
-          }
-        }
-        
-        if (!host) {
-          throw new Error('LMS server not configured - no host available');
-        }
-        
-        // Use server proxy endpoint
-        const apiUrl = getApiUrl();
-        const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
-        const proxyUrl = `${cleanApiUrl}/api/lms/proxy`;
-        
-        console.log('[LMS Client] Web proxy request:', { host, port, command: command.join(' '), playerId });
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout for plugin commands
-
-        const response = await fetch(proxyUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            host: host,
-            port: port,
-            playerId: playerId || '',
-            command: command,
-            id: requestBody.id,
-          }),
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          let errorData;
-          try {
-            errorData = JSON.parse(errorText);
-          } catch {
-            errorData = { error: errorText };
-          }
-          console.error('[LMS Client] Proxy error response:', response.status, errorData);
-          throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data: LmsJsonRpcResponse = await response.json();
-
-        if (data.error) {
-          console.error('[LMS Client] LMS error in response:', data.error);
-          throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
-        }
-
-        debugLog.response('LMS', 'OK (via proxy)');
-        return data.result || {};
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (error instanceof Error && error.name === 'AbortError') {
-          debugLog.error('LMS proxy request timeout', 'Request took longer than 30 seconds');
-          throw new Error('Request timeout - LMS server may be slow or unreachable');
-        }
-        console.error('[LMS Client] Proxy request failed:', errorMessage);
-        debugLog.error('LMS proxy request failed', errorMessage);
-        throw error;
-      }
-    }
-
-    // On native platforms, use direct connection (supports both HTTP and HTTPS)
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      // baseUrl now supports both http:// and https:// for remote access
-      const jsonRpcUrl = `${this.baseUrl}/jsonrpc.js`;
-      const response = await fetch(jsonRpcUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data: LmsJsonRpcResponse = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      debugLog.response('LMS', 'OK');
-      return data.result || {};
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (error instanceof Error && error.name === 'AbortError') {
-        // Timeout errors are expected when server is unreachable - log as info
-        debugLog.info('LMS request timeout', 'Request took longer than 10 seconds');
-        throw new Error('Request timeout - server may be unreachable');
-      }
-      // For network errors when no server is configured, log as info instead of error
-      // This prevents red error screens when the app starts without a server
-      if (errorMessage.includes('Network request failed') || 
-          errorMessage.includes('Failed to fetch') ||
-          errorMessage.includes('LMS server not configured')) {
-        // Only log network errors occasionally to avoid spam
-        if (Math.random() < 0.1) { // Log ~10% of network errors
-          debugLog.info('LMS request failed (expected when no server configured)', errorMessage);
-        }
-      } else {
-        debugLog.error('LMS request failed', errorMessage);
-      }
-      throw error;
-    }
-  }
-
-  async getServerStatus(): Promise<{ name: string; version: string; playerCount: number }> {
-    const result = await this.request('', ['serverstatus', '0', '999']);
-    return {
-      name: String(result.player_count !== undefined ? 'Logitech Media Server' : 'LMS'),
-      version: String(result.version || 'unknown'),
-      playerCount: Number(result.player_count || 0),
-    };
-  }
-
-  async getPlayers(): Promise<LmsPlayer[]> {
-    const result = await this.request('', ['players', '0', '100']);
-    const playersLoop = (result.players_loop || []) as Array<Record<string, unknown>>;
-    
-    return playersLoop.map((p) => ({
-      id: String(p.playerid || ''),
-      name: String(p.name || 'Unknown Player'),
-      model: String(p.model || 'Unknown'),
-      isPlaying: p.isplaying === 1,
-      power: p.power === 1,
-      volume: Number(p['mixer volume'] || 0),
-      connected: p.connected === 1,
-      ip: String(p.ip || ''),
-    }));
-  }
-
-  async getPlayerStatus(playerId: string): Promise<LmsPlayerStatus> {
-    // Use '0' to fetch from start so playlist_cur_index aligns with array indices
-    // Include 'S' tag for samplesize (bit depth) information
-    const result = await this.request(playerId, ['status', '0', '100', 'tags:acdlKNuTS']);
-    
-    const playlistLoop = (result.playlist_loop || []) as Array<Record<string, unknown>>;
-    const playlist = playlistLoop.map((t, index) => this.parseTrack(t, index));
-
-    // Get current track using playlist_cur_index
-    const curIndex = Number(result.playlist_cur_index || 0);
-    const currentTrack = playlist.length > 0 ? playlist[curIndex] : undefined;
-
-    return {
-      power: result.power === 1,
-      mode: String(result.mode || 'stop') as 'play' | 'pause' | 'stop',
-      volume: Number(result['mixer volume'] || 0),
-      shuffle: Number(result.playlist_shuffle || 0),
-      repeat: Number(result.playlist_repeat || 0),
-      time: Number(result.time || 0),
-      duration: Number(result.duration || 0),
-      currentTrack,
-      playlist,
-      playlistLength: Number(result.playlist_tracks || 0),
-    };
-  }
-
-  private parseTrack(data: Record<string, unknown>, playlistIndex?: number): LmsPlaylistTrack {
-    // Check multiple duration fields (Qobuz uses 'duration', LMS uses 'duration' in seconds)
-    const durationSec = Number(data.duration || data.secs || data.time || 0);
-    
-    let format: string | undefined;
-    let bitrate: string | undefined;
-    let sampleRate: string | undefined;
-    let bitDepth: string | undefined;
-
-    const contentType = String(data.type || data.content_type || '');
-    if (contentType.includes('flac') || contentType.includes('flc')) format = 'FLAC';
-    else if (contentType.includes('wav')) format = 'WAV';
-    else if (contentType.includes('mp3')) format = 'MP3';
-    else if (contentType.includes('aac') || contentType.includes('m4a')) format = 'AAC';
-    else if (contentType.includes('aiff')) format = 'AIFF';
-    else if (contentType.includes('dsf') || contentType.includes('dsd')) format = 'DSD';
-    else if (contentType.includes('ogg')) format = 'OGG';
-    else if (contentType.includes('alac')) format = 'ALAC';
-
-    if (data.bitrate) {
-      const br = Number(data.bitrate);
-      bitrate = br >= 1000 ? `${(br / 1000).toFixed(0)} kbps` : `${br} bps`;
-    }
-
-    if (data.samplerate) {
-      const sr = Number(data.samplerate);
-      sampleRate = sr >= 1000 ? `${(sr / 1000).toFixed(1)} kHz` : `${sr} Hz`;
-    }
-
-    // Check multiple possible field names for bit depth
-    if (data.samplesize) {
-      bitDepth = `${data.samplesize}-bit`;
-    } else if (data.bits_per_sample) {
-      bitDepth = `${data.bits_per_sample}-bit`;
-    } else if (data.bitdepth) {
-      bitDepth = `${data.bitdepth}-bit`;
-    } else if (data.bits) {
-      bitDepth = `${data.bits}-bit`;
-    }
-
-    let artworkUrl: string | undefined;
-    // Try multiple field names for artwork URL (LMS uses various field names depending on source)
-    // Qobuz/Material Skin uses "image" or "icon" fields
-    // Priority order: image > icon > artwork_url > other direct URL fields, then ID-based fields
-    if (data.image) {
-      artworkUrl = String(data.image);
-    } else if (data.icon) {
-      artworkUrl = this.normalizeArtworkUrl(String(data.icon));
-    } else if (data.artwork_url) {
-      artworkUrl = this.normalizeArtworkUrl(String(data.artwork_url));
-    } else if (data.cover) {
-      const rawUrl = String(data.cover);
-      artworkUrl = rawUrl.startsWith('http') ? rawUrl : `${this.baseUrl}${rawUrl}`;
-    } else if (data.coverart) {
-      const rawUrl = String(data.coverart);
-      artworkUrl = rawUrl.startsWith('http') ? rawUrl : `${this.baseUrl}${rawUrl}`;
-    } else if (data.artwork_track_id) {
-      artworkUrl = `${this.baseUrl}/music/${data.artwork_track_id}/cover.jpg`;
-    } else if (data.coverid) {
-      artworkUrl = `${this.baseUrl}/music/${data.coverid}/cover.jpg`;
-    } else if (data['icon-id']) {
-      artworkUrl = `${this.baseUrl}/music/${data['icon-id']}/cover.jpg`;
-    }
-    
-    // Log if no artwork found for debugging (only log first 3 per session to avoid spam)
-    if (!artworkUrl && playlistIndex !== undefined && playlistIndex < 3) {
-      debugLog.info('parseTrack', `No artwork found for track. Available fields: ${Object.keys(data).join(', ')}`);
-    }
-
-    // For Qobuz menu items, extract track info from text field (format: "Title - Artist" or just "Title")
-    let trackTitle = String(data.title || 'Unknown');
-    let trackArtist = String(data.artist || data.trackartist || 'Unknown Artist');
-    
-    // Qobuz items often have 'text' field instead of 'title'
-    if (!data.title && data.text) {
-      const text = String(data.text);
-      // Check if text contains " - " separator (common format for "Title - Artist")
-      if (text.includes(' - ')) {
-        const parts = text.split(' - ');
-        trackTitle = parts[0].trim();
-        // If no artist field, use the second part as artist
-        if (!data.artist && !data.trackartist) {
-          trackArtist = parts.slice(1).join(' - ').trim();
-        }
-      } else {
-        trackTitle = text;
-      }
-    }
-    
-    // Also check 'name' field as fallback
-    if (trackTitle === 'Unknown' && data.name) {
-      trackTitle = String(data.name);
-    }
-
-    return {
-      id: String(data.id || data.track_id || data.item_id || `${playlistIndex}`),
-      title: trackTitle,
-      artist: trackArtist,
-      album: String(data.album || 'Unknown Album'),
-      albumId: data.album_id ? String(data.album_id) : undefined,
-      artistId: data.artist_id ? String(data.artist_id) : undefined,
-      duration: durationSec,
-      trackNumber: data.tracknum ? Number(data.tracknum) : undefined,
-      artwork_url: artworkUrl,
-      url: data.url ? String(data.url) : undefined,
-      format,
-      bitrate,
-      sampleRate,
-      bitDepth,
-      playlist_index: playlistIndex ?? 0,
-    };
-  }
-
-  async getAlbumsPage(start: number = 0, limit: number = 50, artistId?: string): Promise<{ albums: LmsAlbum[], total: number }> {
-    // Ensure limit is at least 1 to avoid requesting 0 albums
-    const actualLimit = Math.max(1, limit);
-
-    debugLog.info('getAlbumsPage', `Requesting albums: start=${start}, limit=${actualLimit}, artistId=${artistId || 'none'}`);
-
-    try {
-      // Use standard albums command with library_id:0 to get only local library content
-      // This matches how getLibraryTotals counts albums
-      const command = [
-        'albums',
-        String(start),
-        String(actualLimit),
-        'library_id:0',
-        'tags:aajlyST'
-      ];
-
-      if (artistId) {
-        command.push(`artist_id:${artistId}`);
-      }
-
-      debugLog.info('getAlbumsPage', `Using command: ${command.join(' ')}`);
-      const result = await this.request('', command);
-
-      const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
-      const total = Number(result.count) || 0;
-
-      debugLog.info('getAlbumsPage', `Returned ${albumsLoop.length} albums, total=${total}`);
-
-      const albums = albumsLoop.map((a) => ({
-        id: String(a.id || ''),
-        title: String(a.album || a.title || ''),
-        // Some LMS setups return album artist under `albumartist` (or variants) instead of `artist`.
-        artist: String(a.artist || a.albumartist || a.album_artist || a.albumArtist || ''),
-        artistId: a.artist_id ? String(a.artist_id) : undefined,
-        artwork_url: a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` :
-          (a.artwork_url ? (String(a.artwork_url).startsWith('http') ? String(a.artwork_url) : `${this.baseUrl}${a.artwork_url}`) : undefined),
-        year: a.year ? Number(a.year) : undefined,
-        trackCount: a.track_count ? Number(a.track_count) : undefined,
-        url: a.url ? String(a.url) : undefined,
-      }));
-
-      return { albums, total };
-
-    } catch (error) {
-      debugLog.error('getAlbumsPage failed', error instanceof Error ? error.message : String(error));
-      return { albums: [], total: 0 };
-    }
-  }
-
-  /**
-   * Recently added albums (local library).
-   * NOTE: LMS supports sort parameters on the `albums` command; `sort:new` is commonly supported.
-   * If the server doesn't support the sort, we fall back to the normal albums paging.
-   */
-  async getRecentlyAddedAlbumsPage(start: number = 0, limit: number = 30): Promise<{ albums: LmsAlbum[], total: number }> {
-    const actualLimit = Math.max(1, limit);
-    debugLog.info('getRecentlyAddedAlbumsPage', `Requesting recently added albums: start=${start}, limit=${actualLimit}`);
-
-    try {
-      const command = [
-        'albums',
-        String(start),
-        String(actualLimit),
-        'library_id:0',
-        'tags:aajlyST',
-        'sort:new',
-      ];
-
-      debugLog.info('getRecentlyAddedAlbumsPage', `Using command: ${command.join(' ')}`);
-      const result = await this.request('', command);
-
-      const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
-      const total = Number(result.count) || 0;
-
-      const toIsoAddedAt = (raw: unknown): string | undefined => {
-        if (raw == null) return undefined;
-        if (typeof raw === "number" && Number.isFinite(raw)) {
-          // Heuristic: seconds vs ms.
-          const ms = raw > 1e12 ? raw : raw * 1000;
-          const d = new Date(ms);
-          return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
-        }
-        if (typeof raw === "string") {
-          const s = raw.trim();
-          if (!s) return undefined;
-          if (/^\d+$/.test(s)) {
-            const n = Number(s);
-            if (!Number.isFinite(n)) return undefined;
-            const ms = n > 1e12 ? n : n * 1000;
-            const d = new Date(ms);
-            return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
-          }
-          const d = new Date(s);
-          return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
-        }
-        return undefined;
-      };
-
-      const albums = albumsLoop.map((a) => ({
-        id: String(a.id || ''),
-        title: String(a.album || a.title || ''),
-        artist: String(a.artist || a.albumartist || a.album_artist || a.albumArtist || ''),
-        artistId: a.artist_id ? String(a.artist_id) : undefined,
-        artwork_url: a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` :
-          (a.artwork_url ? (String(a.artwork_url).startsWith('http') ? String(a.artwork_url) : `${this.baseUrl}${a.artwork_url}`) : undefined),
-        year: a.year ? Number(a.year) : undefined,
-        trackCount: a.track_count ? Number(a.track_count) : undefined,
-        url: a.url ? String(a.url) : undefined,
-        // Best-effort: some LMS builds include an added-time field when sorting by "new".
-        addedAt: toIsoAddedAt((a as any).added_time ?? (a as any).addedAt ?? (a as any).added_at ?? (a as any).timestamp ?? (a as any).added),
-      }));
-
-      // If LMS doesn't understand sort:new it may return empty; fall back.
-      if (albums.length === 0) {
-        debugLog.info('getRecentlyAddedAlbumsPage', 'No albums returned; falling back to getAlbumsPage');
-        return this.getAlbumsPage(start, actualLimit);
-      }
-
-      return { albums, total };
-    } catch (error) {
-      debugLog.info('getRecentlyAddedAlbumsPage', `Failed (${error instanceof Error ? error.message : String(error)}); falling back to getAlbumsPage`);
-      return this.getAlbumsPage(start, actualLimit);
-    }
-  }
-
-  async getAlbums(artistId?: string): Promise<LmsAlbum[]> {
-    const command = artistId
-      ? ['albums', '0', '100', `artist_id:${artistId}`, 'library_id:0', 'tags:aajlyST']
-      : ['albums', '0', '100', 'library_id:0', 'tags:aajlyST'];
-
-    const result = await this.request('', command);
-    const albumsLoop = (result.albums_loop || []) as Array<Record<string, unknown>>;
-
-    // Filter out plugin content (Tidal, Qobuz, Spotify, SoundCloud)
-    return albumsLoop
-      .filter((a) => {
-        const url = String(a.url || '').toLowerCase();
-        const id = String(a.id || '').toLowerCase();
-        const artworkUrl = String(a.artwork_url || '').toLowerCase();
-
-        const isPluginContent = url.includes('tidal') || id.includes('tidal') || artworkUrl.includes('tidal') ||
-                               url.includes('qobuz') || id.includes('qobuz') || artworkUrl.includes('qobuz') ||
-                               url.includes('spotify') || id.includes('spotify') || artworkUrl.includes('spotify') ||
-                               url.includes('soundcloud') || id.includes('soundcloud') || artworkUrl.includes('soundcloud');
-
-        return !isPluginContent;
-      })
-      .map((a) => ({
-        id: String(a.id || ''),
-        title: String(a.album || 'Unknown Album'),
-        artist: String(a.artist || a.albumartist || 'Unknown Artist'),
-        artistId: a.artist_id ? String(a.artist_id) : undefined,
-        artwork_url: a.artwork_url ? String(a.artwork_url) :
-          (a.artwork_track_id ? `${this.baseUrl}/music/${a.artwork_track_id}/cover.jpg` : undefined),
-        year: a.year ? Number(a.year) : undefined,
-        trackCount: a.track_count ? Number(a.track_count) : undefined,
-      }));
-  }
-
-  /**
-   * Helper to get a player ID for Qobuz commands
-   * Returns the first available player ID, or empty string if none available
-   */
-  private async getPlayerIdForQobuz(playerId?: string): Promise<string> {
-    if (playerId) {
-      return playerId;
-    }
-    try {
-      const players = await this.getPlayers();
-      if (players.length > 0) {
-        return players[0].id;
-      }
-    } catch (e) {
-      debugLog.info("Could not get players for Qobuz command", e instanceof Error ? e.message : String(e));
-    }
-    return "";
-  }
-
-  private async getPlayerIdForSoundCloud(playerId?: string): Promise<string> {
-    if (playerId) {
-      return playerId;
-    }
-    try {
-      const players = await this.getPlayers();
-      if (players.length > 0) {
-        return players[0].id;
-      }
-    } catch (e) {
-      debugLog.info("Could not get players for SoundCloud command", e instanceof Error ? e.message : String(e));
-    }
-    return "";
-  }
-
-  /**
-   * Helper to discover Qobuz menu items by browsing the root menu
-   * Returns the position/index of the menu item in the browse result
-   */
-  private async discoverQobuzMenu(menuName: string, playerId: string): Promise<number | null> {
-    try {
-      // Get the Qobuz root menu items using "items" command
-      // Material Skin format: qobuz items 0 <limit> menu:qobuz
-      const result = await this.request(playerId, ["qobuz", "items", "0", "30", "menu:qobuz"]);
-      const items = (result.loop_loop || result.items_loop || result.item_loop || result.items || []) as Array<Record<string, unknown>>;
-      
-      // Look for a menu item matching the name (case-insensitive)
-      const menuNameLower = menuName.toLowerCase();
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const itemName = String(item.name || item.text || item.title || "").toLowerCase();
-        const itemType = String(item.type || "");
-        
-        // Check if it's a menu item and matches the name
-        if ((itemType === "menu" || itemType === "link" || !itemType) && 
-            (itemName.includes(menuNameLower) || menuNameLower.includes(itemName))) {
-          debugLog.info("Discovered Qobuz menu", `${menuName} -> position ${i}`);
-          return i;
-        }
-      }
-    } catch (e) {
-      debugLog.info("Failed to discover Qobuz menu", `${menuName}: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    return null;
-  }
-
-  async getQobuzBestsellerAlbums(limit: number = 50, playerId?: string): Promise<LmsAlbum[]> {
-    // Get player ID for Qobuz commands (required by plugin)
-    const qobuzPlayerId = await this.getPlayerIdForQobuz(playerId);
-    if (!qobuzPlayerId) {
-      debugLog.info("Qobuz bestsellers", "No player available for Qobuz commands");
-      return [];
-    }
-    // Use similar parsing logic to searchQobuz for consistency
-    const parseAlbums = (items: Array<Record<string, unknown>>): LmsAlbum[] => {
-      const albums: LmsAlbum[] = [];
-      const seenIds = new Set<string>();
-      
-      for (const item of items) {
-        const type = String(item.type || '').toLowerCase();
-        const text = String(item.text || item.name || '');
-        const name = text.toLowerCase();
-        
-        // Skip menu items and navigation items
-        if ((type === 'menu' || type === 'link') && !type.includes('playlist')) {
-          continue;
-        }
-        if (name.includes('menu') || name.includes('browse') || name.includes('bestseller')) {
-          continue;
-        }
-        
-        // Material Skin format: items with type "playlist" may actually be albums
-        // Text format: "Album Title\nArtist Name (Year)" or "Album Title\nArtist Name"
-        let title = '';
-        let artist = 'Unknown Artist';
-        let year: number | undefined;
-        
-        if (item.album || item.title || item.name) {
-          // Standard format
-          title = String(item.album || item.title || item.name || '');
-          artist = String(item.artist || item.albumartist || 'Unknown Artist');
-          year = item.year ? Number(item.year) : undefined;
-        } else if (text) {
-          // Material Skin format: parse "Album Title\nArtist Name (Year)" or "Album Title\nArtist Name"
-          const lines = text.split('\n');
-          if (lines.length >= 2) {
-            title = lines[0].trim();
-            const artistLine = lines[1].trim();
-            // Extract year from artist line if present: "Artist Name (Year)"
-            const yearMatch = artistLine.match(/\((\d{4})\)/);
-            if (yearMatch) {
-              year = Number(yearMatch[1]);
-              artist = artistLine.replace(/\s*\(\d{4}\)\s*$/, '').trim();
-            } else {
-              artist = artistLine;
-            }
-          } else {
-            title = text.trim();
-          }
-        }
-        
-        // Check if it's an album - Material Skin may return playlists that are actually albums
-        if (title && !title.toLowerCase().includes('bestseller') && !title.toLowerCase().includes('menu')) {
-          // Get album ID from various possible locations
-          const params = item.params as Record<string, unknown> | undefined;
-          const albumId = String(
-            item.album_id || 
-            (params?.item_id ? String(params.item_id) : undefined) ||
-            item.id || 
-            `qobuz_album_${title}_${artist}`
-          );
-          
-          if (seenIds.has(albumId)) {
-            continue;
-          }
-          seenIds.add(albumId);
-          
-          // Get artwork URL - Material Skin uses "icon" field
-          const artworkUrl = item.image ? String(item.image) : 
-            (item.icon ? this.normalizeArtworkUrl(String(item.icon)) : undefined) ||
-            (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
-          
-          albums.push({
-            id: albumId,
-            title: title,
-            artist: artist,
-            artistId: item.artist_id ? String(item.artist_id) : undefined,
-            artwork_url: artworkUrl,
-            year: year,
-            trackCount: item.track_count ? Number(item.track_count) : undefined,
-          });
-        }
-      }
-      
-      return albums;
-    };
-
-    const commands: string[][] = [];
-    
-    // Strategy 1: Get root menu items using "items" command (primary method)
-    // Material Skin format: qobuz items 0 <limit> menu:qobuz
-    try {
-      const rootResult = await this.request(qobuzPlayerId, ["qobuz", "items", "0", "30", "menu:qobuz"]);
-      // LMS items returns loop_loop for menu items
-      const rootItems = (rootResult.loop_loop || rootResult.items_loop || rootResult.item_loop || rootResult.items || []) as Array<Record<string, unknown>>;
-      
-      debugLog.info("Qobuz root menu items", `Found ${rootItems.length} items`);
-      // Log all menu items for debugging
-      rootItems.forEach((item, idx) => {
-        const name = String(item.name || item.text || item.title || "");
-        const type = String(item.type || item.item_type || "");
-        debugLog.info(`Qobuz menu item ${idx}`, `${name} (type: ${type})`);
-      });
-      
-      // First, try to find "Bestsellers" directly in root menu
-      let bestsellersFound = false;
-      for (let i = 0; i < rootItems.length; i++) {
-        const item = rootItems[i];
-        const name = String(item.name || item.text || item.title || "").toLowerCase();
-        if (name.includes("bestseller") || name.includes("bestselling") || name.includes("best-seller") || name.includes("best seller")) {
-          // Found bestsellers menu - get items from it using "items" command
-          // Material Skin format: qobuz items 0 <limit> item_id:<id> menu:qobuz
-          debugLog.info("Found bestsellers menu in root", `At position ${i}: ${String(item.name || item.text || item.title)}`);
-          const bestsellersItemId = String(item.id || i);
-          commands.push(
-            ["qobuz", "items", "0", String(limit), `item_id:${bestsellersItemId}`, "menu:qobuz"],
-          );
-          bestsellersFound = true;
-          break;
-        }
-      }
-      
-      // If not found in root, get items from each root menu item to find "Bestsellers" submenu
-      if (!bestsellersFound) {
-        debugLog.info("Bestsellers not in root menu", "Searching submenus");
-        for (let rootIdx = 0; rootIdx < Math.min(10, rootItems.length); rootIdx++) {
-          try {
-            const rootItem = rootItems[rootIdx];
-            const rootItemId = String(rootItem.id || rootIdx);
-            // Material Skin format: qobuz items 0 <limit> item_id:<id> menu:qobuz
-            const subResult = await this.request(qobuzPlayerId, ["qobuz", "items", "0", "100", `item_id:${rootItemId}`, "menu:qobuz"]);
-            const subItems = (subResult.loop_loop || subResult.items_loop || subResult.item_loop || subResult.items || []) as Array<Record<string, unknown>>;
-            
-            // Look for "Bestsellers" in this submenu
-            for (let subIdx = 0; subIdx < subItems.length; subIdx++) {
-              const subItem = subItems[subIdx];
-              const subName = String(subItem.name || subItem.text || subItem.title || "").toLowerCase();
-              if (subName.includes("bestseller") || subName.includes("bestselling") || subName.includes("best-seller") || subName.includes("best seller")) {
-                // Found bestsellers in submenu - get items from it using "items" command
-                // Material Skin format: qobuz items 0 <limit> item_id:<id> menu:qobuz
-                debugLog.info("Found bestsellers in submenu", `Root ${rootIdx}, Sub ${subIdx}: ${String(subItem.name || subItem.text || subItem.title)}`);
-                const bestsellersSubId = String(subItem.id || subIdx);
-                commands.push(
-                  ["qobuz", "items", "0", String(limit), `item_id:${bestsellersSubId}`, "menu:qobuz"],
-                );
-                bestsellersFound = true;
-                break;
-              }
-            }
-            if (bestsellersFound) break;
-          } catch (e) {
-            debugLog.info(`Failed to browse root menu item ${rootIdx}`, e instanceof Error ? e.message : String(e));
-          }
-        }
-      }
-    } catch (e) {
-      debugLog.info("Could not browse Qobuz root menu", e instanceof Error ? e.message : String(e));
-    }
-    
-    // Strategy 2: Try getting items from known menu positions (bestsellers is typically around position 3-5)
-    // Material Skin format: qobuz items 0 <limit> item_id:<id> menu:qobuz
-    for (let pos = 2; pos <= 6; pos++) {
-      commands.push(
-        ["qobuz", "items", "0", String(limit), `item_id:${pos}`, "menu:qobuz"],
-      );
-    }
-    
-    // Strategy 3: Try direct items command (may not work, but worth trying)
-    commands.push(
-      ["qobuz", "items", "0", String(limit), "type:best-sellers", "want_url:1"],
-    );
-
-    for (const cmd of commands) {
-      try {
-        debugLog.info("Trying Qobuz bestsellers command", `${qobuzPlayerId} ${cmd.join(" ")}`);
-        const result = await this.request(qobuzPlayerId, cmd);
-        
-        // Log the raw result structure for debugging
-        debugLog.info("Qobuz bestsellers raw result", `Command: ${cmd.join(" ")}, Keys: ${Object.keys(result).join(", ")}`);
-        
-        // Plugin returns { items => [...] } structure from QobuzFeaturedAlbums
-        // But LMS might wrap it in result.item_loop or result.items
-        // Check both structures
-        const resultData = result.result as Record<string, unknown> | undefined;
-        const items = (result.items ||
-          result.item_loop ||
-          result.items_loop ||
-          result.loop_loop ||
-          resultData?.items ||
-          resultData?.item_loop ||
-          resultData?.items_loop ||
-          resultData?.loop_loop ||
-          []) as Array<Record<string, unknown>>;
-        
-        // If we got items, log the structure for debugging
-        if (items.length > 0) {
-          debugLog.info("Qobuz bestsellers items structure", `First item keys: ${Object.keys(items[0] || {}).join(", ")}`);
-        }
-        
-        debugLog.info("Qobuz bestsellers response", `Command: ${cmd.join(" ")}, Items returned: ${items.length}`);
-        
-        if (items && items.length > 0) {
-          // Log first few items for debugging
-          items.slice(0, 3).forEach((item, idx) => {
-            const name = String(item.name || item.text || item.title || item.album || "");
-            const type = String(item.type || item.item_type || "");
-            debugLog.info(`Qobuz bestseller item ${idx}`, `${name} (type: ${type})`);
-          });
-          
-          // Check if we got menu items instead of albums - if so, browse deeper
-          const firstItem = items[0];
-          const firstItemType = String(firstItem?.type || firstItem?.item_type || '').toLowerCase();
-          const isMenuItems = firstItemType === 'menu' || firstItemType === 'link' || 
-                              !firstItem?.album_id && !firstItem?.album && 
-                              (firstItem?.name || firstItem?.text || firstItem?.title);
-          
-          if (isMenuItems && items.length > 0) {
-            // We got menu items - first try to find "Bestsellers" specifically
-            debugLog.info("Qobuz bestsellers got menu items", `Searching ${items.length} menu items for Bestsellers`);
-            let bestsellersIndex = -1;
-            
-            for (let i = 0; i < items.length; i++) {
-              const menuItem = items[i];
-              const menuName = String(menuItem.name || menuItem.text || menuItem.title || '').toLowerCase();
-              if (menuName.includes('bestseller') || menuName.includes('bestselling') || menuName.includes('best-seller') || menuName.includes('best seller')) {
-                bestsellersIndex = i;
-                debugLog.info("Found Bestsellers submenu", `At index ${i}: ${String(menuItem.name || menuItem.text || menuItem.title)}`);
-                break;
-              }
-            }
-            
-            // If we found "Bestsellers", browse it specifically
-            if (bestsellersIndex >= 0) {
-              try {
-                const bestsellersMenuItem = items[bestsellersIndex];
-                const bestsellersId = String(bestsellersMenuItem.id || bestsellersMenuItem.item_id || bestsellersIndex);
-                
-                debugLog.info("Attempting to browse into Bestsellers", `Index: ${bestsellersIndex}, ID: ${bestsellersId}, Command: ${cmd.join(" ")}`);
-                
-                // Check command type - cmd[0] is 'qobuz', cmd[1] is the actual command
-                const commandType = cmd[1] || cmd[0];
-                
-                // Try different browse strategies depending on the command type
-                // Use "items" command to get albums from the Bestsellers submenu
-                if (commandType === 'items') {
-                  // Use "items" command to get albums from the Bestsellers submenu
-                  // Material Skin format: qobuz items 0 <limit> item_id:<id> menu:qobuz
-                  const itemsCmd = ["qobuz", "items", "0", String(limit), `item_id:${bestsellersId}`, "menu:qobuz"];
-                  debugLog.info("Getting Qobuz Bestsellers items (Material Skin format)", `${itemsCmd.join(" ")}`);
-                  
-                  try {
-                    const itemsResult = await this.request(qobuzPlayerId, itemsCmd);
-                    const itemsResultData = itemsResult.result as Record<string, unknown> | undefined;
-                    // Check result.result first, then top-level properties
-                    const itemsSubItems = (itemsResultData?.loop_loop ||
-                      itemsResultData?.items_loop ||
-                      itemsResultData?.item_loop ||
-                      itemsResultData?.items ||
-                      itemsResult.loop_loop ||
-                      itemsResult.items_loop ||
-                      itemsResult.item_loop ||
-                      itemsResult.items ||
-                      []) as Array<Record<string, unknown>>;
-                    
-                    debugLog.info("Qobuz Bestsellers items result", `Items returned: ${itemsSubItems.length}, Count: ${itemsResultData?.count || itemsResult.count || 'N/A'}`);
-                    
-                    if (itemsSubItems.length > 0) {
-                      const itemsAlbums = parseAlbums(itemsSubItems);
-                      debugLog.info("Qobuz Bestsellers by items", `Found ${itemsAlbums.length} albums`);
-                      if (itemsAlbums.length > 0) {
-                        return itemsAlbums.slice(0, limit);
-                      }
-                    } else {
-                      // If we got a count but no items, the items might be in a different structure
-                      // Try to get items by iterating through pages or using different parameters
-                      debugLog.info("Qobuz Bestsellers items returned count but no items array", "Trying alternative approach");
-                    }
-                  } catch (e) {
-                    debugLog.info("Items command for Bestsellers failed", e instanceof Error ? e.message : String(e));
-                  }
-                }
-              } catch (e) {
-                debugLog.info("Failed to browse Bestsellers submenu", e instanceof Error ? e.message : String(e));
-              }
-            }
-            
-            // If "Bestsellers" not found or browsing failed, try browsing first few menu items
-            debugLog.info("Browsing first few menu items as fallback", `Browsing ${Math.min(3, items.length)} menu items`);
-            const allAlbums: LmsAlbum[] = [];
-            
-            for (let menuIdx = 0; menuIdx < Math.min(3, items.length); menuIdx++) {
-              try {
-                const menuItem = items[menuIdx];
-                const menuName = String(menuItem.name || menuItem.text || menuItem.title || '');
-                // Skip if it looks like a navigation item or if we already tried this one
-                if (menuName.toLowerCase().includes('back') || menuName.toLowerCase().includes('up') || menuIdx === bestsellersIndex) {
-                  continue;
-                }
-                
-                // Get items from this menu item using "items" command
-                // Material Skin format: qobuz items 0 <limit> item_id:<id> menu:qobuz
-                if (cmd[0] === 'items' && cmd.length >= 2) {
-                  const menuItemId = String(items[menuIdx].id || menuIdx);
-                  const itemsCmd = ["qobuz", "items", "0", String(limit), `item_id:${menuItemId}`, "menu:qobuz"];
-                  debugLog.info("Getting Qobuz submenu items (fallback)", `${menuName} -> ${itemsCmd.join(" ")}`);
-                  const subResult = await this.request(qobuzPlayerId, itemsCmd);
-                  
-                  const subResultData = subResult.result as Record<string, unknown> | undefined;
-                  const subItems = (subResultData?.loop_loop ||
-                    subResultData?.items_loop ||
-                    subResultData?.item_loop ||
-                    subResultData?.items ||
-                    subResult.loop_loop ||
-                    subResult.items_loop ||
-                    subResult.item_loop ||
-                    subResult.items ||
-                    []) as Array<Record<string, unknown>>;
-                  
-                  if (subItems.length > 0) {
-                    const subAlbums = parseAlbums(subItems);
-                    debugLog.info(`Qobuz submenu ${menuName}`, `Found ${subAlbums.length} albums`);
-                    allAlbums.push(...subAlbums);
-                    
-                    // If we found albums, we can stop getting items from more menus
-                    if (subAlbums.length > 0 && allAlbums.length >= limit) {
-                      break;
-                    }
-                  }
-                }
-              } catch (e) {
-                debugLog.info(`Failed to browse Qobuz submenu ${menuIdx}`, e instanceof Error ? e.message : String(e));
-              }
-            }
-            
-            if (allAlbums.length > 0) {
-              debugLog.info("Qobuz bestsellers loaded from submenus", `Found ${allAlbums.length} albums`);
-              return allAlbums.slice(0, limit);
-            }
-          }
-          
-          // Only parse albums if we didn't already try to browse into Bestsellers
-          // (if we got menu items and found Bestsellers, we should have already returned)
-          const albums = parseAlbums(items);
-          debugLog.info("Qobuz bestsellers parsed", `Raw items: ${items.length}, Albums after parse: ${albums.length}`);
-          
-          if (albums.length > 0) {
-            // Check if these are actually albums or just menu items incorrectly parsed
-            const firstAlbum = albums[0];
-            const hasRealAlbumData = firstAlbum.artist !== 'Unknown Artist' || firstAlbum.artwork_url;
-            
-            if (hasRealAlbumData) {
-              debugLog.info(
-                "Qobuz bestsellers loaded",
-                `Strategy: ${cmd.join(" ")} albums: ${albums.length}`,
-              );
-              return albums.slice(0, limit);
-            } else {
-              // These are menu items, not albums - we should have browsed into Bestsellers
-              debugLog.info("Qobuz bestsellers parsed menu items as albums", "These are menu items, not actual albums");
-            }
-          } else if (items.length > 0) {
-            // Items returned but filtered out - log why
-            debugLog.info("Qobuz bestsellers filtered out", `All ${items.length} items were filtered. First item: ${JSON.stringify(items[0])}`);
-          }
-        } else {
-          debugLog.info("Qobuz bestsellers empty response", `Command: ${cmd.join(" ")}, Result keys: ${Object.keys(result).join(", ")}`);
-        }
-      } catch (e) {
-        debugLog.info(
-          "Qobuz bestsellers strategy failed",
-          `${cmd.join(" ")} :: ${
-            e instanceof Error ? e.message : String(e)
-          }`,
-        );
-      }
-    }
-
-    debugLog.info("Qobuz bestsellers", "No items returned from any strategy");
-    return [];
-  }
-
-  /**
-   * Get Qobuz "Essentials" albums from LMS (requires the Qobuz plugin).
-   * Falls back to an empty list if the menu is not available on this server.
-   * "Essentials" in the UI is "Editor Picks" in the plugin
-   * @param limit Maximum number of albums to return
-   * @param playerId Optional player ID. If not provided, will use the first available player.
-   */
-  async getQobuzEssentialAlbums(limit: number = 50, playerId?: string): Promise<LmsAlbum[]> {
-    // Get player ID for Qobuz commands (required by plugin)
-    const qobuzPlayerId = await this.getPlayerIdForQobuz(playerId);
-    if (!qobuzPlayerId) {
-      debugLog.info("Qobuz essentials", "No player available for Qobuz commands");
-      return [];
-    }
-    // Use similar parsing logic to searchQobuz for consistency
-    const parseAlbums = (items: Array<Record<string, unknown>>): LmsAlbum[] => {
-      const albums: LmsAlbum[] = [];
-      const seenIds = new Set<string>();
-      
-      for (const item of items) {
-        const type = String(item.type || '').toLowerCase();
-        const text = String(item.text || item.name || '');
-        const name = text.toLowerCase();
-        
-        // Skip menu items and navigation items
-        if ((type === 'menu' || type === 'link') && !type.includes('playlist')) {
-          continue;
-        }
-        if (name.includes('menu') || name.includes('browse') || 
-            name.includes('editor') || name.includes('essential') || name.includes('pick')) {
-          continue;
-        }
-        
-        // Material Skin format: items with type "playlist" may actually be albums
-        // Text format: "Album Title\nArtist Name (Year)" or "Album Title\nArtist Name"
-        let title = '';
-        let artist = 'Unknown Artist';
-        let year: number | undefined;
-        
-        if (item.album || item.title || item.name) {
-          // Standard format
-          title = String(item.album || item.title || item.name || '');
-          artist = String(item.artist || item.albumartist || 'Unknown Artist');
-          year = item.year ? Number(item.year) : undefined;
-        } else if (text) {
-          // Material Skin format: parse "Album Title\nArtist Name (Year)" or "Album Title\nArtist Name"
-          const lines = text.split('\n');
-          if (lines.length >= 2) {
-            title = lines[0].trim();
-            const artistLine = lines[1].trim();
-            // Extract year from artist line if present: "Artist Name (Year)"
-            const yearMatch = artistLine.match(/\((\d{4})\)/);
-            if (yearMatch) {
-              year = Number(yearMatch[1]);
-              artist = artistLine.replace(/\s*\(\d{4}\)\s*$/, '').trim();
-            } else {
-              artist = artistLine;
-            }
-          } else {
-            title = text.trim();
-          }
-        }
-        
-        // Check if it's an album - Material Skin may return playlists that are actually albums
-        if (title && !title.toLowerCase().includes('editor') && !title.toLowerCase().includes('essential') && !title.toLowerCase().includes('pick')) {
-          // Get album ID from various possible locations
-          const params = item.params as Record<string, unknown> | undefined;
-          const albumId = String(
-            item.album_id || 
-            (params?.item_id ? String(params.item_id) : undefined) ||
-            item.id || 
-            `qobuz_album_${title}_${artist}`
-          );
-          
-          if (seenIds.has(albumId)) {
-            continue;
-          }
-          seenIds.add(albumId);
-          
-          // Get artwork URL - Material Skin uses "icon" field
-          const artworkUrl = item.image ? String(item.image) : 
-            (item.icon ? this.normalizeArtworkUrl(String(item.icon)) : undefined) ||
-            (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
-          
-          albums.push({
-            id: albumId,
-            title: title,
-            artist: artist,
-            artistId: item.artist_id ? String(item.artist_id) : undefined,
-            artwork_url: artworkUrl,
-            year: year,
-            trackCount: item.track_count ? Number(item.track_count) : undefined,
-          });
-        }
-      }
-      
-      return albums;
-    };
-
-    const commands: string[][] = [];
-    
-    // Strategy 1: Get root menu items using "items" command (primary method)
-    // Material Skin format: qobuz items 0 <limit> menu:qobuz
-    try {
-      const rootResult = await this.request(qobuzPlayerId, ["qobuz", "items", "0", "30", "menu:qobuz"]);
-      // LMS items returns item_loop for menu items
-      const rootItems = (rootResult.item_loop || rootResult.items_loop || rootResult.loop_loop || rootResult.items || []) as Array<Record<string, unknown>>;
-      
-      debugLog.info("Qobuz root menu items (essentials)", `Found ${rootItems.length} items`);
-      // Log all menu items for debugging
-      rootItems.forEach((item, idx) => {
-        const name = String(item.name || item.text || item.title || "");
-        const type = String(item.type || item.item_type || "");
-        debugLog.info(`Qobuz menu item ${idx} (essentials)`, `${name} (type: ${type})`);
-      });
-      
-      // Find editor picks menu item by name
-      for (let i = 0; i < rootItems.length; i++) {
-        const item = rootItems[i];
-        const name = String(item.name || item.text || item.title || "").toLowerCase();
-        // Editor Picks is the actual menu name in the plugin
-        if (name.includes("editor") && name.includes("pick")) {
-          // Found essentials menu - get items from it using "items" command
-          // Material Skin format: qobuz items 0 <limit> item_id:<id> menu:qobuz
-          debugLog.info("Found essentials menu", `At position ${i}: ${String(item.name || item.text || item.title)}`);
-          const essentialsItemId = String(item.id || i);
-          commands.push(
-            ["qobuz", "items", "0", String(limit), `item_id:${essentialsItemId}`, "menu:qobuz"],
-          );
-          break;
-        }
-      }
-    } catch (e) {
-      debugLog.info("Could not browse Qobuz root menu for essentials", e instanceof Error ? e.message : String(e));
-    }
-    
-    // Strategy 2: Try getting items from known menu positions (editor picks is typically around position 5-7)
-    // Material Skin format: qobuz items 0 <limit> item_id:<id> menu:qobuz
-    for (let pos = 5; pos <= 8; pos++) {
-      commands.push(
-        ["qobuz", "items", "0", String(limit), `item_id:${pos}`, "menu:qobuz"],
-      );
-    }
-    
-    // Strategy 3: Try direct items command with type parameter (may not work, but worth trying)
-    commands.push(
-      ["qobuz", "items", "0", String(limit), "type:editor-picks", "menu:qobuz"],
-    );
-
-    for (const cmd of commands) {
-      try {
-        debugLog.info("Trying Qobuz essentials command", `${qobuzPlayerId} ${cmd.join(" ")}`);
-        const result = await this.request(qobuzPlayerId, cmd);
-        
-        debugLog.info("Qobuz essentials raw result", `Command: ${cmd.join(" ")}, Keys: ${Object.keys(result).join(", ")}`);
-        
-        // Plugin returns { items => [...] } structure from QobuzFeaturedAlbums
-        // But LMS might wrap it in result.item_loop or result.items
-        // Check both structures
-        const resultData = result.result as Record<string, unknown> | undefined;
-        const items = (result.items ||
-          result.item_loop ||
-          result.items_loop ||
-          result.loop_loop ||
-          resultData?.items ||
-          resultData?.item_loop ||
-          resultData?.items_loop ||
-          resultData?.loop_loop ||
-          []) as Array<Record<string, unknown>>;
-        
-        // If we got items, log the structure for debugging
-        if (items.length > 0) {
-          debugLog.info("Qobuz essentials items structure", `First item keys: ${Object.keys(items[0] || {}).join(", ")}`);
-        }
-        
-        debugLog.info("Qobuz essentials response", `Command: ${cmd.join(" ")}, Items returned: ${items.length}`);
-        
-        if (items && items.length > 0) {
-          // Log first few items for debugging
-          items.slice(0, 3).forEach((item, idx) => {
-            const name = String(item.name || item.text || item.title || item.album || "");
-            const type = String(item.type || item.item_type || "");
-            debugLog.info(`Qobuz essential item ${idx}`, `${name} (type: ${type})`);
-          });
-          
-          // Check if we got menu items instead of albums - if so, browse deeper
-          const firstItem = items[0];
-          const firstItemType = String(firstItem?.type || firstItem?.item_type || '').toLowerCase();
-          const isMenuItems = firstItemType === 'menu' || firstItemType === 'link' || 
-                              !firstItem?.album_id && !firstItem?.album && 
-                              (firstItem?.name || firstItem?.text || firstItem?.title);
-          
-          if (isMenuItems && items.length > 0) {
-            // We got menu items - browse the first few menu items to get albums
-            debugLog.info("Qobuz essentials got menu items", `Browsing ${Math.min(3, items.length)} menu items to find albums`);
-            const allAlbums: LmsAlbum[] = [];
-            
-            for (let menuIdx = 0; menuIdx < Math.min(3, items.length); menuIdx++) {
-              try {
-                const menuItem = items[menuIdx];
-                const menuName = String(menuItem.name || menuItem.text || menuItem.title || '');
-                // Skip if it looks like a navigation item
-                if (menuName.toLowerCase().includes('back') || menuName.toLowerCase().includes('up')) {
-                  continue;
-                }
-                
-                // Get items from this menu item using "items" command
-                // Material Skin format: qobuz items 0 <limit> item_id:<id> menu:qobuz
-                if (cmd[0] === 'items' && cmd.length >= 2) {
-                  const menuItemId = String(items[menuIdx].id || menuIdx);
-                  const itemsCmd = ["qobuz", "items", "0", String(limit), `item_id:${menuItemId}`, "menu:qobuz"];
-                  debugLog.info("Getting Qobuz submenu items (essentials)", `${menuName} -> ${itemsCmd.join(" ")}`);
-                  const subResult = await this.request(qobuzPlayerId, itemsCmd);
-                  
-                  const subResultData = subResult.result as Record<string, unknown> | undefined;
-                  const subItems = (subResultData?.item_loop ||
-                    subResultData?.items_loop ||
-                    subResultData?.loop_loop ||
-                    subResultData?.items ||
-                    subResult.item_loop ||
-                    subResult.items_loop ||
-                    subResult.loop_loop ||
-                    subResult.items ||
-                    []) as Array<Record<string, unknown>>;
-                  
-                  if (subItems.length > 0) {
-                    const subAlbums = parseAlbums(subItems);
-                    debugLog.info(`Qobuz submenu ${menuName} (essentials)`, `Found ${subAlbums.length} albums`);
-                    allAlbums.push(...subAlbums);
-                    
-                    // If we found albums, we can stop getting items from more menus
-                    if (subAlbums.length > 0 && allAlbums.length >= limit) {
-                      break;
-                    }
-                  }
-                }
-              } catch (e) {
-                debugLog.info(`Failed to browse Qobuz submenu ${menuIdx} (essentials)`, e instanceof Error ? e.message : String(e));
-              }
-            }
-            
-            if (allAlbums.length > 0) {
-              debugLog.info("Qobuz essentials loaded from submenus", `Found ${allAlbums.length} albums`);
-              return allAlbums.slice(0, limit);
-            }
-          }
-          
-          const albums = parseAlbums(items);
-          debugLog.info("Qobuz essentials parsed", `Raw items: ${items.length}, Albums after parse: ${albums.length}`);
-          
-          if (albums.length > 0) {
-            debugLog.info(
-              "Qobuz essentials loaded",
-              `Strategy: ${cmd.join(" ")} albums: ${albums.length}`,
-            );
-            return albums.slice(0, limit);
-          } else if (items.length > 0) {
-            // Items returned but filtered out - log why
-            debugLog.info("Qobuz essentials filtered out", `All ${items.length} items were filtered. First item: ${JSON.stringify(items[0])}`);
-          }
-        } else {
-          debugLog.info("Qobuz essentials empty response", `Command: ${cmd.join(" ")}, Result keys: ${Object.keys(result).join(", ")}`);
-        }
-      } catch (e) {
-        debugLog.info(
-          "Qobuz essentials strategy failed",
-          `${cmd.join(" ")} :: ${
-            e instanceof Error ? e.message : String(e)
-          }`,
-        );
-      }
-    }
-
-    debugLog.info("Qobuz essentials", "No items returned from any strategy");
-    return [];
-  }
-
-  async getQobuzSelectionAlbums(limit: number = 50, playerId?: string): Promise<LmsAlbum[]> {
-    // Get player ID for Qobuz commands (required by plugin)
-    const qobuzPlayerId = await this.getPlayerIdForQobuz(playerId);
-    if (!qobuzPlayerId) {
-      debugLog.info("Qobuz In the Press", "No player available for Qobuz commands");
-      return [];
-    }
-    // Use similar parsing logic to searchQobuz for consistency
-    const parseAlbums = (items: Array<Record<string, unknown>>): LmsAlbum[] => {
-      const albums: LmsAlbum[] = [];
-      const seenIds = new Set<string>();
-      
-      for (const item of items) {
-        const type = String(item.type || '').toLowerCase();
-        const text = String(item.text || item.name || '');
-        const name = text.toLowerCase();
-        
-        // Skip menu items and navigation items
-        if ((type === 'menu' || type === 'link') && !type.includes('playlist')) {
-          continue;
-        }
-        if (name.includes('menu') || name.includes('browse') || 
-            name.includes('editor') || name.includes('essential') || name.includes('pick') ||
-            name.includes('selection') || name.includes('search') ||
-            (name.includes('press') && (name.includes('the') || name.includes('in')))) {
-          continue;
-        }
-        
-        // Material Skin format: items with type "playlist" may actually be albums
-        // Text format: "Album Title\nArtist Name (Year)" or "Album Title\nArtist Name"
-        let title = '';
-        let artist = 'Unknown Artist';
-        let year: number | undefined;
-        
-        if (item.album || item.title || item.name) {
-          // Standard format
-          title = String(item.album || item.title || item.name || '');
-          artist = String(item.artist || item.albumartist || 'Unknown Artist');
-          year = item.year ? Number(item.year) : undefined;
-        } else if (text) {
-          // Material Skin format: parse "Album Title\nArtist Name (Year)" or "Album Title\nArtist Name"
-          const lines = text.split('\n');
-          if (lines.length >= 2) {
-            title = lines[0].trim();
-            const artistLine = lines[1].trim();
-            // Extract year from artist line if present: "Artist Name (Year)"
-            const yearMatch = artistLine.match(/\((\d{4})\)/);
-            if (yearMatch) {
-              year = Number(yearMatch[1]);
-              artist = artistLine.replace(/\s*\(\d{4}\)\s*$/, '').trim();
-            } else {
-              artist = artistLine;
-            }
-          } else {
-            // Single line - likely not a valid album format, skip it
-            continue;
-          }
-        }
-        
-        // Check if it's an album - Material Skin may return playlists that are actually albums
-        const titleLower = title.toLowerCase();
-        if (title && !titleLower.includes('editor') && !titleLower.includes('essential') && 
-            !titleLower.includes('pick') && !titleLower.includes('selection') &&
-            !(titleLower.includes('press') && (titleLower.includes('the') || titleLower.includes('in')))) {
-          // Get album ID from various possible locations
-          const params = item.params as Record<string, unknown> | undefined;
-          const albumId = String(
-            item.album_id || 
-            (params?.item_id ? String(params.item_id) : undefined) ||
-            item.id || 
-            `qobuz_album_${title}_${artist}`
-          );
-          
-          if (seenIds.has(albumId)) {
-            continue;
-          }
-          seenIds.add(albumId);
-          
-          // Get artwork URL - Material Skin uses "icon" field
-          const artworkUrl = item.image ? String(item.image) : 
-            (item.icon ? this.normalizeArtworkUrl(String(item.icon)) : undefined) ||
-            (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
-          
-          albums.push({
-            id: albumId,
-            title: title,
-            artist: artist,
-            artistId: item.artist_id ? String(item.artist_id) : undefined,
-            artwork_url: artworkUrl,
-            year: year,
-            trackCount: item.track_count ? Number(item.track_count) : undefined,
-          });
-        }
-      }
-      
-      return albums;
-    };
-
-    const commands: string[][] = [];
-    
-    // Strategy 1: Get root menu items using "items" command (primary method)
-    // Material Skin format: qobuz items 0 <limit> menu:qobuz
-    try {
-      const rootResult = await this.request(qobuzPlayerId, ["qobuz", "items", "0", "30", "menu:qobuz"]);
-      // LMS items returns item_loop for menu items
-      const rootItems = (rootResult.item_loop || rootResult.items_loop || rootResult.loop_loop || rootResult.items || []) as Array<Record<string, unknown>>;
-      
-      debugLog.info("Qobuz root menu items (In the Press)", `Found ${rootItems.length} items`);
-      // Log all menu items for debugging
-      rootItems.forEach((item, idx) => {
-        const name = String(item.name || item.text || item.title || "");
-        const type = String(item.type || item.item_type || "");
-        debugLog.info(`Qobuz menu item ${idx} (In the Press)`, `${name} (type: ${type})`);
-      });
-      
-      // Find "In the Press" menu item by name
-      for (let i = 0; i < rootItems.length; i++) {
-        const item = rootItems[i];
-        const name = String(item.name || item.text || item.title || "").toLowerCase();
-        // Search for "press" in the menu name (matches "In the Press")
-        if (name.includes("press") && (name.includes("the") || name.includes("in"))) {
-          // Found "In the Press" menu - get items from it using "items" command
-          // Material Skin format: qobuz items 0 <limit> item_id:<id> menu:qobuz
-          debugLog.info("Found In the Press menu", `At position ${i}: ${String(item.name || item.text || item.title)}`);
-          // Extract item ID from actions.params.item_id if available, otherwise use index
-          const actions = item.actions as Record<string, unknown> | undefined;
-          const goAction = actions?.go as Record<string, unknown> | undefined;
-          const params = goAction?.params as Record<string, unknown> | undefined;
-          const pressItemId = String(params?.item_id || item.id || i);
-          debugLog.info("In the Press item ID", `Using item_id: ${pressItemId}`);
-          commands.push(
-            ["qobuz", "items", "0", String(limit), `item_id:${pressItemId}`, "menu:qobuz"],
-          );
-          break;
-        }
-      }
-    } catch (e) {
-      debugLog.info("Could not browse Qobuz root menu for In the Press", e instanceof Error ? e.message : String(e));
-    }
-    
-    // Strategy 2: Try getting items from known menu position (In the Press is at position 7)
-    // Material Skin format: qobuz items 0 <limit> item_id:<id> menu:qobuz
-    if (commands.length === 0) {
-      // Only try fallback if we didn't find "In the Press" by name
-      commands.push(
-        ["qobuz", "items", "0", String(limit), "item_id:7", "menu:qobuz"],
-      );
-    }
-
-    for (const cmd of commands) {
-      try {
-        debugLog.info("Trying Qobuz In the Press command", `${qobuzPlayerId} ${cmd.join(" ")}`);
-        const result = await this.request(qobuzPlayerId, cmd);
-        
-        debugLog.info("Qobuz In the Press raw result", `Command: ${cmd.join(" ")}, Keys: ${Object.keys(result).join(", ")}`);
-        
-        // Plugin returns { items => [...] } structure
-        // But LMS might wrap it in result.item_loop or result.items
-        // Check both structures
-        const resultData = result.result as Record<string, unknown> | undefined;
-        const items = (result.items ||
-          result.item_loop ||
-          result.items_loop ||
-          result.loop_loop ||
-          resultData?.items ||
-          resultData?.item_loop ||
-          resultData?.items_loop ||
-          resultData?.loop_loop ||
-          []) as Array<Record<string, unknown>>;
-        
-        // If we got items, log the structure for debugging
-        if (items.length > 0) {
-          debugLog.info("Qobuz In the Press items structure", `First item keys: ${Object.keys(items[0] || {}).join(", ")}`);
-        }
-        
-        debugLog.info("Qobuz In the Press response", `Command: ${cmd.join(" ")}, Items returned: ${items.length}`);
-        
-        if (items && items.length > 0) {
-          // Log first few items for debugging
-          items.slice(0, 3).forEach((item, idx) => {
-            const name = String(item.name || item.text || item.title || item.album || "");
-            const type = String(item.type || item.item_type || "");
-            debugLog.info(`Qobuz In the Press item ${idx}`, `${name} (type: ${type})`);
-          });
-          
-          // Check if we got menu items instead of albums - if so, browse deeper
-          const firstItem = items[0];
-          const firstItemType = String(firstItem?.type || firstItem?.item_type || '').toLowerCase();
-          const firstItemText = String(firstItem?.text || firstItem?.name || firstItem?.title || '');
-          // Items with two-line text format (Album\nArtist) are albums, not menu items
-          const hasTwoLineFormat = firstItemText.includes('\n') && firstItemText.split('\n').length >= 2;
-          const isMenuItems = (firstItemType === 'menu' || firstItemType === 'link') && !hasTwoLineFormat && 
-                              !firstItem?.album_id && !firstItem?.album && 
-                              (firstItem?.name || firstItem?.text || firstItem?.title);
-          
-          if (isMenuItems && items.length > 0) {
-            // We got menu items - browse the first few menu items to get albums
-            debugLog.info("Qobuz In the Press got menu items", `Browsing ${Math.min(3, items.length)} menu items to find albums`);
-            const allAlbums: LmsAlbum[] = [];
-            
-            for (let menuIdx = 0; menuIdx < Math.min(3, items.length); menuIdx++) {
-              try {
-                const menuItem = items[menuIdx];
-                const menuName = String(menuItem.name || menuItem.text || menuItem.title || '');
-                // Skip if it looks like a navigation item
-                if (menuName.toLowerCase().includes('back') || menuName.toLowerCase().includes('up')) {
-                  continue;
-                }
-                
-                // Get items from this menu item using "items" command
-                const menuItemId = String(menuItem.id || menuIdx);
-                const subCmd = ["qobuz", "items", "0", String(limit), `item_id:${menuItemId}`, "menu:qobuz"];
-                debugLog.info(`Browsing Qobuz In the Press submenu ${menuIdx}`, `${menuName} (id: ${menuItemId})`);
-                const subResult = await this.request(qobuzPlayerId, subCmd);
-                const subResultData = subResult.result as Record<string, unknown> | undefined;
-                const subItems = subResultData?.item_loop ||
-                    subResultData?.items_loop ||
-                    subResultData?.loop_loop ||
-                    subResultData?.items ||
-                    subResult.item_loop ||
-                    subResult.items_loop ||
-                    subResult.loop_loop ||
-                    subResult.items
-                ;
-                
-                if (subItems && Array.isArray(subItems) && subItems.length > 0) {
-                  const subAlbums = parseAlbums(subItems);
-                  debugLog.info(`Qobuz In the Press submenu ${menuIdx} albums`, `Found ${subAlbums.length} albums from ${menuName}`);
-                  allAlbums.push(...subAlbums);
-                  
-                  // If we found albums, we can stop getting items from more menus
-                  if (subAlbums.length > 0 && allAlbums.length >= limit) {
-                    break;
-                  }
-                }
-              } catch (e) {
-                debugLog.info(`Failed to browse Qobuz submenu ${menuIdx} (In the Press)`, e instanceof Error ? e.message : String(e));
-              }
-            }
-            
-            if (allAlbums.length > 0) {
-              debugLog.info("Qobuz In the Press loaded from submenus", `Found ${allAlbums.length} albums`);
-              return allAlbums.slice(0, limit);
-            }
-          }
-          
-          const albums = parseAlbums(items);
-          debugLog.info("Qobuz In the Press parsed", `Raw items: ${items.length}, Albums after parse: ${albums.length}`);
-          
-          if (albums.length > 0) {
-            debugLog.info(
-              "Qobuz In the Press loaded",
-              `Strategy: ${cmd.join(" ")} albums: ${albums.length}`,
-            );
-            return albums.slice(0, limit);
-          } else if (items.length > 0) {
-            // Items returned but filtered out - log why
-            debugLog.info("Qobuz In the Press filtered out", `All ${items.length} items were filtered. First item: ${JSON.stringify(items[0])}`);
-          }
-        } else {
-          debugLog.info("Qobuz In the Press empty response", `Command: ${cmd.join(" ")}, Result keys: ${Object.keys(result).join(", ")}`);
-        }
-      } catch (e) {
-        debugLog.info(
-          "Qobuz In the Press strategy failed",
-          `${cmd.join(" ")} :: ${
-            e instanceof Error ? e.message : String(e)
-          }`,
-        );
-      }
-    }
-
-    debugLog.info("Qobuz In the Press", "No items returned from any strategy");
-    return [];
-  }
-
-  /**
-   * Get albums by artist name (since we use artist name as ID)
-   */
   async getAlbumsByArtistName(artistName: string): Promise<LmsAlbum[]> {
     if (!artistName || artistName.trim() === '') {
       return [];
@@ -1688,7 +51,6 @@ class LmsClient {
         const artworkUrl = String(a.artwork_url || '').toLowerCase();
 
         const isPluginContent = url.includes('tidal') || id.includes('tidal') || artworkUrl.includes('tidal') ||
-                               url.includes('qobuz') || id.includes('qobuz') || artworkUrl.includes('qobuz') ||
                                url.includes('spotify') || id.includes('spotify') || artworkUrl.includes('spotify') ||
                                url.includes('soundcloud') || id.includes('soundcloud') || artworkUrl.includes('soundcloud');
 
@@ -1714,9 +76,7 @@ class LmsClient {
 
   async getArtistsPage(
     start: number = 0,
-    limit: number = 50,
-    // Legacy/unused in current lib client; kept for compatibility with older call sites.
-    _includeQobuz: boolean = false
+    limit: number = 50
   ): Promise<{ artists: LmsArtist[]; total: number }> {
     try {
       // Use LMS's built-in `artists` query with album_count tag.
@@ -1851,7 +211,7 @@ class LmsClient {
           return null;
         }
         const albumCount = a.album_count !== undefined ? Number(a.album_count) : (a.albums !== undefined ? Number(a.albums) : 0);
-        // Don't filter out artists with 0 albums - they might have Qobuz albums
+        // Don't filter out artists with 0 albums - they might have  albums
         // The filtering will be done at a higher level if needed
         return {
       id: String(a.id || ''),
@@ -1862,7 +222,7 @@ class LmsClient {
       .filter((a): a is LmsArtist => a !== null);
   }
 
-  async getPlaylists(includeQobuz: boolean = false, includeSoundCloud: boolean = false, includeSpotify: boolean = false, includeTidal: boolean = false): Promise<LmsPlaylist[]> {
+  async getPlaylists(includeSoundCloud: boolean = false, includeSpotify: boolean = false, includeTidal: boolean = false): Promise<LmsPlaylist[]> {
     // First try the standard playlists command
     const result = await this.request('', ['playlists', '0', '10000', 'tags:u']);
     // LMS can return playlists_loop or playlists (array)
@@ -1878,9 +238,9 @@ class LmsClient {
           const id = String(p.id || '').toLowerCase();
 
           // Filter out plugin playlists
-          const isPluginContent = name.includes('tidal') || name.includes('qobuz') || name.includes('spotify') || name.includes('soundcloud') ||
-                                 url.includes('tidal') || url.includes('qobuz') || url.includes('spotify') || url.includes('soundcloud') ||
-                                 id.includes('tidal') || id.includes('qobuz') || id.includes('spotify') || id.includes('soundcloud');
+          const isPluginContent = name.includes('tidal') || name.includes('spotify') || name.includes('soundcloud') ||
+                                 url.includes('tidal') || url.includes('spotify') || url.includes('soundcloud') ||
+                                 id.includes('tidal') || id.includes('spotify') || id.includes('soundcloud');
 
           return !isPluginContent;
         })
@@ -1894,94 +254,7 @@ class LmsClient {
       allPlaylists.push(...filteredPlaylists);
       debugLog.info('getPlaylists', `Standard playlists: ${playlistsLoop.length} total, ${filteredPlaylists.length} after filtering plugin content`);
     }
-    
-    // Try to get Qobuz playlists using items command to navigate menu
-    if (includeQobuz) {
-      try {
-      const qobuzPlayerId = await this.getPlayerIdForQobuz();
-      if (qobuzPlayerId) {
-        debugLog.info('getPlaylists', 'Trying to fetch Qobuz playlists');
-        
-        // Step 1: Get Qobuz main menu using qobuz items command
-        try {
-          const qobuzMainResult = await this.request(qobuzPlayerId, ['qobuz', 'items', '0', '100', 'menu:qobuz']);
-          const qobuzMainItems = (qobuzMainResult.items_loop || qobuzMainResult.item_loop || qobuzMainResult.items || []) as Array<Record<string, unknown>>;
-          
-          debugLog.info('getPlaylists', `Qobuz main menu returned ${qobuzMainItems.length} items`);
-          
-          // Step 2: Find "My Playlists" or similar in Qobuz menu
-          let myPlaylistsId: string | undefined;
-          for (let i = 0; i < qobuzMainItems.length; i++) {
-            const item = qobuzMainItems[i];
-            const name = String(item.name || item.text || item.title || '').toLowerCase();
-            
-            // Extract item ID from actions.params.item_id if available, otherwise use index or item.id
-            const actions = item.actions as Record<string, unknown> | undefined;
-            const goAction = actions?.go as Record<string, unknown> | undefined;
-            const actionParams = goAction?.params as Record<string, unknown> | undefined;
-            const actionItemId = actionParams?.item_id ? String(actionParams.item_id) : undefined;
-            
-            const itemId = String(item.id || (item as Record<string, unknown>).item_id || '');
-            const params = item.params as Record<string, unknown> | undefined;
-            const paramItemId = params?.item_id ? String(params.item_id) : undefined;
-            
-            if (name.includes('my playlist') && !name.includes('qobuz playlist')) {
-              // Prefer actionParams.item_id, then paramItemId, then itemId, then index
-              myPlaylistsId = actionItemId || paramItemId || (itemId || String(i));
-              debugLog.info('getPlaylists', `Found Qobuz My Playlists with id: ${myPlaylistsId}, name: ${name}`);
-              break;
-            }
-          }
-          
-          if (myPlaylistsId) {
-            // Step 3: Get playlists from My Playlists using qobuz items command
-            const playlistsResult = await this.request(qobuzPlayerId, ['qobuz', 'items', '0', '100', `item_id:${myPlaylistsId}`, 'menu:qobuz']);
-            const playlistItems = (playlistsResult.items_loop || playlistsResult.item_loop || playlistsResult.items || []) as Array<Record<string, unknown>>;
-            
-            debugLog.info('getPlaylists', `Qobuz My Playlists returned ${playlistItems.length} items`);
-            
-            const qobuzPlaylists = playlistItems.map((item: Record<string, unknown>) => {
-              const itemParams = item.params as Record<string, unknown> | undefined;
-              // Get artwork URL - Qobuz playlists may have icon or image fields
-              let artworkUrl: string | undefined;
-              if (item.image) {
-                artworkUrl = String(item.image);
-              } else if (item.icon) {
-                artworkUrl = this.normalizeArtworkUrl(String(item.icon));
-              } else if (item.artwork_url) {
-                artworkUrl = this.normalizeArtworkUrl(String(item.artwork_url));
-              }
-              return {
-                id: String(item.id || (item as Record<string, unknown>).item_id || itemParams?.item_id || ''),
-                playlist: `Qobuz: ${String(item.name || item.text || item.title || 'Unknown Playlist')}`,
-                url: item.url ? String(item.url) : undefined,
-                tracks: item.track_count ? Number(item.track_count) : undefined,
-                artwork_url: artworkUrl,
-              };
-            });
-            
-            if (qobuzPlaylists.length > 0) {
-              debugLog.info('getPlaylists', `Found ${qobuzPlaylists.length} Qobuz playlists`);
-              allPlaylists.push(...qobuzPlaylists.map((p) => ({
-                id: String(p.id || ''),
-                name: String(p.playlist || 'Unknown Playlist'),
-                url: p.url ? String(p.url) : undefined,
-                trackCount: p.tracks ? Number(p.tracks) : undefined,
-                artwork_url: p.artwork_url,
-              })));
-            }
-          } else if (qobuzMainItems.length > 0) {
-            // If we couldn't find "My Playlists" but got items, log them for debugging
-            debugLog.info('getPlaylists', `Qobuz items (first 5): ${qobuzMainItems.slice(0, 5).map((i: Record<string, unknown>) => String(i.name || i.text || i.title || 'Unknown')).join(', ')}`);
-          }
-        } catch (browseError) {
-          debugLog.info('getPlaylists', `Qobuz browse failed: ${browseError instanceof Error ? browseError.message : String(browseError)}`);
-        }
-      }
-      } catch (e) {
-        debugLog.info('getPlaylists', `Qobuz playlists fetch failed: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
+
     
     // Try to get SoundCloud playlists from apps>soundcloud>my playlists
     if (includeSoundCloud) {
@@ -2174,17 +447,12 @@ class LmsClient {
   }
 
   async getPlaylistTracks(playlistId: string, playlistUrl?: string, playlistName?: string): Promise<LmsTrack[]> {
-    // Important: LMS "playlists" have a numeric playlistId even if they *contain* Tidal/Qobuz/SoundCloud items.
+    // Important: LMS "playlists" have a numeric playlistId even if they *contain* Tidal//SoundCloud items.
     // In that case, the correct way to fetch tracks is still `playlists tracks ... playlist_id:<n>`.
     // Plugin "items" commands expect plugin item ids/uris, not the LMS playlist id.
     const isNumericPlaylistId = /^\d+$/.test(String(playlistId || ""));
 
-    // Check if this is a Qobuz, SoundCloud, or Tidal playlist
-    // Check URL, ID, and name to detect Qobuz/SoundCloud/Tidal playlists
-    const isQobuz = playlistUrl?.includes('qobuz') || 
-                    playlistId.includes('qobuz') || 
-                    playlistName?.toLowerCase().includes('qobuz') ||
-                    playlistName?.startsWith('Qobuz:');
+    // Check URL, ID, and name to detect plugin playlists we can browse via plugin menus.
     const isSoundCloud = playlistUrl?.includes('soundcloud') || 
                          playlistId.includes('soundcloud') || 
                          playlistName?.toLowerCase().includes('soundcloud') ||
@@ -2201,19 +469,7 @@ class LmsClient {
       return playlistTracksLoop.map((t, i) => this.parseTrack(t, i));
     }
 
-    if (isQobuz) {
-      // For Qobuz playlists, use qobuz items command
-      try {
-        const playerId = await this.getPlayerIdForQobuz();
-        if (playerId) {
-          const result = await this.request(playerId, ['qobuz', 'items', '0', '500', `item_id:${playlistId}`, 'menu:qobuz']);
-          const items = (result.items_loop || result.item_loop || result.items || []) as Array<Record<string, unknown>>;
-          return items.map((t, i) => this.parseTrack(t, i));
-        }
-      } catch (e) {
-        debugLog.info('getPlaylistTracks', `Qobuz playlist tracks failed: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    } else if (isSoundCloud) {
+    if (isSoundCloud) {
       // For SoundCloud playlists, use squeezecloud items command
       try {
         const playerId = await this.getPlayerIdForSoundCloud();
@@ -2266,30 +522,7 @@ class LmsClient {
     await this.request(playerId, ["play"]);
   }
 
-  async getAlbumTracks(albumId: string, source?: "qobuz" | "local"): Promise<LmsTrack[]> {
-    // Check if this is a Qobuz album
-    const isQobuz = source === "qobuz" || albumId.includes('qobuz') || albumId.startsWith('qobuz-');
-    
-    if (isQobuz) {
-      // For Qobuz albums, use qobuz items command
-      try {
-        const playerId = await this.getPlayerIdForQobuz();
-        if (playerId) {
-          const result = await this.request(playerId, ['qobuz', 'items', '0', '500', `item_id:${albumId}`, 'menu:qobuz']);
-          const items = (result.items_loop || result.item_loop || result.items || []) as Array<Record<string, unknown>>;
-          // Filter to only tracks (not albums or other items)
-          const tracks = items.filter(item => {
-            const type = String(item.type || '').toLowerCase();
-            return type === 'track' || type === 'song' || !type || type === '';
-          });
-          return tracks.map((t, i) => this.parseTrack(t, i));
-        }
-      } catch (e) {
-        debugLog.info('getAlbumTracks', `Qobuz album tracks failed: ${e instanceof Error ? e.message : String(e)}`);
-        // Fall through to try standard method
-      }
-    }
-    
+  async getAlbumTracks(albumId: string): Promise<LmsTrack[]> {
     // Default: use standard titles command for local albums
     const result = await this.request('', ['titles', '0', '100', `album_id:${albumId}`, 'library_id:0', 'tags:acdlKNuTsSp', 'sort:tracknum']);
     const titlesLoop = (result.titles_loop || []) as Array<Record<string, unknown>>;
@@ -2464,13 +697,13 @@ class LmsClient {
     return { artists, albums, tracks };
   }
 
-  async searchQobuz(query: string): Promise<{ artists: LmsArtist[]; albums: LmsAlbum[]; tracks: LmsTrack[] }> {
+  async search(query: string): Promise<{ artists: LmsArtist[]; albums: LmsAlbum[]; tracks: LmsTrack[] }> {
     if (!this.baseUrl) {
       throw new Error('LMS server not configured');
     }
     
     try {
-      debugLog.info('Searching Qobuz', `Query: ${query}`);
+      debugLog.info('Searching ', `Query: ${query}`);
       const artists: LmsArtist[] = [];
       const albums: LmsAlbum[] = [];
       const tracks: LmsTrack[] = [];
@@ -2482,7 +715,7 @@ class LmsClient {
         .replace(/\s+/g, ' ') // Normalize whitespace
         .trim();
       
-      debugLog.info('Cleaned Qobuz query', `Original: "${query}", Cleaned: "${cleanQuery}"`);
+      debugLog.info('Cleaned  query', `Original: "${query}", Cleaned: "${cleanQuery}"`);
       
       // Also try searching with just the words (no special chars at all)
       const wordsOnlyQuery = cleanQuery.split(' ').filter(w => w.length > 0).join(' ');
@@ -2496,17 +729,17 @@ class LmsClient {
       
       // Try the first cleaned query - increased limits for better results
       const [artistsResult, albumsResult, tracksResult] = await Promise.all([
-        this.request('', ['qobuz', 'items', '0', '200', `search:${cleanQuery}`, 'type:artists', 'want_url:1']).catch(() => ({})),
-        this.request('', ['qobuz', 'items', '0', '200', `search:${cleanQuery}`, 'type:albums', 'want_url:1']).catch(() => ({})),
-        this.request('', ['qobuz', 'items', '0', '200', `search:${cleanQuery}`, 'type:tracks', 'want_url:1']).catch(() => ({})),
+        this.request('', ['', 'items', '0', '200', `search:${cleanQuery}`, 'type:artists', 'want_url:1']).catch(() => ({})),
+        this.request('', ['', 'items', '0', '200', `search:${cleanQuery}`, 'type:albums', 'want_url:1']).catch(() => ({})),
+        this.request('', ['', 'items', '0', '200', `search:${cleanQuery}`, 'type:tracks', 'want_url:1']).catch(() => ({})),
       ]);
       
       // Also try with words-only query if different
       if (wordsOnlyQuery && wordsOnlyQuery !== cleanQuery) {
         const [artistsResult2, albumsResult2, tracksResult2] = await Promise.all([
-          this.request('', ['qobuz', 'items', '0', '200', `search:${wordsOnlyQuery}`, 'type:artists', 'want_url:1']).catch(() => ({})),
-          this.request('', ['qobuz', 'items', '0', '200', `search:${wordsOnlyQuery}`, 'type:albums', 'want_url:1']).catch(() => ({})),
-          this.request('', ['qobuz', 'items', '0', '200', `search:${wordsOnlyQuery}`, 'type:tracks', 'want_url:1']).catch(() => ({})),
+          this.request('', ['', 'items', '0', '200', `search:${wordsOnlyQuery}`, 'type:artists', 'want_url:1']).catch(() => ({})),
+          this.request('', ['', 'items', '0', '200', `search:${wordsOnlyQuery}`, 'type:albums', 'want_url:1']).catch(() => ({})),
+          this.request('', ['', 'items', '0', '200', `search:${wordsOnlyQuery}`, 'type:tracks', 'want_url:1']).catch(() => ({})),
         ]);
         
         // Merge results from both searches
@@ -2534,7 +767,7 @@ class LmsClient {
           const name = String(item.name || item.text || item.artist || '');
           if (name && !artists.find(a => a.id === String(item.id || item.artist_id || ''))) {
             artists.push({
-              id: String(item.id || item.artist_id || `qobuz_artist_${name}`),
+              id: String(item.id || item.artist_id || `_artist_${name}`),
               name: name,
             });
           }
@@ -2546,7 +779,7 @@ class LmsClient {
             const artworkUrl = item.image ? String(item.image) : 
               (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
             albums.push({
-              id: String(item.album_id || item.id || `qobuz_album_${title}`),
+              id: String(item.album_id || item.id || `_album_${title}`),
               title: title,
               artist: String(item.artist || item.albumartist || 'Unknown Artist'),
               artwork_url: artworkUrl,
@@ -2562,7 +795,7 @@ class LmsClient {
               (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
             const artist = String(item.artist || 'Unknown Artist');
             tracks.push({
-              id: String(item.id || item.url || `qobuz_track_${title}`),
+              id: String(item.id || item.url || `_track_${title}`),
               title: title,
               artist: artist,
               album: String(item.album || ''),
@@ -2582,7 +815,7 @@ class LmsClient {
           const name = String(item.name || item.text || item.artist || '');
           if (name) {
             artists.push({
-              id: String(item.id || item.artist_id || `qobuz_artist_${name}`),
+              id: String(item.id || item.artist_id || `_artist_${name}`),
               name: name,
             });
           }
@@ -2595,7 +828,7 @@ class LmsClient {
           const artworkUrl = item.image ? String(item.image) : 
             (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
           albums.push({
-            id: String(item.album_id || item.id || `qobuz_album_${title}`),
+            id: String(item.album_id || item.id || `_album_${title}`),
             title: title,
             artist: String(item.artist || item.albumartist || 'Unknown Artist'),
             artwork_url: artworkUrl,
@@ -2612,7 +845,7 @@ class LmsClient {
             (item.artwork_url ? this.normalizeArtworkUrl(String(item.artwork_url)) : undefined);
           const artist = String(item.artist || 'Unknown Artist');
           tracks.push({
-            id: String(item.id || item.url || `qobuz_track_${title}`),
+            id: String(item.id || item.url || `_track_${title}`),
             title: title,
             artist: artist,
             album: String(item.album || ''),
@@ -2637,12 +870,12 @@ class LmsClient {
 
       // If no results, try multiple fallback strategies
       if (artists.length === 0 && albums.length === 0 && tracks.length === 0) {
-        debugLog.info('No initial Qobuz results, trying fallback strategies');
+        debugLog.info('No initial  results, trying fallback strategies');
         
         // Strategy 1: Try broader search without type filter (searches all types together)
         try {
           const fallbackResult = await this.request('', [
-            'qobuz', 'items', '0', '500', // Increased limit
+            '', 'items', '0', '500', // Increased limit
             `search:${cleanQuery}`,
             'want_url:1'
           ]);
@@ -2651,7 +884,7 @@ class LmsClient {
           
           if (fallbackItems && fallbackItems.length > 0) {
             debugLog.info('Found results in fallback search', `${fallbackItems.length} items`);
-            const fallbackResults = this.parseQobuzSearchResults(fallbackItems, artists, albums, tracks);
+            const fallbackResults = this.parseSearchResults(fallbackItems, artists, albums, tracks);
             
             // Rank and sort tracks by relevance
             const queryLower = query.toLowerCase();
@@ -2661,7 +894,7 @@ class LmsClient {
               return scoreB - scoreA;
             });
             
-            debugLog.info('Qobuz search results (fallback)', `${fallbackResults.artists.length} artists, ${fallbackResults.albums.length} albums, ${fallbackResults.tracks.length} tracks`);
+            debugLog.info(' search results (fallback)', `${fallbackResults.artists.length} artists, ${fallbackResults.albums.length} albums, ${fallbackResults.tracks.length} tracks`);
             if (fallbackResults.tracks.length > 0 || fallbackResults.albums.length > 0 || fallbackResults.artists.length > 0) {
               return fallbackResults;
             }
@@ -2718,7 +951,7 @@ class LmsClient {
             try {
               debugLog.info('Trying search combination', `Query: "${partialQuery}"`);
               const partialResult = await this.request('', [
-                'qobuz', 'items', '0', '500', // Increased limit
+                '', 'items', '0', '500', // Increased limit
                 `search:${partialQuery}`,
                 'want_url:1'
               ]);
@@ -2726,7 +959,7 @@ class LmsClient {
               const partialItems = (partialResult as Record<string, unknown>).item_loop as Array<Record<string, unknown>> | undefined;
               if (partialItems && partialItems.length > 0) {
                 debugLog.info('Found results with combination', `Query: "${partialQuery}", Items: ${partialItems.length}`);
-                const partialResults = this.parseQobuzSearchResults(partialItems, artists, albums, tracks);
+                const partialResults = this.parseSearchResults(partialItems, artists, albums, tracks);
                 
                 // Rank by original query
                 const queryLower = query.toLowerCase();
@@ -2736,7 +969,7 @@ class LmsClient {
                   return scoreB - scoreA;
                 });
                 
-                debugLog.info('Qobuz search results (combination)', `Query: "${partialQuery}", ${partialResults.artists.length} artists, ${partialResults.albums.length} albums, ${partialResults.tracks.length} tracks`);
+                debugLog.info(' search results (combination)', `Query: "${partialQuery}", ${partialResults.artists.length} artists, ${partialResults.albums.length} albums, ${partialResults.tracks.length} tracks`);
                 if (partialResults.tracks.length > 0 || partialResults.albums.length > 0 || partialResults.artists.length > 0) {
                   return partialResults;
                 }
@@ -2761,7 +994,7 @@ class LmsClient {
             try {
               debugLog.info('Trying "whats" variation search', `Query: "${variation}"`);
               const variationResult = await this.request('', [
-                'qobuz', 'items', '0', '500',
+                '', 'items', '0', '500',
                 `search:${variation}`,
                 'want_url:1'
               ]);
@@ -2769,7 +1002,7 @@ class LmsClient {
               const variationItems = (variationResult as Record<string, unknown>).item_loop as Array<Record<string, unknown>> | undefined;
               if (variationItems && variationItems.length > 0) {
                 debugLog.info('Found results with "whats" variation', `Query: "${variation}", Items: ${variationItems.length}`);
-                const variationResults = this.parseQobuzSearchResults(variationItems, artists, albums, tracks);
+                const variationResults = this.parseSearchResults(variationItems, artists, albums, tracks);
                 
                 // Rank by original query
                 const queryLower = query.toLowerCase();
@@ -2779,7 +1012,7 @@ class LmsClient {
                   return scoreB - scoreA;
                 });
                 
-                debugLog.info('Qobuz search results (whats variation)', `Query: "${variation}", ${variationResults.artists.length} artists, ${variationResults.albums.length} albums, ${variationResults.tracks.length} tracks`);
+                debugLog.info(' search results (whats variation)', `Query: "${variation}", ${variationResults.artists.length} artists, ${variationResults.albums.length} albums, ${variationResults.tracks.length} tracks`);
                 if (variationResults.tracks.length > 0 || variationResults.albums.length > 0 || variationResults.artists.length > 0) {
                   return variationResults;
                 }
@@ -2797,14 +1030,14 @@ class LmsClient {
             try {
               debugLog.info('Trying first word only search', `Query: "${firstWord}"`);
               const firstWordResult = await this.request('', [
-                'qobuz', 'items', '0', '500',
+                '', 'items', '0', '500',
                 `search:${firstWord}`,
                 'want_url:1'
               ]);
               
               const firstWordItems = (firstWordResult as Record<string, unknown>).item_loop as Array<Record<string, unknown>> | undefined;
               if (firstWordItems && firstWordItems.length > 0) {
-                const firstWordResults = this.parseQobuzSearchResults(firstWordItems, artists, albums, tracks);
+                const firstWordResults = this.parseSearchResults(firstWordItems, artists, albums, tracks);
                 
                 // Rank by original full query
                 const queryLower = query.toLowerCase();
@@ -2814,7 +1047,7 @@ class LmsClient {
                   return scoreB - scoreA;
                 });
                 
-                debugLog.info('Qobuz search results (first word)', `${firstWordResults.artists.length} artists, ${firstWordResults.albums.length} albums, ${firstWordResults.tracks.length} tracks`);
+                debugLog.info(' search results (first word)', `${firstWordResults.artists.length} artists, ${firstWordResults.albums.length} albums, ${firstWordResults.tracks.length} tracks`);
                 if (firstWordResults.tracks.length > 0 || firstWordResults.albums.length > 0 || firstWordResults.artists.length > 0) {
                   return firstWordResults;
                 }
@@ -2826,18 +1059,18 @@ class LmsClient {
         }
       }
       
-      debugLog.info('Qobuz search results', `${artists.length} artists, ${albums.length} albums, ${tracks.length} tracks`);
+      debugLog.info(' search results', `${artists.length} artists, ${albums.length} albums, ${tracks.length} tracks`);
       return { artists, albums, tracks };
     } catch (error) {
-      debugLog.error('Qobuz search failed', error instanceof Error ? error.message : String(error));
+      debugLog.error(' search failed', error instanceof Error ? error.message : String(error));
       return { artists: [], albums: [], tracks: [] };
     }
   }
 
   /**
-   * Parse Qobuz search results from item_loop
+   * Parse  search results from item_loop
    */
-  private parseQobuzSearchResults(
+  private parseSearchResults(
     items: Array<Record<string, unknown>>,
     existingArtists: LmsArtist[],
     existingAlbums: LmsAlbum[],
@@ -2850,7 +1083,7 @@ class LmsClient {
     for (const item of items) {
       const type = String(item.type || '');
       const name = String(item.name || item.text || '');
-      const id = String(item.id || item.url || `qobuz_${Date.now()}_${Math.random()}`);
+      const id = String(item.id || item.url || `_${Date.now()}_${Math.random()}`);
 
       if (type === 'artist' || item.artist_id) {
         const artistName = String(item.artist || name);
@@ -2902,7 +1135,7 @@ class LmsClient {
     }
     
     // Rank and sort tracks by relevance (if we have a query to match against)
-    // Note: parseQobuzSearchResults doesn't have access to the original query,
+    // Note: parseSearchResults doesn't have access to the original query,
     // so we'll rank in the calling function instead
     
     return { artists, albums, tracks };
@@ -2916,7 +1149,7 @@ class LmsClient {
     // Try globalsearch first, but fall back gracefully if it's not available or fails
     try {
       debugLog.info('Global search', `Query: ${query}`);
-      // Use globalsearch to search both LMS library and Qobuz
+      // Use globalsearch to search both LMS library and 
       const result = await this.request('', [
         'globalsearch', 'items', '0', '200',
         `search:${query}`,
@@ -3041,21 +1274,21 @@ class LmsClient {
       // Fallback to separate searches if globalsearch is not available
       try {
         debugLog.info('Starting fallback searches', `Query: ${query}`);
-        const [localResult, qobuzResult] = await Promise.all([
+        const [localResult, Result] = await Promise.all([
           this.search(query).catch((e) => {
             debugLog.info('Local search failed in fallback', e instanceof Error ? e.message : String(e));
             return { artists: [], albums: [], tracks: [] };
           }),
-          this.searchQobuz(query).catch((e) => {
-            debugLog.info('Qobuz search failed in fallback', e instanceof Error ? e.message : String(e));
+          this.search(query).catch((e) => {
+            debugLog.info(' search failed in fallback', e instanceof Error ? e.message : String(e));
             return { artists: [], albums: [], tracks: [] };
           }),
         ]);
         
-        debugLog.info('Fallback search results', `Local: ${localResult.tracks.length} tracks, Qobuz: ${qobuzResult.tracks.length} tracks`);
+        debugLog.info('Fallback search results', `Local: ${localResult.tracks.length} tracks, : ${Result.tracks.length} tracks`);
         
         // Rank and sort combined tracks by relevance
-        const allTracks = [...localResult.tracks, ...qobuzResult.tracks];
+        const allTracks = [...localResult.tracks, ...Result.tracks];
         const queryLower = query.toLowerCase();
         allTracks.sort((a, b) => {
           const scoreA = this.calculateTrackRelevanceScore(a, queryLower);
@@ -3066,8 +1299,8 @@ class LmsClient {
         debugLog.info('Final fallback results', `${allTracks.length} tracks after ranking`);
         
         return {
-          artists: [...localResult.artists, ...qobuzResult.artists],
-          albums: [...localResult.albums, ...qobuzResult.albums],
+          artists: [...localResult.artists, ...Result.artists],
+          albums: [...localResult.albums, ...Result.albums],
           tracks: allTracks,
         };
       } catch (fallbackError) {
@@ -3658,12 +1891,14 @@ class LmsClient {
   }
 
   async playAlbum(playerId: string, albumId: string): Promise<void> {
-    // For Tidal/Qobuz albums, we might need to use the URL format
-    if (albumId.includes('tidal') || albumId.includes('qobuz')) {
-      // Extract clean numeric ID if it has a prefix
-      const cleanId = albumId.replace(/^(tidal|qobuz)[-:]/, '');
-      const prefix = albumId.includes('tidal') ? 'tidal' : 'qobuz';
-      const uri = `${prefix}://album:${cleanId}`;
+    // For Tidal albums, use the plugin URL format.
+    if (albumId.includes("tidal") || albumId.startsWith("tidal-")) {
+      const cleanId = String(albumId)
+        .replace(/^tidal[-:]/, "")
+        .replace(/^album[-:]/, "")
+        .replace(/^tidal-/, "")
+        .replace(/^album-/, "");
+      const uri = `tidal://album:${cleanId}`;
       await this.request(playerId, ['playlistcontrol', 'cmd:load', `url:${uri}`]);
     } else {
       await this.request(playerId, ['playlistcontrol', 'cmd:load', `album_id:${albumId}`]);
@@ -3671,10 +1906,13 @@ class LmsClient {
   }
 
   async addAlbumToPlaylist(playerId: string, albumId: string): Promise<void> {
-    if (albumId.includes('tidal') || albumId.includes('qobuz')) {
-      const cleanId = albumId.replace(/^(tidal|qobuz)[-:]/, '');
-      const prefix = albumId.includes('tidal') ? 'tidal' : 'qobuz';
-      const uri = `${prefix}://album:${cleanId}`;
+    if (albumId.includes("tidal") || albumId.startsWith("tidal-")) {
+      const cleanId = String(albumId)
+        .replace(/^tidal[-:]/, "")
+        .replace(/^album[-:]/, "")
+        .replace(/^tidal-/, "")
+        .replace(/^album-/, "");
+      const uri = `tidal://album:${cleanId}`;
       await this.request(playerId, ['playlistcontrol', 'cmd:add', `url:${uri}`]);
     } else {
       await this.request(playerId, ['playlistcontrol', 'cmd:add', `album_id:${albumId}`]);
@@ -3729,7 +1967,7 @@ class LmsClient {
     }
   }
 
-  async playTrack(playerId: string, trackId: string, isQobuz: boolean = false, format?: string, sampleRate?: string, bitDepth?: string, playerModel?: string): Promise<void> {
+  async playTrack(playerId: string, trackId: string, format?: string, sampleRate?: string, bitDepth?: string, playerModel?: string): Promise<void> {
     // Check if this format needs transcoding (only for unsupported formats like DSD)
     const needsTranscoding = this.shouldForceTranscoding(format, sampleRate, bitDepth, playerModel);
     
@@ -3823,7 +2061,7 @@ class LmsClient {
 
   async addTrackToPlaylist(playerId: string, trackId: string): Promise<void> {
     if (trackId.includes('://')) {
-      // Works for both HTTP URLs and plugin URLs (tidal://, qobuz://, etc) on our LMS.
+      // Works for both HTTP URLs and plugin URLs (tidal://, etc) on our LMS.
       await this.request(playerId, ['playlist', 'add', trackId]);
     } else {
       await this.request(playerId, ['playlistcontrol', 'cmd:add', `track_id:${trackId}`]);
@@ -4061,244 +2299,15 @@ class LmsClient {
   }
 
   /**
-   * Get Qobuz favorites (tracks, albums, artists)
+   * Get  favorites (tracks, albums, artists)
    */
-  async getQobuzFavorites(): Promise<{ tracks: string[]; albums: string[]; artists: string[] }> {
-    try {
-      const result = await this.request('', ['qobuz', 'favorites', 'items', '0', '1000']);
-      const items = (result.item_loop || result.loop_loop || []) as Array<Record<string, unknown>>;
-      
-      const tracks: string[] = [];
-      const albums: string[] = [];
-      const artists: string[] = [];
-      
-      for (const item of items) {
-        const type = String(item.type || '');
-        const id = String(item.id || '');
-        
-        if (type === 'audio' || type === 'track') {
-          tracks.push(id);
-        } else if (type === 'album') {
-          albums.push(id);
-        } else if (type === 'artist') {
-          artists.push(id);
-        }
-      }
-      
-      return { tracks, albums, artists };
-    } catch (error) {
-      debugLog.error('Failed to get Qobuz favorites', error instanceof Error ? error.message : String(error));
-      return { tracks: [], albums: [], artists: [] };
-    }
-  }
 
-  /**
-   * Get detailed Qobuz favorite albums (mapped to LmsAlbum)
-   * Uses the same 'qobuz favorites items' call but returns album metadata
-   * so we can display them alongside local albums.
-   */
-  async getQobuzFavoriteAlbums(): Promise<LmsAlbum[]> {
-    try {
-      const result = await this.request("", [
-        "qobuz",
-        "favorites",
-        "items",
-        "0",
-        "1000",
-      ]);
-      const items = (result.item_loop ||
-        result.loop_loop ||
-        []) as Array<Record<string, unknown>>;
+  /*  favorites removed */
 
-      const albums: LmsAlbum[] = [];
+  /*  favorites removed */
 
-      for (const item of items) {
-        const type = String(item.type || "");
-        if (type !== "album") continue;
+  /*  favorites removed */
 
-        const id = String(item.id || item.album_id || "");
-        if (!id) continue;
-
-        const title = String(item.album || item.title || "Unknown Album");
-        const artist = String(
-          item.artist || item.albumartist || "Unknown Artist",
-        );
-
-        let artworkUrl: string | undefined;
-        const rawArtwork = item.artwork_url || item.cover || item.image;
-        if (rawArtwork) {
-          const s = String(rawArtwork);
-          artworkUrl = s.startsWith("http") ? s : `${this.baseUrl}${s}`;
-        }
-
-        const year = item.year ? Number(item.year) : undefined;
-        const trackCount = item.track_count
-          ? Number(item.track_count)
-          : undefined;
-
-        albums.push({
-          id,
-          title,
-          artist,
-          artistId: item.artist_id ? String(item.artist_id) : undefined,
-          artwork_url: artworkUrl,
-          year,
-          trackCount,
-        });
-      }
-
-      return albums;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      // Log network failures as info since they're expected when server is unavailable
-      if (errorMessage.includes('Network request failed') || 
-          errorMessage.includes('Failed to fetch') ||
-          errorMessage.includes('ERR_CONNECTION_REFUSED')) {
-        debugLog.info(
-          "Qobuz favorite albums unavailable",
-          "Server may be offline or unreachable",
-        );
-      } else {
-        debugLog.error(
-          "Failed to get detailed Qobuz favorite albums",
-          errorMessage,
-        );
-      }
-      return [];
-    }
-  }
-
-  /**
-   * Get detailed Qobuz favorite tracks (mapped to LmsTrack)
-   * Uses the same 'qobuz favorites items' call but returns track metadata
-   * so we can display them alongside local tracks.
-   */
-  async getQobuzFavoriteTracks(): Promise<LmsTrack[]> {
-    try {
-      const result = await this.request("", [
-        "qobuz",
-        "favorites",
-        "items",
-        "0",
-        "1000",
-      ]);
-      const items = (result.item_loop ||
-        result.loop_loop ||
-        []) as Array<Record<string, unknown>>;
-
-      const tracks: LmsTrack[] = [];
-
-      for (const item of items) {
-        const type = String(item.type || "");
-        if (type !== "audio" && type !== "track") continue;
-
-        const id = String(item.id || item.track_id || "");
-        if (!id) continue;
-
-        const title = String(item.title || item.track || "Unknown Track");
-        const artist = String(
-          item.artist || item.albumartist || "Unknown Artist",
-        );
-        const album = String(item.album || "Unknown Album");
-
-        let artworkUrl: string | undefined;
-        const rawArtwork = item.artwork_url || item.cover || item.image;
-        if (rawArtwork) {
-          const s = String(rawArtwork);
-          artworkUrl = s.startsWith("http") ? s : `${this.baseUrl}${s}`;
-        }
-
-        const duration = item.duration ? Number(item.duration) : 0;
-        const trackNumber = item.tracknum ? Number(item.tracknum) : undefined;
-        const albumId = item.album_id ? String(item.album_id) : undefined;
-        const artistId = item.artist_id ? String(item.artist_id) : undefined;
-
-        // Parse format and quality info
-        let format: string | undefined;
-        let bitrate: string | undefined;
-        let sampleRate: string | undefined;
-        let bitDepth: string | undefined;
-
-        const contentType = String(item.type || item.content_type || "");
-        if (contentType.includes("flac") || contentType.includes("flc"))
-          format = "FLAC";
-        else if (contentType.includes("wav")) format = "WAV";
-        else if (contentType.includes("mp3")) format = "MP3";
-        else if (contentType.includes("aac") || contentType.includes("m4a"))
-          format = "AAC";
-        else if (contentType.includes("aiff")) format = "AIFF";
-        else if (contentType.includes("dsf") || contentType.includes("dsd"))
-          format = "DSD";
-        else if (contentType.includes("ogg")) format = "OGG";
-
-        if (item.bitrate) bitrate = String(item.bitrate);
-        if (item.samplerate || item.sample_rate) {
-          sampleRate = String(item.samplerate || item.sample_rate);
-        }
-        if (item.samplesize || item.bits_per_sample || item.bitdepth || item.bits) {
-          bitDepth = String(
-            item.samplesize || item.bits_per_sample || item.bitdepth || item.bits
-          );
-        }
-
-        tracks.push({
-          id,
-          title,
-          artist,
-          album,
-          albumId,
-          artistId,
-          duration,
-          trackNumber,
-          artwork_url: artworkUrl,
-          format,
-          bitrate,
-          sampleRate,
-          bitDepth,
-        });
-      }
-
-      return tracks;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      // Log network failures as info since they're expected when server is unavailable
-      if (
-        errorMessage.includes("Network request failed") ||
-        errorMessage.includes("Failed to fetch") ||
-        errorMessage.includes("ERR_CONNECTION_REFUSED")
-      ) {
-        debugLog.info(
-          "Qobuz favorite tracks unavailable",
-          "Server may be offline or unreachable",
-        );
-      } else {
-        debugLog.error(
-          "Failed to get detailed Qobuz favorite tracks",
-          errorMessage,
-        );
-      }
-      return [];
-    }
-  }
-
-  /**
-   * Get player ID for Tidal browsing (similar to Qobuz)
-   */
-  private async getPlayerIdForTidal(): Promise<string | null> {
-    try {
-      const playersResult = await this.request('', ['players', '0', '1']);
-      const playersLoop = (playersResult.players_loop || []) as Array<Record<string, unknown>>;
-      return playersLoop.length > 0 ? String(playersLoop[0].playerid || '') : null;
-    } catch (e) {
-      debugLog.info('Failed to get player ID for Tidal', e instanceof Error ? e.message : String(e));
-      return null;
-    }
-  }
-
-  /**
-   * Get Tidal favorite albums (mapped to LmsAlbum)
-   * Browses Tidal menu to find "My Albums" or "Favorites" and returns album metadata
-   */
   async getTidalFavoriteAlbums(): Promise<LmsAlbum[]> {
     try {
       const playerId = await this.getPlayerIdForTidal();
@@ -4756,118 +2765,118 @@ class LmsClient {
   }
 
   /**
-   * Check if a track is favorited in Qobuz
+   * Check if a track is favorited in 
    */
-  async isQobuzTrackFavorite(trackId: string): Promise<boolean> {
+  async isTrackFavorite(trackId: string): Promise<boolean> {
     try {
-      const favorites = await this.getQobuzFavorites();
+      const favorites = await this.getFavorites();
       return favorites.tracks.includes(trackId);
     } catch (error) {
-      debugLog.error('Failed to check Qobuz track favorite', error instanceof Error ? error.message : String(error));
+      debugLog.error('Failed to check  track favorite', error instanceof Error ? error.message : String(error));
       return false;
     }
   }
 
   /**
-   * Check if an album is favorited in Qobuz
+   * Check if an album is favorited in 
    */
-  async isQobuzAlbumFavorite(albumId: string): Promise<boolean> {
+  async isAlbumFavorite(albumId: string): Promise<boolean> {
     try {
-      const favorites = await this.getQobuzFavorites();
+      const favorites = await this.getFavorites();
       return favorites.albums.includes(albumId);
     } catch (error) {
-      debugLog.error('Failed to check Qobuz album favorite', error instanceof Error ? error.message : String(error));
+      debugLog.error('Failed to check  album favorite', error instanceof Error ? error.message : String(error));
       return false;
     }
   }
 
   /**
-   * Check if an artist is favorited in Qobuz
+   * Check if an artist is favorited in 
    */
-  async isQobuzArtistFavorite(artistId: string): Promise<boolean> {
+  async isArtistFavorite(artistId: string): Promise<boolean> {
     try {
-      const favorites = await this.getQobuzFavorites();
+      const favorites = await this.getFavorites();
       return favorites.artists.includes(artistId);
     } catch (error) {
-      debugLog.error('Failed to check Qobuz artist favorite', error instanceof Error ? error.message : String(error));
+      debugLog.error('Failed to check  artist favorite', error instanceof Error ? error.message : String(error));
       return false;
     }
   }
 
   /**
-   * Add a track to Qobuz favorites
+   * Add a track to  favorites
    */
-  async addQobuzTrackFavorite(trackId: string): Promise<void> {
+  async addTrackFavorite(trackId: string): Promise<void> {
     try {
-      await this.request('', ['qobuz', 'favorites', 'add', `track_id:${trackId}`]);
-      debugLog.info('Added track to Qobuz favorites', trackId);
+      await this.request('', ['', 'favorites', 'add', `track_id:${trackId}`]);
+      debugLog.info('Added track to  favorites', trackId);
     } catch (error) {
-      debugLog.error('Failed to add Qobuz track favorite', error instanceof Error ? error.message : String(error));
+      debugLog.error('Failed to add  track favorite', error instanceof Error ? error.message : String(error));
       throw error;
     }
   }
 
   /**
-   * Add an album to Qobuz favorites
+   * Add an album to  favorites
    */
-  async addQobuzAlbumFavorite(albumId: string): Promise<void> {
+  async addAlbumFavorite(albumId: string): Promise<void> {
     try {
-      await this.request('', ['qobuz', 'favorites', 'add', `album_id:${albumId}`]);
-      debugLog.info('Added album to Qobuz favorites', albumId);
+      await this.request('', ['', 'favorites', 'add', `album_id:${albumId}`]);
+      debugLog.info('Added album to  favorites', albumId);
     } catch (error) {
-      debugLog.error('Failed to add Qobuz album favorite', error instanceof Error ? error.message : String(error));
+      debugLog.error('Failed to add  album favorite', error instanceof Error ? error.message : String(error));
       throw error;
     }
   }
 
   /**
-   * Add an artist to Qobuz favorites
+   * Add an artist to  favorites
    */
-  async addQobuzArtistFavorite(artistId: string): Promise<void> {
+  async addArtistFavorite(artistId: string): Promise<void> {
     try {
-      await this.request('', ['qobuz', 'favorites', 'add', `artist_id:${artistId}`]);
-      debugLog.info('Added artist to Qobuz favorites', artistId);
+      await this.request('', ['', 'favorites', 'add', `artist_id:${artistId}`]);
+      debugLog.info('Added artist to  favorites', artistId);
     } catch (error) {
-      debugLog.error('Failed to add Qobuz artist favorite', error instanceof Error ? error.message : String(error));
+      debugLog.error('Failed to add  artist favorite', error instanceof Error ? error.message : String(error));
       throw error;
     }
   }
 
   /**
-   * Remove a track from Qobuz favorites
+   * Remove a track from  favorites
    */
-  async removeQobuzTrackFavorite(trackId: string): Promise<void> {
+  async removeTrackFavorite(trackId: string): Promise<void> {
     try {
-      await this.request('', ['qobuz', 'favorites', 'remove', `track_id:${trackId}`]);
-      debugLog.info('Removed track from Qobuz favorites', trackId);
+      await this.request('', ['', 'favorites', 'remove', `track_id:${trackId}`]);
+      debugLog.info('Removed track from  favorites', trackId);
     } catch (error) {
-      debugLog.error('Failed to remove Qobuz track favorite', error instanceof Error ? error.message : String(error));
+      debugLog.error('Failed to remove  track favorite', error instanceof Error ? error.message : String(error));
       throw error;
     }
   }
 
   /**
-   * Remove an album from Qobuz favorites
+   * Remove an album from  favorites
    */
-  async removeQobuzAlbumFavorite(albumId: string): Promise<void> {
+  async removeAlbumFavorite(albumId: string): Promise<void> {
     try {
-      await this.request('', ['qobuz', 'favorites', 'remove', `album_id:${albumId}`]);
-      debugLog.info('Removed album from Qobuz favorites', albumId);
+      await this.request('', ['', 'favorites', 'remove', `album_id:${albumId}`]);
+      debugLog.info('Removed album from  favorites', albumId);
     } catch (error) {
-      debugLog.error('Failed to remove Qobuz album favorite', error instanceof Error ? error.message : String(error));
+      debugLog.error('Failed to remove  album favorite', error instanceof Error ? error.message : String(error));
       throw error;
     }
   }
 
   /**
-   * Remove an artist from Qobuz favorites
+   * Remove an artist from  favorites
    */
-  async removeQobuzArtistFavorite(artistId: string): Promise<void> {
+  async removeArtistFavorite(artistId: string): Promise<void> {
     try {
-      await this.request('', ['qobuz', 'favorites', 'remove', `artist_id:${artistId}`]);
-      debugLog.info('Removed artist from Qobuz favorites', artistId);
+      await this.request('', ['', 'favorites', 'remove', `artist_id:${artistId}`]);
+      debugLog.info('Removed artist from  favorites', artistId);
     } catch (error) {
-      debugLog.error('Failed to remove Qobuz artist favorite', error instanceof Error ? error.message : String(error));
+      debugLog.error('Failed to remove  artist favorite', error instanceof Error ? error.message : String(error));
       throw error;
     }
   }

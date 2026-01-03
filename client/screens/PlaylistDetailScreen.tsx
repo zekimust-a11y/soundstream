@@ -49,7 +49,7 @@ export default function PlaylistDetailScreen() {
     }
   }, [activeServer, playlist.id, getPlaylistTracks]);
 
-  const displayName = playlist.name.replace(/^Qobuz\s*:?\s*/i, '').trim();
+  const displayName = playlist.name.replace(/^(SoundCloud|Tidal)\s*:?\s*/i, "").trim();
 
   useEffect(() => {
     navigation.setOptions({
@@ -72,14 +72,14 @@ export default function PlaylistDetailScreen() {
 
   const handlePlayAll = () => {
     if (!activePlayer) return;
-    const displayName = playlist.name.replace(/^Qobuz\s*:?\s*/i, '').trim();
+    const displayName = playlist.name.replace(/^(SoundCloud|Tidal)\s*:?\s*/i, "").trim();
     playPlaylist(playlist.id, displayName);
   };
 
   const handleShuffleAll = async () => {
     if (!activePlayer) return;
     await lmsClient.setShuffle(activePlayer.id, 1);
-    const displayName = playlist.name.replace(/^Qobuz\s*:?\s*/i, '').trim();
+    const displayName = playlist.name.replace(/^(SoundCloud|Tidal)\s*:?\s*/i, "").trim();
     playPlaylist(playlist.id, displayName);
   };
 

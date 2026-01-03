@@ -1,7 +1,7 @@
 # Development Guidelines - Preventing Regressions
 
 ## Problem
-When fixing one feature (e.g., "In the Press"), we accidentally broke another feature (Qobuz playlists) that was previously working.
+When fixing one feature, we accidentally broke another feature that was previously working.
 
 ## Best Practices to Prevent Regressions
 
@@ -13,12 +13,12 @@ When fixing one feature (e.g., "In the Press"), we accidentally broke another fe
 ### 2. **Use Git Branches**
 ```bash
 # Create a feature branch for each fix
-git checkout -b fix/qobuz-essentials
+git checkout -b fix/tidal-library
 # Make your changes
-git commit -m "Fix: Qobuz essentials display"
+git commit -m "Fix: Tidal library display"
 # Test thoroughly
 git checkout main
-git merge fix/qobuz-essentials
+git merge fix/tidal-library
 ```
 
 ### 3. **Test Checklist Before Committing**
@@ -43,22 +43,8 @@ Before marking a task complete, verify:
 - Document any assumptions or dependencies
 - Note any known limitations
 
-## Current Issue: Qobuz Playlists
-
-### What Happened
-When fixing `getQobuzSelectionAlbums` for "In the Press", the `getPlaylists` function may have been affected.
-
-### Investigation Steps
-1. Check git history to see what changed in `getPlaylists`
-2. Compare current `getPlaylists` with a known working version
-3. Test Qobuz playlist fetching in isolation
-4. Verify the fix doesn't break other playlist sources
-
-### Recovery Plan
-1. Identify the last known working state
-2. Restore that functionality
-3. Apply the "In the Press" fix more carefully
-4. Test both features together
+## Notes
+This document is intentionally generic. Keep it updated to reflect current integrations and remove outdated incident-specific guidance.
 
 
 

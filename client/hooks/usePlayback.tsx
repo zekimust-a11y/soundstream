@@ -24,7 +24,7 @@ export interface Track {
   albumId?: string;
   albumArt?: string;
   duration: number;
-  source: "local" | "qobuz" | "tidal" | "soundcloud";
+  source: "local" | "tidal" | "soundcloud";
   uri?: string;
   metadata?: string;
   format?: string;
@@ -127,7 +127,6 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     if (!haystack.trim()) return "local" as const;
     // Prefer explicit URI schemes when present
     if (url.startsWith("tidal://") || haystack.includes(" tidal") || haystack.includes("tidal")) return "tidal" as const;
-    if (url.startsWith("qobuz://") || haystack.includes("qobuz")) return "qobuz" as const;
     if (url.startsWith("soundcloud://") || haystack.includes("soundcloud")) return "soundcloud" as const;
     return "local" as const;
   }, []);
@@ -1313,7 +1312,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         };
 
         // --- TIDAL fast-paths (explicit LMS commands) ---
-        // We avoid relying on Qobuz codepaths; for Tidal we send clear → load url → play.
+        // For Tidal we send clear → load url → play.
         if (track.source === 'tidal' && track.uri) {
           // LMS must resolve the `tidal://...` URI via its Tidal plugin and stream directly to the renderer.
           // (We do NOT proxy audio through Soundstream.)
@@ -1412,8 +1411,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
             debugLog.info('Playing single Tidal track', `URI: ${track.uri}`);
             await lmsClient.playUrl(activePlayer.id, track.uri);
           } else {
-            // Handle local/Qobuz tracks using track ID
-            await lmsClient.playTrack(activePlayer.id, track.lmsTrackId, track.source === 'qobuz', track.format, track.sampleRate, track.bitDepth, activePlayer.model);
+            // Handle local tracks using track ID
+            await lmsClient.playTrack(activePlayer.id, track.lmsTrackId, track.format, track.sampleRate, track.bitDepth, activePlayer.model);
             await lmsClient.play(activePlayer.id);
           }
         }

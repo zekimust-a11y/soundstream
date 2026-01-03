@@ -4,25 +4,24 @@ Before marking any task as complete, verify ALL of the following:
 
 ## Playlists Screen
 - [ ] Standard LMS playlists appear
-- [ ] Qobuz playlists appear (check for "My Playlists" in Qobuz menu)
+- [ ] Tidal playlists appear (via SoundStream API)
 - [ ] SoundCloud playlists appear (if applicable)
 - [ ] Playlist images load (4-image mosaic)
 - [ ] Playlist images are cached and load quickly on subsequent visits
-- [ ] Source icons (Qobuz/SoundCloud) appear in bottom left corner
+- [ ] Source icons (Tidal/SoundCloud) appear in bottom left corner
 - [ ] Play and shuffle buttons work
 - [ ] Clicking playlist opens detail screen
 
 ## Albums Screen
 - [ ] Local albums appear
-- [ ] Qobuz albums appear
+- [ ] Tidal albums appear
 - [ ] Source badges appear in bottom left corner
-- [ ] Filtering works (Local vs Qobuz)
+- [ ] Filtering works (Local vs Tidal)
 - [ ] Sorting works
 
 ## Browse Screen
 - [ ] Recently Played section works
-- [ ] Qobuz Bestsellers section displays albums
-- [ ] "In the Press" section displays albums
+- [ ] Tidal section displays content (and connects to My Music when logged in)
 - [ ] Artists section works
 
 ## Regression Tests

@@ -3,18 +3,18 @@
 ## Architecture Decisions
 
 ### Authentication
-**Auth Required** - Qobuz integration necessitates user authentication.
+**Auth Required** - Tidal integration necessitates user authentication.
 
 **Implementation:**
 - Use SSO with Apple Sign-In (iOS requirement) and Google Sign-In
 - Mock auth flow in prototype with local state
 - Include login/signup screens with:
-  - Qobuz account connection (separate from app login)
+  - Tidal account connection (separate from app login)
   - Privacy policy & terms links (placeholder URLs)
 - Account screen features:
   - User avatar (generate 3 music-themed preset avatars: vinyl record, headphones, waveform)
   - Display name field
-  - Connected services (Qobuz connection status)
+  - Connected services (Tidal connection status)
   - Log out (with confirmation alert)
   - Delete account (Settings > Account > Delete, double confirmation)
 
@@ -22,7 +22,7 @@
 **Tab Navigation** - App has 4 distinct feature areas with floating action button for Now Playing.
 
 **Structure:**
-1. **Browse Tab** - Library browsing (UPNP/LMS servers, Qobuz)
+1. **Browse Tab** - Library browsing (UPNP/LMS servers, Tidal)
 2. **Queue Tab** - Current playback queue
 3. **Floating Action Button** - Minimized Now Playing (expands to full screen)
 4. **Search Tab** - Global search across all sources
@@ -37,7 +37,7 @@
 ### Screen Specifications
 
 #### 1. Browse Screen
-**Purpose:** Navigate music library from connected servers and Qobuz
+**Purpose:** Navigate music library from connected servers and Tidal
 
 **Layout:**
 - Custom transparent header with:
@@ -105,7 +105,7 @@
 **Layout:**
 - Custom header with search bar (always visible)
 - Scrollable content with tabbed results:
-  - Tabs: All, Artists, Albums, Tracks, Qobuz
+  - Tabs: All, Artists, Albums, Tracks, Tidal
   - Results list with mixed content types
 - Safe area insets: top: headerHeight + 24, bottom: tabBarHeight + 24
 
@@ -122,7 +122,7 @@
 - Scrollable form with grouped sections:
   - Servers (UPNP/LMS connections)
   - Playback (gapless, crossfade, normalization)
-  - Streaming Quality (Qobuz settings)
+  - Streaming Quality (Tidal settings)
   - Account (profile, connected services)
 - Safe area insets: top: 24, bottom: tabBarHeight + 24
 

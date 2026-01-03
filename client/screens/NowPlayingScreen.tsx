@@ -57,7 +57,7 @@ interface QualityInfo {
 function getQualityInfo(format?: string, sampleRate?: string, bitDepth?: string, bitrate?: string): QualityInfo {
   const f = (format || "").toString().toUpperCase();
 
-  // Normalise bit depth and sample rate strings coming from LMS/Qobuz
+  // Normalise bit depth and sample rate strings coming from LMS/streaming sources
   let bits: number | null = null;
   if (bitDepth) {
     // Handle formats like "24-bit", "24", or just the number
@@ -357,7 +357,7 @@ export default function NowPlayingScreen() {
     }
   );
   
-  const { isFavoriteTrack, toggleFavoriteTrack, isQobuzFavorite, toggleQobuzFavorite, qobuzConnected, searchMusic } = useMusic();
+  const { isFavoriteTrack, toggleFavoriteTrack, searchMusic } = useMusic();
   const {
     currentTrack,
     isPlaying,
@@ -525,47 +525,11 @@ export default function NowPlayingScreen() {
   const duration = currentTrack ? normalizeDuration(currentTrack.duration) : 0;
   const qualityInfo = currentTrack ? getQualityInfo(currentTrack.format, currentTrack.sampleRate, currentTrack.bitDepth, currentTrack.bitrate) : { label: "", details: "" };
   
-  // Check if track is from Qobuz and if it's favorited
-  const isQobuzTrack = currentTrack?.source === "qobuz";
-  const [isQobuzFav, setIsQobuzFav] = React.useState(false);
-  const [isCheckingQobuzFav, setIsCheckingQobuzFav] = React.useState(false);
-  
-  // Check Qobuz favorite status when track changes
-  React.useEffect(() => {
-    if (isQobuzTrack && currentTrack?.id && qobuzConnected) {
-      setIsCheckingQobuzFav(true);
-      isQobuzFavorite(currentTrack.id)
-        .then((fav) => {
-          setIsQobuzFav(fav);
-          setIsCheckingQobuzFav(false);
-        })
-        .catch(() => {
-          setIsCheckingQobuzFav(false);
-        });
-    } else {
-      setIsQobuzFav(false);
-      setIsCheckingQobuzFav(false);
-    }
-  }, [currentTrack?.id, currentTrack?.source, isQobuzTrack, qobuzConnected, isQobuzFavorite]);
-  
-  // Use Qobuz favorite if Qobuz track, otherwise use local favorite
-  const isFavorite = isQobuzTrack && qobuzConnected ? isQobuzFav : (currentTrack?.id ? isFavoriteTrack(currentTrack.id) : false);
-  
-  const handleToggleFavorite = React.useCallback(async () => {
+  const isFavorite = currentTrack?.id ? isFavoriteTrack(currentTrack.id) : false;
+  const handleToggleFavorite = React.useCallback(() => {
     if (!currentTrack?.id) return;
-    
-    if (isQobuzTrack && qobuzConnected) {
-      try {
-        await toggleQobuzFavorite(currentTrack.id);
-        // Update local state immediately for better UX
-        setIsQobuzFav(!isQobuzFav);
-      } catch (error) {
-        console.error('Failed to toggle Qobuz favorite:', error);
-      }
-    } else {
-      toggleFavoriteTrack(currentTrack.id);
-    }
-  }, [currentTrack, isQobuzTrack, qobuzConnected, isQobuzFav, toggleQobuzFavorite, toggleFavoriteTrack]);
+    toggleFavoriteTrack(currentTrack.id);
+  }, [currentTrack?.id, toggleFavoriteTrack]);
 
   // Volume button press-and-hold behaviour
   const stepVolume = useCallback((delta: number) => {
@@ -785,12 +749,6 @@ export default function NowPlayingScreen() {
                 {!currentTrack.isRadio && currentTrack.source === "tidal" ? (
                   <Image
                     source={require("../assets/images/tidal-icon.png")}
-                    style={styles.sourceIconBadge}
-                    contentFit="contain"
-                  />
-                ) : !currentTrack.isRadio && currentTrack.source === "qobuz" ? (
-                  <Image
-                    source={require("../assets/images/qobuz-icon.png")}
                     style={styles.sourceIconBadge}
                     contentFit="contain"
                   />
@@ -1039,13 +997,12 @@ export default function NowPlayingScreen() {
               <Pressable
                 style={({ pressed }) => [styles.sideControl, { opacity: pressed ? 0.5 : 1 }]}
                 onPress={handleToggleFavorite}
-                disabled={isCheckingQobuzFav}
               >
                 <MaterialIcons
                   name={isFavorite ? "favorite" : "favorite-border"}
                   size={24}
                   color={isFavorite ? "#FF3B30" : "#FFFFFF"}
-                  style={{ opacity: isCheckingQobuzFav ? 0.5 : (isFavorite ? 1 : 0.7) }}
+                  style={{ opacity: isFavorite ? 1 : 0.7 }}
                 />
               </Pressable>
 

@@ -30,7 +30,7 @@ import type { SearchStackParamList } from "@/navigation/SearchStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<SearchStackParamList>;
 type FilterTab = "all" | "artists" | "albums" | "tracks";
-type SourceFilter = "all" | "local" | "qobuz";
+type SourceFilter = "all" | "local" | "tidal";
 
 const RECENT_SEARCHES_KEY = "@soundstream_recent_searches";
 const MAX_RECENT_SEARCHES = 10;
@@ -410,21 +410,19 @@ export default function SearchScreen() {
           style={({ pressed }) => [styles.resultRow, { opacity: pressed ? 0.6 : 1 }]}
           onPress={() => handleResultPress(item)}
         >
-          <Image
-            source={track.albumArt || require("../assets/images/placeholder-album.png")}
-            style={styles.resultImage}
-            contentFit="cover"
-          />
+          <View style={styles.resultImageContainer}>
+            <Image
+              source={track.albumArt || require("../assets/images/placeholder-album.png")}
+              style={styles.resultImage}
+              contentFit="cover"
+            />
+            <SourceBadge source={(track as any).source} size={18} />
+          </View>
           <View style={styles.resultInfo}>
             <View style={styles.trackTitleRow}>
               <ThemedText style={styles.resultTitle} numberOfLines={1}>
                 {track.title}
               </ThemedText>
-              {track.source === "qobuz" ? (
-                <View style={styles.qobuzBadge}>
-                  <ThemedText style={styles.qobuzBadgeText}>Q</ThemedText>
-                </View>
-              ) : null}
             </View>
             <ThemedText style={styles.resultSubtitle} numberOfLines={1}>
               Track • {track.artist}
@@ -642,14 +640,18 @@ export default function SearchScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.sourceChip,
-                  sourceFilter === "qobuz" && styles.sourceChipActive,
+                  sourceFilter === "tidal" && styles.sourceChipActive,
                   { opacity: pressed ? 0.6 : 1 },
                 ]}
-                onPress={() => setSourceFilter("qobuz")}
+                onPress={() => setSourceFilter("tidal")}
               >
-                <ThemedText style={[styles.qobuzIcon, sourceFilter === "qobuz" && styles.qobuzIconActive]}>Q</ThemedText>
-                <ThemedText style={[styles.sourceChipText, sourceFilter === "qobuz" && styles.sourceChipTextActive]}>
-                  Qobuz
+                <Image
+                  source={require("../assets/images/tidal-icon.png")}
+                  style={[styles.sourceChipIcon, { opacity: sourceFilter === "tidal" ? 1 : 0.7 }]}
+                  contentFit="contain"
+                />
+                <ThemedText style={[styles.sourceChipText, sourceFilter === "tidal" && styles.sourceChipTextActive]}>
+                  Tidal
                 </ThemedText>
               </Pressable>
               </ScrollView>
@@ -875,29 +877,14 @@ const styles = StyleSheet.create({
   sourceChipTextActive: {
     color: Colors.light.text,
   },
-  qobuzIcon: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: Colors.light.textSecondary,
-  },
-  qobuzIconActive: {
-    color: Colors.light.text,
+  sourceChipIcon: {
+    width: 12,
+    height: 12,
   },
   trackTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
-  },
-  qobuzBadge: {
-    backgroundColor: "#F99C38",
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 3,
-  },
-  qobuzBadgeText: {
-    fontSize: 8,
-    fontWeight: "700",
-    color: "#000",
   },
   favoriteButton: {
     padding: Spacing.sm,

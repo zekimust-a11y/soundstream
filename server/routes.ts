@@ -834,7 +834,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       'status', 'serverstatus', 'players', 'play', 'pause', 'stop', 'next', 'previous',
       'playlist', 'playlistcontrol', 'mixer', 'browse', 'albums', 'artists', 'tracks',
       'genres', 'years', 'playlists', 'favorites', 'info', 'rescan', 'search', 'power',
-      'qobuz', 'titles', 'globalsearch', 'playerpref', 'pref', 'squeezecloud'
+      'titles', 'globalsearch', 'playerpref', 'pref', 'squeezecloud'
     ];
     const baseCommand = String(command[0]).toLowerCase();
     if (!allowedCommands.includes(baseCommand)) {
@@ -850,10 +850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[LMS Proxy] Attempting to connect to: ${jsonRpcUrl}`);
       console.log(`[LMS Proxy] Command:`, JSON.stringify(command));
       
-      // Qobuz commands may take longer, use 30s timeout for them
-      const isQobuzCommand = Array.isArray(command) && command.length > 0 && 
-                             String(command[0]).toLowerCase() === 'qobuz';
-      const timeoutMs = isQobuzCommand ? 30000 : 10000;
+      const timeoutMs = 10000;
       
       // Use AbortController for timeout (more compatible than AbortSignal.timeout)
       const controller = new AbortController();

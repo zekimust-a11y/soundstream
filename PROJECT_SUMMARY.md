@@ -1,24 +1,24 @@
 # SoundStream Project Summary
 
 **Last Updated:** Current session  
-**Project:** SoundStream - Audio streaming app for LMS (Logitech Media Server) with Qobuz integration
+**Project:** SoundStream - Audio streaming app for LMS (Logitech Media Server) with Tidal integration
 
 ## Overview
 
-SoundStream is a React Native (Expo) application that provides a modern, polished interface for controlling Logitech Media Server (LMS) and streaming music from Qobuz. The app supports both native mobile (iOS/Android) and web platforms.
+SoundStream is a React Native (Expo) application that provides a modern, polished interface for controlling Logitech Media Server (LMS) and streaming music from Tidal. The app supports both native mobile (iOS/Android) and web platforms.
 
 ## Key Features Implemented
 
 ### 1. Library Browsing
 - **Playlists**: Grid/list view with play and shuffle buttons
-- **Albums**: Grid/list view with source badges (Local/Qobuz)
+- **Albums**: Grid/list view with source badges (Local/Tidal)
 - **Artists**: Round tiles with artist portraits from TheAudioDB API
 - **Radio**: Favorite radio stations from LMS with station logos
 - **History**: Recently played tracks (last 50)
 
 ### 2. Search
-- Combined search across local library and Qobuz catalog
-- Source filtering (Local, Qobuz, All)
+- Combined search across local library and Tidal library/catalog (via our API)
+- Source filtering (Local, Tidal, All)
 - Type filtering (Tracks, Albums, Artists)
 - Offline server detection and messaging
 
@@ -123,7 +123,7 @@ server/
 
 ### LMS Integration
 - Uses LMS JSON-RPC API
-- Commands: `status`, `playlist`, `playlistcontrol`, `mixer`, `favorites`, `search`, `qobuz`, `globalsearch`
+- Commands: `status`, `playlist`, `playlistcontrol`, `mixer`, `favorites`, `search`, `globalsearch`
 - Player preferences: `transcode`, `transcodeFLAC`, `transcodeDSD`
 
 ### UPnP Volume Control

@@ -158,9 +158,7 @@ export default function ArtistScreen() {
   const { activePlayer } = usePlayback();
 
   const [albums, setAlbums] = useState<Album[]>([]);
-  const [qobuzAlbums, setQobuzAlbums] = useState<Album[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingQobuz, setIsLoadingQobuz] = useState(false);
   const [artistImage, setArtistImage] = useState<string | undefined>(undefined);
   const [artistBio, setArtistBio] = useState<{ bio?: string; formedYear?: string; genre?: string; country?: string } | null>(null);
   const [isLoadingBio, setIsLoadingBio] = useState(true);
@@ -248,64 +246,7 @@ export default function ArtistScreen() {
             source: 'local' as const,
           }));
         setAlbums(libraryAlbums);
-        
-        // Load Qobuz albums for this artist (if enabled)
-        setIsLoadingQobuz(true);
-        try {
-          // Check if Qobuz is enabled
-          let qobuzEnabled = true;
-          try {
-            const settings = await AsyncStorage.getItem("@soundstream_settings");
-            if (settings) {
-              const parsed = JSON.parse(settings);
-              qobuzEnabled = parsed.qobuzEnabled !== false;
-            }
-          } catch (e) {
-            // Use default if settings can't be loaded
-          }
-          
-          if (qobuzEnabled) {
-            const qobuzResults = await lmsClient.searchQobuz(artistName);
-            // Filter Qobuz albums to only include those by this artist and not in library
-            const libraryAlbumNames = new Set(libraryAlbums.map(a => a.name.toLowerCase().trim()));
-            const qobuzAlbumsFiltered = qobuzResults.albums
-              .filter(qobuzAlbum => {
-                const qobuzArtist = qobuzAlbum.artist.toLowerCase().trim();
-                const artistNameLower = artistName.toLowerCase().trim();
-                // Match if artist name matches (fuzzy match for variations)
-                const artistMatches = qobuzArtist === artistNameLower || 
-                                     qobuzArtist.includes(artistNameLower) ||
-                                     artistNameLower.includes(qobuzArtist);
-                if (!artistMatches) return false;
-                
-                // Exclude if already in library
-                const albumName = qobuzAlbum.title.toLowerCase().trim();
-                return !libraryAlbumNames.has(albumName);
-              })
-              .map(album => ({
-                id: album.id,
-                name: album.title,
-                artist: album.artist,
-                artistId: '',
-                imageUrl: album.artwork_url,
-                year: album.year,
-                source: 'qobuz' as const,
-              }));
-            setQobuzAlbums(qobuzAlbumsFiltered);
-          } else {
-            setQobuzAlbums([]);
-          }
-        } catch (error) {
-          console.error("Failed to load Qobuz albums:", error);
-          setQobuzAlbums([]);
-        } finally {
-          setIsLoadingQobuz(false);
-        }
-        
-        // Tidal albums are already included in libraryAlbums from getAlbumsByArtistName
-        // They are identified by checking URL/ID/artwork_url for "tidal" in the standard library query
-        // No need to fetch separately - Tidal content comes from LMS standard library queries
-        
+     
         // Load artist image and bio from TheAudioDB
         const [image, bio] = await Promise.all([
           lmsClient.getArtistImage(artistName),
@@ -440,35 +381,6 @@ export default function ArtistScreen() {
               </View>
             )}
           </View>
-
-          {qobuzAlbums.length > 0 && (
-            <View style={styles.section}>
-              <ThemedText style={styles.sectionTitle}>Discography</ThemedText>
-              {isLoadingQobuz ? (
-                <ActivityIndicator color={Colors.light.accent} style={styles.loader} />
-              ) : (
-                <View style={[styles.albumGrid, isDesktop ? styles.albumGridDesktop : null]}>
-                  {qobuzAlbums.map((album) => (
-                    <AlbumGridCard
-                      key={album.id}
-                      album={album}
-                      size={gridLayout.itemSize}
-                      onPress={() =>
-                        navigation.navigate("Album", {
-                          id: album.id,
-                          name: album.name,
-                          artistName: album.artist,
-                          source: album.source,
-                        })
-                      }
-                      onPlay={() => handlePlayAlbum(album)}
-                      onShuffle={() => handleShuffleAlbum(album)}
-                    />
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
 
           {artistBio?.bio && (
             <View style={styles.section}>
