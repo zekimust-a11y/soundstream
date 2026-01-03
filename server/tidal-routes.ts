@@ -1477,6 +1477,60 @@ export function registerTidalRoutes(app: Express): void {
       // Use OpenAPI userCollections meta totals. This avoids legacy scopes (r_usr) required by some
       // api.tidal.com endpoints and matches the modern TIDAL Developer Platform model.
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
+
+      // Some OpenAPI deployments expose aggregate counts directly on the userCollections resource.
+      // Try this first (fast), then fall back to relationship meta/header totals.
+      const toFiniteNumber = (v: any): number | null => {
+        const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+        return Number.isFinite(n) && n >= 0 ? n : null;
+      };
+
+      const tryUserCollectionsSummary = async (): Promise<{
+        albums: number | null;
+        artists: number | null;
+        tracks: number | null;
+        playlists: number | null;
+      } | null> => {
+        try {
+          const summary = await openApiGet(
+            `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(t.userId!)}?countryCode=${encodeURIComponent(
+              countryCode
+            )}`,
+            t.accessToken
+          );
+          const attrs = (summary?.data?.attributes || summary?.attributes || {}) as any;
+          const albums =
+            toFiniteNumber(attrs?.albums) ??
+            toFiniteNumber(attrs?.albumCount) ??
+            toFiniteNumber(attrs?.numberOfAlbums) ??
+            toFiniteNumber(attrs?.totalAlbums) ??
+            null;
+          const artists =
+            toFiniteNumber(attrs?.artists) ??
+            toFiniteNumber(attrs?.artistCount) ??
+            toFiniteNumber(attrs?.numberOfArtists) ??
+            toFiniteNumber(attrs?.totalArtists) ??
+            null;
+          const tracks =
+            toFiniteNumber(attrs?.tracks) ??
+            toFiniteNumber(attrs?.trackCount) ??
+            toFiniteNumber(attrs?.numberOfTracks) ??
+            toFiniteNumber(attrs?.totalTracks) ??
+            null;
+          const playlists =
+            toFiniteNumber(attrs?.playlists) ??
+            toFiniteNumber(attrs?.playlistCount) ??
+            toFiniteNumber(attrs?.numberOfPlaylists) ??
+            toFiniteNumber(attrs?.totalPlaylists) ??
+            null;
+          const any = albums !== null || artists !== null || tracks !== null || playlists !== null;
+          return any ? { albums, artists, tracks, playlists } : null;
+        } catch {
+          return null;
+        }
+      };
+
+      const summaryCounts = await tryUserCollectionsSummary();
       async function openApiMetaTotal(rel: "albums" | "artists" | "tracks" | "playlists"): Promise<{ count: number | null; rateLimited: boolean }> {
         // In practice, OpenAPI totals are most reliably present when requesting an `include=...`
         // matching the relationship type (JSON:API-ish pagination).
@@ -1561,13 +1615,13 @@ export function registerTidalRoutes(app: Express): void {
       const rateLimited = albumsMeta.rateLimited || artistsMeta.rateLimited || tracksMeta.rateLimited || playlistsMeta.rateLimited;
 
       const payload = {
-        albums: albumsMeta.count,
-        artists: artistsMeta.count,
-        tracks: tracksMeta.count,
-        playlists: playlistsMeta.count,
+        albums: summaryCounts?.albums ?? albumsMeta.count,
+        artists: summaryCounts?.artists ?? artistsMeta.count,
+        tracks: summaryCounts?.tracks ?? tracksMeta.count,
+        playlists: summaryCounts?.playlists ?? playlistsMeta.count,
         rateLimited,
         partial: rateLimited,
-        source: "openapi(meta)",
+        source: summaryCounts ? "openapi(userCollections + meta)" : "openapi(meta)",
         missingScope: null,
       };
 
