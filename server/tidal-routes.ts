@@ -443,7 +443,7 @@ function isMissingRUsrScope(body: any): boolean {
   return s.includes("missing_scope") && s.includes("r_usr");
 }
 
-function pickArtworkUrl(artwork: any, preferred = "320x320"): string | null {
+function pickArtworkUrl(artwork: any, preferred = "640x640"): string | null {
   const files: any[] = artwork?.attributes?.files;
   if (!Array.isArray(files)) return null;
   const preferredFile = files.find((f) => typeof f?.href === "string" && f.href.includes(preferred));
@@ -491,7 +491,7 @@ function mapOpenApiTrackFromItem(item: any, includedMap: Record<string, Record<s
   const artworkRel = album?.relationships?.coverArt?.data?.[0];
   const artwork = artworkRel ? includedMap.artworks?.[String(artworkRel.id)] : null;
 
-  const coverUrl = pickArtworkUrl(artwork, "320x320");
+  const coverUrl = pickArtworkUrl(artwork, "640x640");
 
   const rawDuration = track?.attributes?.duration;
   const duration =
@@ -968,7 +968,7 @@ export function registerTidalRoutes(app: Express): void {
           id,
           title,
           description,
-          artwork_url: pickArtworkUrl(artwork, "320x320"),
+          artwork_url: pickArtworkUrl(artwork, "640x640"),
           lmsUri: `tidal://mix:${id}`,
           source: "tidal",
         });
@@ -1078,7 +1078,7 @@ export function registerTidalRoutes(app: Express): void {
           artistId,
           year: album?.attributes?.releaseDate ? new Date(album.attributes.releaseDate).getFullYear() : undefined,
           numberOfTracks: album?.attributes?.numberOfItems ?? album?.attributes?.numberOfTracks ?? undefined,
-          artwork_url: pickArtworkUrl(artwork, "320x320"),
+          artwork_url: pickArtworkUrl(artwork, "640x640"),
           lmsUri: `tidal://album:${albumId}`,
           source: "tidal",
           addedAt,
@@ -1210,7 +1210,7 @@ export function registerTidalRoutes(app: Express): void {
           title: playlist?.attributes?.name || playlist?.attributes?.title || "Playlist",
           description: playlist?.attributes?.description || "",
           numberOfTracks: playlist?.attributes?.numberOfItems,
-          artwork_url: pickArtworkUrl(artwork, "320x320"),
+          artwork_url: pickArtworkUrl(artwork, "640x640"),
           lmsUri: `tidal://playlist:${playlistId}`,
           source: "tidal",
         };
@@ -1295,7 +1295,7 @@ export function registerTidalRoutes(app: Express): void {
           album: album?.attributes?.title || track?.attributes?.albumName || "Unknown Album",
           albumId,
           duration: track?.attributes?.duration ? Number(track.attributes.duration) : 0,
-          artwork_url: pickArtworkUrl(artwork, "320x320"),
+          artwork_url: pickArtworkUrl(artwork, "640x640"),
           uri: `tidal://${trackId}`,
           lmsUri: `tidal://${trackId}`,
           source: "tidal",
@@ -1379,7 +1379,7 @@ export function registerTidalRoutes(app: Express): void {
               album: album?.attributes?.title || track?.attributes?.albumName || "Unknown Album",
               albumId,
               duration: track?.attributes?.duration ? Number(track.attributes.duration) : 0,
-              artwork_url: pickArtworkUrl(artwork, "320x320"),
+              artwork_url: pickArtworkUrl(artwork, "640x640"),
               uri: `tidal://${trackId}`,
               lmsUri: `tidal://${trackId}`,
               source: "tidal",

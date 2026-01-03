@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Platform, StyleSheet, ImageSourcePropType } from "react-native";
+import { Platform, StyleSheet, ImageSourcePropType, PixelRatio } from "react-native";
 import { Image } from "expo-image";
 import { getApiUrl } from "@/lib/query-client";
 
@@ -58,12 +58,22 @@ export function AlbumArtwork({
     if (Platform.OS !== "web") return source;
 
     // Request thumbnails through the server cache for faster loads.
-    // Grid/list => 160, detail/now-playing => 640.
+    // IMPORTANT: use a DPI-aware size so artwork stays crisp on high-DPI screens.
     const flat = StyleSheet.flatten(style) || {};
     const w = typeof flat.width === "number" ? flat.width : null;
     const h = typeof flat.height === "number" ? flat.height : null;
     const dim = Math.max(w || 0, h || 0);
-    const requested = dim > 300 ? 640 : 160;
+    const scale =
+      Platform.OS === "web"
+        ? (typeof window !== "undefined" && (window as any).devicePixelRatio ? Number((window as any).devicePixelRatio) : 1)
+        : PixelRatio.get();
+    const target = dim > 0 ? dim * (Number.isFinite(scale) && scale > 0 ? scale : 1) : 320;
+
+    // Match server cache buckets: 96/160/320/640
+    const requested =
+      target > 360 ? 640 :
+      target > 180 ? 320 :
+      target > 120 ? 160 : 96;
 
     const apiUrl = getApiUrl();
     const proxied = `${apiUrl}/api/image-proxy?url=${encodeURIComponent(raw)}&w=${requested}&h=${requested}`;
