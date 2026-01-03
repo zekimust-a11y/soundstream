@@ -431,7 +431,9 @@ export default function SettingsScreen() {
           });
           if (resp.ok) {
             const data = await resp.json();
-            if (data?.missingScope) {
+            if (data?.computing) {
+              setTidalTotalsNote("Calculating Tidal totals in the background… this can take a bit the first time.");
+            } else if (data?.missingScope) {
               setTidalTotalsNote(
                 `Tidal totals are unavailable with the current TIDAL app credentials (scope ${String(
                   data.missingScope

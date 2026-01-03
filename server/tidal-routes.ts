@@ -1501,8 +1501,98 @@ export function registerTidalRoutes(app: Express): void {
 
       // For fast & accurate totals, prefer api.tidal.com v2 endpoints that return totalNumberOfItems.
       // These require the legacy `r_usr` scope. If the current token doesn't have it, return nulls
-      // and surface `missingScope` so the UI can instruct a "hybrid" reconnect.
+      // and fall back to a computed OpenAPI count (paged) which we cache.
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
+
+      // --- OpenAPI fallback: count by paging + cache (works without r_usr, but slower / rate-limited) ---
+      const openApiTotalsCacheKey = `totals-openapi:${t.userId}`;
+      const OPENAPI_TOTALS_TTL_MS = 24 * 60 * 60_000; // 24h
+      const cachedOpenApiTotals = cacheGet(openApiTotalsCacheKey, OPENAPI_TOTALS_TTL_MS);
+
+      // One in-flight computation per userId to avoid dogpiling / 429s.
+      const inFlightKey = `totals-openapi-inflight:${t.userId}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const inflightMap: Map<string, Promise<any>> = (global as any).__soundstreamTidalTotalsInflight || new Map();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (global as any).__soundstreamTidalTotalsInflight = inflightMap;
+
+      const startOpenApiTotalsCompute = () => {
+        if (inflightMap.has(inFlightKey)) return;
+
+        const compute = (async () => {
+          const includesByRel: Record<string, string> = {
+            albums: "albums,albums.artists,albums.coverArt",
+            artists: "artists",
+            tracks: "tracks,tracks.albums,tracks.artists,tracks.albums.coverArt",
+            playlists: "playlists,playlists.coverArt",
+          };
+
+          async function countRel(rel: "albums" | "artists" | "tracks" | "playlists") {
+            const include = includesByRel[rel];
+            let url: string | null = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+              t.userId!
+            )}/relationships/${rel}?include=${encodeURIComponent(include)}&countryCode=${encodeURIComponent(
+              countryCode
+            )}&page[size]=100`;
+            let total = 0;
+            let requests = 0;
+            let rateLimited = false;
+
+            // Hard caps to avoid runaway work. If we hit caps, we return partial and keep cache modestly useful.
+            const MAX_REQUESTS = rel === "tracks" ? 140 : 60;
+
+            while (url && requests < MAX_REQUESTS) {
+              requests += 1;
+              try {
+                const data = await openApiGet(url, t.accessToken);
+                const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
+                total += dataArr.length;
+                const next = data?.links?.next;
+                const nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : null;
+                url = nextUrl;
+                if (!nextUrl) break;
+              } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                if (msg.includes("Tidal OpenAPI error: 429")) {
+                  rateLimited = true;
+                  // brief backoff and then stop; we'll rely on cache / next call.
+                  await sleep(1200);
+                  break;
+                }
+                // Any other error: stop this rel.
+                break;
+              }
+            }
+            const partial = !!url; // still had a next cursor when we stopped
+            return { total, requests, rateLimited, partial };
+          }
+
+          // Sequential to reduce 429s (tracks is the heavy one).
+          const albums = await countRel("albums");
+          const artists = await countRel("artists");
+          const playlists = await countRel("playlists");
+          const tracks = await countRel("tracks");
+
+          const payload = {
+            albums: albums.total,
+            artists: artists.total,
+            tracks: tracks.total,
+            playlists: playlists.total,
+            rateLimited: albums.rateLimited || artists.rateLimited || tracks.rateLimited || playlists.rateLimited,
+            partial: albums.partial || artists.partial || tracks.partial || playlists.partial,
+            source: "openapi(paged)",
+            computedAt: Date.now(),
+          };
+          cacheSet(openApiTotalsCacheKey, payload);
+          return payload;
+        })()
+          .catch(() => null)
+          .finally(() => {
+            inflightMap.delete(inFlightKey);
+          });
+
+        inflightMap.set(inFlightKey, compute);
+      };
 
       const apiTotal = async (
         pathWithQuery: string
@@ -1581,6 +1671,28 @@ export function registerTidalRoutes(app: Express): void {
         source: "api.tidal.com(v2)",
         missingScope: missingScope ? "r_usr" : null,
       };
+
+      // If legacy scope is missing, fall back to OpenAPI computed totals.
+      if (missingScope) {
+        // If we have a cached computed payload, use it immediately.
+        if (cachedOpenApiTotals?.payload) {
+          return res.json({ ...cachedOpenApiTotals.payload, cached: true });
+        }
+        // Kick off background computation and return a non-misleading response.
+        startOpenApiTotalsCompute();
+        return res.json({
+          albums: null,
+          artists: null,
+          tracks: null,
+          playlists: null,
+          rateLimited: false,
+          partial: true,
+          source: "openapi(paged)",
+          computing: true,
+          missingScope: "r_usr",
+          cached: false,
+        });
+      }
 
       // If we got rate-limited, prefer cached values instead of returning null/partial.
       if (rateLimited && cached?.payload) {
