@@ -226,10 +226,12 @@ export function useInfiniteAlbums(artistId?: string) {
 
   return useInfiniteQuery({
     queryKey: ['albums', 'infinite', activeServer?.id, artistId, spotifyEnabled, tidalEnabled, tidalConnected, localLibraryEnabled],
-    queryFn: async ({ pageParam = { lmsOffset: 0, tidalOffset: 0 } as any }) => {
+    queryFn: async ({ pageParam = { lmsOffset: 0, tidalNext: null } as any }) => {
       const lmsOffset = Number(pageParam?.lmsOffset || 0);
-      const tidalOffset = Number(pageParam?.tidalOffset || 0);
-      console.log(`[useInfiniteAlbums] queryFn called: lmsOffset=${lmsOffset}, tidalOffset=${tidalOffset}, LMS_PAGE_SIZE=${LMS_PAGE_SIZE}, TIDAL_PAGE_SIZE=${TIDAL_PAGE_SIZE}, tidalEnabled=${tidalEnabled}, localEnabled=${localLibraryEnabled}`);
+      const tidalNext: string | null = typeof pageParam?.tidalNext === "string" ? pageParam.tidalNext : null;
+      console.log(
+        `[useInfiniteAlbums] queryFn called: lmsOffset=${lmsOffset}, tidalNext=${tidalNext ? "yes" : "no"}, LMS_PAGE_SIZE=${LMS_PAGE_SIZE}, TIDAL_PAGE_SIZE=${TIDAL_PAGE_SIZE}, tidalEnabled=${tidalEnabled}, localEnabled=${localLibraryEnabled}`
+      );
       
       if (!activeServer) return { albums: [], total: 0, nextPage: undefined };
 
@@ -237,23 +239,35 @@ export function useInfiniteAlbums(artistId?: string) {
 
       // Fetch LMS albums
       const result = await lmsClient.getAlbumsPage(lmsOffset, LMS_PAGE_SIZE, artistId);
-      const convertedLmsAlbums = result.albums.map(album => convertLmsAlbumToAlbum(album, 'local'));
+      // IMPORTANT: ignore TIDAL plugin albums coming from LMS to avoid duplicates with the direct TIDAL API.
+      const isTidalFromLms = (a: any) => {
+        const id = String(a?.id || "").toLowerCase();
+        const url = String(a?.url || "").toLowerCase();
+        const art = String(a?.artwork_url || "").toLowerCase();
+        return id.includes("tidal") || url.includes("tidal") || art.includes("tidal") || art.includes("resources.tidal.com");
+      };
+      const convertedLmsAlbums = result.albums
+        .filter((a: any) => !isTidalFromLms(a))
+        .map((album) => convertLmsAlbumToAlbum(album, 'local'));
       console.log(`[useInfiniteAlbums] LMS albums fetched: ${convertedLmsAlbums.length}, total reported by LMS: ${result.total}`);
 
       // Add Tidal albums if Tidal is enabled
       let tidalAlbums: Album[] = [];
       let tidalTotalCount = 0;
+      let nextTidalNext: string | null = null;
       if (tidalEnabled && tidalConnected && !artistId) {
         try {
           const apiUrl = getApiUrl();
           const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
-          const url = `${cleanApiUrl}/api/tidal/albums?limit=${TIDAL_PAGE_SIZE}&offset=${tidalOffset}`;
+          const url =
+            `${cleanApiUrl}/api/tidal/albums?limit=${TIDAL_PAGE_SIZE}` + (tidalNext ? `&next=${encodeURIComponent(tidalNext)}` : `&offset=0`);
           console.log(`[useInfiniteAlbums] Fetching Tidal albums from: ${url}`);
           const tidalResponse = await fetch(url);
           if (tidalResponse.ok) {
             const tidalResult = await tidalResponse.json();
             console.log(`[useInfiniteAlbums] Tidal items found: ${tidalResult.items?.length || 0}, total: ${tidalResult.total}`);
             tidalTotalCount = tidalResult.total || 0;
+            nextTidalNext = typeof tidalResult?.next === "string" && tidalResult.next ? tidalResult.next : null;
             if (tidalResult.items) {
               tidalAlbums = tidalResult.items.map((album: any) => ({
                 id: `tidal-${album.id}`,
@@ -282,8 +296,10 @@ export function useInfiniteAlbums(artistId?: string) {
       const uniqueAlbumsMap = new Map();
       allAlbums.forEach(album => {
         // De-dupe aggressively to avoid repeated pages showing as duplicates in the UI.
-        // For TIDAL, ids can differ across editions; use name+artist+year as a stable key.
-        const key = `${(album.source || 'local')}|${(album.name || '').toLowerCase()}|${(album.artist || '').toLowerCase()}|${album.year || ''}`;
+        // For TIDAL, ids can differ across editions; use name+artist as a stable key.
+        const src = (album.source || 'local') as string;
+        const stableYear = src === "tidal" ? "" : (album.year || "");
+        const key = `${src}|${(album.name || '').toLowerCase()}|${(album.artist || '').toLowerCase()}|${stableYear}`;
         const existing = uniqueAlbumsMap.get(key) as Album | undefined;
         if (!existing) {
           uniqueAlbumsMap.set(key, album);
@@ -312,17 +328,16 @@ export function useInfiniteAlbums(artistId?: string) {
         (localLibraryEnabled ? (result.total || 0) : 0) +
         (tidalEnabled && !artistId ? (tidalTotalCount || 0) : 0);
       const nextLmsOffset = (lmsOffset + LMS_PAGE_SIZE < (result.total || 0)) ? (lmsOffset + LMS_PAGE_SIZE) : lmsOffset;
-      const nextTidalOffset = (tidalEnabled && !artistId && (tidalOffset + TIDAL_PAGE_SIZE < (tidalTotalCount || 0))) ? (tidalOffset + TIDAL_PAGE_SIZE) : tidalOffset;
       const hasMoreLocal = nextLmsOffset !== lmsOffset;
-      const hasMoreTidal = nextTidalOffset !== tidalOffset;
-      const nextPage = (hasMoreLocal || hasMoreTidal) ? { lmsOffset: nextLmsOffset, tidalOffset: nextTidalOffset } : undefined;
+      const hasMoreTidal = !!nextTidalNext;
+      const nextPage = (hasMoreLocal || hasMoreTidal) ? { lmsOffset: nextLmsOffset, tidalNext: nextTidalNext } : undefined;
       
       console.log(`[useInfiniteAlbums] Returning ${albums.length} albums, totalAlbumsCount=${totalAlbumsCount}, nextPage=${nextPage}`);
       
       return { albums, total: totalAlbumsCount, nextPage };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
-    initialPageParam: { lmsOffset: 0, tidalOffset: 0 } as any,
+    initialPageParam: { lmsOffset: 0, tidalNext: null } as any,
     enabled: !!activeServer,
     staleTime: 5 * 60 * 1000,
   });
