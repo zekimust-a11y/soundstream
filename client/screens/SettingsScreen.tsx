@@ -433,7 +433,9 @@ export default function SettingsScreen() {
             const data = await resp.json();
             if (data?.missingScope) {
               setTidalTotalsNote(
-                `Tidal counts need extra scope (${String(data.missingScope)}). Reconnect Tidal to grant it (hybrid permissions) if you want totals here.`
+                `Tidal totals are unavailable with the current TIDAL app credentials (scope ${String(
+                  data.missingScope
+                )} triggers OAuth error 1002). Library browsing still works.`
               );
             } else if (data?.rateLimited) {
               setTidalTotalsNote("Tidal totals are temporarily rate-limited. Try again in a minute.");

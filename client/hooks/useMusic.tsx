@@ -785,9 +785,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       const appRedirectUri = platform === "mobile" ? Linking.createURL("callback") : "";
       const qs = new URLSearchParams({
         platform,
-        // Request a "hybrid" scope set: modern Developer Platform scopes + legacy r_usr
-        // so we can fetch fast, accurate library totals (albums/artists/tracks/playlists).
-        preset: "hybrid",
+        // IMPORTANT: Do NOT request legacy `r_usr` by default.
+        // Some TIDAL client IDs reject it with OAuth error 1002, which breaks login entirely.
+        // Library browsing works with modern scopes; totals may show as "—" unless a compatible client ID is used.
         ...(platform === "mobile" ? { appRedirectUri } : {}),
       });
       const response = await fetch(`${getApiUrl()}/api/tidal/auth-url?${qs.toString()}`);
