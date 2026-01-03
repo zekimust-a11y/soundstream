@@ -495,13 +495,29 @@ export default function SettingsScreen() {
       lmsClient.setServer(activeServer.host, activeServer.port);
 
       // --- Local (LMS) counts ---
-      let localAlbums: number | null = 0;
-      let localArtists: number | null = 0;
-      let localTracks: number | null = 0;
+      let localAlbums: number | null = null;
+      let localArtists: number | null = null;
+      let localTracks: number | null = null;
+
+      // On this LMS, plugin items (e.g. tidal://) are included in the default library counts.
+      // To compute true local-only totals, we page through `titles` and count only local file:// tracks,
+      // building album/artist sets from those tracks.
+      const LMS_LOCAL_TOTALS_CACHE_KEY = `@soundstream_lms_local_totals_cache_v1:${activeServer.host}:${activeServer.port}`;
       try {
-        // IMPORTANT:
-        // `serverstatus` totals often still include LMS plugin libraries (e.g. LMS Tidal) even with `library_id:0`.
-        // These list queries respect `library_id:0` and provide correct local-only totals in `count`.
+        const cached = await AsyncStorage.getItem(LMS_LOCAL_TOTALS_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed === "object") {
+            localAlbums = typeof parsed.albums === "number" ? parsed.albums : localAlbums;
+            localArtists = typeof parsed.artists === "number" ? parsed.artists : localArtists;
+            localTracks = typeof parsed.tracks === "number" ? parsed.tracks : localTracks;
+          }
+        }
+      } catch {
+        // ignore cache read issues
+      }
+
+      try {
         const apiUrl = getApiUrl();
         const cleanApiUrl = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
 
@@ -516,29 +532,58 @@ export default function SettingsScreen() {
               command,
               id: 1,
             }),
-            signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(8000) : undefined,
+            signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(12000) : undefined,
           });
           if (!resp.ok) return null;
           const json = await resp.json().catch(() => null);
           return json?.result ?? null;
         };
 
-        const [albumsRes, artistsRes, tracksRes] = await Promise.all([
-          proxy(["albums", "0", "0", "library_id:0"]),
-          proxy(["artists", "0", "0", "library_id:0"]),
-          proxy(["titles", "0", "0", "library_id:0"]),
-        ]);
+        const first = await proxy(["titles", "0", "1", "library_id:0", "tags:acdlKNuTsSp"]);
+        const total = Number(first?.count ?? 0) || 0;
 
-        const n = (v: any) => {
-          const x = Number(v ?? 0);
-          return Number.isFinite(x) ? x : 0;
+        const PAGE = 2000;
+        let localTrackCount = 0;
+        const albumKeys = new Set<string>();
+        const artistKeys = new Set<string>();
+
+        const isLocalUrl = (u: unknown): boolean => {
+          const s = String(u || "");
+          return s.startsWith("file://");
         };
 
-        localAlbums = n(albumsRes?.count ?? albumsRes?.total);
-        localArtists = n(artistsRes?.count ?? artistsRes?.total);
-        localTracks = n(tracksRes?.count ?? tracksRes?.total);
+        const keyOf = (prefix: string, id: unknown, fallback: unknown) => {
+          const rawId = String(id || "").trim();
+          if (rawId) return `${prefix}:id:${rawId}`;
+          const fb = String(fallback || "").trim().toLowerCase();
+          return fb ? `${prefix}:name:${fb}` : "";
+        };
+
+        for (let start = 0; start < total; start += PAGE) {
+          const r = await proxy(["titles", String(start), String(PAGE), "library_id:0", "tags:acdlKNuTsSp"]);
+          const loop = (r?.titles_loop || []) as Array<any>;
+          if (!Array.isArray(loop) || loop.length === 0) break;
+
+          for (const t of loop) {
+            if (!isLocalUrl(t?.url)) continue;
+            localTrackCount += 1;
+            const aKey = keyOf("album", t?.album_id, `${t?.album}::${t?.artist}`);
+            if (aKey) albumKeys.add(aKey);
+            const arKey = keyOf("artist", t?.artist_id, t?.artist);
+            if (arKey) artistKeys.add(arKey);
+          }
+        }
+
+        localTracks = localTrackCount;
+        localAlbums = albumKeys.size;
+        localArtists = artistKeys.size;
+
+        AsyncStorage.setItem(
+          LMS_LOCAL_TOTALS_CACHE_KEY,
+          JSON.stringify({ albums: localAlbums, artists: localArtists, tracks: localTracks }),
+        ).catch(() => {});
       } catch (e) {
-        console.warn("Failed to get LMS local totals:", e instanceof Error ? e.message : String(e));
+        console.warn("Failed to compute local-only LMS totals:", e instanceof Error ? e.message : String(e));
       }
 
       // LMS playlists count (local playlists only; plugin playlists filtered out elsewhere)
