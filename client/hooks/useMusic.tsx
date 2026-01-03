@@ -287,8 +287,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         // Don't set connected state from AsyncStorage - let checkTidalStatus() verify with server
         // setTidalConnected(tidalInfo.connected);
 
-        // Send tokens to server if available
-        if (tidalInfo.accessToken && tidalInfo.refreshToken) {
+        // Send tokens to server only when the user is actually connected.
+        // Otherwise (e.g. after explicit disconnect), avoid re-seeding server tokens.
+        if (tidalInfo.connected && tidalInfo.accessToken && tidalInfo.refreshToken) {
+          const v = tidalTokenVersionRef.current;
           fetch(`${getApiUrl()}/api/tidal/set-tokens`, {
             method: 'POST',
             headers: {
@@ -300,12 +302,12 @@ export function MusicProvider({ children }: { children: ReactNode }) {
               userId: tidalInfo.userId
             }),
           }).then(() => {
-            // Check status after setting tokens
-            checkTidalStatus();
+            // Check status after setting tokens (unless a disconnect happened meanwhile)
+            if (v === tidalTokenVersionRef.current) checkTidalStatus();
           }).catch(error => {
             console.warn('Failed to send Tidal tokens to server:', error);
-            // If sending tokens fails, ensure we check status anyway
-            checkTidalStatus();
+            // If sending tokens fails, ensure we check status anyway (unless a disconnect happened meanwhile)
+            if (v === tidalTokenVersionRef.current) checkTidalStatus();
           });
         } else {
           // No tokens in AsyncStorage, check server status anyway
@@ -773,6 +775,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   // Store latest OAuth state/redirectUri so connectTidal() can pass state for PKCE session lookup.
   const tidalAuthStateRef = useRef<string | null>(null);
   const tidalRedirectUriRef = useRef<string | null>(null);
+  // Guards against in-flight token rehydration/status checks re-connecting after an explicit disconnect.
+  const tidalTokenVersionRef = useRef(0);
 
   const getTidalAuthUrl = useCallback(async (): Promise<string> => {
     try {
@@ -869,6 +873,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const disconnectTidal = useCallback(async () => {
     try {
       setIsLoading(true);
+      // Invalidate any in-flight token rehydration/status checks before we clear server tokens.
+      tidalTokenVersionRef.current += 1;
       const response = await fetch(`${getApiUrl()}/api/tidal/disconnect`, {
         method: 'POST',
       });
