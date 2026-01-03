@@ -163,7 +163,9 @@ export default function AllTracksScreen() {
   // Get a real Tidal tracks total (cached + converging) from /api/tidal/totals, not from a page size.
   useEffect(() => {
     const reqId = ++totalsReqIdRef.current;
-    if (!tidalEnabled || !tidalConnected) {
+    // Don't gate on `tidalConnected` here: it can be stale during rehydrate, and the server is the
+    // source of truth (it will 401 if not connected). We still want counts when Tidal content loads.
+    if (!tidalEnabled) {
       setTidalTotal(null);
       return;
     }
@@ -181,7 +183,7 @@ export default function AllTracksScreen() {
         // ignore
       }
     })();
-  }, [tidalEnabled, tidalConnected]);
+  }, [tidalEnabled]);
 
   useEffect(() => {
     // Reset and load the first page quickly
@@ -321,21 +323,10 @@ export default function AllTracksScreen() {
       {(() => {
         const lms = lmsTotal;
         const tidal = tidalEnabled ? tidalTotal : null;
-        const display =
-          sourceFilter === "local"
-            ? lms
-            : sourceFilter === "tidal"
-              ? tidal
-              : lms !== null && tidal !== null
-                ? lms + tidal
-                : lms !== null
-                  ? lms
-                  : tidal;
-        const displayStr = display !== null ? `Tracks (${display.toLocaleString()})` : "Tracks";
         const countsSuffix = `Tidal ${tidal !== null ? tidal.toLocaleString() : "—"} • LMS ${
           lms !== null ? lms.toLocaleString() : "—"
         }`;
-        return <AppHeader title={`${displayStr} — ${countsSuffix}`} />;
+        return <AppHeader title={`Tracks — ${countsSuffix}`} />;
       })()}
 
       <LibraryToolbar

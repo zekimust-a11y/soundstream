@@ -366,7 +366,7 @@ export default function AllArtistsScreen() {
   if (isLoading) {
     return (
       <ThemedView style={styles.container}>
-        <AppHeader title={`Artists (${Number(displayTotal || 0).toLocaleString()}) — ${countsSuffix}`} />
+        <AppHeader title={`Artists — ${countsSuffix}`} />
         <LibraryToolbar
           sortValue={sortKey}
           sortLabel="Sorting"
@@ -403,7 +403,7 @@ export default function AllArtistsScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <AppHeader title={`Artists (${Number(displayTotal || 0).toLocaleString()}) — ${countsSuffix}`} />
+      <AppHeader title={`Artists — ${countsSuffix}`} />
       <LibraryToolbar
         sortValue={sortKey}
         sortLabel="Sorting"
