@@ -1085,7 +1085,12 @@ export function registerTidalRoutes(app: Express): void {
         };
       });
 
-      const total = extractOpenApiTotal(data);
+      // NOTE: This endpoint often does NOT include a reliable total in OpenAPI meta.
+      // Fall back to our computed totals cache (which slowly converges without requiring `r_usr`).
+      const totalFromMeta = extractOpenApiTotal(data);
+      const cachedComputedTotals = cacheGet(`totals-openapi:${t.userId}`, 24 * 60 * 60_000);
+      const totalFromComputed = toFiniteNumber((cachedComputedTotals?.payload as any)?.albums);
+      const total = totalFromMeta ?? totalFromComputed;
       const next = data?.links?.next;
       const nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : null;
 
@@ -1537,6 +1542,7 @@ export function registerTidalRoutes(app: Express): void {
             let total = 0;
             let requests = 0;
             let rateLimited = false;
+            let consecutive429 = 0;
 
             // Hard caps to avoid runaway work. If we hit caps, we return partial and keep cache modestly useful.
             const MAX_REQUESTS = rel === "tracks" ? 140 : 60;
@@ -1544,20 +1550,29 @@ export function registerTidalRoutes(app: Express): void {
             while (url && requests < MAX_REQUESTS) {
               requests += 1;
               try {
+                // Gentle pacing to reduce 429s.
+                await sleep(220);
                 const data = await openApiGet(url, t.accessToken);
                 const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
                 total += dataArr.length;
                 const next = data?.links?.next;
                 const nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : null;
                 url = nextUrl;
+                consecutive429 = 0;
                 if (!nextUrl) break;
               } catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);
                 if (msg.includes("Tidal OpenAPI error: 429")) {
                   rateLimited = true;
-                  // brief backoff and then stop; we'll rely on cache / next call.
-                  await sleep(1200);
-                  break;
+                  consecutive429 += 1;
+                  // Back off and retry the same cursor instead of stopping permanently.
+                  // This lets totals converge over time (without requiring `r_usr`).
+                  const backoff = Math.min(12_000, 800 * Math.pow(2, Math.min(6, consecutive429)));
+                  await sleep(backoff);
+                  // Don't count this as progress; retry without advancing.
+                  requests -= 1;
+                  if (consecutive429 >= 8) break;
+                  continue;
                 }
                 // Any other error: stop this rel.
                 break;
@@ -1675,8 +1690,13 @@ export function registerTidalRoutes(app: Express): void {
       // If legacy scope is missing, fall back to OpenAPI computed totals.
       if (missingScope) {
         // If we have a cached computed payload, use it immediately.
-        if (cachedOpenApiTotals?.payload) {
-          return res.json({ ...cachedOpenApiTotals.payload, cached: true });
+        // If it's partial, also re-kick computation in the background so it can converge.
+        const cachedPayloadAny = cachedOpenApiTotals?.payload as any;
+        if (cachedPayloadAny) {
+          if (cachedPayloadAny?.partial || cachedPayloadAny?.rateLimited) {
+            startOpenApiTotalsCompute();
+          }
+          return res.json({ ...cachedPayloadAny, cached: true, computing: inflightMap.has(inFlightKey) });
         }
         // Kick off background computation and return a non-misleading response.
         startOpenApiTotalsCompute();
