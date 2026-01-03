@@ -221,11 +221,11 @@ export function useArtistsPreview(limit: number = 20) {
 }
 
 export function useInfiniteAlbums(artistId?: string) {
-  const { activeServer } = useMusic();
+  const { activeServer, tidalConnected } = useMusic();
   const {  spotifyEnabled, tidalEnabled, localLibraryEnabled, isLoaded } = useSettings();
 
   return useInfiniteQuery({
-    queryKey: ['albums', 'infinite', activeServer?.id, artistId,  spotifyEnabled, tidalEnabled, localLibraryEnabled],
+    queryKey: ['albums', 'infinite', activeServer?.id, artistId, spotifyEnabled, tidalEnabled, tidalConnected, localLibraryEnabled],
     queryFn: async ({ pageParam = { lmsOffset: 0, tidalOffset: 0 } as any }) => {
       const lmsOffset = Number(pageParam?.lmsOffset || 0);
       const tidalOffset = Number(pageParam?.tidalOffset || 0);
@@ -243,7 +243,7 @@ export function useInfiniteAlbums(artistId?: string) {
       // Add Tidal albums if Tidal is enabled
       let tidalAlbums: Album[] = [];
       let tidalTotalCount = 0;
-      if (tidalEnabled && !artistId) {
+      if (tidalEnabled && tidalConnected && !artistId) {
         try {
           const apiUrl = getApiUrl();
           const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
@@ -341,7 +341,6 @@ export function useInfiniteArtists() {
       }
       console.log('[useInfiniteArtists] Fetching artists, pageParam:', pageParam);
       lmsClient.setServer(activeServer.host, activeServer.port);
-      try {
       const result = await lmsClient.getArtistsPage(pageParam, PAGE_SIZE);
 
       // Add Tidal artists if Tidal is enabled
@@ -408,10 +407,6 @@ export function useInfiniteArtists() {
       const totalArtistsCount = (result.total || 0) + (tidalTotalCount || 0);
       const nextPage = pageParam + PAGE_SIZE < totalArtistsCount ? pageParam + PAGE_SIZE : undefined;
       return { artists, total: totalArtistsCount, nextPage };
-      } catch (error) {
-        console.error('[useInfiniteArtists] Error:', error);
-        return { artists: [], total: 0, nextPage: undefined };
-      }
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,

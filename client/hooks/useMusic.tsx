@@ -859,6 +859,12 @@ export function MusicProvider({ children }: { children: ReactNode }) {
           }),
         });
 
+        // Refresh library data now that Tidal is connected (albums/artists/playlists will refetch).
+        queryClient.invalidateQueries({ queryKey: ['albums'] });
+        queryClient.invalidateQueries({ queryKey: ['artists'] });
+        queryClient.invalidateQueries({ queryKey: ['playlists'] });
+        queryClient.invalidateQueries({ queryKey: ['tracks'] });
+
         return true;
       }
       return false;
@@ -1219,20 +1225,35 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         try {
           const apiUrl = getApiUrl();
           const cleanApiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
-          const tidalResponse = await fetch(`${cleanApiUrl}/api/tidal/playlists?limit=50&offset=0`);
-          if (tidalResponse.ok) {
-            const tidalResult = await tidalResponse.json();
-            if (tidalResult.items) {
-              tidalPlaylists = tidalResult.items.map((playlist: any) => ({
-                id: `tidal-${playlist.id}`,
-                name: playlist.title,
-                url: `tidal:playlist:${playlist.id}`,
-                artwork: playlist.cover ? `https://resources.tidal.com/images/${playlist.cover.replace(/-/g, '/')}/640x640.jpg` : undefined,
-                type: 'playlist',
-                creator: playlist.creator?.name || 'Tidal',
-              }));
-            }
+          const PAGE = 50;
+          let next: string | null = null;
+          let requests = 0;
+          const maxRequests = 40; // safety cap
+          const items: any[] = [];
+
+          while (requests < maxRequests) {
+            requests += 1;
+            const url =
+              `${cleanApiUrl}/api/tidal/playlists?limit=${PAGE}` + (next ? `&next=${encodeURIComponent(next)}` : "");
+            const resp = await fetch(url);
+            if (!resp.ok) break;
+            const data = await resp.json();
+            const batch: any[] = Array.isArray(data?.items) ? data.items : [];
+            items.push(...batch);
+            next = typeof data?.next === "string" && data.next ? data.next : null;
+            if (!next || batch.length === 0) break;
           }
+
+          // Map to LMS playlist shape used across UI.
+          tidalPlaylists = items
+            .filter((p: any) => p?.id)
+            .map((p: any) => ({
+              id: `tidal-${String(p.id)}`,
+              name: `Tidal: ${String(p.title || p.name || "Playlist")}`,
+              url: String(p.lmsUri || `tidal://playlist:${String(p.id)}`),
+              trackCount: p.numberOfTracks ?? p.numberOfItems ?? undefined,
+              artwork_url: p.artwork_url || undefined,
+            }));
         } catch (e) {
           console.warn('Tidal playlists not available:', e);
         }

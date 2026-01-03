@@ -1171,19 +1171,39 @@ export function registerTidalRoutes(app: Express): void {
     if (!t.userId) return res.status(400).json({ error: "Missing userId. Reconnect Tidal." });
 
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
+    const nextParam = typeof req.query.next === "string" ? req.query.next : "";
     try {
-      const cacheKey = `playlists:${t.userId}:limit=${limit}`;
+      const cacheKey = nextParam
+        ? `playlists:${t.userId}:limit=${limit}:next=${encodeURIComponent(nextParam).slice(0, 180)}`
+        : `playlists:${t.userId}:limit=${limit}:first`;
       const cached = cacheGet(cacheKey);
       if (cached?.fresh) {
         return res.json({ ...cached.payload, cached: true });
       }
 
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const url = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+      const baseUrl = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
         t.userId
       )}/relationships/playlists?include=playlists,playlists.coverArt&countryCode=${encodeURIComponent(
         countryCode
       )}&page[size]=${limit}`;
+
+      // Support cursor paging by allowing the client to pass the `links.next` URL back.
+      // Validate it is a Tidal OpenAPI URL to avoid turning this into a general proxy.
+      let url = baseUrl;
+      if (nextParam) {
+        const decoded = decodeURIComponent(nextParam);
+        try {
+          const u = new URL(decoded);
+          if (u.hostname !== "openapi.tidal.com") {
+            return res.status(400).json({ error: "Invalid next URL (host not allowed)" });
+          }
+          url = decoded;
+        } catch {
+          // ignore malformed next
+        }
+      }
+
       const data = await openApiGet(url, t.accessToken);
       const included: any[] = Array.isArray(data?.included) ? data.included : [];
       const playlistsById = new Map<string, any>(included.filter((x) => x?.type === "playlists").map((x) => [String(x.id), x]));
@@ -1215,17 +1235,21 @@ export function registerTidalRoutes(app: Express): void {
           source: "tidal",
         };
       });
-      const payload = { items, total: metaTotal || items.length };
+      const next = data?.links?.next;
+      const nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : null;
+      const payload = { items, total: metaTotal || items.length, next: nextUrl };
       cacheSet(cacheKey, payload);
       res.json(payload);
     } catch (e) {
-      const cacheKey = `playlists:${t.userId}:limit=${limit}`;
+      const cacheKey = nextParam
+        ? `playlists:${t.userId}:limit=${limit}:next=${encodeURIComponent(nextParam).slice(0, 180)}`
+        : `playlists:${t.userId}:limit=${limit}:first`;
       const cached = cacheGet(cacheKey);
       if (isRateLimitedError(e)) {
         if (cached?.payload) {
           return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true });
         }
-        return res.json({ items: [], total: 0, rateLimited: true });
+        return res.json({ items: [], total: 0, next: null, rateLimited: true });
       }
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
