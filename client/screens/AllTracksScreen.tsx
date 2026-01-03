@@ -167,7 +167,11 @@ export default function AllTracksScreen() {
       setTidalTotal(null);
       return;
     }
-    (async () => {
+    let attempts = 0;
+    const MAX_ATTEMPTS = 20;
+    const poll = async () => {
+      if (totalsReqIdRef.current !== reqId) return;
+      attempts += 1;
       try {
         const { getApiUrl } = await import("@/lib/query-client");
         const apiUrl = getApiUrl();
@@ -179,11 +183,21 @@ export default function AllTracksScreen() {
         }
         const data = await resp.json();
         const n = typeof data?.tracks === "number" ? data.tracks : null;
-        if (totalsReqIdRef.current === reqId && n !== null) setTidalTotal(n);
+        if (totalsReqIdRef.current !== reqId) return;
+        if (n !== null) {
+          setTidalTotal(n);
+          return;
+        }
+        // While totals are being computed server-side, poll a few times so the header updates
+        // as soon as `tracks` becomes available.
+        if (data?.computing && attempts < MAX_ATTEMPTS) {
+          setTimeout(poll, 2000);
+        }
       } catch {
         // ignore
       }
-    })();
+    };
+    poll();
   }, [tidalEnabled, tidalConnected]);
 
   useEffect(() => {
