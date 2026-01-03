@@ -996,55 +996,38 @@ export function registerTidalRoutes(app: Express): void {
 
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10)));
     const offset = Math.max(0, parseInt(String(req.query.offset || "0"), 10) || 0);
+    const nextParam = typeof req.query.next === "string" ? req.query.next : "";
     try {
-      // Cache by (limit, offset). Previously we cached only by limit and ignored offset, which caused
-      // infinite-scroll to repeat the same first page and produce many duplicates in the UI.
-      const cacheKey = `albums:${t.userId}:limit=${limit}:offset=${offset}`;
+      // Cache by (limit, offset) or by next cursor URL.
+      const cacheKey = nextParam
+        ? `albums-openapi:${t.userId}:limit=${limit}:next=${encodeURIComponent(nextParam).slice(0, 180)}`
+        : `albums-openapi:${t.userId}:limit=${limit}:offset=${offset}`;
       const cached = cacheGet(cacheKey);
       if (cached?.fresh) {
         return res.json({ ...cached.payload, cached: true });
       }
 
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-      const doFetch = async (token: string) =>
-        tidalApiGet(
-          `/v2/users/${encodeURIComponent(t.userId!)}/favorites/albums?limit=${limit}&offset=${offset}`,
-          token,
-          countryCode
-        );
+      const baseUrl = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
+        t.userId
+      )}/relationships/albums?include=albums,albums.artists,albums.coverArt&countryCode=${encodeURIComponent(
+        countryCode
+      )}&page[size]=${limit}${offset ? `&page[offset]=${offset}` : ""}`;
 
-      let resp = await doFetch(t.accessToken);
-      // Auto-refresh expired tokens for long-running .21 server.
-      if (resp.status === 401 && tokens?.refreshToken) {
-        const msg = resp.text || "";
-        const looksExpired = msg.includes("Expired token") || msg.includes("AUTHENTICATION_ERROR") || msg.includes("UNAUTHORIZED");
-        if (looksExpired) {
-          try {
-            const clientId = tokens.clientId || process.env.TIDAL_CLIENT_ID || getClientId();
-            const refreshed = await refreshAccessToken(tokens.refreshToken, clientId);
-            tokens = {
-              ...tokens,
-              accessToken: refreshed.accessToken,
-              refreshToken: refreshed.refreshToken || tokens.refreshToken,
-              userId: tokens.userId || refreshed.userId || deriveUserIdFromAccessToken(refreshed.accessToken),
-              obtainedAt: Date.now(),
-              clientId,
-            };
-            saveTokensToDisk();
-            resp = await doFetch(tokens.accessToken);
-          } catch {
-            // fall through to error handling below
+      // Support cursor paging via `links.next` just like /api/tidal/tracks.
+      let url = baseUrl;
+      if (nextParam) {
+        const decoded = decodeURIComponent(nextParam);
+        try {
+          const u = new URL(decoded);
+          if (u.hostname !== "openapi.tidal.com") {
+            return res.status(400).json({ error: "Invalid next URL (host not allowed)" });
           }
+          url = decoded;
+        } catch {
+          // ignore malformed next
         }
       }
-
-      if (resp.status < 200 || resp.status >= 300) {
-        throw new Error(`Tidal API error: ${resp.status} - ${String(resp.text || "").substring(0, 200)}`);
-      }
-
-      const body = resp.json || {};
-      const rawItems: any[] = Array.isArray(body?.items) ? body.items : Array.isArray(body?.data) ? body.data : [];
-      const totalNumberOfItems = Number(body?.totalNumberOfItems ?? body?.total ?? 0) || 0;
 
       const toIsoAddedAt = (raw: any): string | undefined => {
         if (raw == null) return undefined;
@@ -1068,52 +1051,56 @@ export function registerTidalRoutes(app: Express): void {
         return undefined;
       };
 
-      const coverUrl = (cover: any, size: string = "320x320") => {
-        const c = typeof cover === "string" ? cover : "";
-        if (!c) return null;
-        // TIDAL cover ids are UUID-ish strings with dashes; resources URL wants path segments.
-        return `https://resources.tidal.com/images/${c.replace(/-/g, "/")}/${size}.jpg`;
-      };
+      const data = await openApiGet(url, t.accessToken);
+      const included: any[] = Array.isArray(data?.included) ? data.included : [];
+      const albumsById = new Map<string, any>(included.filter((x) => x?.type === "albums").map((x) => [String(x.id), x]));
+      const artistsById = new Map<string, any>(included.filter((x) => x?.type === "artists").map((x) => [String(x.id), x]));
+      const artworksById = new Map<string, any>(included.filter((x) => x?.type === "artworks").map((x) => [String(x.id), x]));
+      const dataArr: any[] = Array.isArray(data?.data) ? data.data : [];
 
-      const items = rawItems.map((a: any) => {
-        const id = String(a?.id || "");
-        const artist = a?.artist || (Array.isArray(a?.artists) ? a.artists[0] : null) || {};
-        const artistId = String(artist?.id || a?.artistId || "");
-        const addedAt = toIsoAddedAt(
-          a?.addedAt ??
-            a?.added_at ??
-            a?.created ??
-            a?.createdAt ??
-            a?.created_at ??
-            a?.dateAdded ??
-            a?.timeAdded ??
-            a?.time_added
-        );
+      const items = dataArr.map((rel: any) => {
+        const albumId = String(rel?.id || "");
+        const album = albumsById.get(albumId);
+        const artistRel = album?.relationships?.artists?.data?.[0];
+        const artistId = artistRel?.id ? String(artistRel.id) : "";
+        const artist = artistsById.get(artistId);
+        const artworkRel = album?.relationships?.coverArt?.data?.[0];
+        const artworkId = artworkRel?.id ? String(artworkRel.id) : "";
+        const artwork = artworksById.get(artworkId);
+
+        const addedAt = toIsoAddedAt(rel?.meta?.addedAt ?? rel?.meta?.createdAt ?? rel?.meta?.created ?? rel?.attributes?.addedAt);
+
         return {
-          id,
-          title: a?.title || a?.name || "Album",
-          artist: artist?.name || a?.artist?.name || a?.artistName || "Unknown Artist",
+          id: albumId,
+          title: album?.attributes?.title || album?.attributes?.name || "Album",
+          artist: artist?.attributes?.name || album?.attributes?.artistName || "Unknown Artist",
           artistId,
-          year: a?.releaseDate ? new Date(a.releaseDate).getFullYear() : undefined,
-          numberOfTracks: a?.numberOfTracks ?? a?.trackCount ?? undefined,
-          artwork_url: coverUrl(a?.cover || a?.imageId || a?.coverId, "320x320"),
-          lmsUri: `tidal://album:${id}`,
+          year: album?.attributes?.releaseDate ? new Date(album.attributes.releaseDate).getFullYear() : undefined,
+          numberOfTracks: album?.attributes?.numberOfItems ?? album?.attributes?.numberOfTracks ?? undefined,
+          artwork_url: pickArtworkUrl(artwork, "320x320"),
+          lmsUri: `tidal://album:${albumId}`,
           source: "tidal",
           addedAt,
         };
       });
 
-      const payload = { items, total: totalNumberOfItems };
+      const total = extractOpenApiTotal(data);
+      const next = data?.links?.next;
+      const nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : null;
+
+      const payload = { items, total: typeof total === "number" ? total : items.length, next: nextUrl };
       cacheSet(cacheKey, payload);
       res.json(payload);
     } catch (e) {
-      const cacheKey = `albums:${t.userId}:limit=${limit}:offset=${offset}`;
+      const cacheKey = nextParam
+        ? `albums-openapi:${t.userId}:limit=${limit}:next=${encodeURIComponent(nextParam).slice(0, 180)}`
+        : `albums-openapi:${t.userId}:limit=${limit}:offset=${offset}`;
       const cached = cacheGet(cacheKey);
       if (isRateLimitedError(e)) {
         if (cached?.payload) {
           return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true });
         }
-        return res.json({ items: [], total: 0, rateLimited: true });
+        return res.json({ items: [], total: 0, next: null, rateLimited: true });
       }
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
@@ -1274,6 +1261,14 @@ export function registerTidalRoutes(app: Express): void {
         }
       }
 
+      const cacheKey = nextParam
+        ? `tracks:${t.userId}:limit=${limit}:next=${encodeURIComponent(nextParam).slice(0, 180)}`
+        : `tracks:${t.userId}:limit=${limit}:first`;
+      const cached = cacheGet(cacheKey);
+      if (cached?.fresh) {
+        return res.json({ ...cached.payload, cached: true });
+      }
+
       const data = await openApiGet(url, t.accessToken);
       const included: any[] = Array.isArray(data?.included) ? data.included : [];
       const tracksById = new Map<string, any>(included.filter((x) => x?.type === "tracks").map((x) => [String(x.id), x]));
@@ -1307,8 +1302,20 @@ export function registerTidalRoutes(app: Express): void {
       });
       const next = data?.links?.next;
       const nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : null;
-      res.json({ items, total: items.length, next: nextUrl });
+      const payload = { items, total: items.length, next: nextUrl };
+      cacheSet(cacheKey, payload);
+      res.json(payload);
     } catch (e) {
+      const cacheKey = nextParam
+        ? `tracks:${t.userId}:limit=${limit}:next=${encodeURIComponent(nextParam).slice(0, 180)}`
+        : `tracks:${t.userId}:limit=${limit}:first`;
+      const cached = cacheGet(cacheKey);
+      if (isRateLimitedError(e)) {
+        if (cached?.payload) {
+          return res.json({ ...cached.payload, cached: true, stale: !cached.fresh, rateLimited: true });
+        }
+        return res.json({ items: [], total: 0, next: null, rateLimited: true });
+      }
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
   });
@@ -1467,79 +1474,9 @@ export function registerTidalRoutes(app: Express): void {
         return res.json({ ...cached.payload, cached: true });
       }
 
-      // Prefer api.tidal.com "favorites" endpoints when possible: they provide totalNumberOfItems cheaply
-      // and avoid OpenAPI cursor-walking (which can be slow and prone to next-link quirks / 429s).
+      // Use OpenAPI userCollections meta totals. This avoids legacy scopes (r_usr) required by some
+      // api.tidal.com endpoints and matches the modern TIDAL Developer Platform model.
       const countryCode = deriveCountryCodeFromAccessToken(t.accessToken) || "US";
-
-      const apiTotal = async (
-        pathWithQuery: string
-      ): Promise<{ count: number | null; rateLimited: boolean; missingScope?: boolean }> => {
-        const doFetch = async (token: string) => tidalApiGet(pathWithQuery, token, countryCode);
-        let resp = await doFetch(t.accessToken);
-
-        // Auto-refresh expired tokens for long-running .21 server.
-        if (resp.status === 401 && tokens?.refreshToken) {
-          const msg = resp.text || "";
-          const looksExpired = msg.includes("Expired token") || msg.includes("AUTHENTICATION_ERROR") || msg.includes("UNAUTHORIZED");
-          if (looksExpired) {
-            try {
-              const clientId = tokens.clientId || process.env.TIDAL_CLIENT_ID || getClientId();
-              const refreshed = await refreshAccessToken(tokens.refreshToken, clientId);
-              tokens = {
-                ...tokens,
-                accessToken: refreshed.accessToken,
-                refreshToken: refreshed.refreshToken || tokens.refreshToken,
-                userId: tokens.userId || refreshed.userId || deriveUserIdFromAccessToken(refreshed.accessToken),
-                obtainedAt: Date.now(),
-                clientId,
-              };
-              saveTokensToDisk();
-              resp = await doFetch(tokens.accessToken);
-            } catch {
-              // fall through
-            }
-          }
-        }
-
-        // Retry a few times on 429 (Tidal rate limit windows are often short).
-        if (resp.status === 429) {
-          for (const delay of [500, 1200, 2200]) {
-            await sleep(delay);
-            resp = await doFetch(tokens?.accessToken || t.accessToken);
-            if (resp.status !== 429) break;
-          }
-        }
-
-        if (resp.status === 429) return { count: null, rateLimited: true };
-        if (resp.status < 200 || resp.status >= 300) {
-          // These v2 favorites endpoints require the legacy `r_usr` scope for some client IDs / grants.
-          if (resp.status === 403 && isMissingRUsrScope(resp.json || resp.text)) {
-            return { count: null, rateLimited: false, missingScope: true };
-          }
-          return { count: null, rateLimited: false };
-        }
-
-        const body = resp.json || {};
-        const n = Number(
-          body?.totalNumberOfItems ??
-            body?.total ??
-            body?.metadata?.totalNumberOfItems ??
-            body?.metadata?.total ??
-            NaN
-        );
-        return { count: Number.isFinite(n) ? n : null, rateLimited: false };
-      };
-
-      // These endpoints map closely to what users expect as "My Collection" counts.
-      // IMPORTANT: Never return partial low counts when rate-limited — that is misleading.
-      // If we can't get a reliable total for a category, return null (unknown) and let the UI show "—".
-      const albumsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/albums?limit=1&offset=0`);
-      const artistsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/artists?limit=1&offset=0`);
-      const playlistsV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/playlists?limit=1&offset=0`);
-      // Best-effort; not all tokens support this endpoint.
-      const tracksV2 = await apiTotal(`/v2/users/${encodeURIComponent(t.userId!)}/favorites/tracks?limit=1&offset=0`);
-
-      // If v2 doesn't support a category, try OpenAPI meta totals (cheap) instead of cursor-walking.
       async function openApiMetaTotal(rel: "albums" | "artists" | "tracks" | "playlists"): Promise<{ count: number | null; rateLimited: boolean }> {
         const baseUrl = `https://openapi.tidal.com/v2/userCollections/${encodeURIComponent(
           t.userId!
@@ -1604,33 +1541,24 @@ export function registerTidalRoutes(app: Express): void {
         }
       }
 
-      const albumsMeta = albumsV2.count === null ? await openApiMetaTotal("albums") : { count: null, rateLimited: false };
-      const artistsMeta = artistsV2.count === null ? await openApiMetaTotal("artists") : { count: null, rateLimited: false };
-      const tracksMeta = tracksV2.count === null ? await openApiMetaTotal("tracks") : { count: null, rateLimited: false };
-      const playlistsMeta = playlistsV2.count === null ? await openApiMetaTotal("playlists") : { count: null, rateLimited: false };
+      const [albumsMeta, artistsMeta, tracksMeta, playlistsMeta] = await Promise.all([
+        openApiMetaTotal("albums"),
+        openApiMetaTotal("artists"),
+        openApiMetaTotal("tracks"),
+        openApiMetaTotal("playlists"),
+      ]);
 
-      const rateLimited =
-        albumsV2.rateLimited ||
-        artistsV2.rateLimited ||
-        tracksV2.rateLimited ||
-        playlistsV2.rateLimited ||
-        albumsMeta.rateLimited ||
-        artistsMeta.rateLimited ||
-        tracksMeta.rateLimited ||
-        playlistsMeta.rateLimited;
-
-      const missingScope =
-        !!albumsV2.missingScope || !!artistsV2.missingScope || !!tracksV2.missingScope || !!playlistsV2.missingScope;
+      const rateLimited = albumsMeta.rateLimited || artistsMeta.rateLimited || tracksMeta.rateLimited || playlistsMeta.rateLimited;
 
       const payload = {
-        albums: albumsV2.count ?? albumsMeta.count,
-        artists: artistsV2.count ?? artistsMeta.count,
-        tracks: tracksV2.count ?? tracksMeta.count,
-        playlists: playlistsV2.count ?? playlistsMeta.count,
+        albums: albumsMeta.count,
+        artists: artistsMeta.count,
+        tracks: tracksMeta.count,
+        playlists: playlistsMeta.count,
         rateLimited,
         partial: rateLimited,
-        source: "api.tidal.com + openapi(meta)",
-        missingScope: missingScope ? "r_usr" : null,
+        source: "openapi(meta)",
+        missingScope: null,
       };
 
       // If we got rate-limited, prefer cached values instead of returning null/partial.
