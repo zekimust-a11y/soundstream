@@ -30,6 +30,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { LibraryToolbar, type SourceFilter } from "@/components/LibraryToolbar";
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from "@/constants/theme";
 import { useInfiniteAlbums, Album } from "@/hooks/useLibrary";
+import { DESKTOP_SIDEBAR_WIDTH } from "@/constants/layout";
 
 interface AlbumItem extends Album {}
 import { useMusic } from "@/hooks/useMusic";
@@ -218,14 +219,19 @@ export default function AllAlbumsScreen() {
   };
 
   const allAlbums = data?.pages.flatMap(page => page.albums) || [];
-  const total = data?.pages[0]?.total || 0;
+  const totalAll = data?.pages[0]?.total || 0;
+  const totalLocal = data?.pages[0]?.localTotal || 0;
+  const totalTidal = data?.pages[0]?.tidalTotal || 0;
   const [sortKey, setSortKey] = useState<SortKey>("name_az");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [qualityFilter, setQualityFilter] = useState<QualityKey>("all");
   const [albumQuality, setAlbumQuality] = useState<Record<string, QualityKey>>({});
   const [textFilter, setTextFilter] = useState("");
   
-  console.log(`🎵 AllAlbumsScreen: allAlbums.length=${allAlbums.length}, total=${total}, hasNextPage=${hasNextPage}`);
+  const displayTotal =
+    sourceFilter === "local" ? totalLocal : sourceFilter === "tidal" ? totalTidal : totalAll;
+
+  console.log(`🎵 AllAlbumsScreen: allAlbums.length=${allAlbums.length}, total=${totalAll}, hasNextPage=${hasNextPage}`);
 
   // When the user selects a quality filter, probe local LMS albums for quality (best-effort) and cache results in-memory.
   useEffect(() => {
@@ -300,9 +306,11 @@ export default function AllAlbumsScreen() {
   }, [allAlbums, sourceFilter, sortKey, qualityFilter, textFilter]);
 
   const gridLayout = useMemo(() => {
+    const isLargeWeb = Platform.OS === "web" && windowWidth >= 900;
     const padding = Spacing.lg;
     const gap = Spacing.lg;
-    const available = Math.max(0, windowWidth - padding * 2);
+    const contentWidth = isLargeWeb ? Math.max(0, windowWidth - DESKTOP_SIDEBAR_WIDTH) : windowWidth;
+    const available = Math.max(0, contentWidth - padding * 2);
 
     // Preserve mobile layout, improve desktop/web.
     if (Platform.OS !== "web") {
@@ -479,7 +487,7 @@ export default function AllAlbumsScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <AppHeader title={`Albums (${(total || 0).toLocaleString()})`} />
+      <AppHeader title={`Albums (${(displayTotal || 0).toLocaleString()})`} />
 
       <LibraryToolbar
         sortValue={sortKey}

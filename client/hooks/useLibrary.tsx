@@ -324,9 +324,9 @@ export function useInfiniteAlbums(artistId?: string) {
       albums.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
       // Total should reflect enabled sources (otherwise headers show "wrong" counts when local/tidal toggles are off).
-      const totalAlbumsCount =
-        (localLibraryEnabled ? (result.total || 0) : 0) +
-        (tidalEnabled && !artistId ? (tidalTotalCount || 0) : 0);
+      const localTotal = localLibraryEnabled ? (result.total || 0) : 0;
+      const tidalTotal = tidalEnabled && !artistId ? (tidalTotalCount || 0) : 0;
+      const totalAlbumsCount = localTotal + tidalTotal;
       const nextLmsOffset = (lmsOffset + LMS_PAGE_SIZE < (result.total || 0)) ? (lmsOffset + LMS_PAGE_SIZE) : lmsOffset;
       const hasMoreLocal = nextLmsOffset !== lmsOffset;
       const hasMoreTidal = !!nextTidalNext;
@@ -334,7 +334,7 @@ export function useInfiniteAlbums(artistId?: string) {
       
       console.log(`[useInfiniteAlbums] Returning ${albums.length} albums, totalAlbumsCount=${totalAlbumsCount}, nextPage=${nextPage}`);
       
-      return { albums, total: totalAlbumsCount, nextPage };
+      return { albums, total: totalAlbumsCount, localTotal, tidalTotal, nextPage };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: { lmsOffset: 0, tidalNext: null } as any,

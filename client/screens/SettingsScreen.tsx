@@ -439,6 +439,10 @@ export default function SettingsScreen() {
                   data.missingScope
                 )} triggers OAuth error 1002). Library browsing still works.`
               );
+            } else if (data?.partial) {
+              setTidalTotalsNote(
+                "Tidal totals are partial (rate-limited). They’ll improve over time as the background counter retries."
+              );
             } else if (data?.rateLimited) {
               setTidalTotalsNote("Tidal totals are temporarily rate-limited. Try again in a minute.");
             } else {
