@@ -1525,6 +1525,18 @@ export function registerTidalRoutes(app: Express): void {
         if (inflightMap.has(inFlightKey)) return;
 
         const compute = (async () => {
+          const progress: any = {
+            albums: null,
+            artists: null,
+            tracks: null,
+            playlists: null,
+            rateLimited: false,
+            partial: true,
+            source: "openapi(paged)",
+            computedAt: Date.now(),
+            computing: true,
+          };
+
           const includesByRel: Record<string, string> = {
             albums: "albums,albums.artists,albums.coverArt",
             artists: "artists",
@@ -1559,6 +1571,14 @@ export function registerTidalRoutes(app: Express): void {
                 const nextUrl = typeof next === "string" && next ? normalizeOpenApiNextLink(next) : null;
                 url = nextUrl;
                 consecutive429 = 0;
+
+                // Persist incremental progress so UI can show improving totals while the job runs.
+                progress[rel] = total;
+                progress.rateLimited = progress.rateLimited || rateLimited;
+                progress.partial = true;
+                progress.computedAt = Date.now();
+                progress.computing = true;
+                cacheSet(openApiTotalsCacheKey, { ...progress });
                 if (!nextUrl) break;
               } catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);
@@ -1569,6 +1589,13 @@ export function registerTidalRoutes(app: Express): void {
                   // This lets totals converge over time (without requiring `r_usr`).
                   const backoff = Math.min(12_000, 800 * Math.pow(2, Math.min(6, consecutive429)));
                   await sleep(backoff);
+                  // Persist that we're rate-limited but still working.
+                  progress[rel] = total;
+                  progress.rateLimited = true;
+                  progress.partial = true;
+                  progress.computedAt = Date.now();
+                  progress.computing = true;
+                  cacheSet(openApiTotalsCacheKey, { ...progress });
                   // Don't count this as progress; retry without advancing.
                   requests -= 1;
                   if (consecutive429 >= 8) break;
@@ -1579,6 +1606,13 @@ export function registerTidalRoutes(app: Express): void {
               }
             }
             const partial = !!url; // still had a next cursor when we stopped
+            // Persist final per-rel state.
+            progress[rel] = total;
+            progress.rateLimited = progress.rateLimited || rateLimited;
+            progress.partial = true;
+            progress.computedAt = Date.now();
+            progress.computing = true;
+            cacheSet(openApiTotalsCacheKey, { ...progress });
             return { total, requests, rateLimited, partial };
           }
 
@@ -1597,6 +1631,7 @@ export function registerTidalRoutes(app: Express): void {
             partial: albums.partial || artists.partial || tracks.partial || playlists.partial,
             source: "openapi(paged)",
             computedAt: Date.now(),
+            computing: false,
           };
           cacheSet(openApiTotalsCacheKey, payload);
           return payload;
