@@ -96,13 +96,21 @@ def post_hold(action: str, direction: str, step: float, tick_ms: int) -> None:
 
 
 class HoldWorker:
-  def __init__(self, action: str, is_active: Callable[[], bool]):
+  def __init__(
+    self,
+    action: str,
+    is_active: Callable[[], bool],
+    released_at: Callable[[], float],
+    pressed_at: Callable[[], float],
+  ):
     self.action = action  # "up" or "down"
     self.stop_event = threading.Event()
     self.thread: Optional[threading.Thread] = None
     self.running = False
     self.is_active = is_active
     self.hold_started = False
+    self.released_at = released_at
+    self.pressed_at = pressed_at
 
   def start(self) -> None:
     if self.running:
@@ -121,6 +129,12 @@ class HoldWorker:
     # Server-side hold: one start call, then stop call on release.
     # Note: we only start the hold if the key is still considered active after HOLD_DELAY_S.
     if self.stop_event.wait(HOLD_DELAY_S):
+      return
+    # Critical: if we observed a KeyUp (physical release) after the press began, do NOT start
+    # a hold, even if we're still in the release grace window (which keeps is_active() true).
+    ra = self.released_at()
+    pa = self.pressed_at()
+    if ra > 0 and pa > 0 and ra >= pa and (ra - pa) < (HOLD_DELAY_S + 0.02):
       return
     if not self.is_active():
       return
@@ -158,8 +172,8 @@ def main() -> None:
   def down_is_active() -> bool:
     return down_held
 
-  up_worker = HoldWorker("up", up_is_active)
-  down_worker = HoldWorker("down", down_is_active)
+  up_worker = HoldWorker("up", up_is_active, lambda: up_up_at, lambda: up_down_at)
+  down_worker = HoldWorker("down", down_is_active, lambda: down_up_at, lambda: down_down_at)
   last_tap_up_at = 0.0
   last_tap_down_at = 0.0
 
@@ -248,6 +262,8 @@ def main() -> None:
             up_last_active_at = now
             # Any activity cancels pending release.
             cancel_timer(up_release_timer)
+            # If we see activity again, this wasn't a real release.
+            up_up_at = 0.0
           if val == 1 and not up_held:
             up_held = True
             up_down_at = now
@@ -267,6 +283,7 @@ def main() -> None:
           if val in (1, 2):
             down_last_active_at = now
             cancel_timer(down_release_timer)
+            down_up_at = 0.0
           if val == 1 and not down_held:
             down_held = True
             down_down_at = now
