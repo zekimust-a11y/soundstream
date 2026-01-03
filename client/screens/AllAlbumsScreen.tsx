@@ -537,7 +537,7 @@ export default function AllAlbumsScreen() {
   return (
     <ThemedView style={styles.container}>
       <AppHeader
-        title={`Albums — Tidal ${(totalTidal || 0).toLocaleString()} • LMS ${(totalLocal || 0).toLocaleString()}`}
+        title={`Albums — Tidal ${((tidalAlbumsTotalFromTotalsApi ?? totalTidal) || 0).toLocaleString()} • LMS ${(totalLocal || 0).toLocaleString()}`}
       />
 
       <LibraryToolbar
